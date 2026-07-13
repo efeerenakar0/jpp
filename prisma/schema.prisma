@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  AGENT
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  role          Role      @default(USER)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  favorites     Favorite[]
+  appointments  Appointment[]
+  leads         Lead[]
+}
+
+model Project {
+  id               String    @id @default(cuid())
+  slug             String    @unique
+  name             String
+  location         String
+  status           String    // e.g., "Satışta", "Yapım Aşamasında", "Tamamlandı"
+  image            String    // Kapak görseli
+  shortDescription String
+  description      String    @db.Text
+  features         String[]  // Sosyal donatılar vb. array olarak
+  deliveryDate     String
+  price            String
+  progress         Int       @default(0) // % inşaat durumu
+  published        Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  units            Unit[]
+  favorites        Favorite[]
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      String   // e.g., "1+1", "2+1"
+  area      String   // e.g., "55m² - 65m²"
+  price     String?  // nullable if not specified
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  title            String
+  shortDescription String
+  icon             String
+  details          String   @db.Text
+  order            Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  excerpt     String
+  content     String   @db.Text
+  image       String
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FAQ {
+  id        String   @id @default(cuid())
+  category  String
+  question  String
+  answer    String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum LeadStatus {
+  NEW
+  IN_PROGRESS
+  CLOSED
+}
+
+model Lead {
+  id        String     @id @default(cuid())
+  name      String
+  email     String
+  phone     String
+  message   String     @db.Text
+  status    LeadStatus @default(NEW)
+  notes     String?    @db.Text
+  userId    String?    // If created by an agent
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+enum AppointmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Appointment {
+  id        String            @id @default(cuid())
+  userId    String?
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name      String
+  email     String
+  phone     String
+  date      DateTime
+  status    AppointmentStatus @default(PENDING)
+  notes     String?           @db.Text
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  verified  Boolean  @default(false)
+  token     String?  // Verification token
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, projectId])
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AgentApplication {
+  id        String            @id @default(cuid())
+  company   String
+  name      String
+  email     String
+  phone     String
+  region    String
+  status    ApplicationStatus @default(PENDING)
+  notes     String?           @db.Text
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
