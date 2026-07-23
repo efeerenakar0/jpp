@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getConversationsStore, addIncomingCustomerMessage, deleteConversationFromStore } from '@/lib/conversation-store';
+import { getConversationsStore, addIncomingCustomerMessage, deleteConversationFromStore, isBannedConversation } from '@/lib/conversation-store';
 
 export async function GET() {
   try {
@@ -21,21 +21,24 @@ export async function GET() {
 
     const memoryConversations = getConversationsStore();
 
+    const mergedMap = new Map<string, any>();
     if (dbConversations && dbConversations.length > 0) {
-      const mergedMap = new Map<string, any>();
-      dbConversations.forEach(c => mergedMap.set(c.id, c));
-      memoryConversations.forEach(c => {
-        if (!mergedMap.has(c.id)) {
-          mergedMap.set(c.id, c);
-        }
-      });
-      return NextResponse.json(Array.from(mergedMap.values()));
+      dbConversations.filter(c => !isBannedConversation(c)).forEach(c => mergedMap.set(c.id, c));
     }
 
-    return NextResponse.json(memoryConversations);
+    memoryConversations.filter(c => !isBannedConversation(c)).forEach(c => {
+      if (!mergedMap.has(c.id)) {
+        mergedMap.set(c.id, c);
+      }
+    });
+
+    const result = Array.from(mergedMap.values()).filter(c => !isBannedConversation(c));
+
+    return NextResponse.json(result);
   } catch (error) {
     console.warn('[Conversations GET Warning]: Returning shared memory store', error);
-    return NextResponse.json(getConversationsStore());
+    const fallback = getConversationsStore().filter(c => !isBannedConversation(c));
+    return NextResponse.json(fallback);
   }
 }
 

@@ -92,11 +92,19 @@ export default function AsistanPage() {
       }
     }
 
-    const isDemoOrDeleted = (c: Conversation) => 
-      !c ||
-      c.id === 'demo_conv_1' || 
-      deletedIds.has(c.id) || 
-      (c.customerName && c.customerName.toLowerCase().includes('ahmet'));
+    const isDemoOrDeleted = (c: Conversation) => {
+      if (!c) return true;
+      const id = String(c.id || '').toLowerCase();
+      const name = String(c.customerName || '').toLowerCase();
+      const phone = String(c.customerPhone || '');
+      return (
+        id.includes('demo') || 
+        id === 'demo_conv_1' || 
+        name.includes('ahmet') || 
+        phone === '905321234567' || 
+        deletedIds.has(c.id)
+      );
+    };
 
     const map = new Map<string, Conversation>();
 
@@ -158,7 +166,7 @@ export default function AsistanPage() {
         try {
           const cached = JSON.parse(raw);
           if (Array.isArray(cached)) {
-            const cleaned = cached.filter(c => c.id !== 'demo_conv_1' && !c.customerName.toLowerCase().includes('ahmet'));
+            const cleaned = cached.filter(c => !isDemoOrDeleted(c));
             localStorage.setItem('jasmine_conversations_cache', JSON.stringify(cleaned));
             setConversations(cleaned);
             if (cleaned.length > 0) {

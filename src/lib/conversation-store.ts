@@ -38,13 +38,21 @@ if (!globalStore.deletedConversationIds) {
   globalStore.deletedConversationIds = new Set<string>();
 }
 
+export function isBannedConversation(c: any): boolean {
+  if (!c) return true;
+  const id = String(c.id || '').toLowerCase();
+  const name = String(c.customerName || '').toLowerCase();
+  const phone = String(c.customerPhone || '');
+  return id.includes('demo') || id === 'demo_conv_1' || name.includes('ahmet') || phone === '905321234567';
+}
+
 function loadFromFileStore(): StoredConversation[] {
   try {
     if (fs.existsSync(TMP_CONVERSATIONS_PATH)) {
       const raw = fs.readFileSync(TMP_CONVERSATIONS_PATH, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.filter(c => c.id !== 'demo_conv_1' && !c.customerName?.toLowerCase().includes('ahmet'));
+        return parsed.filter(c => !isBannedConversation(c));
       }
     }
   } catch (e) {}
@@ -53,7 +61,7 @@ function loadFromFileStore(): StoredConversation[] {
 
 function saveToFileStore(convs: StoredConversation[]) {
   try {
-    const cleaned = convs.filter(c => c.id !== 'demo_conv_1' && !c.customerName?.toLowerCase().includes('ahmet'));
+    const cleaned = convs.filter(c => !isBannedConversation(c));
     fs.writeFileSync(TMP_CONVERSATIONS_PATH, JSON.stringify(cleaned));
   } catch (e) {}
 }
@@ -66,11 +74,10 @@ export function getConversationsStore(): StoredConversation[] {
     }
   }
 
-  return globalStore.sharedConversations.filter(c => 
-    c.id !== 'demo_conv_1' && 
-    !c.customerName?.toLowerCase().includes('ahmet') && 
-    !globalStore.deletedConversationIds.has(c.id)
-  );
+  // Purge any banned items from memory
+  globalStore.sharedConversations = globalStore.sharedConversations.filter(c => !isBannedConversation(c));
+
+  return globalStore.sharedConversations.filter(c => !globalStore.deletedConversationIds.has(c.id));
 }
 
 export function deleteConversationFromStore(id: string) {
@@ -82,7 +89,7 @@ export function deleteConversationFromStore(id: string) {
 export function addIncomingCustomerMessage(fromPhone: string, textBody: string, contactName?: string): StoredConversation {
   let cleanPhone = fromPhone.replace(/[^0-9]/g, '');
   
-  // Ensure disk store is loaded first
+  // Ensure store is loaded and purged
   getConversationsStore();
 
   let conv = globalStore.sharedConversations.find(c => c.customerPhone && c.customerPhone.replace(/[^0-9]/g, '') === cleanPhone);
