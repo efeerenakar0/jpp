@@ -157,9 +157,12 @@ export default function AsistanPage() {
           if (Array.isArray(cached)) {
             const cleaned = cached.filter(c => c.id !== 'demo_conv_1' && !c.customerName.toLowerCase().includes('ahmet'));
             localStorage.setItem('jasmine_conversations_cache', JSON.stringify(cleaned));
+            setConversations(cleaned);
             if (cleaned.length > 0) {
-              setConversations(cleaned);
               setSelectedConvId(cleaned[0].id);
+            } else {
+              setSelectedConvId(null);
+              setCurrentMessages([]);
             }
           }
         } catch (e) {}
@@ -861,16 +864,25 @@ export default function AsistanPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[720px]">
             {/* Sidebar: Conversation List */}
             <div className="lg:col-span-4 bg-slate-900/90 border border-slate-800/80 rounded-3xl p-4 flex flex-col h-full shadow-2xl">
-              {/* Search Bar */}
-              <div className="relative mb-3">
-                <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Müşteri adı veya telefon ile ara..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-rose-500"
-                />
+              {/* Search Bar & Clear Cache */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Müşteri adı veya telefon ile ara..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+                <button
+                  onClick={handleClearCache}
+                  className="p-2.5 bg-rose-950/50 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 rounded-xl transition-all cursor-pointer shrink-0"
+                  title="Eski sohbetleri ve tüm önbelleği temizle"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Conversations Stream */}
