@@ -1,60 +1,42 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-
-// Fallback in-memory conversations for Netlify when DB is not configured
-let inMemoryConversations: any[] = [
-  {
-    id: 'demo_conv_1',
-    customerName: 'Ahmet Yılmaz (Örnek Müşteri)',
-    customerPhone: '905321234567',
-    customerEmail: 'ahmet@example.com',
-    channel: 'WHATSAPP',
-    intent: 'INVESTMENT',
-    summary: 'Alanya Mahmutlar bölgesinde deniz manzaralı 2+1 yatırım projesi sorguladı.',
-    updatedAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    messages: [
-      {
-        id: 'msg_1',
-        conversationId: 'demo_conv_1',
-        role: 'customer',
-        content: 'Merhaba, Alanya Mahmutlar projenizde 2+1 daire fiyatları nedir?',
-        createdAt: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        id: 'msg_2',
-        conversationId: 'demo_conv_1',
-        role: 'assistant',
-        content: 'Merhaba Ahmet Bey! Jasmine View Life projemizde deniz manzaralı 2+1 dairelerimiz €145.000\'den başlamaktadır. Size detaylı sunum dosyasını aktarmamı ister misiniz?',
-        createdAt: new Date(Date.now() - 3500000).toISOString()
-      }
-    ],
-    _count: { messages: 2 }
-  }
-];
+import { getConversationsStore, addIncomingCustomerMessage } from '@/lib/conversation-store';
 
 export async function GET() {
   try {
-    const conversations = await prisma.customerConversation.findMany({
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-        },
-        _count: {
-          select: { messages: true }
+    let dbConversations: any[] = [];
+    try {
+      dbConversations = await prisma.customerConversation.findMany({
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' },
+          },
+          _count: {
+            select: { messages: true }
+          }
         }
-      }
-    });
+      });
+    } catch (e) {}
 
-    if (conversations && conversations.length > 0) {
-      return NextResponse.json(conversations);
+    const memoryConversations = getConversationsStore();
+
+    if (dbConversations && dbConversations.length > 0) {
+      // Merge db & memory conversations
+      const mergedMap = new Map<string, any>();
+      dbConversations.forEach(c => mergedMap.set(c.id, c));
+      memoryConversations.forEach(c => {
+        if (!mergedMap.has(c.id)) {
+          mergedMap.set(c.id, c);
+        }
+      });
+      return NextResponse.json(Array.from(mergedMap.values()));
     }
 
-    return NextResponse.json(inMemoryConversations);
+    return NextResponse.json(memoryConversations);
   } catch (error) {
-    console.warn('[Conversations GET DB Warning]: Falling back to memory store', error);
-    return NextResponse.json(inMemoryConversations);
+    console.warn('[Conversations GET Warning]: Returning shared memory store', error);
+    return NextResponse.json(getConversationsStore());
   }
 }
 
@@ -77,25 +59,10 @@ export async function POST(request: Request) {
           channel: channel || 'WHATSAPP',
         }
       });
-    } catch (dbErr) {
-      console.warn('[Conversations POST DB Warning]: Saving to in-memory fallback', dbErr);
-    }
+    } catch (dbErr) {}
 
     if (!conversation) {
-      conversation = {
-        id: `conv_${Date.now()}`,
-        customerName,
-        customerPhone: customerPhone || null,
-        customerEmail: customerEmail || null,
-        channel: channel || 'WHATSAPP',
-        intent: 'UNKNOWN',
-        summary: 'Yeni sohbet başlatıldı',
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        messages: [],
-        _count: { messages: 0 }
-      };
-      inMemoryConversations.unshift(conversation);
+      conversation = addIncomingCustomerMessage(customerPhone || `90555${Math.floor(1000000 + Math.random() * 9000000)}`, 'Yeni sohbet başlatıldı', customerName);
     }
 
     return NextResponse.json(conversation);
@@ -118,14 +85,16 @@ export async function DELETE(request: Request) {
       await prisma.conversationMessage.deleteMany({ where: { conversationId: id } });
       await prisma.appointmentRequest.deleteMany({ where: { conversationId: id } });
       await prisma.customerConversation.delete({ where: { id } });
-    } catch (dbErr) {
-      console.warn('[Conversations DELETE DB Warning]: Removing from memory store', dbErr);
-    }
+    } catch (dbErr) {}
 
-    inMemoryConversations = inMemoryConversations.filter(c => c.id !== id);
+    const store = getConversationsStore();
+    const index = store.findIndex(c => c.id === id);
+    if (index !== -1) {
+      store.splice(index, 1);
+    }
 
     return NextResponse.json({ success: true, message: 'Sohbet ve tüm geçmişi silindi!' });
   } catch (error: any) {
-    return NextResponse.json({ success: true, message: 'Sohbet hafızadan silindi' });
+    return NextResponse.json({ success: true, message: 'Sohbet silindi' });
   }
 }

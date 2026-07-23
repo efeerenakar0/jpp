@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
 import { callAI, PROMPTS, parseJSONResponse } from '@/lib/ai';
+import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
 
 /**
  * Meta Webhook Verification (GET)
@@ -36,15 +37,16 @@ export async function GET(req: Request) {
 const processedMsgIds = new Set<string>();
 
 /**
- * Asynchronous Background Worker for Incoming WhatsApp Messages
- * Resolves Meta 3-second timeout completely with independent resilient blocks.
+ * Synchronous Worker for Incoming WhatsApp Messages
+ * MUST be awaited synchronously in Serverless environments (Netlify/Vercel) so Node process is not frozen before API execution.
  */
 async function processIncomingWhatsAppMessage(fromPhone: string, textBody: string, msgId?: string, contactName?: string) {
-  console.log(`[Meta Webhook Async Worker] Processing message from ${fromPhone}: ${textBody}`);
+  console.log(`[Meta Webhook Worker] Processing message from ${fromPhone}: ${textBody}`);
 
-  let convId: string | null = null;
+  // 1. Add to shared conversation store for CRM UI instant display
+  const conv = addIncomingCustomerMessage(fromPhone, textBody, contactName);
 
-  // 1. Try to save incoming message to Prisma DB (Safely handled if DB is offline)
+  // Try saving to Prisma DB if database is connected
   try {
     await prisma.whatsAppMessage.create({
       data: {
@@ -55,45 +57,31 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
       }
     });
 
-    let conv = await prisma.customerConversation.findFirst({
+    let dbConv = await prisma.customerConversation.findFirst({
       where: { customerPhone: fromPhone }
     });
 
-    if (conv) {
-      convId = conv.id;
+    if (dbConv) {
       await prisma.customerConversation.update({
-        where: { id: conv.id },
-        data: {
-          summary: textBody,
-          updatedAt: new Date()
-        }
+        where: { id: dbConv.id },
+        data: { summary: textBody, updatedAt: new Date() }
       });
       await prisma.conversationMessage.create({
-        data: {
-          conversationId: conv.id,
-          role: 'customer',
-          content: textBody
-        }
+        data: { conversationId: dbConv.id, role: 'customer', content: textBody }
       });
     } else {
-      const newConv = await prisma.customerConversation.create({
+      await prisma.customerConversation.create({
         data: {
           customerName: contactName || fromPhone,
           customerPhone: fromPhone,
           channel: 'WHATSAPP',
           summary: textBody,
-          messages: {
-            create: {
-              role: 'customer',
-              content: textBody
-            }
-          }
+          messages: { create: { role: 'customer', content: textBody } }
         }
       });
-      convId = newConv.id;
     }
   } catch (dbErr) {
-    console.warn('[Meta Webhook DB Save Warning]: Could not persist conversation to DB, proceeding with AI response', dbErr);
+    console.warn('[Meta Webhook DB Save Warning]: Could not persist to DB, saved to shared store', dbErr);
   }
 
   // 2. Trigger Gemini AI Auto-Response
@@ -114,7 +102,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
 
     const systemPrompt = PROMPTS.customerAssistant({
       companyName: companyName,
-      availableListings: `${serviceCity} lüks konut, deniz manzaralı villa ve yatırım projeleri`,
+      availableListings: `${serviceCity} deniz manzaralı lüks daire ve villa projeleri`,
       conversationHistory: `Müşteri: ${textBody}`,
       customerMessage: textBody
     });
@@ -127,34 +115,35 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
     let parsed: any = parseJSONResponse(aiResponse.content);
     aiReplyText = parsed?.reply || (typeof aiResponse.content === 'string' && !aiResponse.content.startsWith('{') ? aiResponse.content.trim() : `Merhaba! ${companyName} olarak ${serviceCity} bölgesindeki gayrimenkul ve yatırım projelerimiz hakkında size yardımcı olmaktan memnuniyet duyarım.`);
-
-    // Try saving AI response to DB
-    if (convId) {
-      try {
-        await prisma.conversationMessage.create({
-          data: {
-            conversationId: convId,
-            role: 'assistant',
-            content: aiReplyText,
-            metadata: JSON.stringify({ suggestedListings: parsed?.suggestedListings || [] })
-          }
-        });
-      } catch (e) {}
-    }
   } catch (aiErr) {
     console.error('[Meta Webhook AI Error]:', aiErr);
     aiReplyText = `Merhaba! Jasmine Group olarak Alanya bölgesindeki lüks gayrimenkul projelerimiz hakkında size yardımcı olmaktan mutluluk duyarız. Detaylı bilgi için size nasıl yardımcı olabilirim?`;
   }
 
+  // Add AI reply to shared conversation store for CRM UI
+  addAssistantMessageToStore(conv.id, aiReplyText);
+
+  // Try saving AI response to Prisma DB
+  try {
+    await prisma.conversationMessage.create({
+      data: {
+        conversationId: conv.id,
+        role: 'assistant',
+        content: aiReplyText
+      }
+    });
+  } catch (e) {}
+
   // 3. ALWAYS Send AI Reply back to Customer via Meta WhatsApp Cloud API
   try {
-    await sendMetaWhatsAppMessage({
+    console.log(`[Meta Webhook Worker] Sending WhatsApp Cloud API response to ${fromPhone}...`);
+    const metaRes = await sendMetaWhatsAppMessage({
       to: fromPhone,
       text: aiReplyText
     });
-    console.log(`[Meta Webhook Async Worker] Successfully replied to ${fromPhone}: ${aiReplyText}`);
-  } catch (sendErr) {
-    console.error('[Meta Webhook Send Error]:', sendErr);
+    console.log(`[Meta Webhook Worker] Successfully sent response to ${fromPhone}:`, metaRes);
+  } catch (sendErr: any) {
+    console.error('[Meta Webhook Send Error]:', sendErr?.message || sendErr);
   }
 }
 
@@ -164,6 +153,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    console.log('[Meta Webhook Incoming POST Payload]:', JSON.stringify(body));
 
     if (body.object === 'whatsapp_business_account') {
       const entries = body.entry || [];
@@ -192,17 +182,14 @@ export async function POST(req: Request) {
               const textBody = msg.text?.body || '';
               const contactName = value.contacts?.[0]?.profile?.name || fromPhone;
 
-              // Fire non-blocking asynchronous background worker
-              // Returns HTTP 200 OK to Meta instantly in under 50ms!
-              setImmediate(() => {
-                processIncomingWhatsAppMessage(fromPhone, textBody, msgId, contactName);
-              });
+              // AWAIT SYNCHRONOUSLY to prevent Netlify Serverless Function from freezing before completion!
+              await processIncomingWhatsAppMessage(fromPhone, textBody, msgId, contactName);
             }
           }
         }
       }
 
-      // Instant 200 OK Response to Meta Webhook Server
+      // Return HTTP 200 OK Response to Meta Webhook Server
       return NextResponse.json({ status: 'EVENT_RECEIVED' }, { status: 200 });
     }
 
