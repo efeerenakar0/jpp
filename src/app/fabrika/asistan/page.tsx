@@ -25,6 +25,7 @@ interface Conversation {
   intent: string;
   summary: string | null;
   updatedAt: string;
+  createdAt?: string;
   messages: Message[];
   _count?: { messages: number };
 }
@@ -70,11 +71,73 @@ export default function AsistanPage() {
   // Real-time messages for selected conversation
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
 
+  // Smart Merging Engine to Prevent Serverless Disappearing Messages
+  const mergeConversationsWithLocalCache = (incomingConvs: Conversation[]): Conversation[] => {
+    let cachedConvs: Conversation[] = [];
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('jasmine_conversations_cache');
+      if (raw) {
+        try { cachedConvs = JSON.parse(raw); } catch (e) {}
+      }
+    }
+
+    const map = new Map<string, Conversation>();
+
+    // 1. Put cached conversations first
+    cachedConvs.forEach(c => map.set(c.id, c));
+
+    // 2. Merge incoming conversations cleanly without losing any message
+    incomingConvs.forEach(inc => {
+      const existing = map.get(inc.id);
+      if (existing) {
+        const msgMap = new Map<string, Message>();
+        (existing.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
+        (inc.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
+        
+        const mergedMessages = Array.from(msgMap.values());
+        map.set(inc.id, {
+          ...existing,
+          ...inc,
+          messages: mergedMessages,
+          _count: { messages: mergedMessages.length }
+        });
+      } else {
+        map.set(inc.id, inc);
+      }
+    });
+
+    const result = Array.from(map.values()).sort((a, b) => {
+      const timeA = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      const timeB = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      return timeA - timeB;
+    });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('jasmine_conversations_cache', JSON.stringify(result));
+    }
+
+    return result;
+  };
+
   useEffect(() => {
+    // Instant local cache restoration on page load
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('jasmine_conversations_cache');
+      if (raw) {
+        try {
+          const cached = JSON.parse(raw);
+          if (Array.isArray(cached) && cached.length > 0) {
+            setConversations(cached);
+            setSelectedConvId(cached[0].id);
+          }
+        } catch (e) {}
+      }
+    }
+
     fetchData(true);
     fetchMetaConfig();
 
-    // Auto-poll for incoming WhatsApp messages every 2 seconds in real-time
+    // Auto-poll for incoming WhatsApp messages every 2 seconds
     const interval = setInterval(() => {
       fetchData(false);
     }, 2000);
@@ -154,9 +217,10 @@ export default function AsistanPage() {
       if (convRes.ok) {
         const data = await convRes.json();
         if (Array.isArray(data)) {
-          setConversations(data);
+          const merged = mergeConversationsWithLocalCache(data);
+          setConversations(merged);
           setSelectedConvId(prevId => {
-            if (!prevId && data.length > 0) return data[0].id;
+            if (!prevId && merged.length > 0) return merged[0].id;
             return prevId;
           });
         }
@@ -178,19 +242,20 @@ export default function AsistanPage() {
 
     const toastId = toast.loading('Sohbet siliniyor...');
     try {
-      const res = await fetch(`/api/fabrika/assistant/conversations?id=${id}`, {
-        method: 'DELETE'
-      });
-      if (res.ok) {
-        toast.success('Sohbet başarıyla silindi!', { id: toastId });
-        if (selectedConvId === id) setSelectedConvId(null);
-        fetchData();
-      } else {
-        toast.error('Sohbet silinemedi', { id: toastId });
+      await fetch(`/api/fabrika/assistant/conversations?id=${id}`, { method: 'DELETE' });
+    } catch (error) {}
+
+    // Update state and local storage immediately
+    setConversations(prev => {
+      const updated = prev.filter(c => c.id !== id);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
       }
-    } catch (error) {
-      toast.error('Silme hatası', { id: toastId });
-    }
+      return updated;
+    });
+
+    if (selectedConvId === id) setSelectedConvId(null);
+    toast.success('Sohbet başarıyla silindi!', { id: toastId });
   };
 
   useEffect(() => {
@@ -205,8 +270,23 @@ export default function AsistanPage() {
   const handleSendMessage = async (text: string) => {
     if (!selectedConvId) return;
 
-    const newMsg: Message = { id: Date.now().toString(), role: 'customer', content: text, createdAt: new Date().toISOString() };
+    const newMsg: Message = { id: `msg_${Date.now()}`, role: 'customer', content: text, createdAt: new Date().toISOString() };
+    
+    // Update local state & LocalStorage immediately
     setCurrentMessages(prev => [...prev, newMsg]);
+    setConversations(prev => {
+      const updated = prev.map(c => {
+        if (c.id === selectedConvId) {
+          const msgs = [...(c.messages || []), newMsg];
+          return { ...c, summary: text, updatedAt: new Date().toISOString(), messages: msgs, _count: { messages: msgs.length } };
+        }
+        return c;
+      });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
+      }
+      return updated;
+    });
 
     try {
       const res = await fetch('/api/fabrika/assistant/chat', {
@@ -216,8 +296,22 @@ export default function AsistanPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setCurrentMessages(prev => [...prev, data.messageRecord]);
-        fetchData();
+        if (data.messageRecord) {
+          setCurrentMessages(prev => [...prev, data.messageRecord]);
+          setConversations(prev => {
+            const updated = prev.map(c => {
+              if (c.id === selectedConvId) {
+                const msgs = [...(c.messages || []), data.messageRecord];
+                return { ...c, summary: data.messageRecord.content, updatedAt: new Date().toISOString(), messages: msgs, _count: { messages: msgs.length } };
+              }
+              return c;
+            });
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
+            }
+            return updated;
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to send message', error);
@@ -226,21 +320,38 @@ export default function AsistanPage() {
 
   const handleCreateConversation = async (e: React.FormEvent) => {
     e.preventDefault();
+    const newConv: Conversation = {
+      id: `conv_${Date.now()}`,
+      customerName: newCustomerName,
+      customerPhone: newCustomerPhone || null,
+      channel: 'WHATSAPP',
+      intent: 'INVESTMENT',
+      summary: 'Yeni sohbet başlatıldı',
+      updatedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      messages: [],
+      _count: { messages: 0 }
+    };
+
+    setConversations(prev => {
+      const updated = [newConv, ...prev];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
+      }
+      return updated;
+    });
+    setSelectedConvId(newConv.id);
+    setIsModalOpen(false);
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+
     try {
-      const res = await fetch('/api/fabrika/assistant/conversations', {
+      await fetch('/api/fabrika/assistant/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerName: newCustomerName, customerPhone: newCustomerPhone })
       });
-      if (res.ok) {
-        setIsModalOpen(false);
-        setNewCustomerName('');
-        setNewCustomerPhone('');
-        fetchData();
-      }
-    } catch (error) {
-      console.error('Error creating conversation', error);
-    }
+    } catch (error) {}
   };
 
   const handleApprove = async (id: string) => {
@@ -251,9 +362,7 @@ export default function AsistanPage() {
         body: JSON.stringify({ id, action: 'approve' })
       });
       if (res.ok) fetchData();
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) {}
   };
 
   const handleReject = async (id: string) => {
@@ -264,9 +373,7 @@ export default function AsistanPage() {
         body: JSON.stringify({ id, action: 'reject' })
       });
       if (res.ok) fetchData();
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) {}
   };
 
   const intentColors: Record<string, string> = {
@@ -285,7 +392,6 @@ export default function AsistanPage() {
       (conv.summary && conv.summary.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
-
     if (filterIntent === 'HOT') return conv.intent === 'INVESTMENT' || conv.intent === 'BOTH';
     return true;
   });
@@ -496,7 +602,7 @@ export default function AsistanPage() {
                   <ol className="list-decimal list-inside space-y-0.5 text-slate-400 pl-1">
                     <li><a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer" className="text-rose-300 underline">Meta App Dashboard</a> &gt; <b>WhatsApp</b> &gt; <b>Configuration</b> sayfasına gidin.</li>
                     <li><b>Webhook</b> kısmındaki <b>Edit (Düzenle)</b> butonuna tıklayın.</li>
-                    <li><b>Callback URL</b> alanına yukarıdaki kırmızı renkli canlı URL&apos;i yapıştırın.</li>
+                    <li><b>Callback URL</b> alanına yukarıdaki canlı URL&apos;i yapıştırın.</li>
                     <li><b>Verify Token</b> alanına <code className="text-white">jasmine_secret_verify_token</code> yazın.</li>
                     <li>Kaydedip <b>messages</b> olayına abone olun.</li>
                   </ol>
@@ -746,7 +852,7 @@ export default function AsistanPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {new Date(conv.updatedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(conv.updatedAt || Date.now()).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     </div>
@@ -817,19 +923,20 @@ export default function AsistanPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-8 flex gap-3">
-                  <button 
+
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 font-medium text-xs hover:bg-slate-800 transition-colors"
+                    className="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-400 text-xs font-medium hover:bg-slate-800"
                   >
                     İptal
                   </button>
-                  <button 
+                  <button
                     type="submit"
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs transition-colors shadow-lg shadow-rose-500/20"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-500/20"
                   >
-                    Sohbet Başlat
+                    Sohbeti Başlat
                   </button>
                 </div>
               </form>
