@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { updateCredentialsCache } from '@/lib/whatsapp';
+import { updateCredentialsCache, testMetaWhatsAppConnection } from '@/lib/whatsapp';
 
 let inMemoryConfig = {
   token: process.env.WHATSAPP_TOKEN || '',
@@ -82,7 +82,39 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { token, phoneNumberId, businessAccountId, verifyToken, geminiApiKey, companyName, assistantName, serviceCity } = await req.json();
+    const body = await req.json();
+    const { action, testPhone, token, phoneNumberId, businessAccountId, verifyToken, geminiApiKey, companyName, assistantName, serviceCity } = body;
+
+    // Handle Meta API Live Test Action
+    if (action === 'test') {
+      const activeToken = token || inMemoryConfig.token;
+      const activePhoneId = phoneNumberId || inMemoryConfig.phoneNumberId;
+      const targetPhone = testPhone || '905435720769';
+
+      if (!activeToken || !activePhoneId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Meta Access Token veya Phone Number ID eksik! Lütfen önce bu alanları doldurun.'
+        }, { status: 400 });
+      }
+
+      const testResult = await testMetaWhatsAppConnection(targetPhone, activeToken, activePhoneId);
+
+      if (testResult.ok) {
+        syncGlobalMetaConfig(activeToken, activePhoneId, businessAccountId || inMemoryConfig.businessAccountId);
+        return NextResponse.json({
+          success: true,
+          message: `🟢 Meta WhatsApp Cloud API Bağlantısı %100 Başarılı! (${targetPhone} numaralı telefona test mesajı gönderildi)`,
+          data: testResult.data
+        });
+      } else {
+        const errorMsg = testResult.data?.error?.message || testResult.error || 'Meta API Bağlantı Hatası';
+        return NextResponse.json({
+          success: false,
+          error: `🔴 Meta API Hatası: ${errorMsg}`
+        }, { status: 400 });
+      }
+    }
 
     inMemoryConfig = {
       token: token || inMemoryConfig.token,

@@ -82,12 +82,20 @@ export default function AsistanPage() {
     return new Set();
   };
 
+  const normalizePhone = (phone?: string | null): string => {
+    if (!phone) return '';
+    let clean = phone.replace(/[^0-9]/g, '');
+    if (clean.startsWith('05')) clean = `90${clean.substring(1)}`;
+    else if (clean.length === 10 && clean.startsWith('5')) clean = `90${clean}`;
+    return clean;
+  };
+
   const isDemoOrDeleted = (c: Conversation) => {
     if (!c) return true;
     const deletedIds = getDeletedConvIds();
     const id = String(c.id || '').toLowerCase();
     const name = String(c.customerName || '').toLowerCase();
-    const phone = String(c.customerPhone || '');
+    const phone = normalizePhone(c.customerPhone);
     return (
       id.includes('demo') || 
       id === 'demo_conv_1' || 
@@ -97,7 +105,7 @@ export default function AsistanPage() {
     );
   };
 
-  // Smart Merging Engine to Prevent Serverless Disappearing Messages
+  // Smart Merging Engine to Prevent Serverless Disappearing Messages & Duplicate Cards
   const mergeConversationsWithLocalCache = (incomingConvs: Conversation[]): Conversation[] => {
     let cachedConvs: Conversation[] = [];
     if (typeof window !== 'undefined') {
@@ -109,27 +117,34 @@ export default function AsistanPage() {
 
     const map = new Map<string, Conversation>();
 
+    const getMapKey = (c: Conversation) => {
+      const norm = normalizePhone(c.customerPhone);
+      return norm && norm.length >= 10 ? `phone_${norm}` : c.id;
+    };
+
     // 1. Put cached conversations first (excluding demo and deleted ones)
-    cachedConvs.filter(c => !isDemoOrDeleted(c)).forEach(c => map.set(c.id, c));
+    cachedConvs.filter(c => !isDemoOrDeleted(c)).forEach(c => map.set(getMapKey(c), c));
 
     // 2. Merge incoming conversations cleanly without losing any existing conversation
     if (Array.isArray(incomingConvs)) {
       incomingConvs.filter(inc => !isDemoOrDeleted(inc)).forEach(inc => {
-        const existing = map.get(inc.id);
+        const key = getMapKey(inc);
+        const existing = map.get(key);
         if (existing) {
           const msgMap = new Map<string, Message>();
           (existing.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
           (inc.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
           
-          const mergedMessages = Array.from(msgMap.values());
-          map.set(inc.id, {
+          const mergedMessages = Array.from(msgMap.values()).sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+          map.set(key, {
             ...existing,
             ...inc,
+            id: existing.id,
             messages: mergedMessages,
             _count: { messages: mergedMessages.length }
           });
         } else {
-          map.set(inc.id, inc);
+          map.set(key, inc);
         }
       });
     }
@@ -184,13 +199,42 @@ export default function AsistanPage() {
     fetchData(true);
     fetchMetaConfig();
 
-    // Auto-poll for incoming WhatsApp messages every 2 seconds
     const interval = setInterval(() => {
       fetchData(false);
     }, 2000);
 
     return () => clearInterval(interval);
   }, []);
+
+  const [isTestingMeta, setIsTestingMeta] = useState(false);
+
+  const handleTestMetaConnection = async () => {
+    setIsTestingMeta(true);
+    const toastId = toast.loading('Meta WhatsApp Cloud API canlı testi yapılıyor...');
+    try {
+      const res = await fetch('/api/whatsapp/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'test',
+          token: configForm.token,
+          phoneNumberId: configForm.phoneNumberId,
+          businessAccountId: configForm.businessAccountId,
+          testPhone: '905435720769'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message, { id: toastId, duration: 8000 });
+      } else {
+        toast.error(data.error || 'Meta API Bağlantı Hatası', { id: toastId, duration: 9000 });
+      }
+    } catch (e: any) {
+      toast.error('Test isteği atılamadı: ' + e?.message, { id: toastId });
+    } finally {
+      setIsTestingMeta(false);
+    }
+  };
 
   const fetchMetaConfig = async () => {
     try {
@@ -684,21 +728,33 @@ export default function AsistanPage() {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end gap-3">
+              <div className="pt-2 flex flex-wrap justify-between items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsSettingsOpen(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-700 text-slate-300 font-medium text-xs hover:bg-slate-800 transition-colors"
+                  onClick={handleTestMetaConnection}
+                  disabled={isTestingMeta}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
-                  Kapat
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  {isTestingMeta ? 'Meta Test Ediliyor...' : '🟢 Meta WhatsApp Bağlantısını Test Et'}
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSavingConfig}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all cursor-pointer"
-                >
-                  <Save className="w-4 h-4" /> Ayarları Kaydet
-                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="px-5 py-2.5 rounded-xl border border-slate-700 text-slate-300 font-medium text-xs hover:bg-slate-800 transition-colors"
+                  >
+                    Kapat
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingConfig}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" /> Ayarları Kaydet
+                  </button>
+                </div>
               </div>
             </form>
           </div>

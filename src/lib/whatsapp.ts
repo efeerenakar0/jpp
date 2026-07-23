@@ -86,6 +86,40 @@ export async function getWhatsAppCredentials() {
   }
 }
 
+export async function testMetaWhatsAppConnection(testPhone: string, testToken: string, testPhoneId: string) {
+  let cleanPhone = testPhone.replace(/[^0-9]/g, '');
+  if (cleanPhone.length === 10 && cleanPhone.startsWith('5')) {
+    cleanPhone = `90${cleanPhone}`;
+  }
+
+  const url = `https://graph.facebook.com/v21.0/${testPhoneId}/messages`;
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    to: cleanPhone,
+    type: 'text',
+    text: {
+      body: `🔔 Jasmine Group Meta WhatsApp Cloud API Test Mesajıdır. Bağlantınız %100 Başarılıdır! (Saat: ${new Date().toLocaleTimeString('tr-TR')})`
+    }
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${testToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (err: any) {
+    return { ok: false, status: 500, error: err?.message || 'Meta Cloud API bağlantı hatası' };
+  }
+}
+
 export async function sendMetaWhatsAppMessage({ to, text }: SendTextMessageParams): Promise<MetaWhatsAppResponse> {
   const { token, phoneNumberId } = await getWhatsAppCredentials();
 

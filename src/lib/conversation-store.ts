@@ -38,11 +38,19 @@ if (!globalStore.deletedConversationIds) {
   globalStore.deletedConversationIds = new Set<string>();
 }
 
+export function normalizePhoneNumber(phone?: string | null): string {
+  if (!phone) return '';
+  let clean = phone.replace(/[^0-9]/g, '');
+  if (clean.startsWith('05')) clean = `90${clean.substring(1)}`;
+  else if (clean.length === 10 && clean.startsWith('5')) clean = `90${clean}`;
+  return clean;
+}
+
 export function isBannedConversation(c: any): boolean {
   if (!c) return true;
   const id = String(c.id || '').toLowerCase();
   const name = String(c.customerName || '').toLowerCase();
-  const phone = String(c.customerPhone || '');
+  const phone = normalizePhoneNumber(c.customerPhone);
   return id.includes('demo') || id === 'demo_conv_1' || name.includes('ahmet') || phone === '905321234567';
 }
 
@@ -52,16 +60,43 @@ function loadFromFileStore(): StoredConversation[] {
       const raw = fs.readFileSync(TMP_CONVERSATIONS_PATH, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.filter(c => !isBannedConversation(c));
+        return deduplicateConversations(parsed.filter(c => !isBannedConversation(c)));
       }
     }
   } catch (e) {}
   return [];
 }
 
+function deduplicateConversations(convs: StoredConversation[]): StoredConversation[] {
+  const map = new Map<string, StoredConversation>();
+  
+  convs.forEach(c => {
+    const norm = normalizePhoneNumber(c.customerPhone) || c.id;
+    const existing = map.get(norm);
+    if (existing) {
+      const msgMap = new Map<string, StoredMessage>();
+      (existing.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
+      (c.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
+      const mergedMsgs = Array.from(msgMap.values()).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      
+      map.set(norm, {
+        ...existing,
+        summary: c.summary || existing.summary,
+        updatedAt: new Date(Math.max(new Date(existing.updatedAt).getTime(), new Date(c.updatedAt).getTime())).toISOString(),
+        messages: mergedMsgs,
+        _count: { messages: mergedMsgs.length }
+      });
+    } else {
+      map.set(norm, c);
+    }
+  });
+
+  return Array.from(map.values());
+}
+
 function saveToFileStore(convs: StoredConversation[]) {
   try {
-    const cleaned = convs.filter(c => !isBannedConversation(c));
+    const cleaned = deduplicateConversations(convs.filter(c => !isBannedConversation(c)));
     fs.writeFileSync(TMP_CONVERSATIONS_PATH, JSON.stringify(cleaned));
   } catch (e) {}
 }
@@ -74,8 +109,8 @@ export function getConversationsStore(): StoredConversation[] {
     }
   }
 
-  // Purge any banned items from memory
-  globalStore.sharedConversations = globalStore.sharedConversations.filter(c => !isBannedConversation(c));
+  // Deduplicate and purge banned items
+  globalStore.sharedConversations = deduplicateConversations(globalStore.sharedConversations.filter(c => !isBannedConversation(c)));
 
   return globalStore.sharedConversations.filter(c => !globalStore.deletedConversationIds.has(c.id));
 }
@@ -87,12 +122,11 @@ export function deleteConversationFromStore(id: string) {
 }
 
 export function addIncomingCustomerMessage(fromPhone: string, textBody: string, contactName?: string): StoredConversation {
-  let cleanPhone = fromPhone.replace(/[^0-9]/g, '');
+  const normPhone = normalizePhoneNumber(fromPhone);
   
-  // Ensure store is loaded and purged
   getConversationsStore();
 
-  let conv = globalStore.sharedConversations.find(c => c.customerPhone && c.customerPhone.replace(/[^0-9]/g, '') === cleanPhone);
+  let conv = globalStore.sharedConversations.find(c => normalizePhoneNumber(c.customerPhone) === normPhone);
 
   const customerMsg: StoredMessage = {
     id: `msg_cust_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -111,7 +145,7 @@ export function addIncomingCustomerMessage(fromPhone: string, textBody: string, 
     conv = {
       id: `conv_${Date.now()}`,
       customerName: contactName || fromPhone,
-      customerPhone: fromPhone,
+      customerPhone: normPhone || fromPhone,
       channel: 'WHATSAPP',
       intent: 'INVESTMENT',
       summary: textBody,
