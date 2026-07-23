@@ -22,6 +22,7 @@ interface Conversation {
   id: string;
   customerName: string;
   customerPhone: string | null;
+  channel?: string;
   intent: string;
   summary: string | null;
   updatedAt: string;
@@ -81,9 +82,23 @@ export default function AsistanPage() {
     return new Set();
   };
 
+  const isDemoOrDeleted = (c: Conversation) => {
+    if (!c) return true;
+    const deletedIds = getDeletedConvIds();
+    const id = String(c.id || '').toLowerCase();
+    const name = String(c.customerName || '').toLowerCase();
+    const phone = String(c.customerPhone || '');
+    return (
+      id.includes('demo') || 
+      id === 'demo_conv_1' || 
+      name.includes('ahmet') || 
+      phone === '905321234567' || 
+      deletedIds.has(c.id)
+    );
+  };
+
   // Smart Merging Engine to Prevent Serverless Disappearing Messages
   const mergeConversationsWithLocalCache = (incomingConvs: Conversation[]): Conversation[] => {
-    const deletedIds = getDeletedConvIds();
     let cachedConvs: Conversation[] = [];
     if (typeof window !== 'undefined') {
       const raw = localStorage.getItem('jasmine_conversations_cache');
@@ -91,20 +106,6 @@ export default function AsistanPage() {
         try { cachedConvs = JSON.parse(raw); } catch (e) {}
       }
     }
-
-    const isDemoOrDeleted = (c: Conversation) => {
-      if (!c) return true;
-      const id = String(c.id || '').toLowerCase();
-      const name = String(c.customerName || '').toLowerCase();
-      const phone = String(c.customerPhone || '');
-      return (
-        id.includes('demo') || 
-        id === 'demo_conv_1' || 
-        name.includes('ahmet') || 
-        phone === '905321234567' || 
-        deletedIds.has(c.id)
-      );
-    };
 
     const map = new Map<string, Conversation>();
 
