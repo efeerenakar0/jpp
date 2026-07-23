@@ -1,7 +1,5 @@
-/**
- * Shared In-Memory Conversation & Config Store
- * Shared across API routes for Serverless Functions resilience
- */
+import fs from 'fs';
+import path from 'path';
 
 export interface StoredMessage {
   id: string;
@@ -30,6 +28,8 @@ const globalStore = globalThis as unknown as {
   deletedConversationIds: Set<string>;
 };
 
+const TMP_CONVERSATIONS_PATH = '/tmp/jasmine_conversations.json';
+
 if (!globalStore.sharedConversations) {
   globalStore.sharedConversations = [];
 }
@@ -38,18 +38,53 @@ if (!globalStore.deletedConversationIds) {
   globalStore.deletedConversationIds = new Set<string>();
 }
 
+function loadFromFileStore(): StoredConversation[] {
+  try {
+    if (fs.existsSync(TMP_CONVERSATIONS_PATH)) {
+      const raw = fs.readFileSync(TMP_CONVERSATIONS_PATH, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(c => c.id !== 'demo_conv_1' && !c.customerName?.toLowerCase().includes('ahmet'));
+      }
+    }
+  } catch (e) {}
+  return [];
+}
+
+function saveToFileStore(convs: StoredConversation[]) {
+  try {
+    const cleaned = convs.filter(c => c.id !== 'demo_conv_1' && !c.customerName?.toLowerCase().includes('ahmet'));
+    fs.writeFileSync(TMP_CONVERSATIONS_PATH, JSON.stringify(cleaned));
+  } catch (e) {}
+}
+
 export function getConversationsStore(): StoredConversation[] {
-  return globalStore.sharedConversations.filter(c => !globalStore.deletedConversationIds.has(c.id));
+  if (!globalStore.sharedConversations || globalStore.sharedConversations.length === 0) {
+    const fromFile = loadFromFileStore();
+    if (fromFile.length > 0) {
+      globalStore.sharedConversations = fromFile;
+    }
+  }
+
+  return globalStore.sharedConversations.filter(c => 
+    c.id !== 'demo_conv_1' && 
+    !c.customerName?.toLowerCase().includes('ahmet') && 
+    !globalStore.deletedConversationIds.has(c.id)
+  );
 }
 
 export function deleteConversationFromStore(id: string) {
   globalStore.deletedConversationIds.add(id);
   globalStore.sharedConversations = globalStore.sharedConversations.filter(c => c.id !== id);
+  saveToFileStore(globalStore.sharedConversations);
 }
 
 export function addIncomingCustomerMessage(fromPhone: string, textBody: string, contactName?: string): StoredConversation {
   let cleanPhone = fromPhone.replace(/[^0-9]/g, '');
   
+  // Ensure disk store is loaded first
+  getConversationsStore();
+
   let conv = globalStore.sharedConversations.find(c => c.customerPhone && c.customerPhone.replace(/[^0-9]/g, '') === cleanPhone);
 
   const customerMsg: StoredMessage = {
@@ -81,10 +116,13 @@ export function addIncomingCustomerMessage(fromPhone: string, textBody: string, 
     globalStore.sharedConversations.unshift(conv);
   }
 
+  saveToFileStore(globalStore.sharedConversations);
   return conv;
 }
 
 export function addAssistantMessageToStore(conversationId: string, replyText: string): StoredMessage {
+  getConversationsStore();
+
   const assistantMsg: StoredMessage = {
     id: `msg_asst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     conversationId,
@@ -100,5 +138,6 @@ export function addAssistantMessageToStore(conversationId: string, replyText: st
     conv._count = { messages: conv.messages.length };
   }
 
+  saveToFileStore(globalStore.sharedConversations);
   return assistantMsg;
 }

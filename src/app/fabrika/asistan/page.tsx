@@ -93,6 +93,7 @@ export default function AsistanPage() {
     }
 
     const isDemoOrDeleted = (c: Conversation) => 
+      !c ||
       c.id === 'demo_conv_1' || 
       deletedIds.has(c.id) || 
       (c.customerName && c.customerName.toLowerCase().includes('ahmet'));
@@ -102,25 +103,27 @@ export default function AsistanPage() {
     // 1. Put cached conversations first (excluding demo and deleted ones)
     cachedConvs.filter(c => !isDemoOrDeleted(c)).forEach(c => map.set(c.id, c));
 
-    // 2. Merge incoming conversations cleanly without losing any message (excluding demo and deleted ones)
-    incomingConvs.filter(inc => !isDemoOrDeleted(inc)).forEach(inc => {
-      const existing = map.get(inc.id);
-      if (existing) {
-        const msgMap = new Map<string, Message>();
-        (existing.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
-        (inc.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
-        
-        const mergedMessages = Array.from(msgMap.values());
-        map.set(inc.id, {
-          ...existing,
-          ...inc,
-          messages: mergedMessages,
-          _count: { messages: mergedMessages.length }
-        });
-      } else {
-        map.set(inc.id, inc);
-      }
-    });
+    // 2. Merge incoming conversations cleanly without losing any existing conversation
+    if (Array.isArray(incomingConvs)) {
+      incomingConvs.filter(inc => !isDemoOrDeleted(inc)).forEach(inc => {
+        const existing = map.get(inc.id);
+        if (existing) {
+          const msgMap = new Map<string, Message>();
+          (existing.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
+          (inc.messages || []).forEach(m => msgMap.set(m.id || `${m.role}_${m.content}`, m));
+          
+          const mergedMessages = Array.from(msgMap.values());
+          map.set(inc.id, {
+            ...existing,
+            ...inc,
+            messages: mergedMessages,
+            _count: { messages: mergedMessages.length }
+          });
+        } else {
+          map.set(inc.id, inc);
+        }
+      });
+    }
 
     const result = Array.from(map.values()).sort((a, b) => {
       const timeA = new Date(b.updatedAt || b.createdAt || 0).getTime();
