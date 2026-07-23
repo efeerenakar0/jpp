@@ -462,8 +462,8 @@ export default function AsistanPage() {
 
                 <input
                   readOnly
-                  value="https://substantially-recommendations-gaming-themes.trycloudflare.com/api/whatsapp/webhook"
-                  className="w-full bg-slate-950 text-emerald-400 font-mono text-xs p-3 rounded-xl border border-emerald-500/20 outline-none"
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/api/whatsapp/webhook` : 'https://demokullanm.netlify.app/api/whatsapp/webhook'}
+                  className="w-full bg-slate-950 text-emerald-400 font-mono text-xs p-3 rounded-xl border border-emerald-500/20 outline-none select-all"
                 />
 
                 <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-emerald-500/10">
