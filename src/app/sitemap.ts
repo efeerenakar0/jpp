@@ -1,27 +1,35 @@
 import { MetadataRoute } from 'next';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jasmineprojepazarlama.com';
 
-  const projects = await prisma.project.findMany({ where: { published: true } });
-  const posts = await prisma.blogPost.findMany({ where: { published: true } });
+  let projectUrls: any[] = [];
+  let postUrls: any[] = [];
 
-  const projectUrls = projects.map((p) => ({
-    url: `${baseUrl}/projeler/${p.slug}`,
-    lastModified: p.updatedAt,
-    changeFrequency: 'weekly' as any,
-    priority: 0.8,
-  }));
+  try {
+    if (process.env.DATABASE_URL) {
+      const prisma = new PrismaClient();
+      const projects = await prisma.project.findMany({ where: { published: true } });
+      const posts = await prisma.blogPost.findMany({ where: { published: true } });
 
-  const postUrls = posts.map((p) => ({
-    url: `${baseUrl}/blog/${p.slug}`,
-    lastModified: p.updatedAt,
-    changeFrequency: 'monthly' as any,
-    priority: 0.6,
-  }));
+      projectUrls = projects.map((p) => ({
+        url: `${baseUrl}/projeler/${p.slug}`,
+        lastModified: p.updatedAt,
+        changeFrequency: 'weekly' as any,
+        priority: 0.8,
+      }));
+
+      postUrls = posts.map((p) => ({
+        url: `${baseUrl}/blog/${p.slug}`,
+        lastModified: p.updatedAt,
+        changeFrequency: 'monthly' as any,
+        priority: 0.6,
+      }));
+    }
+  } catch (error) {
+    console.warn('Sitemap DB Query Warning:', error);
+  }
 
   const staticUrls = [
     '',
