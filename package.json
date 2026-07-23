@@ -47,6 +47,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.12",
     "@tailwindcss/postcss": "^4",
     "@types/adm-zip": "^0.5.8",
     "@types/bcryptjs": "^2.4.6",
