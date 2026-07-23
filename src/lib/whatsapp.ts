@@ -35,6 +35,12 @@ export async function getWhatsAppCredentials() {
     return globalWhatsAppStore.globalCredentials;
   }
 
+  const globalMeta = (globalThis as any).globalMetaConfig;
+  if (globalMeta?.token && globalMeta?.phoneNumberId) {
+    globalWhatsAppStore.globalCredentials = globalMeta;
+    return globalMeta;
+  }
+
   try {
     const config = await prisma.whatsAppConfig.findUnique({
       where: { id: 'default' }
@@ -50,7 +56,7 @@ export async function getWhatsAppCredentials() {
 
     return { token, phoneNumberId, businessAccountId };
   } catch (e) {
-    return globalWhatsAppStore.globalCredentials || {
+    return globalWhatsAppStore.globalCredentials || globalMeta || {
       token: process.env.WHATSAPP_TOKEN || '',
       phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
       businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''

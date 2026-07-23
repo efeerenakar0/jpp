@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getConversationsStore, addIncomingCustomerMessage } from '@/lib/conversation-store';
+import { getConversationsStore, addIncomingCustomerMessage, deleteConversationFromStore } from '@/lib/conversation-store';
 
 export async function GET() {
   try {
@@ -22,7 +22,6 @@ export async function GET() {
     const memoryConversations = getConversationsStore();
 
     if (dbConversations && dbConversations.length > 0) {
-      // Merge db & memory conversations
       const mergedMap = new Map<string, any>();
       dbConversations.forEach(c => mergedMap.set(c.id, c));
       memoryConversations.forEach(c => {
@@ -87,11 +86,7 @@ export async function DELETE(request: Request) {
       await prisma.customerConversation.delete({ where: { id } });
     } catch (dbErr) {}
 
-    const store = getConversationsStore();
-    const index = store.findIndex(c => c.id === id);
-    if (index !== -1) {
-      store.splice(index, 1);
-    }
+    deleteConversationFromStore(id);
 
     return NextResponse.json({ success: true, message: 'Sohbet ve tüm geçmişi silindi!' });
   } catch (error: any) {

@@ -25,46 +25,26 @@ export interface StoredConversation {
   _count?: { messages: number };
 }
 
-// Global store attached to globalThis so Node.js module reloads preserve conversations
 const globalStore = globalThis as unknown as {
   sharedConversations: StoredConversation[];
+  deletedConversationIds: Set<string>;
 };
 
 if (!globalStore.sharedConversations) {
-  globalStore.sharedConversations = [
-    {
-      id: 'demo_conv_1',
-      customerName: 'Ahmet Yılmaz (Canlı WhatsApp Test)',
-      customerPhone: '905321234567',
-      customerEmail: 'ahmet@example.com',
-      channel: 'WHATSAPP',
-      intent: 'INVESTMENT',
-      summary: 'Alanya Mahmutlar bölgesinde 2+1 yatırım projesi sorguladı.',
-      updatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      messages: [
-        {
-          id: 'msg_1',
-          conversationId: 'demo_conv_1',
-          role: 'customer',
-          content: 'Merhaba, Alanya Mahmutlar projenizde 2+1 daire fiyatları nedir?',
-          createdAt: new Date(Date.now() - 3600000).toISOString()
-        },
-        {
-          id: 'msg_2',
-          conversationId: 'demo_conv_1',
-          role: 'assistant',
-          content: 'Merhaba Ahmet Bey! Jasmine View Life projemizde deniz manzaralı 2+1 dairelerimiz €145.000\'den başlamaktadır.',
-          createdAt: new Date(Date.now() - 3500000).toISOString()
-        }
-      ],
-      _count: { messages: 2 }
-    }
-  ];
+  globalStore.sharedConversations = [];
+}
+
+if (!globalStore.deletedConversationIds) {
+  globalStore.deletedConversationIds = new Set<string>();
 }
 
 export function getConversationsStore(): StoredConversation[] {
-  return globalStore.sharedConversations;
+  return globalStore.sharedConversations.filter(c => !globalStore.deletedConversationIds.has(c.id));
+}
+
+export function deleteConversationFromStore(id: string) {
+  globalStore.deletedConversationIds.add(id);
+  globalStore.sharedConversations = globalStore.sharedConversations.filter(c => c.id !== id);
 }
 
 export function addIncomingCustomerMessage(fromPhone: string, textBody: string, contactName?: string): StoredConversation {

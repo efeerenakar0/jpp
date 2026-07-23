@@ -71,8 +71,19 @@ export default function AsistanPage() {
   // Real-time messages for selected conversation
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
 
+  const getDeletedConvIds = (): Set<string> => {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('jasmine_deleted_conv_ids');
+      if (raw) {
+        try { return new Set(JSON.parse(raw)); } catch (e) {}
+      }
+    }
+    return new Set();
+  };
+
   // Smart Merging Engine to Prevent Serverless Disappearing Messages
   const mergeConversationsWithLocalCache = (incomingConvs: Conversation[]): Conversation[] => {
+    const deletedIds = getDeletedConvIds();
     let cachedConvs: Conversation[] = [];
     if (typeof window !== 'undefined') {
       const raw = localStorage.getItem('jasmine_conversations_cache');
@@ -83,11 +94,11 @@ export default function AsistanPage() {
 
     const map = new Map<string, Conversation>();
 
-    // 1. Put cached conversations first
-    cachedConvs.forEach(c => map.set(c.id, c));
+    // 1. Put cached conversations first (excluding deleted ones)
+    cachedConvs.filter(c => !deletedIds.has(c.id)).forEach(c => map.set(c.id, c));
 
-    // 2. Merge incoming conversations cleanly without losing any message
-    incomingConvs.forEach(inc => {
+    // 2. Merge incoming conversations cleanly without losing any message (excluding deleted ones)
+    incomingConvs.filter(inc => !deletedIds.has(inc.id)).forEach(inc => {
       const existing = map.get(inc.id);
       if (existing) {
         const msgMap = new Map<string, Message>();
@@ -263,6 +274,13 @@ export default function AsistanPage() {
     try {
       await fetch(`/api/fabrika/assistant/conversations?id=${id}`, { method: 'DELETE' });
     } catch (error) {}
+
+    // Record deleted ID in LocalStorage permanently
+    if (typeof window !== 'undefined') {
+      const deletedIds = getDeletedConvIds();
+      deletedIds.add(id);
+      localStorage.setItem('jasmine_deleted_conv_ids', JSON.stringify(Array.from(deletedIds)));
+    }
 
     setConversations(prev => {
       const updated = prev.filter(c => c.id !== id);

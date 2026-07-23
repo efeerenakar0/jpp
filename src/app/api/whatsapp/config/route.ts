@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { updateCredentialsCache, getWhatsAppCredentials } from '@/lib/whatsapp';
+import { updateCredentialsCache } from '@/lib/whatsapp';
 
 let inMemoryConfig = {
   token: process.env.WHATSAPP_TOKEN || '',
@@ -13,19 +13,22 @@ let inMemoryConfig = {
   serviceCity: 'Alanya'
 };
 
+function syncGlobalMetaConfig(token: string, phoneNumberId: string, businessAccountId: string) {
+  if (token && phoneNumberId) {
+    const creds = { token, phoneNumberId, businessAccountId };
+    (globalThis as any).globalMetaConfig = creds;
+    updateCredentialsCache(creds);
+  }
+}
+
 export async function GET(req: Request) {
   try {
-    // Read meta headers if provided by client
     const headerToken = req.headers.get('x-meta-token');
     const headerPhoneId = req.headers.get('x-meta-phone-id');
     if (headerToken && headerPhoneId) {
       inMemoryConfig.token = headerToken;
       inMemoryConfig.phoneNumberId = headerPhoneId;
-      updateCredentialsCache({
-        token: headerToken,
-        phoneNumberId: headerPhoneId,
-        businessAccountId: inMemoryConfig.businessAccountId
-      });
+      syncGlobalMetaConfig(headerToken, headerPhoneId, inMemoryConfig.businessAccountId);
     }
 
     let config = null;
@@ -44,9 +47,7 @@ export async function GET(req: Request) {
     const assistantName = config?.assistantName || inMemoryConfig.assistantName;
     const serviceCity = config?.serviceCity || inMemoryConfig.serviceCity;
 
-    if (token && phoneNumberId) {
-      updateCredentialsCache({ token, phoneNumberId, businessAccountId });
-    }
+    syncGlobalMetaConfig(token, phoneNumberId, businessAccountId);
 
     return NextResponse.json({
       configured: Boolean(token && phoneNumberId),
@@ -62,6 +63,7 @@ export async function GET(req: Request) {
       source: token ? 'ACTIVE' : 'NONE'
     });
   } catch (error: any) {
+    syncGlobalMetaConfig(inMemoryConfig.token, inMemoryConfig.phoneNumberId, inMemoryConfig.businessAccountId);
     return NextResponse.json({
       configured: Boolean(inMemoryConfig.token && inMemoryConfig.phoneNumberId),
       tokenMasked: inMemoryConfig.token ? `${inMemoryConfig.token.substring(0, 6)}...${inMemoryConfig.token.slice(-4)}` : '',
@@ -93,13 +95,7 @@ export async function POST(req: Request) {
       serviceCity: serviceCity || 'Alanya'
     };
 
-    if (inMemoryConfig.token && inMemoryConfig.phoneNumberId) {
-      updateCredentialsCache({
-        token: inMemoryConfig.token,
-        phoneNumberId: inMemoryConfig.phoneNumberId,
-        businessAccountId: inMemoryConfig.businessAccountId
-      });
-    }
+    syncGlobalMetaConfig(inMemoryConfig.token, inMemoryConfig.phoneNumberId, inMemoryConfig.businessAccountId);
 
     try {
       await prisma.whatsAppConfig.upsert({
@@ -138,6 +134,7 @@ export async function POST(req: Request) {
       }
     });
   } catch (error: any) {
+    syncGlobalMetaConfig(inMemoryConfig.token, inMemoryConfig.phoneNumberId, inMemoryConfig.businessAccountId);
     return NextResponse.json({
       success: true,
       message: 'Meta WhatsApp API ayarları kaydedildi!',
