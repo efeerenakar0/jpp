@@ -3,30 +3,32 @@
 import { siteContent } from "@/data/site-content";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { MapPin, Bed, Maximize, Calendar } from "lucide-react";
-import Image from "next/image";
+import { MapPin, Bed, Maximize, Calendar, ArrowRight, Sparkles } from "lucide-react";
 
 export default function FeaturedProjects() {
-  // Sadece ilk 3 projeyi al
   const projects = siteContent.projects.slice(0, 3);
 
   return (
-    <section className="py-24 bg-white">
+    <section className="py-24 bg-[#090d16] text-white relative">
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
           <div className="max-w-2xl">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-gray-900 mb-4">
-              Öne Çıkan Projeler
+            <span className="text-xs font-black text-cyan-400 uppercase tracking-widest block mb-2">
+              Özel Portföy Seçkisi
+            </span>
+            <h2 className="text-3xl md:text-5xl font-serif font-black text-white mb-4">
+              Öne Çıkan Lüks Projeler
             </h2>
-            <p className="text-gray-600">
-              Yatırım değeri yüksek, kaliteli yaşam standartları sunan en seçkin projelerimizi inceleyin.
+            <p className="text-slate-400 text-sm leading-relaxed font-medium">
+              Yatırım değeri yüksek, yüksek prim potansiyeline sahip seçkin Alanya konut ve villa projelerimizi keşfedin.
             </p>
           </div>
           <Link 
             href="/projeler" 
-            className="text-primary-700 font-medium hover:text-primary-600 hover:underline underline-offset-4 whitespace-nowrap"
+            className="inline-flex items-center gap-2 text-cyan-400 font-black hover:text-cyan-300 transition-colors text-xs uppercase tracking-wider group"
           >
-            Tüm Projeleri Gör &rarr;
+            <span>Tüm Projeleri Keşfet</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </Link>
         </div>
 
@@ -38,57 +40,58 @@ export default function FeaturedProjects() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="group border border-gray-100 rounded-sm overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 bg-white flex flex-col"
+              className="group border border-slate-800/80 hover:border-cyan-500/50 rounded-3xl overflow-hidden transition-all duration-300 bg-slate-900/50 flex flex-col shadow-2xl hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] backdrop-blur-xl"
             >
               {/* Image Container */}
-              <div className="relative h-64 overflow-hidden bg-gray-100">
-                <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur px-3 py-1 text-xs font-semibold text-primary-800 rounded-sm">
+              <div className="relative h-64 overflow-hidden bg-slate-950">
+                <div className="absolute top-4 left-4 z-10 bg-slate-950/80 backdrop-blur-md border border-cyan-500/30 px-3.5 py-1 text-[11px] font-black text-cyan-300 rounded-full shadow-lg">
                   {project.status}
                 </div>
-                {/* Placeholder Image using img tag since we don't have configured next/image domains yet */}
                 <img 
                   src={project.image} 
                   alt={project.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 />
               </div>
 
               {/* Content */}
               <div className="p-6 flex flex-col flex-grow">
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                  <MapPin className="w-4 h-4" />
+                <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3 font-semibold">
+                  <MapPin className="w-3.5 h-3.5 text-cyan-400" />
                   <span>{project.location}</span>
                 </div>
-                <h3 className="text-xl font-serif font-bold text-gray-900 mb-2">
-                  <Link href={`/projeler/${project.slug}`} className="hover:text-primary-700 transition-colors">
+                
+                <h3 className="text-xl font-serif font-black text-white mb-2 group-hover:text-cyan-300 transition-colors">
+                  <Link href={`/projeler/${project.slug}`}>
                     {project.name}
                   </Link>
                 </h3>
-                <p className="text-gray-600 text-sm mb-6 line-clamp-2">
+
+                <p className="text-slate-400 text-xs mb-6 line-clamp-2 leading-relaxed font-medium">
                   {project.shortDescription}
                 </p>
 
-                {/* Specs */}
-                <div className="grid grid-cols-2 gap-y-3 border-t border-gray-100 pt-4 mt-auto mb-6">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Bed className="w-4 h-4 text-primary-600" />
+                {/* Specs Grid */}
+                <div className="grid grid-cols-2 gap-y-3 border-t border-slate-800/80 pt-4 mt-auto mb-6">
+                  <div className="flex items-center gap-2 text-xs text-slate-300 font-bold">
+                    <Bed className="w-3.5 h-3.5 text-cyan-400" />
                     <span className="truncate">{project.types[0]}+</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Maximize className="w-4 h-4 text-primary-600" />
+                  <div className="flex items-center gap-2 text-xs text-slate-300 font-bold">
+                    <Maximize className="w-3.5 h-3.5 text-cyan-400" />
                     <span className="truncate">{project.area}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 col-span-2">
-                    <Calendar className="w-4 h-4 text-primary-600" />
-                    <span>{project.deliveryDate}</span>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 col-span-2 font-semibold">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Teslim: {project.deliveryDate}</span>
                   </div>
                 </div>
 
                 <Link 
                   href={`/projeler/${project.slug}`}
-                  className="block w-full text-center py-3 bg-gray-50 hover:bg-primary-700 hover:text-white text-gray-800 font-medium rounded-sm transition-colors"
+                  className="block w-full text-center py-3.5 bg-slate-800/80 hover:bg-gradient-to-r hover:from-cyan-400 hover:to-emerald-400 hover:text-slate-950 text-slate-200 text-xs font-black rounded-2xl transition-all border border-slate-700 hover:border-cyan-400 shadow-sm uppercase tracking-wider"
                 >
-                  Proje Detayları
+                  Proje Detaylarını İncele
                 </Link>
               </div>
             </motion.div>

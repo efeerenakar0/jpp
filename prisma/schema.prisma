@@ -173,3 +173,270 @@ model AgentApplication {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 }
+
+// ============================================================
+// YZ FABRİKASI MODÜLLERİ
+// ============================================================
+
+// --- Enums ---
+
+enum HuntingStatus {
+  YELLOW // Pazarlıkta
+  RED    // Elendi
+  GREEN  // Avlandı - siteye eklenmek üzere
+}
+
+enum AdPlatform {
+  GOOGLE_ADS
+  INSTAGRAM
+  WHATSAPP
+}
+
+enum CustomerIntent {
+  INVESTMENT   // Yatırımlık
+  RESIDENTIAL  // Oturmalık
+  BOTH
+  UNKNOWN
+}
+
+enum ConversationChannel {
+  WHATSAPP
+  EMAIL
+  WEB_CHAT
+}
+
+enum NotificationType {
+  APPOINTMENT_REQUEST
+  NEW_CUSTOMER_MESSAGE
+  GREEN_LISTING
+  WEBSITE_GENERATED
+  AD_COPY_READY
+  STUDIO_READY
+  SYSTEM
+}
+
+// --- Modül 2: Avcı / Portföy Toplayıcı ---
+
+model CompanyProfile {
+  id              String   @id @default(cuid())
+  companyName     String
+  strengths       String[] // Şirketin güçlü yanları
+  uniquePoints    String[] // Benzersiz satış noktaları (USP)
+  targetAudience  String?  @db.Text
+  serviceAreas    String[] // Hizmet bölgeleri
+  yearsInBusiness Int?
+  teamSize        Int?
+  extraNotes      String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model HuntedListing {
+  id              String        @id @default(cuid())
+  sourceUrl       String        // Sahibinden.com link
+  title           String
+  price           String?
+  location        String?
+  roomCount       String?       // e.g. "3+1"
+  area            String?       // e.g. "120 m²"
+  ownerName       String?
+  ownerPhone      String?
+  imageUrl        String?
+  rawData         String?       @db.Text // JSON olarak ham veri
+  status          HuntingStatus @default(YELLOW)
+  whatsappStatus  String        @default("BEKLIYOR") // BEKLIYOR, GONDERILDI, CEVAPLANDI
+  notes           String?       @db.Text
+  syncedToSite    Boolean       @default(false) // Modül 1'e gönderildi mi?
+  syncedProjectId String?       // Bağlanan Project id
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  messages        HuntingMessage[]
+  adCopies        AdCopy[]
+}
+
+model WhatsAppMessage {
+  id          String   @id @default(cuid())
+  phone       String
+  fromMe      Boolean
+  content     String   @db.Text
+  status      String   @default("SENT") // SENT, DRAFT
+  createdAt   DateTime @default(now())
+}
+
+model HuntingMessage {
+  id        String        @id @default(cuid())
+  listingId String
+  listing   HuntedListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  content   String        @db.Text // Üretilen ikna mesajı
+  tone      String?       // e.g. "resmi", "samimi", "acil"
+  sent      Boolean       @default(false) // WhatsApp'tan gönderildi mi?
+  createdAt DateTime      @default(now())
+}
+
+// --- Modül 1: Yazılımcı / Entegratör ---
+
+model WebsiteTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  thumbnail   String   // Önizleme görseli yolu
+  category    String   // e.g. "modern", "klasik", "minimal"
+  htmlPath    String   // Şablon dosya yolu
+  createdAt   DateTime @default(now())
+
+  generatedSites GeneratedWebsite[]
+}
+
+model GeneratedWebsite {
+  id           String           @id @default(cuid())
+  templateId   String?
+  template     WebsiteTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  companyName  String
+  logoUrl      String?
+  primaryColor String           @default("#1a365d")
+  accentColor  String           @default("#c6a55a")
+  phone        String?
+  email        String?
+  address      String?
+  zipFilePath  String?          // Üretilen .zip dosya yolu
+  status       String           @default("pending") // pending, generating, ready, error
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+// --- Modül 3: Pazarlamacı / Reklam Ekibi ---
+
+model AdCampaign {
+  id          String     @id @default(cuid())
+  name        String
+  description String?    @db.Text
+  type        String     // "listing" veya "brand"
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  adCopies    AdCopy[]
+}
+
+model AdCopy {
+  id          String         @id @default(cuid())
+  campaignId  String?
+  campaign    AdCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  listingId   String?
+  listing     HuntedListing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  platform    AdPlatform
+  headline    String
+  body        String         @db.Text
+  callToAction String?
+  targetUrl   String?        // İlan veya ana sayfa linki
+  approved    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+// --- Modül 4: Asistan / CRM ---
+
+model CustomerConversation {
+  id          String             @id @default(cuid())
+  customerName String
+  customerPhone String?
+  customerEmail String?
+  channel     ConversationChannel @default(WEB_CHAT)
+  intent      CustomerIntent     @default(UNKNOWN)
+  summary     String?            @db.Text // AI tarafından üretilen özet
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  messages    ConversationMessage[]
+  appointmentRequests AppointmentRequest[]
+}
+
+model ConversationMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  conversation   CustomerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String               // "customer", "assistant", "patron"
+  content        String               @db.Text
+  metadata       String?              @db.Text // JSON: çapraz satış önerileri vb.
+  createdAt      DateTime             @default(now())
+}
+
+model AppointmentRequest {
+  id             String               @id @default(cuid())
+  conversationId String
+  conversation   CustomerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customerName   String
+  customerPhone  String?
+  proposedDate   DateTime?
+  proposedTime   String?              // e.g. "14:00"
+  status         AppointmentStatus    @default(PENDING)
+  patronNote     String?              @db.Text
+  confirmMessage String?              @db.Text // AI'ın ürettiği teyit mesajı
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+// --- Ortak: Bildirim Sistemi ---
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  link      String?          // İlgili sayfaya yönlendirme linki
+  read      Boolean          @default(false)
+  metadata  String?          @db.Text // JSON: ek bilgiler
+  createdAt DateTime         @default(now())
+}
+
+// --- Modül 5: Dijital Fotoğraf Stüdyosu ---
+
+model PhotoShoot {
+  id             String             @id @default(cuid())
+  device         String             // e.g. "iPhone 15 Pro", "Samsung S Serisi"
+  uploadedCount  Int                @default(0)
+  uploadedPhotos String?            @db.Text // JSON: yüklenen orijinal fotoğrafların yolları
+  status         String             @default("pending") // pending, processing, ready, error
+  logoUrl        String?            @db.Text // Yüklenen PNG logo
+  websiteUrl     String?            // Eklenmek istenen web sitesi adresi
+  textColor      String?            @default("#ffffff") // Web sitesi ve filigran yazı rengi
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  packages       ProcessedPackage[]
+}
+
+model ProcessedPackage {
+  id                String     @id @default(cuid())
+  shootId           String
+  shoot             PhotoShoot @relation(fields: [shootId], references: [id], onDelete: Cascade)
+  filterName        String     // e.g. "Ferah Gün Işığı"
+  zipUrl            String     // Orijinal Profesyonel HDR ZIP linki
+  watermarkedZipUrl String?    // Logo ve Web sitesi filigranlı ZIP linki
+  createdAt         DateTime   @default(now())
+}
+
+// --- Komuta Merkezi (Genel Müdür Asistanı) ---
+
+model GeneralManagerMessage {
+  id        String   @id @default(cuid())
+  role      String   // "patron", "asistan", "system"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model WhatsAppConfig {
+  id                String   @id @default("default")
+  token             String?  @db.Text
+  phoneNumberId     String?
+  businessAccountId String?
+  verifyToken       String   @default("jasmine_secret_verify_token")
+  geminiApiKey      String?  @db.Text
+  companyName       String?  @default("Jasmine Group")
+  assistantName     String?  @default("Efe")
+  serviceCity       String?  @default("Alanya")
+  updatedAt         DateTime @updatedAt
+}
+

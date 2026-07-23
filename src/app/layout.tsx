@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/common/Header";
-import Footer from "@/components/common/Footer";
-import WhatsAppButton from "@/components/common/WhatsAppButton";
-import ScrollToTop from "@/components/common/ScrollToTop";
-import CookieBanner from "@/components/common/CookieBanner";
 import Providers from "@/components/common/Providers";
-import AIChatbot from "@/components/common/AIChatbot";
-import BottomNav from "@/components/common/BottomNav";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-serif" });
@@ -26,18 +19,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr" className={`${inter.variable} ${playfair.variable} scroll-smooth`}>
-      <body className="flex flex-col min-h-screen">
+      <body className="flex flex-col min-h-screen bg-white dark:bg-black text-black dark:text-white">
         <Providers>
-          <Header />
-          <main className="flex-grow pt-20">
-            {children}
-          </main>
-          <Footer />
-          <WhatsAppButton />
-          <AIChatbot />
-          <BottomNav />
-          <ScrollToTop />
-          <CookieBanner />
+          {children}
         </Providers>
       </body>
     </html>

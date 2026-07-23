@@ -24,6 +24,8 @@ const nextConfig = {
   images: {
     domains: ['images.unsplash.com', 'res.cloudinary.com'],
   },
+  serverExternalPackages: ['whatsapp-web.js', 'puppeteer'],
+  turbopack: {},
 };
 
 export default nextConfig;
