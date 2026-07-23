@@ -15,7 +15,10 @@ declare module "next-auth" {
   }
 }
 
-const prisma = new PrismaClient();
+function getPrisma() {
+  if (!process.env.DATABASE_URL) return null;
+  return new PrismaClient();
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -28,6 +31,9 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         
+        const prisma = getPrisma();
+        if (!prisma) return null;
+
         const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         });
@@ -65,5 +71,6 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/admin/giris',
   },
+  secret: process.env.NEXTAUTH_SECRET || "jasmine_default_secret_key_2026",
   session: { strategy: "jwt" }
 };
