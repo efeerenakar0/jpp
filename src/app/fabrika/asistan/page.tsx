@@ -92,13 +92,18 @@ export default function AsistanPage() {
       }
     }
 
+    const isDemoOrDeleted = (c: Conversation) => 
+      c.id === 'demo_conv_1' || 
+      deletedIds.has(c.id) || 
+      (c.customerName && c.customerName.toLowerCase().includes('ahmet'));
+
     const map = new Map<string, Conversation>();
 
-    // 1. Put cached conversations first (excluding deleted ones)
-    cachedConvs.filter(c => !deletedIds.has(c.id)).forEach(c => map.set(c.id, c));
+    // 1. Put cached conversations first (excluding demo and deleted ones)
+    cachedConvs.filter(c => !isDemoOrDeleted(c)).forEach(c => map.set(c.id, c));
 
-    // 2. Merge incoming conversations cleanly without losing any message (excluding deleted ones)
-    incomingConvs.filter(inc => !deletedIds.has(inc.id)).forEach(inc => {
+    // 2. Merge incoming conversations cleanly without losing any message (excluding demo and deleted ones)
+    incomingConvs.filter(inc => !isDemoOrDeleted(inc)).forEach(inc => {
       const existing = map.get(inc.id);
       if (existing) {
         const msgMap = new Map<string, Message>();
@@ -130,16 +135,32 @@ export default function AsistanPage() {
     return result;
   };
 
+  const handleClearCache = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('jasmine_conversations_cache');
+      localStorage.removeItem('jasmine_deleted_conv_ids');
+    }
+    setConversations([]);
+    setSelectedConvId(null);
+    setCurrentMessages([]);
+    toast.success('Tüm sohbet geçmişi ve eski test verileri sıfırlandı!');
+    fetchData(true);
+  };
+
   useEffect(() => {
-    // Instant local cache restoration on page load
+    // Instant local cache restoration on page load (excluding demo/deleted)
     if (typeof window !== 'undefined') {
       const raw = localStorage.getItem('jasmine_conversations_cache');
       if (raw) {
         try {
           const cached = JSON.parse(raw);
-          if (Array.isArray(cached) && cached.length > 0) {
-            setConversations(cached);
-            setSelectedConvId(cached[0].id);
+          if (Array.isArray(cached)) {
+            const cleaned = cached.filter(c => c.id !== 'demo_conv_1' && !c.customerName.toLowerCase().includes('ahmet'));
+            localStorage.setItem('jasmine_conversations_cache', JSON.stringify(cleaned));
+            if (cleaned.length > 0) {
+              setConversations(cleaned);
+              setSelectedConvId(cleaned[0].id);
+            }
           }
         } catch (e) {}
       }
@@ -701,6 +722,14 @@ export default function AsistanPage() {
                 className="flex items-center gap-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 px-4 py-2 rounded-xl border border-slate-700 transition-all cursor-pointer shadow-sm active:scale-95"
               >
                 <Settings className="w-4 h-4 text-rose-400" /> Meta & AI Ayarları
+              </button>
+
+              <button 
+                onClick={handleClearCache}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 px-3.5 py-2 rounded-xl border border-rose-500/30 transition-all cursor-pointer shadow-sm active:scale-95"
+                title="Tüm eski test sohbetlerini ve tarayıcı önbelleğini sıfırla"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Önbelleği Sıfırla
               </button>
 
               <button 

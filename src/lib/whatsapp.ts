@@ -1,4 +1,6 @@
 import prisma from '@/lib/prisma';
+import fs from 'fs';
+import path from 'path';
 
 export interface SendTextMessageParams {
   to: string; // Recipient phone number with country code (e.g. 905321234567)
@@ -21,14 +23,20 @@ const globalWhatsAppStore = globalThis as unknown as {
   globalCredentials: { token: string; phoneNumberId: string; businessAccountId: string } | null;
 };
 
+const TMP_CONFIG_PATH = '/tmp/jasmine_whatsapp_config.json';
+
 export function updateCredentialsCache(creds: { token: string; phoneNumberId: string; businessAccountId: string }) {
   if (creds.token && creds.phoneNumberId) {
     globalWhatsAppStore.globalCredentials = creds;
+    (globalThis as any).globalMetaConfig = creds;
+    try {
+      fs.writeFileSync(TMP_CONFIG_PATH, JSON.stringify(creds));
+    } catch (e) {}
   }
 }
 
 /**
- * Get active Meta WhatsApp API credentials (Global memory first, DB second, ENV third)
+ * Get active Meta WhatsApp API credentials (Global memory first, /tmp file second, DB third, ENV fourth)
  */
 export async function getWhatsAppCredentials() {
   if (globalWhatsAppStore.globalCredentials?.token && globalWhatsAppStore.globalCredentials?.phoneNumberId) {
@@ -41,6 +49,18 @@ export async function getWhatsAppCredentials() {
     return globalMeta;
   }
 
+  // Try reading /tmp file fallback
+  try {
+    if (fs.existsSync(TMP_CONFIG_PATH)) {
+      const fileData = fs.readFileSync(TMP_CONFIG_PATH, 'utf-8');
+      const parsed = JSON.parse(fileData);
+      if (parsed.token && parsed.phoneNumberId) {
+        globalWhatsAppStore.globalCredentials = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {}
+
   try {
     const config = await prisma.whatsAppConfig.findUnique({
       where: { id: 'default' }
@@ -51,7 +71,9 @@ export async function getWhatsAppCredentials() {
     const businessAccountId = config?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
 
     if (token && phoneNumberId) {
-      globalWhatsAppStore.globalCredentials = { token, phoneNumberId, businessAccountId };
+      const creds = { token, phoneNumberId, businessAccountId };
+      globalWhatsAppStore.globalCredentials = creds;
+      try { fs.writeFileSync(TMP_CONFIG_PATH, JSON.stringify(creds)); } catch (e) {}
     }
 
     return { token, phoneNumberId, businessAccountId };
