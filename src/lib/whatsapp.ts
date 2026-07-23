@@ -17,18 +17,22 @@ export interface MetaWhatsAppResponse {
   };
 }
 
-let cachedCredentials: { token: string; phoneNumberId: string; businessAccountId: string } | null = null;
+const globalWhatsAppStore = globalThis as unknown as {
+  globalCredentials: { token: string; phoneNumberId: string; businessAccountId: string } | null;
+};
 
 export function updateCredentialsCache(creds: { token: string; phoneNumberId: string; businessAccountId: string }) {
-  cachedCredentials = creds;
+  if (creds.token && creds.phoneNumberId) {
+    globalWhatsAppStore.globalCredentials = creds;
+  }
 }
 
 /**
- * Get active Meta WhatsApp API credentials (Database first with memory cache, then .env fallback)
+ * Get active Meta WhatsApp API credentials (Global memory first, DB second, ENV third)
  */
 export async function getWhatsAppCredentials() {
-  if (cachedCredentials && cachedCredentials.token && cachedCredentials.phoneNumberId) {
-    return cachedCredentials;
+  if (globalWhatsAppStore.globalCredentials?.token && globalWhatsAppStore.globalCredentials?.phoneNumberId) {
+    return globalWhatsAppStore.globalCredentials;
   }
 
   try {
@@ -41,13 +45,12 @@ export async function getWhatsAppCredentials() {
     const businessAccountId = config?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
 
     if (token && phoneNumberId) {
-      cachedCredentials = { token, phoneNumberId, businessAccountId };
+      globalWhatsAppStore.globalCredentials = { token, phoneNumberId, businessAccountId };
     }
 
     return { token, phoneNumberId, businessAccountId };
   } catch (e) {
-    console.warn('[getWhatsAppCredentials fallback to memory cache/env]:', e);
-    return cachedCredentials || {
+    return globalWhatsAppStore.globalCredentials || {
       token: process.env.WHATSAPP_TOKEN || '',
       phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
       businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''
@@ -58,14 +61,13 @@ export async function getWhatsAppCredentials() {
 export async function sendMetaWhatsAppMessage({ to, text }: SendTextMessageParams): Promise<MetaWhatsAppResponse> {
   const { token, phoneNumberId } = await getWhatsAppCredentials();
 
-  // Format phone number to clean string without + or spaces (Ensure 90 for Turkey if missing)
   let cleanPhone = to.replace(/[^0-9]/g, '');
   if (cleanPhone.length === 10 && cleanPhone.startsWith('5')) {
     cleanPhone = `90${cleanPhone}`;
   }
 
   if (!token || !phoneNumberId) {
-    console.warn('[WhatsApp Cloud API] Meta Token or Phone Number ID is missing in database and .env');
+    console.warn('[WhatsApp Cloud API Warning] Meta Token or Phone Number ID is missing on server');
     return {
       messaging_product: 'whatsapp',
       contacts: [{ input: cleanPhone, wa_id: cleanPhone }],
@@ -84,7 +86,6 @@ export async function sendMetaWhatsAppMessage({ to, text }: SendTextMessageParam
     }
   };
 
-  // 3-Stage Retry Engine for Maximum Reliability
   let lastError: any = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -100,29 +101,27 @@ export async function sendMetaWhatsAppMessage({ to, text }: SendTextMessageParam
       const data: MetaWhatsAppResponse = await response.json();
 
       if (response.ok && !data.error) {
-        console.log(`[WhatsApp Cloud API Message Sent Successfully to ${cleanPhone}] (Attempt ${attempt}):`, data);
+        console.log(`[WhatsApp Cloud API Success] Message sent to ${cleanPhone}:`, data);
         return data;
       }
 
       console.warn(`[WhatsApp Cloud API Attempt ${attempt} Failed]:`, data.error || data);
       lastError = data.error?.message || 'Meta Cloud API request failed';
 
-      // If token expired (Error 190), no need to retry repeatedly
       if (data.error?.code === 190) {
-        throw new Error('Meta API Access Token expired or invalid. Please update Token in Meta Settings.');
+        throw new Error('Meta API Access Token süresi doldu veya geçersiz. Lütfen Meta Ayarlarından yeni Jeton yapıştırın.');
       }
     } catch (err: any) {
       lastError = err.message || err;
-      if (err.message?.includes('expired or invalid')) {
+      if (err.message?.includes('süresi doldu')) {
         throw err;
       }
     }
 
-    // Delay before retry (1s, 2s)
     if (attempt < 3) {
       await new Promise(res => setTimeout(res, attempt * 1000));
     }
   }
 
-  throw new Error(`WhatsApp message delivery failed after 3 attempts: ${lastError}`);
+  throw new Error(`WhatsApp mesaj iletimi başarısız: ${lastError}`);
 }

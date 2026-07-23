@@ -147,6 +147,9 @@ export default function AsistanPage() {
 
   const fetchMetaConfig = async () => {
     try {
+      let activeToken = configForm.token;
+      let activePhoneId = configForm.phoneNumberId;
+
       if (typeof window !== 'undefined') {
         const localSaved = localStorage.getItem('jasmine_meta_config');
         if (localSaved) {
@@ -154,12 +157,20 @@ export default function AsistanPage() {
             const parsed = JSON.parse(localSaved);
             if (parsed.token || parsed.phoneNumberId || parsed.geminiApiKey) {
               setConfigForm(parsed);
+              activeToken = parsed.token || activeToken;
+              activePhoneId = parsed.phoneNumberId || activePhoneId;
             }
           } catch (e) {}
         }
       }
 
-      const res = await fetch('/api/whatsapp/config', { cache: 'no-store' });
+      const res = await fetch('/api/whatsapp/config', { 
+        cache: 'no-store',
+        headers: {
+          'x-meta-token': activeToken,
+          'x-meta-phone-id': activePhoneId
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.tokenRaw || data.phoneNumberId) {
@@ -210,15 +221,23 @@ export default function AsistanPage() {
   const fetchData = async (isInitial = false) => {
     try {
       if (isInitial) setIsLoading(true);
+
+      const headers: Record<string, string> = {};
+      if (configForm.token) headers['x-meta-token'] = configForm.token;
+      if (configForm.phoneNumberId) headers['x-meta-phone-id'] = configForm.phoneNumberId;
+
       const [convRes, apptRes] = await Promise.all([
-        fetch('/api/fabrika/assistant/conversations', { cache: 'no-store' }),
-        fetch('/api/fabrika/assistant/appointment', { cache: 'no-store' })
+        fetch('/api/fabrika/assistant/conversations', { cache: 'no-store', headers }),
+        fetch('/api/fabrika/assistant/appointment', { cache: 'no-store', headers })
       ]);
       if (convRes.ok) {
         const data = await convRes.json();
         if (Array.isArray(data)) {
           const merged = mergeConversationsWithLocalCache(data);
-          setConversations(merged);
+          setConversations(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(merged)) return prev;
+            return merged;
+          });
           setSelectedConvId(prevId => {
             if (!prevId && merged.length > 0) return merged[0].id;
             return prevId;
@@ -245,7 +264,6 @@ export default function AsistanPage() {
       await fetch(`/api/fabrika/assistant/conversations?id=${id}`, { method: 'DELETE' });
     } catch (error) {}
 
-    // Update state and local storage immediately
     setConversations(prev => {
       const updated = prev.filter(c => c.id !== id);
       if (typeof window !== 'undefined') {
@@ -261,8 +279,11 @@ export default function AsistanPage() {
   useEffect(() => {
     if (selectedConvId) {
       const conv = conversations.find(c => c.id === selectedConvId);
-      if (conv) {
-        setCurrentMessages(conv.messages || []);
+      if (conv && conv.messages) {
+        setCurrentMessages(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(conv.messages)) return prev;
+          return conv.messages;
+        });
       }
     }
   }, [selectedConvId, conversations]);
