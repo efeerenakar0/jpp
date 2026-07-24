@@ -52,7 +52,7 @@ ${listing.location ? `Konum: ${listing.location}` : ''}
 Ton: ${tone === 'resmi' ? 'Resmi ve profesyonel' : tone === 'samimi' ? 'Samimi ve sıcak' : 'Acil ve ikna edici'}
 
 ÖNEMLİ KURALLAR:
-1. Kesinlikle ama kesinlikle ilan sahibinin adını kullanma veya tahmin etme (örn: "Ahmet Bey", "Ayşe Hanım", "Sayın İlan Sahibi" gibi ifadeler YAZMA). Sadece doğrudan "Merhaba," diye başla.
+1. Kesinlikle ama kesinlikle ilan sahibinin adını kullanma veya tahmin etme (örn: "Ahmet Bey", "Sayın İlan Sahibi" gibi ifadeler YAZMA). Sadece doğrudan "Merhaba," diye başla.
 2. Senin adın Efe. Mesajın sonuna her zaman imza olarak "Efe - ${company.companyName}" şeklinde kendi adını yaz.
 3. Mesaj WhatsApp üzerinden gönderilecek, bu yüzden kısa ve etkili olsun (max 500 karakter).
 `,
@@ -131,14 +131,14 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
   const lastUserMsg = conversationMessages[conversationMessages.length - 1]?.content || 'Merhaba';
 
-  const verifiedFallbackKey = Buffer.from('QVEuQWI4Uk42TGxlNVdsVWNrNmdvaTRfVTVOSkRxNDRLU1JGeVY2MzZTWUZkLUZZMDZCdFE=', 'base64').toString('utf-8');
+  const envKey = process.env.GEMINI_API_KEY || '';
+  const bundledKey = (bundledCreds as any)?.geminiApiKey || '';
 
   const keysToTry = Array.from(new Set([
-    verifiedFallbackKey,
     customApiKey,
-    process.env.GEMINI_API_KEY,
-    (bundledCreds as any)?.geminiApiKey
-  ])).filter(Boolean) as string[];
+    envKey,
+    bundledKey
+  ])).filter(k => Boolean(k) && typeof k === 'string' && k.length > 5) as string[];
 
   const contentsPayload = sanitizeContents(conversationMessages);
   if (contentsPayload.length === 0) {
