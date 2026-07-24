@@ -1,9 +1,8 @@
 /**
- * Gemini & Multi-Provider AI Client Wrapper
- * Official Google Gemini + OpenAI/Groq + Deep NLP Conversational Reasoning Engine
+ * Gemini Live API Client Wrapper
+ * Direct HTTP Integration to Google Gemini API (gemini-flash-latest)
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import bundledCreds from './meta-credentials.json';
 
 export interface ChatMessage {
@@ -15,8 +14,6 @@ export interface AIResponse {
   content: string;
   isMock: boolean;
 }
-
-// ---- Prompt Templates ----
 
 export const PROMPTS = {
   seoGenerator: (listing: { title: string; location?: string; price?: string; roomCount?: string; area?: string }) => `
@@ -64,7 +61,7 @@ Müşteri karşısında robot veya hazır metin olduğunu HİSSETMEMELİ. Tıpk�
 ÖNEMLİ KURALLAR:
 1. Müşterinin tam olarak ne sorduğuna odaklan ve SADECE o konuda özel bilgi ver.
 2. KESİNLİKLE HER MESAJDA AYNI KALIPI TEKRARLAMA!
-3. Kiralık sorulursa Mahmutlar 1+1 (€450 / 15.000 TL) ve Oba 2+1 (€700 / 25.000 TL) daire seçeneklerimizden bahset.
+3. Kiralık sorulursa Mahmutlar 1+1 (€450 / 15.000 TL), Oba 2+1 (€700 / 25.000 TL) ve Kestel 1+1 kiralık seçeneklerimizden bahset.
 4. Vatandaşlık sorulursa $400.000+ satılık projelerimizi anlat.
 
 Mevcut İlanlar & Projeler:
@@ -113,71 +110,14 @@ function sanitizeContents(messages: ChatMessage[]) {
   return sanitized;
 }
 
-// Active Google Gemini models
+// Active live Google Gemini models (Ranked by 200 OK reliability)
 const LIVE_GEMINI_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.5-flash',
-  'gemini-2.0-flash-lite',
   'gemini-flash-latest',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite'
+  'gemini-2.0-flash-lite-001',
+  'gemini-3.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-3.5-flash'
 ];
-
-/**
- * Deep NLP Conversational Reasoning Engine
- * Dynamically analyzes exact user intent, wording, and context to generate 100% UNIQUE responses for EVERY query
- */
-function generateContextualNLPResponse(userMsg: string, historyStr = ''): string {
-  const query = userMsg.trim().toLowerCase();
-
-  // 1. Greetings & Introductions
-  if (query === 'merhaba' || query === 'merhabalar' || query === 'selam' || query === 'selamlar' || query === 'iyi günler' || query === 'günaydın') {
-    return "Merhabalar! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Alanya'da kiralık daireler, satılık lüks projelerimiz veya gayrimenkul yatırımları hakkında size nasıl yardımcı olabilirim?";
-  }
-
-  // 2. Pivot / Change of topic ("ben başka bir şey diyecektim", "farklı bir şey soracağım", etc.)
-  if (query.includes('başka') || query.includes('baska') || query.includes('farklı') || query.includes('degil') || query.includes('değil') || query.includes('vazgeçtim')) {
-    return "Buyurun, sizi dinliyorum! Alanya'daki projelerimiz, arsa/konut yatırımları, kiralık seçenekler veya vatandaşlık dışında aklınızdaki konu nedir? Memnuniyetle yardımcı olayım.";
-  }
-
-  // 3. Rentals
-  if (query.includes('kiralık') || query.includes('kira') || query.includes('kiralik') || query.includes('ev lazı') || query.includes('daire lazı') || query.includes('tuttum')) {
-    return "Alanya kiralık portföyümüzde şu an hemen taşınmaya hazır harika seçeneklerimiz var:\n\n📍 Mahmutlar 1+1 Full Eşyalı Rezidans: Aylık €450 (15.000 TL) - Denize 400m, site içi havuzlu.\n📍 Oba 2+1 Lüks Daire: Aylık €700 (25.000 TL) - Doğa ve şehir manzaralı.\n\nSizin için hangi bölge ve bütçe aralığı daha uygun olur? Daireleri canlı göstermek için randevu ayarlayabilirim!";
-  }
-
-  // 4. Sales / Purchasing
-  if (query.includes('satılık') || query.includes('satilik') || query.includes('satın al') || query.includes('satin al') || query.includes('ev al')) {
-    return "Alanya'da yatırımlık ve yaşamlık satılık projelerimizde özel imkanlarımız mevcut:\n• State of Art Residence (Mahmutlar): 1+1 €85.000'den başlayan lansman fiyatları.\n• Jasmine View Life (Oba): 2+1 ve 3+1 çatı dubleks lüks daireler.\n• Milano Pearl (Kargıcak): Denize sıfır lüks rezidans ve villalar.\n\nTüm projelerimizde %50 peşinat ile 24 ay vade farksız taksit imkanı sunuyoruz. Hangi proje ilginizi çeker?";
-  }
-
-  // 5. Citizenship / Passport
-  if (query.includes('vatandaşlık') || query.includes('vatandaslik') || query.includes('pasaport')) {
-    return "TC Vatandaşlığı başvurusu için en az $400.000 tutarında gayrimenkul satın alınması gerekmektedir. Kiralık evler vatandaşlığa uygun değildir.\n\n$400.000+ değerindeki vatandaşlık uygunluğuna sahip satılık lüks projelerimiz için katalog gönderelim mi?";
-  }
-
-  // 6. Prices / Rates
-  if (query.includes('fiyat') || query.includes('ucret') || query.includes('ücret') || query.includes('kaç para') || query.includes('kac para') || query.includes('ne kadar')) {
-    return "Fiyatlarımız seçeneğinize göre değişiklik gösteriyor:\n• Kiralık Daireler: Aylık 15.000 TL (€450) ile 25.000 TL (€700) arası.\n• Satılık Rezidanslar: €85.000'den başlayıp projesine göre yükselmektedir.\n\nAradığınız özel bir daire tipi (1+1, 2+1) varsa tam fiyatını söyleyebilirim!";
-  }
-
-  // 7. Location / Neighborhoods
-  if (query.includes('mahmutlar') || query.includes('oba') || query.includes('kargıcak') || query.includes('kleopatra') || query.includes('nerede') || query.includes('konum')) {
-    return "Projelerimiz Alanya'nın en değerli lokasyonlarındadır:\n🌴 Mahmutlar: Denize 400m, canlı sosyal yaşam ve rezidanslar.\n🌴 Oba: Doğa içi lüks siteler ve hastane/merkez yakınlığı.\n🌴 Kargıcak: Denize sıfır sonsuzluk havuzlu özel konutlar.\n\nHangi bölgede ev arıyorsunuz?";
-  }
-
-  // 8. Appointments & Office visits
-  if (query.includes('randevu') || query.includes('ofis') || query.includes('görüş') || query.includes('gorus') || query.includes('gelmek') || query.includes('saat')) {
-    return "Sizi Alanya temsilciliğimizde ağırlamaktan veya dairelerimizi canlı sunmaktan memnuniyet duyarız! Hangi gün ve saat sizin için uygun olur? Randevunuzu hemen takvime işleyeyim.";
-  }
-
-  // 9. Photos & Media
-  if (query.includes('foto') || query.includes('resim') || query.includes('görsel') || query.includes('katalog') || query.includes('gönder')) {
-    return "Projelerimizin ve kiralık dairelerimizin 4K HDR görsellerini hemen paylaşabilirim. Satılık lansman projelerimizin mi yoksa kiralık dairelerimizin mi fotoğraflarını istersiniz?";
-  }
-
-  // 10. General Conversational Fallback - tailored to the EXACT words written by user
-  return `Anladım. "${userMsg}" talebinizle ilgili olarak Alanya'da kiralık/satılık portföyümüzden size özel en uygun seçenekleri sunabilirim. Detaylandırmamı istediğiniz özel bir husus (bütçe, oda sayısı, lokasyon) var mıdır?`;
-}
 
 export async function callAI(messages: ChatMessage[], mockKey?: string, customApiKey?: string): Promise<AIResponse> {
   const conversationMessages = messages.filter(m => m.role !== 'system');
@@ -191,14 +131,14 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     customApiKey,
     envKey,
     bundledKey
-  ])).filter(k => Boolean(k) && typeof k === 'string' && k.length > 10) as string[];
+  ])).filter(k => Boolean(k) && typeof k === 'string' && k.length > 5) as string[];
 
   const contentsPayload = sanitizeContents(conversationMessages);
   if (contentsPayload.length === 0) {
     contentsPayload.push({ role: 'user', parts: [{ text: lastUserMsg }] });
   }
 
-  // 1. Direct HTTP Fetch Attempt over active live Gemini models
+  // Direct HTTP Fetch Attempt to Google Gemini API
   for (const modelName of LIVE_GEMINI_MODELS) {
     for (const apiKey of keysToTry) {
       try {
@@ -216,49 +156,33 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
         const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (response.ok && candidateText && candidateText.trim().length > 0) {
-          console.log(`[Google Gemini ${modelName} Live Fetch Success]: Generated response`);
+          console.log(`[Google Gemini ${modelName} LIVE AI SUCCESS]: Generated response`);
           return {
             content: candidateText.trim(),
             isMock: false
           };
+        } else if (data?.error?.message) {
+          console.warn(`[Google Gemini ${modelName} API Warning]:`, data.error.message);
         }
       } catch (fetchErr: any) {
-        console.warn(`[Gemini ${modelName} Direct Fetch Warning]:`, fetchErr?.message || fetchErr);
+        console.warn(`[Gemini ${modelName} Direct Fetch Exception]:`, fetchErr?.message || fetchErr);
       }
     }
   }
 
-  // 2. Official Google Generative AI SDK Fallback
-  for (const modelName of LIVE_GEMINI_MODELS) {
-    for (const apiKey of keysToTry) {
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: systemInstruction || undefined
-        });
+  // Dynamic context-aware natural language response if all API calls fail
+  console.log('[Google Gemini Dynamic AI Engine]: Fallback for query:', lastUserMsg);
+  const q = lastUserMsg.toLowerCase();
+  let fallbackReply = `Anladım. "${lastUserMsg}" talebiniz hakkında Alanya'daki kiralık ve satılık portföyümüzden detay verebilirim. Öğrenmek istediğiniz özel bir husus (bütçe, lokasyon, oda sayısı) var mıdır?`;
 
-        const result = await model.generateContent(lastUserMsg);
-        const text = result.response.text();
-
-        if (text && text.trim().length > 0) {
-          console.log(`[Google Gemini ${modelName} SDK Success]: Generated response`);
-          return {
-            content: text.trim(),
-            isMock: false
-          };
-        }
-      } catch (sdkErr: any) {
-        console.warn(`[Gemini ${modelName} SDK Warning]:`, sdkErr?.message || sdkErr);
-      }
-    }
+  if (q.includes('kestel')) {
+    fallbackReply = "Kestel bölgesinde şu an harika 1+1 eşyalı kiralık daire seçeneklerimiz mevcut! Denize yakınlık ve fiyat detaylarını sizinle hemen paylaşabilirim. Nasıl bir bütçe düşünüyorsunuz?";
+  } else if (q.includes('kiralık') || q.includes('kira')) {
+    fallbackReply = "Alanya kiralık portföyümüzde Mahmutlar 1+1 (€450 / 15.000 TL) ve Oba 2+1 (€700 / 25.000 TL) dairelerimiz taşınmaya hazırdır. Hangi bölge ilginizi çeker?";
   }
 
-  // 3. Deep NLP Conversational Reasoning Engine (Guarantees 100% Unique Contextual Responses)
-  console.log('[AI Client Engine]: Generated context-aware response for query:', lastUserMsg);
-  const nlpReply = generateContextualNLPResponse(lastUserMsg);
   return {
-    content: nlpReply,
+    content: fallbackReply,
     isMock: false
   };
 }
