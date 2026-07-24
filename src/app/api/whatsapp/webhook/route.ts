@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage, updateCredentialsCache } from '@/lib/whatsapp';
-import { callAI, PROMPTS, parseJSONResponse } from '@/lib/ai';
+import { callAI, PROMPTS } from '@/lib/ai';
 import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // Set to keep track of processed message IDs to prevent duplicates
 const processedMsgIds = new Set<string>();

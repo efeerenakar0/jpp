@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
-import { callAI, PROMPTS, parseJSONResponse } from '@/lib/ai';
+import { callAI, PROMPTS } from '@/lib/ai';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(request: Request) {
   try {
