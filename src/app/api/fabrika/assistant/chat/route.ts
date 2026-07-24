@@ -91,30 +91,28 @@ export async function POST(request: Request) {
       { role: 'user' as const, content: message }
     ];
 
-    let aiResponse: any = null;
-    let parsed: any = null;
+    let replyText = '';
 
     try {
-      aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
-      parsed = parseJSONResponse(aiResponse.content);
-    } catch (e) {
+      const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
+      if (aiResponse?.content) {
+        const parsed = parseJSONResponse(aiResponse.content);
+        replyText = (parsed?.reply as string) || (typeof aiResponse.content === 'string' ? aiResponse.content.trim() : '');
+      }
+    } catch (e: any) {
       console.error('[Chat Route AI Call Warning]:', e);
+      replyText = `⚠️ [Yapay Zeka Uyarısı]: ${e?.message || 'Gemini AI yanıt veremedi.'}`;
     }
 
-    if (!parsed || !parsed.reply) {
-      parsed = {
-        reply: `Harika! ${companyName} olarak size Alanya bölgesindeki lüks projelerimiz hakkında bilgi vermekten mutluluk duyarım. Hangi tip bir gayrimenkul (1+1, 2+1 veya Villa) düşünüyorsunuz?`,
-        detectedIntent: "INVESTMENT",
-        suggestedListings: [],
-        isAppointmentRequest: false
-      };
+    if (!replyText || replyText.trim().length === 0) {
+      replyText = `⚠️ [Yapay Zeka Uyarısı]: Gemini AI boş yanıt döndürdü. Lütfen tekrar deneyin.`;
     }
 
     const assistantMsgRecord = {
       id: `msg_ai_${Date.now()}`,
       conversationId,
       role: 'assistant',
-      content: parsed.reply,
+      content: replyText,
       createdAt: new Date().toISOString()
     };
 
@@ -132,8 +130,7 @@ export async function POST(request: Request) {
         data: {
           conversationId,
           role: 'assistant',
-          content: parsed.reply,
-          metadata: JSON.stringify({ suggestedListings: parsed.suggestedListings })
+          content: replyText
         }
       });
     } catch (e) {}
@@ -141,10 +138,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       sentToWhatsApp: false,
-      reply: parsed.reply,
-      intent: parsed.detectedIntent || 'INVESTMENT',
-      suggestedListings: parsed.suggestedListings || [],
-      isAppointmentRequest: parsed.isAppointmentRequest || false,
+      reply: replyText,
+      intent: 'INVESTMENT',
+      suggestedListings: [],
+      isAppointmentRequest: false,
       messageRecord: assistantMsgRecord
     });
 
@@ -152,11 +149,11 @@ export async function POST(request: Request) {
     console.error('Error in chat route:', error);
     return NextResponse.json({
       success: true,
-      reply: 'Merhaba! Jasmine Group olarak Alanya gayrimenkul projelerimiz hakkında size yardımcı olmaktan memnuniyet duyarız.',
+      reply: `⚠️ [Sistem Uyarısı]: İstek işlenirken hata oluştu: ${error.message}`,
       messageRecord: {
         id: `msg_fallback_${Date.now()}`,
         role: 'assistant',
-        content: 'Merhaba! Jasmine Group olarak Alanya gayrimenkul projelerimiz hakkında size yardımcı olmaktan memnuniyet duyarız.',
+        content: `⚠️ [Sistem Uyarısı]: ${error.message}`,
         createdAt: new Date().toISOString()
       }
     });
