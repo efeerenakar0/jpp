@@ -1,6 +1,6 @@
 /**
  * Gemini API Client Wrapper
- * Official Google Gemini 3.5 & 2.5 Flash Model Integration
+ * Official Google Gemini 3.5 Flash Direct Integration
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -111,8 +111,7 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   const modelsToTry = [
     "gemini-3.5-flash",
     "gemini-3.6-flash",
-    "gemini-2.0-flash",
-    "gemini-flash-latest"
+    "gemini-2.0-flash"
   ];
 
   const contentsPayload = conversationMessages.map(m => ({
@@ -121,22 +120,13 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   }));
 
   for (const apiKey of keysToTry) {
-    const isBearer = apiKey.startsWith('AQ') || apiKey.length > 50;
-
     for (const modelName of modelsToTry) {
       try {
-        const endpoint = isBearer 
-          ? `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`
-          : `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (isBearer) {
-          headers['Authorization'] = `Bearer ${apiKey}`;
-        }
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
             contents: contentsPayload
@@ -170,10 +160,7 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     }
   } catch (e) {}
 
-  return {
-    content: "Merhaba! Alanya, Mahmutlar ve Oba bölgesindeki lansmana özel kiralık ve satılık portföy seçeneklerimiz mevcuttur. Nasıl bir ev arıyorsunuz?",
-    isMock: true
-  };
+  throw new Error("Google Gemini 3.5 Flash API yanıt üretemedi. Lütfen API anahtarınızı kontrol edin.");
 }
 
 export function parseJSONResponse(content: string): Record<string, unknown> | null {
