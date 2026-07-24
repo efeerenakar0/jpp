@@ -7,9 +7,9 @@ import { updateCredentialsCache, testMetaWhatsAppConnection } from '@/lib/whatsa
 const BUNDLED_CONFIG_PATH = path.join(process.cwd(), 'src/lib/meta-credentials.json');
 
 let inMemoryConfig = {
-  token: process.env.WHATSAPP_TOKEN || '',
-  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-  businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+  token: process.env.WHATSAPP_TOKEN || 'EABCAaXLAhawBSNmK2ZAVy8Q3ZBkYkDrwIQyw4DyKFTX6EOafdWxu9jibWhh8yd2xMcteRjzZC99rObRXRnjAm40vA4NWIZCpBvTawNZCLlmZA3HTQT2CMklC7bRbPWcoPPGwilRC1wMXZBT9gszrYsZBznTuLMZCod08ad6ygCvL0QZBhZC9mvV6Q2JrcKZBgghb2QZDZD',
+  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '1298466076675143',
+  businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '1738114273978260',
   verifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'jasmine_secret_verify_token',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   companyName: 'Jasmine Group',
