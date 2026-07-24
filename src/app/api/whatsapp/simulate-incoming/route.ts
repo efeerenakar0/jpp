@@ -1,132 +1,117 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { callAI, PROMPTS } from '@/lib/ai';
+import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
 
 /**
  * Simulate an incoming Meta WhatsApp Message for instant UI testing
  */
 export async function POST(req: Request) {
   try {
-    const { phone = '905321234567', name = 'Test Müşteri', message = 'Merhaba, Alanya projeleri hakkında bilgi alabilir miyim?' } = await req.json();
+    const body = await req.json();
+    const phone = body.phone || body.customerPhone || '905321234567';
+    const name = body.name || body.customerName || 'Test Müşteri';
+    const message = body.message || 'Merhaba, Alanya projeleri hakkında bilgi alabilir miyim?';
 
     const cleanPhone = phone.replace(/[^0-9]/g, '');
 
-    // 1. Save to WhatsAppMessage (CRM Avcı)
-    const waMsg = await prisma.whatsAppMessage.create({
-      data: {
-        phone: cleanPhone,
-        fromMe: false,
-        content: message,
-        status: 'SENT'
+    // 1. Save to WhatsAppMessage (CRM Avcı) if DB is connected
+    try {
+      if (process.env.DATABASE_URL) {
+        await prisma.whatsAppMessage.create({
+          data: {
+            phone: cleanPhone,
+            fromMe: false,
+            content: message,
+            status: 'SENT'
+          }
+        });
       }
-    });
+    } catch (e) {}
 
     // 2. Create or update CustomerConversation (Asistan CRM)
-    let conv = await prisma.customerConversation.findFirst({
-      where: { customerPhone: cleanPhone }
-    });
+    let convId = `conv_sim_${Date.now()}`;
+    try {
+      if (process.env.DATABASE_URL) {
+        let conv = await prisma.customerConversation.findFirst({
+          where: { customerPhone: cleanPhone }
+        });
 
-    if (conv) {
-      conv = await prisma.customerConversation.update({
-        where: { id: conv.id },
-        data: {
-          summary: message,
-          updatedAt: new Date()
-        }
-      });
-      await prisma.conversationMessage.create({
-        data: {
-          conversationId: conv.id,
-          role: 'customer',
-          content: message
-        }
-      });
-    } else {
-      conv = await prisma.customerConversation.create({
-        data: {
-          customerName: name,
-          customerPhone: cleanPhone,
-          channel: 'WHATSAPP',
-          summary: message,
-          messages: {
-            create: {
+        if (conv) {
+          convId = conv.id;
+          await prisma.customerConversation.update({
+            where: { id: conv.id },
+            data: {
+              summary: message,
+              updatedAt: new Date()
+            }
+          });
+          await prisma.conversationMessage.create({
+            data: {
+              conversationId: conv.id,
               role: 'customer',
               content: message
             }
-          }
+          });
+        } else {
+          const newConv = await prisma.customerConversation.create({
+            data: {
+              customerName: name,
+              customerPhone: cleanPhone,
+              channel: 'WHATSAPP',
+              summary: message,
+              messages: {
+                create: {
+                  role: 'customer',
+                  content: message
+                }
+              }
+            }
+          });
+          convId = newConv.id;
         }
-      });
-    }
-
-    // 3. Trigger Gemini AI Auto-Response
-    let aiReplyText = "Merhaba! Size Alanya ve Mahmutlar kiralık/satılık ilanlarımız hakkında nasıl yardımcı olabilirim?";
-    try {
-      const { callAI, PROMPTS, parseJSONResponse } = await import('@/lib/ai');
-      const { sendMetaWhatsAppMessage } = await import('@/lib/whatsapp');
-
-      const conversationWithHistory = await prisma.customerConversation.findUnique({
-        where: { id: conv.id },
-        include: { messages: { orderBy: { createdAt: 'asc' } } }
-      });
-
-      const activeProjects = await prisma.project.findMany({
-        where: { published: true },
-        select: { id: true, name: true, location: true, price: true, shortDescription: true }
-      });
-
-      const listingsContext = activeProjects.map(p => 
-        `ID: ${p.id} | Proje: ${p.name} | Konum: ${p.location} | Fiyat: ${p.price}\nDetay: ${p.shortDescription}`
-      ).join('\n\n');
-
-      const historyContext = (conversationWithHistory?.messages || []).map(m => 
-        `${m.role === 'customer' ? 'Müşteri' : 'Asistan'}: ${m.content}`
-      ).join('\n');
-
-      const systemPrompt = PROMPTS.customerAssistant({
-        companyName: 'Jasmine Group',
-        availableListings: listingsContext || 'Alanya lüks konut ve kiralık/satılık gayrimenkul projeleri',
-        conversationHistory: historyContext,
-        customerMessage: message
-      });
-
-      const aiMessages = [
-        { role: 'system' as const, content: systemPrompt },
-        { role: 'user' as const, content: message }
-      ];
-
-      const aiResponse = await callAI(aiMessages, 'assistant');
-      let parsed: any = parseJSONResponse(aiResponse.content);
-      aiReplyText = parsed?.reply || (typeof aiResponse.content === 'string' && !aiResponse.content.startsWith('{') ? aiResponse.content : aiReplyText);
-
-      // Save AI Assistant Response to Database
-      await prisma.conversationMessage.create({
-        data: {
-          conversationId: conv.id,
-          role: 'assistant',
-          content: aiReplyText,
-          metadata: JSON.stringify({ suggestedListings: parsed?.suggestedListings || [] })
-        }
-      });
-
-      // Send to real WhatsApp phone
-      if (cleanPhone.length >= 10) {
-        await sendMetaWhatsAppMessage({
-          to: cleanPhone,
-          text: aiReplyText
-        }).catch(err => console.error('[Simulate Send Error]:', err));
       }
-    } catch (aiErr) {
-      console.error('[Simulate AI Error]:', aiErr);
-    }
+    } catch (e) {}
+
+    // 3. Trigger Groq AI Auto-Response
+    const systemPrompt = PROMPTS.customerAssistant({
+      companyName: 'Jasmine Group',
+      availableListings: 'Mahmutlar 1+1, Oba 2+1, Kestel 1+1',
+      conversationHistory: `Müşteri: ${message}`,
+      customerMessage: message
+    });
+
+    const aiResponse = await callAI([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: message }
+    ]);
+
+    const replyText = aiResponse.content;
+
+    // Save AI reply to DB if connected
+    try {
+      if (process.env.DATABASE_URL) {
+        await prisma.conversationMessage.create({
+          data: {
+            conversationId: convId,
+            role: 'assistant',
+            content: replyText
+          }
+        });
+      }
+    } catch (e) {}
 
     return NextResponse.json({
       success: true,
-      message: 'Test mesajı ve Yapay Zeka yanıtı başarıyla işlendi ve WhatsApp\'a iletildi!',
-      conversation: conv,
-      whatsAppMessage: waMsg,
-      aiReply: aiReplyText
+      sentToWhatsApp: false,
+      reply: replyText,
+      conversationId: convId
     });
+
   } catch (error: any) {
-    console.error('Simulate incoming error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[Simulate Incoming Error]:', error);
+    return NextResponse.json({
+      error: error?.message || 'Simulation error'
+    }, { status: 500 });
   }
 }
