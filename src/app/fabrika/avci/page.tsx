@@ -5,7 +5,25 @@ import OnboardingWizard from '@/components/fabrika/OnboardingWizard';
 import StatusBoard from '@/components/fabrika/StatusBoard';
 import WhatsAppButton from '@/components/fabrika/WhatsAppButton';
 import WhatsAppCRM from '@/components/fabrika/WhatsAppCRM';
-import { Search, Loader2, Sparkles, Download, CheckCircle2, AlertTriangle, ArrowRight, Trash2, Crosshair, RefreshCw } from 'lucide-react';
+import { 
+  Crosshair, 
+  Sparkles, 
+  Download, 
+  CheckCircle2, 
+  Trash2, 
+  RefreshCw, 
+  Zap, 
+  Layers, 
+  MessageSquare, 
+  Send, 
+  TrendingUp, 
+  ShieldAlert, 
+  Puzzle,
+  ChevronRight,
+  Filter,
+  Check,
+  Bot
+} from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function AvciPage() {
@@ -17,13 +35,7 @@ export default function AvciPage() {
   const [isGeneratingMessages, setIsGeneratingMessages] = useState(false);
   const [tone, setTone] = useState<'resmi' | 'samimi' | 'acil'>('samimi');
   
-  // WhatsApp State
-  const [waStatus, setWaStatus] = useState('disconnected');
-  const [waQr, setWaQr] = useState<string | null>(null);
-  const [isBulkSending, setIsBulkSending] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState(0);
-  
-  // Tüm ilanlar
+  // All Scraped Listings
   const [allListings, setAllListings] = useState<any[]>([]);
 
   // Chat Modal State
@@ -85,10 +97,12 @@ export default function AvciPage() {
         body: JSON.stringify({ id, status }),
       });
       if (res.ok) {
+        toast.success('İlan durumu güncellendi');
         fetchListings();
       }
     } catch (error) {
       console.error(error);
+      toast.error('Güncelleme başarısız oldu');
     }
   };
 
@@ -100,18 +114,19 @@ export default function AvciPage() {
       });
       if (res.ok) {
         setAllListings(prev => prev.filter(l => l.id !== id));
+        toast.success('İlan silindi');
       } else {
-        alert('İlan silinemedi.');
+        toast.error('İlan silinemedi.');
       }
     } catch (error) {
       console.error(error);
-      alert('Silme işlemi sırasında hata oluştu.');
+      toast.error('Silme işlemi sırasında hata oluştu.');
     }
   };
 
   const handleGenerateBulkMessages = async () => {
     const yellowListings = allListings.filter(l => l.status === 'YELLOW' && (!l.messages || l.messages.length === 0));
-    if (yellowListings.length === 0) return alert('Mesajı olmayan Sarı (Pazarlıkta) ilan bulunamadı.');
+    if (yellowListings.length === 0) return toast.error('Mesajı olmayan Sıcak Pazarlıkta ilan bulunamadı.');
     
     setIsGeneratingMessages(true);
     try {
@@ -124,21 +139,28 @@ export default function AvciPage() {
 
       const data = await res.json();
       if (data.success) {
-        alert(`${data.count} ilan için kişiselleştirilmiş mesajlar üretildi!`);
+        toast.success(`${data.count} ilan için kişiselleştirilmiş AI mesajları üretildi!`);
         fetchListings();
       } else {
-        alert(data.error);
+        toast.error(data.error || 'Mesaj üretilemedi');
       }
     } catch (error) {
       console.error(error);
-      alert('Mesajlar üretilirken hata oluştu.');
+      toast.error('Mesajlar üretilirken hata oluştu.');
     } finally {
       setIsGeneratingMessages(false);
     }
   };
 
   if (!profileLoaded) {
-    return <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-white font-mono">Yükleniyor...</div>;
+    return (
+      <div className="min-h-screen bg-[#07090e] flex flex-col items-center justify-center text-white font-sans">
+        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center animate-spin mb-4">
+          <Crosshair className="w-6 h-6 text-amber-400" />
+        </div>
+        <p className="text-sm font-bold text-slate-400 animate-pulse">Avcı Modülü Yükleniyor...</p>
+      </div>
+    );
   }
 
   if (!hasProfile) {
@@ -146,108 +168,135 @@ export default function AvciPage() {
   }
 
   const yellowListings = allListings.filter(l => l.status === 'YELLOW');
+  const greenListings = allListings.filter(l => l.status === 'GREEN');
+  const redListings = allListings.filter(l => l.status === 'RED');
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 p-4 sm:p-8 font-sans">
+    <div className="min-h-screen bg-[#06080d] text-slate-100 p-4 sm:p-8 font-sans selection:bg-amber-500 selection:text-black">
       <Toaster position="top-right" />
+      
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Header & Stats - Stitch Glass */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-900/80 border border-slate-800 p-6 rounded-3xl backdrop-blur-2xl shadow-2xl">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
-              <Crosshair className="w-6 h-6 text-slate-950 stroke-[2.5]" />
+        {/* Header Hero Banner - Ultra Luxury Dark Glassmorphism */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800/80 p-6 sm:p-8 rounded-3xl backdrop-blur-3xl shadow-2xl">
+          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/3 -mb-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shadow-2xl shadow-amber-500/30 shrink-0 border border-amber-300/40">
+                <Crosshair className="w-7 h-7 text-slate-950 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                    AVCI MODÜLÜ
+                  </h1>
+                  <span className="text-[11px] px-3 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 rounded-full font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                    <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+                    Otonom Portföy Avcısı
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-400 font-medium mt-1 max-w-xl leading-relaxed">
+                  Sahibinden.com bot korumalarını aşın, sahibinden satılık ilanları ve mal sahibi numaralarını otomatik fabrikanıza çekin.
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-black text-white flex items-center gap-2">
-                Avcı Modülü
-                <span className="text-xs px-2.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-full font-bold">
-                  Chrome Otonom Bot
-                </span>
-              </h1>
-              <p className="text-xs text-slate-400 font-medium">Sahibinden.com bot korumalarını aşarak ilan ve mal sahibi telefonlarını fabrikanıza çekin.</p>
-            </div>
-          </div>
-          
-          <div className="flex gap-6">
-            <div className="text-center bg-slate-950 px-4 py-2 rounded-2xl border border-slate-800">
-              <div className="text-xl font-black text-white">{allListings.length}</div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Toplam İlan</div>
-            </div>
-            <div className="text-center bg-slate-950 px-4 py-2 rounded-2xl border border-slate-800">
-              <div className="text-xl font-black text-amber-400">{allListings.filter(l => l.status === 'YELLOW').length}</div>
-              <div className="text-[10px] text-amber-500 uppercase font-bold tracking-wider">Pazarlıkta</div>
-            </div>
-            <div className="text-center bg-slate-950 px-4 py-2 rounded-2xl border border-slate-800">
-              <div className="text-xl font-black text-emerald-400">{allListings.filter(l => l.status === 'GREEN').length}</div>
-              <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Avlandı</div>
+            
+            {/* Realtime Lead Counters */}
+            <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full lg:w-auto">
+              <div className="flex-1 sm:flex-initial text-center bg-slate-950/80 px-5 py-3 rounded-2xl border border-slate-800/90 min-w-[100px]">
+                <div className="text-2xl font-black text-white">{allListings.length}</div>
+                <div className="text-[10px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Toplanan İlan</div>
+              </div>
+              <div className="flex-1 sm:flex-initial text-center bg-amber-500/10 px-5 py-3 rounded-2xl border border-amber-500/20 min-w-[100px]">
+                <div className="text-2xl font-black text-amber-400">{yellowListings.length}</div>
+                <div className="text-[10px] text-amber-400/80 uppercase font-black tracking-wider mt-0.5">Sıcak Pazarlık</div>
+              </div>
+              <div className="flex-1 sm:flex-initial text-center bg-emerald-500/10 px-5 py-3 rounded-2xl border border-emerald-500/20 min-w-[100px]">
+                <div className="text-2xl font-black text-emerald-400">{greenListings.length}</div>
+                <div className="text-[10px] text-emerald-400/80 uppercase font-black tracking-wider mt-0.5">Portföye Katıldı</div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Tabs Navigation */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
+        {/* Futuristic Tab Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-950/80 p-2 rounded-2xl border border-slate-800/90 shadow-xl backdrop-blur-2xl">
+          <div className="flex flex-wrap gap-1.5 w-full sm:w-auto">
             <button 
               onClick={() => { setActiveTab('pano'); fetchListings(); }}
-              className={`px-5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                activeTab === 'pano' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'pano' 
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
-              Durum Panosu
+              <Layers className="w-4 h-4" />
+              Durum Panosu (Kanban)
             </button>
             <button 
               onClick={() => { setActiveTab('eklenti'); fetchListings(); }}
-              className={`px-5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                activeTab === 'eklenti' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'eklenti' 
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
-              🚀 Chrome Eklentisi
+              <Puzzle className="w-4 h-4" />
+              Chrome Otonom Eklenti
             </button>
             <button 
               onClick={() => { setActiveTab('mesaj'); fetchListings(); }}
-              className={`px-5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                activeTab === 'mesaj' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'mesaj' 
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
-              AI Mesajları
+              <Sparkles className="w-4 h-4" />
+              AI İkna Mesajları
             </button>
             <button 
               onClick={() => { setActiveTab('whatsapp'); }}
-              className={`px-5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                activeTab === 'whatsapp' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'whatsapp' 
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/20' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
-              💬 WhatsApp CRM
+              <MessageSquare className="w-4 h-4" />
+              WhatsApp CRM & Canlı Yayın
             </button>
           </div>
           
           <button 
             onClick={fetchListings}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl transition-all border border-slate-800 cursor-pointer active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-xl transition-all border border-slate-800/90 cursor-pointer active:scale-95 ml-auto sm:ml-0"
           >
             <RefreshCw className="w-3.5 h-3.5" /> Verileri Yenile
           </button>
         </div>
 
-        {/* Tab Content */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 min-h-[600px] shadow-2xl backdrop-blur-xl">
+        {/* Tab Content Box */}
+        <div className="bg-slate-950/60 border border-slate-800/80 rounded-3xl p-6 min-h-[600px] shadow-2xl backdrop-blur-2xl relative">
           
-          {/* PANO TAB */}
+          {/* TAB 1: DURUM PANOSU */}
           {activeTab === 'pano' && (
             <div className="animate-in fade-in space-y-6">
-              <div className="bg-amber-500/10 border border-amber-500/20 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* Import JSON Box */}
+              <div className="bg-gradient-to-r from-amber-500/10 via-slate-900/50 to-slate-900/50 border border-amber-500/20 p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
                     <Download className="w-5 h-5 text-amber-400" />
-                    Çevrimdışı İlan Yükle (JSON)
+                    Çevrimdışı İlan ve Portföy Yükle (JSON)
                   </h3>
-                  <p className="text-xs text-slate-400 mt-1">Eklentiden indirdiğiniz <code className="text-amber-300 font-mono">jasmine_ilanlar.json</code> dosyasını buraya yükleyerek ilanları panoya ekleyebilirsiniz.</p>
+                  <p className="text-xs text-slate-400 mt-1">Eklentimizden indirdiğiniz <code className="text-amber-300 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">jasmine_ilanlar.json</code> dosyasını seçerek ilanları tek tıkla panoya aktarın.</p>
                 </div>
                 <div>
-                  <label className="cursor-pointer px-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-extrabold rounded-xl transition-all inline-flex items-center gap-2 text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20">
+                  <label className="cursor-pointer px-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-xl transition-all inline-flex items-center gap-2 text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95">
                     <Download className="w-4 h-4" />
-                    JSON Dosyası Seç
+                    JSON İlan Dosyası Seç
                     <input 
                       type="file" 
                       accept=".json" 
@@ -265,13 +314,13 @@ export default function AvciPage() {
                           });
                           const result = await res.json();
                           if (result.success) {
-                            alert(`Başarılı! ${result.added} yeni ilan panoya eklendi.`);
+                            toast.success(`Başarılı! ${result.added} yeni ilan panoya eklendi.`);
                             fetchListings();
                           } else {
-                            alert(result.error || 'Yükleme başarısız oldu.');
+                            toast.error(result.error || 'Yükleme başarısız oldu.');
                           }
                         } catch (err) {
-                          alert('Dosya okunurken bir hata oluştu. Geçerli bir JSON olduğundan emin olun.');
+                          toast.error('Dosya okunurken bir hata oluştu. Geçerli bir JSON olduğundan emin olun.');
                         }
                         e.target.value = '';
                       }}
@@ -284,155 +333,158 @@ export default function AvciPage() {
             </div>
           )}
 
-          {/* EKLENTI TAB */}
+          {/* TAB 2: CHROME EKLENTISI */}
           {activeTab === 'eklenti' && (
             <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in py-8">
               <div className="text-center space-y-4">
-                <div className="w-20 h-20 bg-amber-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-500/20 shadow-xl shadow-amber-500/10">
-                  <Download className="w-10 h-10 text-amber-400" />
+                <div className="w-20 h-20 bg-gradient-to-br from-amber-400/20 to-amber-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-500/30 shadow-2xl shadow-amber-500/20">
+                  <Puzzle className="w-10 h-10 text-amber-400" />
                 </div>
-                <h2 className="text-3xl font-extrabold text-white">Jasmine Group Avcı Eklentisi</h2>
+                <h2 className="text-3xl font-black text-white tracking-tight">Jasmine Avcı Chrome Otonom Botu</h2>
                 <p className="text-slate-400 text-sm max-w-2xl mx-auto font-medium leading-relaxed">
-                  Sahibinden.com bot korumalarını (Cloudflare) aşarak gizli telefon numaralarını ve ilan detaylarını tek tıkla fabrikanıza çekin.
+                  Sahibinden.com, HepsiEmlak ve Emlakjet üzerindeki bot korumalarını (Cloudflare / Turnstile) otomatik aşarak ilan detaylarını ve mal sahibi numaralarını fabrikanıza tek tıkla çekin.
                 </p>
                 
                 <div className="pt-4">
                   <a 
                     href="/downloads/jasmine-extension.zip" 
                     download
-                    className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 rounded-2xl font-black transition-all shadow-xl shadow-amber-500/20 text-xs uppercase tracking-wider"
+                    className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-400 text-slate-950 rounded-2xl font-black transition-all shadow-xl shadow-amber-500/20 text-xs uppercase tracking-wider active:scale-95"
                   >
                     <Download className="w-4 h-4" />
-                    Eklentiyi İndir (.ZIP)
+                    Chrome Eklentisini İndir (.ZIP)
                   </a>
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 mt-12 shadow-2xl">
-                <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+              {/* Steps Guide */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 mt-12 shadow-2xl backdrop-blur-xl">
+                <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                  Kurulum ve Kullanım Rehberi
+                  3 Adımda Kolay Kurulum
                 </h3>
                 
-                <div className="space-y-6">
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 bg-slate-800 rounded-xl flex items-center justify-center font-bold text-amber-400 border border-slate-700 text-xs">1</div>
-                    <div>
-                      <h4 className="text-white font-bold text-sm">ZIP Dosyasını Çıkarın</h4>
-                      <p className="text-slate-400 text-xs mt-1">İndirdiğiniz <code className="bg-slate-950 px-2 py-0.5 rounded text-amber-400 font-mono">jasmine-extension.zip</code> dosyasını bilgisayarınızda bir klasöre çıkartın.</p>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800/80 space-y-3">
+                    <div className="w-9 h-9 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-center font-black text-amber-400 text-sm">1</div>
+                    <h4 className="text-white font-bold text-sm">ZIP&apos;i Klasöre Çıkarın</h4>
+                    <p className="text-slate-400 text-xs leading-relaxed">İndirdiğiniz <code className="bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-mono">jasmine-extension.zip</code> dosyasını bilgisayarınızda bir klasöre çıkartın.</p>
                   </div>
                   
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 bg-slate-800 rounded-xl flex items-center justify-center font-bold text-amber-400 border border-slate-700 text-xs">2</div>
-                    <div>
-                      <h4 className="text-white font-bold text-sm">Chrome&apos;a Yükleyin</h4>
-                      <p className="text-slate-400 text-xs mt-1">Google Chrome adres çubuğuna <code className="bg-slate-950 px-2 py-0.5 rounded text-amber-400 font-mono">chrome://extensions/</code> yazın. Geliştirici Modunu açıp çıkardığınız klasörü seçin.</p>
-                    </div>
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800/80 space-y-3">
+                    <div className="w-9 h-9 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-center font-black text-amber-400 text-sm">2</div>
+                    <h4 className="text-white font-bold text-sm">Chrome Geliştirici Modu</h4>
+                    <p className="text-slate-400 text-xs leading-relaxed">Chrome adres çubuğuna <code className="bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-mono">chrome://extensions/</code> yazın. Geliştirici Modunu açıp klasörü seçin.</p>
                   </div>
 
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 bg-slate-800 rounded-xl flex items-center justify-center font-bold text-amber-400 border border-slate-700 text-xs">3</div>
-                    <div>
-                      <h4 className="text-white font-bold text-sm">Sahibinden.com&apos;da Avlanın</h4>
-                      <p className="text-slate-400 text-xs mt-1">İlan sayfasına girip <strong>&quot;Telefonu Göster&quot;</strong> butonuna basın. Eklentimizdeki <strong>&quot;İlanı Fabrikaya Gönder&quot;</strong> butonuna tıklayın.</p>
-                    </div>
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800/80 space-y-3">
+                    <div className="w-9 h-9 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-center font-black text-amber-400 text-sm">3</div>
+                    <h4 className="text-white font-bold text-sm">Sahibinden&apos;de Avlanın</h4>
+                    <p className="text-slate-400 text-xs leading-relaxed">İlan sayfasına girip <strong>&quot;Telefonu Göster&quot;</strong> butonuna basın. Eklentimizdeki <strong>&quot;İlanı Fabrikaya Gönder&quot;</strong> butonuna tıklayın.</p>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* MESAJLAR TAB */}
+          {/* TAB 3: AI MESAJLARI */}
           {activeTab === 'mesaj' && (
             <div className="space-y-6 animate-in fade-in">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-500/20 rounded-xl">
-                    <Sparkles className="w-5 h-5 text-amber-400" />
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-amber-500/10 via-slate-900/50 to-slate-900/50 border border-amber-500/20 p-5 rounded-2xl">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 bg-amber-500/20 border border-amber-500/30 rounded-2xl">
+                    <Sparkles className="w-6 h-6 text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Yapay Zeka Mesaj Üretimi</h3>
-                    <p className="text-xs text-slate-400">Panodaki <strong>Sarı (Pazarlıkta)</strong> olan ilanlara mesaj üretin.</p>
+                    <h3 className="text-base font-black text-white">Yapay Zeka Portföy İkna Mesajlaşması</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Panodaki <strong>Sıcak Pazarlıkta</strong> olan ilanlar için sahibini ikna edecek özel AI mesajları üretin.</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 w-full md:w-auto">
                   <select 
                     value={tone}
                     onChange={(e) => setTone(e.target.value as any)}
-                    className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-3 py-2.5 outline-none font-medium"
+                    className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-4 py-3 outline-none font-bold cursor-pointer"
                   >
-                    <option value="samimi">Samimi Ton</option>
-                    <option value="resmi">Resmi Ton</option>
-                    <option value="acil">Acil Ton</option>
+                    <option value="samimi">🔥 Samimi Ton</option>
+                    <option value="resmi">💼 Resmi & Kurumsal Ton</option>
+                    <option value="acil">⚡ Acil Fırsat Tonu</option>
                   </select>
                   <button
                     onClick={handleGenerateBulkMessages}
                     disabled={isGeneratingMessages}
-                    className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs transition-colors border border-slate-700 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                    className="px-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 rounded-xl font-black text-xs transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95"
                   >
                     {isGeneratingMessages ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Üretiliyor...</>
+                      <><RefreshCw className="w-4 h-4 animate-spin" /> AI Üretiyor...</>
                     ) : (
-                      <><Sparkles className="w-4 h-4 text-amber-400" /> Mesaj Üret</>
+                      <><Sparkles className="w-4 h-4 text-slate-950 fill-slate-950" /> Toplu AI Mesaj Üret</>
                     )}
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {yellowListings.map((listing, idx) => (
-                  <div key={listing.id} className="relative bg-slate-950 border border-slate-800 rounded-2xl p-5 hover:border-amber-500/30 transition-colors flex flex-col group">
-                    <button
-                      onClick={() => handleDeleteListing(listing.id)}
-                      className="absolute top-4 right-4 p-1.5 bg-red-500/10 text-red-400 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/20"
-                      title="İlanı Sil"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <div className="flex items-center justify-between mb-3 pr-10">
-                      <span className="text-[10px] font-bold px-2 py-1 bg-slate-800 text-slate-300 rounded-lg">İlan #{idx + 1}</span>
-                      <span className="text-xs font-bold text-emerald-400">{listing.price}</span>
-                    </div>
-                    <h4 className="text-xs font-bold text-white mb-2 line-clamp-2 pr-6">{listing.title}</h4>
-                    <div className="text-[11px] text-slate-400 space-y-1 mb-4 flex-1 font-medium">
-                      <p>👤 {listing.ownerName || 'Bilinmiyor'}</p>
-                      <p>📱 {listing.ownerPhone || 'No Yok'}</p>
-                    </div>
-                    
-                    {listing.messages && listing.messages.length > 0 ? (
-                      <div className="mt-auto space-y-3 pt-3 border-t border-slate-800">
-                        <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
-                          <p className="text-xs text-slate-300 line-clamp-3 font-medium">{listing.messages[0].content}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <WhatsAppButton 
-                            phone={listing.ownerPhone} 
-                            message={listing.messages[0].content} 
-                            className="flex-1 justify-center text-xs"
-                          />
-                          <button 
-                            onClick={() => fetchAndShowChat(listing.ownerPhone, listing.ownerName || 'Bilinmiyor')}
-                            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-white transition-colors cursor-pointer text-xs"
-                            title="WhatsApp Sohbetini Gör"
-                          >
-                            💬
-                          </button>
-                        </div>
+              {yellowListings.length === 0 ? (
+                <div className="text-center py-20 bg-slate-950/60 rounded-3xl border border-slate-800 p-8">
+                  <Bot className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                  <h4 className="text-sm font-bold text-white">Sarı (Sıcak Pazarlıkta) İlan Bulunamadı</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">Durum panosundan ilanların durumunu &quot;Sarı (Sıcak Pazarlıkta)&quot; olarak ayarlayarak yapay zekaya ikna mesajı ürettirebilirsiniz.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {yellowListings.map((listing, idx) => (
+                    <div key={listing.id} className="relative bg-slate-900/90 border border-slate-800 rounded-2xl p-5 hover:border-amber-500/40 transition-all flex flex-col group shadow-xl">
+                      <button
+                        onClick={() => handleDeleteListing(listing.id)}
+                        className="absolute top-4 right-4 p-1.5 bg-red-500/10 text-red-400 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/20 active:scale-95 cursor-pointer"
+                        title="İlanı Sil"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <div className="flex items-center justify-between mb-3 pr-10">
+                        <span className="text-[10px] font-black px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg">İlan #{idx + 1}</span>
+                        <span className="text-xs font-mono font-black text-emerald-400">{listing.price || 'Fiyat Belirtilmedi'}</span>
                       </div>
-                    ) : (
-                      <div className="mt-auto pt-3 border-t border-slate-800 text-center">
-                        <span className="text-[11px] text-slate-500">Henüz mesaj üretilmedi</span>
+                      <h4 className="text-xs font-extrabold text-white mb-2 line-clamp-2 pr-6 group-hover:text-amber-300 transition-colors">{listing.title}</h4>
+                      <div className="text-[11px] text-slate-400 space-y-1 mb-4 flex-1 font-medium bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                        <p className="text-slate-300">👤 Sahib: {listing.ownerName || 'Bilinmiyor'}</p>
+                        <p className="text-emerald-400 font-mono">📱 Tel: {listing.ownerPhone || 'No Yok'}</p>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                      
+                      {listing.messages && listing.messages.length > 0 ? (
+                        <div className="mt-auto space-y-3 pt-3 border-t border-slate-800">
+                          <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                            <p className="text-xs text-slate-200 line-clamp-4 font-medium leading-relaxed">{listing.messages[0].content}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <WhatsAppButton 
+                              phone={listing.ownerPhone} 
+                              message={listing.messages[0].content} 
+                              className="flex-1 justify-center text-xs py-2.5 font-black"
+                            />
+                            <button 
+                              onClick={() => fetchAndShowChat(listing.ownerPhone, listing.ownerName || 'Bilinmiyor')}
+                              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-white transition-colors cursor-pointer text-xs font-bold"
+                              title="WhatsApp Sohbetini Gör"
+                            >
+                              💬 Live Stream
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-auto pt-3 border-t border-slate-800 text-center">
+                          <span className="text-[11px] text-slate-500 font-medium">Henüz AI mesajı üretilmedi</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* WHATSAPP TAB */}
+          {/* TAB 4: WHATSAPP CRM */}
           {activeTab === 'whatsapp' && (
             <WhatsAppCRM allListings={allListings} />
           )}
@@ -441,21 +493,21 @@ export default function AvciPage() {
 
       </div>
 
-      {/* CHAT MODAL */}
+      {/* CHAT MODAL STREAM */}
       {chatModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4 backdrop-blur-md">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg flex flex-col overflow-hidden shadow-2xl">
             <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <h3 className="font-black text-white text-sm flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   WhatsApp Live Stream
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">{chattingWith}</p>
               </div>
               <button 
                 onClick={() => setChatModalOpen(false)}
-                className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-colors text-xs font-bold"
+                className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-colors text-xs font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -465,14 +517,14 @@ export default function AvciPage() {
               <div className="space-y-4">
                 {chatHistory.length === 0 ? (
                   <div className="text-center py-10 bg-slate-900/50 rounded-2xl border border-slate-800">
-                    <p className="text-xs text-slate-400">Henüz sohbet geçmişi yok veya yükleniyor...</p>
+                    <p className="text-xs text-slate-400 font-medium">Henüz sohbet geçmişi yok veya yükleniyor...</p>
                   </div>
                 ) : (
                   chatHistory.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] rounded-2xl p-3 text-xs ${msg.fromMe ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-200 border border-slate-700'}`}>
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                        <p className="text-[10px] mt-1 text-right text-slate-400">
+                      <div className={`max-w-[85%] rounded-2xl p-3.5 text-xs ${msg.fromMe ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg' : 'bg-slate-900 text-slate-200 border border-slate-800'}`}>
+                        <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
+                        <p className="text-[10px] mt-1.5 text-right text-slate-400 font-mono">
                           {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </p>
                       </div>
