@@ -313,9 +313,22 @@ export default function AsistanPage() {
     try {
       if (isInitial) setIsLoading(true);
 
+      let activeToken = configForm.token;
+      let activePhoneId = configForm.phoneNumberId;
+      if (typeof window !== 'undefined' && (!activeToken || !activePhoneId)) {
+        const raw = localStorage.getItem('jasmine_meta_config');
+        if (raw) {
+          try {
+            const p = JSON.parse(raw);
+            activeToken = activeToken || p.token;
+            activePhoneId = activePhoneId || p.phoneNumberId;
+          } catch(e) {}
+        }
+      }
+
       const headers: Record<string, string> = {};
-      if (configForm.token) headers['x-meta-token'] = configForm.token;
-      if (configForm.phoneNumberId) headers['x-meta-phone-id'] = configForm.phoneNumberId;
+      if (activeToken) headers['x-meta-token'] = activeToken;
+      if (activePhoneId) headers['x-meta-phone-id'] = activePhoneId;
 
       const [convRes, apptRes] = await Promise.all([
         fetch('/api/fabrika/assistant/conversations', { cache: 'no-store', headers }),

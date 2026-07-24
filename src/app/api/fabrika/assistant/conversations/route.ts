@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { updateCredentialsCache } from '@/lib/whatsapp';
 import { getConversationsStore, addIncomingCustomerMessage, deleteConversationFromStore, isBannedConversation } from '@/lib/conversation-store';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const headerToken = req.headers.get('x-meta-token');
+    const headerPhoneId = req.headers.get('x-meta-phone-id');
+    if (headerToken && headerPhoneId) {
+      updateCredentialsCache({ token: headerToken, phoneNumberId: headerPhoneId, businessAccountId: '' });
+    }
+
     let dbConversations: any[] = [];
     try {
       dbConversations = await prisma.customerConversation.findMany({
