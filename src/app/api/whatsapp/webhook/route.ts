@@ -152,8 +152,20 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     aiReplyText = (parsedFallback?.reply as string) || `Merhaba! Alanya bölgesindeki kiralık ve satılık portföy seçeneklerimiz mevcuttur. Aradığınız ev kiralık mı satılık mı acaba?`;
   }
 
-  // Add AI reply to shared conversation store for CRM UI
-  addAssistantMessageToStore(conv.id, aiReplyText);
+  // 3. ALWAYS Send AI Reply back to Customer via Meta WhatsApp Cloud API
+  try {
+    console.log(`[Meta Webhook Worker] Sending WhatsApp Cloud API response to ${fromPhone}...`);
+    const metaRes = await sendMetaWhatsAppMessage({
+      to: fromPhone,
+      text: aiReplyText
+    });
+    console.log(`[Meta Webhook Worker] Successfully sent response to ${fromPhone}:`, metaRes);
+    addAssistantMessageToStore(conv.id, aiReplyText, { sentViaMeta: true, metaStatus: 'DELIVERED' });
+  } catch (sendErr: any) {
+    const errorMsg = sendErr?.message || String(sendErr);
+    console.error('[Meta Webhook Send Error]:', errorMsg);
+    addAssistantMessageToStore(conv.id, `⚠️ [WhatsApp Mesaj İletim Uyarısı]: ${aiReplyText}\n\n(Not: Mesaj telefonunuza iletilemedi: ${errorMsg})`, { sentViaMeta: false, metaStatus: 'FAILED', metaError: errorMsg });
+  }
 
   // Try saving AI response to Prisma DB
   try {
@@ -165,18 +177,6 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
       }
     });
   } catch (e) {}
-
-  // 3. ALWAYS Send AI Reply back to Customer via Meta WhatsApp Cloud API
-  try {
-    console.log(`[Meta Webhook Worker] Sending WhatsApp Cloud API response to ${fromPhone}...`);
-    const metaRes = await sendMetaWhatsAppMessage({
-      to: fromPhone,
-      text: aiReplyText
-    });
-    console.log(`[Meta Webhook Worker] Successfully sent response to ${fromPhone}:`, metaRes);
-  } catch (sendErr: any) {
-    console.error('[Meta Webhook Send Error]:', sendErr?.message || sendErr);
-  }
 }
 
 /**

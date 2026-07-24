@@ -7,6 +7,8 @@ export interface StoredMessage {
   role: 'customer' | 'assistant' | 'patron';
   content: string;
   createdAt: string;
+  metaStatus?: 'DELIVERED' | 'FAILED' | 'PENDING';
+  metaError?: string;
 }
 
 export interface StoredConversation {
@@ -161,7 +163,7 @@ export function addIncomingCustomerMessage(fromPhone: string, textBody: string, 
   return conv;
 }
 
-export function addAssistantMessageToStore(conversationId: string, replyText: string): StoredMessage {
+export function addAssistantMessageToStore(conversationId: string, replyText: string, metadata?: { sentViaMeta?: boolean; metaStatus?: 'DELIVERED' | 'FAILED' | 'PENDING'; metaError?: string }): StoredMessage {
   getConversationsStore();
 
   const assistantMsg: StoredMessage = {
@@ -169,7 +171,9 @@ export function addAssistantMessageToStore(conversationId: string, replyText: st
     conversationId,
     role: 'assistant',
     content: replyText,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    metaStatus: metadata?.metaStatus || 'DELIVERED',
+    metaError: metadata?.metaError
   };
 
   const conv = globalStore.sharedConversations.find(c => c.id === conversationId);
