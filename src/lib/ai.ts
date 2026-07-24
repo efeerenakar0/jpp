@@ -57,7 +57,7 @@ Ton: ${tone === 'resmi' ? 'Resmi ve profesyonel' : tone === 'samimi' ? 'Samimi v
 
 ÖNEMLİ KURALLAR:
 1. Kesinlikle ama kesinlikle ilan sahibinin adını kullanma veya tahmin etme (örn: "Ahmet Bey", "Ayşe Hanım", "Sayın İlan Sahibi" gibi ifadeler YAZMA). Sadece doğrudan "Merhaba," diye başla.
-2. Senin adın Efe. Mesajın sonuna her zaman imza olarak "Efe - ${company.companyName}" şeklinde kendi adını yaz. "[Adınız]" gibi boşluk doldurmalı ifadeler KULLANMA.
+2. Senin adın Efe. Mesajın sonuna her zaman imza olarak "Efe - ${company.companyName}" şeklinde kendi adını yaz.
 3. Mesaj WhatsApp üzerinden gönderilecek, bu yüzden kısa ve etkili olsun (max 500 karakter).
 `,
 
@@ -99,24 +99,17 @@ WhatsApp grupları için samimi bir paylaşım mesajı yaz. Doğal ol, spam gibi
 İlan: ${listing.title}
 ${listing.price ? `Fiyat: ${listing.price}` : ''}
 ${listing.location ? `Konum: ${listing.location}` : ''}
-
-Kısa, öz ve samimi bir mesaj yaz. Emoji kullan ama abartma. Max 300 karakter.
 `,
 
   customerAssistant: (context: { companyName: string; availableListings: string; conversationHistory: string; customerMessage: string }) => `
-Sen ${context.companyName} firmasında çalışan, piyasayı avucunun içi gibi bilen, son derece bilgili, tecrübeli, samimi ve doğal Emlak Danışmanı Efe'sin.
-Müşteri karşısında kesinlikle bir robot veya yapay zeka olduğunu HİSSETMEMELİ. Tıpkı WhatsApp'tan yazışan, tecrübeli, akıllı ve bilgili bir insan emlak uzmanı gibi davran.
+Sen ${context.companyName} firmasında çalışan, Alanya emlak piyasasını avucunun içi gibi bilen, tecrübeli, samimi ve iş bitirici Emlak Danışmanı Efe'sin.
+Müşteri karşısında robot veya yapay zeka olduğunu HİSSETMEMELİ. Tıpkı WhatsApp'tan yazışan gerçek bir insan emlak uzmanı gibi yanıt ver.
 
-KESİN İLETİŞİM VE PORTFÖY KURALLARI:
-1. OFİSE / KAHVEYE DAVET KESİNLİKLE YAPMA (ŞU İKİ DURUM HARİÇ!):
-   - Müşteri kendisi "Ofisiniz nerede?", "Seninle görüşmek istiyorum", "Yüz yüze konuşalım", "Yarın gelebilir miyim?" demediği sürece VEYA
-   - Müşteri kendisi "Evi ne zaman görebiliriz?", "Daireleri canlı gösterin", "Yerinde bakalım" demediği sürece KESİNLİKLE KAHVE VEYA OFİSE DAVET ETME!
-2. MÜŞTERİ "DAİRELERİ GÖNDERİN / BİLGİ VERİN / PORTFÖYÜ ATIN" DEDİĞİNDE:
-   - Kesinlikle "Ofise gelin orada konuşalım" deme! Elindeki mevcut ilanları ve projeleri doğrudan WhatsApp mesajında harika, çekici ve akıcı bir dille anlat. Dairelerin lokasyonunu, oda sayısını, fiyatını ve öne çıkan sosyal imkanlarını (havuz, sauna, peyzaj vb.) mesajda detaylandırarak müşteriye sun.
-3. KANLI CANLI BİLGİLİ İNSAN GİBİ KONUŞ: Yapay zeka olduğunu belli eden robotik veya kalıplaşmış laflar kullanma. Gerçek ve tecrübeli bir insan nasıl konuşursa öyle yanıt ver.
-4. MESAJ BOYUTU KISA VE ÖZ OLMALI (DESTAN YAZMA): Cevapların devasa uzunlukta olmasın! Müşteriyi okurken sıkmayacak, WhatsApp ekranında rahatça okunan akıcı, net, kısa ve öz mesajlar yaz.
-5. ABARTILI ÖVGÜLERDEN KAÇIN: Sürekli "Mükemmel tercih!", "Çok iyi seçim!", "Harika karar!" gibi yapay ve samimiyetsiz övgüler dizme. Bilgili bir insan gibi sadece gerekli ve doğal yerlerde samimiyetini göster.
-6. Kredi ve taksit sorulursa: Kendi bünyenizdeki esnek ödeme kolaylıklarını güven veren bir dille anlat.
+KURALLAR:
+1. Müşterinin sorduğu soruya (Kiralık, Satılık, 1+1, 2+1, Fiyat, Bölge) doğrudan odaklanarak yanıt ver.
+2. Müşteri "kiralık" dediyse Alanya ve Mahmutlar'daki kiralık portföylerden bahset, bütçesini ve oda tercihini sor.
+3. KESİNLİKLE HER MESAJDA AYNI TEKRAR EDEN İLETIŞIM CÜMLESINI YAZMA! Müşterinin spesifik olarak yazdığı kelimelere göre dinamik ve doğal konuş.
+4. Mesaj boyutun WhatsApp ekranında rahat okunan kısa, net ve öz olsun.
 
 Mevcut İlanlar & Projeler:
 ${context.availableListings}
@@ -126,7 +119,7 @@ ${context.conversationHistory}
 
 Müşterinin Son Mesajı: ${context.customerMessage}
 
-Yalnızca aşağıdaki JSON formatında yanıt dön:
+JSON formatında yanıt dön:
 {
   "reply": "Müşteriye gönderilecek insansı WhatsApp mesajı",
   "detectedIntent": "INVESTMENT | RESIDENTIAL | BOTH | UNKNOWN",
@@ -153,11 +146,6 @@ ${company.companyName} emlak firması için marka tanıtım kampanyası metinler
 Güçlü Yanlar: ${company.strengths.join(', ')}
 Hizmet Bölgeleri: ${company.serviceAreas.join(', ')}
 
-3 farklı platform için metin üret:
-1. Google Ads (headline + description)
-2. Instagram (görsel odaklı caption + hashtags)
-3. WhatsApp grupları (samimi tanıtım)
-
 JSON formatında döndür:
 {
   "google": { "headline": "...", "description": "..." },
@@ -167,37 +155,7 @@ JSON formatında döndür:
 `,
 };
 
-// ---- Mock Yanıtlar ----
-
-const MOCK_RESPONSES: Record<string, string> = {
-  seo: JSON.stringify({
-    seoTitle: "Alanya'da Deniz Manzaralı 3+1 Daire | Jasmine Group",
-    metaDescription: "Alanya Mahmutlar'da deniz manzaralı, havuzlu site içinde 3+1 satılık daire. Yatırım için ideal konum ve fiyat avantajı.",
-    htmlDescription: "<p>Alanya'nın en gözde bölgelerinden Mahmutlar'da, deniz manzaralı bu muhteşem 3+1 daire sizi bekliyor.</p><p>120 m² kullanım alanına sahip daire, modern tasarımı ve kaliteli malzemeleriyle öne çıkıyor.</p><p>Havuzlu site içinde, denize 500 metre mesafede konumlanan bu eşsiz fırsatı kaçırmayın.</p>"
-  }),
-  hunting: "Merhaba, Sahibinden.com'daki ilanınızı inceledim. Jasmine Group olarak bölgedeki güçlü müşteri portföyümüz ve profesyonel pazarlama ağımızla ilanınızı çok daha geniş bir kitleye ulaştırabiliriz. Kısa bir görüşme yapmamız mümkün mü? 🏠",
-  google_ads: JSON.stringify({
-    headline1: "Alanya'da Satılık Daire",
-    headline2: "Deniz Manzaralı 3+1",
-    headline3: "Uygun Fiyat Avantajı",
-    description1: "Alanya Mahmutlar'da deniz manzaralı, havuzlu site içi 3+1 daire. Hemen arayın!",
-    description2: "Yatırım için ideal konum. Profesyonel danışmanlık ve ücretsiz tur imkanı."
-  }),
-  instagram: JSON.stringify({
-    caption: "🏖️ Hayalinizdeki ev Alanya'da sizi bekliyor!\n\n✨ 3+1 | 120 m² | Deniz Manzaralı\n📍 Mahmutlar, Alanya\n💰 Uygun fiyat avantajı\n\n🏊 Havuzlu site içinde\n🌊 Denize 500m\n\nDetaylı bilgi için DM'den ulaşın! 📩",
-    hashtags: ["#alanya", "#emlak", "#satılıkdaire", "#denizmanzaralı", "#mahmutlar", "#gayrimenkul", "#yatırım", "#türkiye"]
-  }),
-  whatsapp: "Merhaba 👋 Alanya Mahmutlar'da harika bir 3+1 dairemiz var! Deniz manzaralı, havuzlu site içi. Fiyatı çok uygun. İlgilenen varsa detay verebilirim 🏠✨",
-  assistant: "assistant_contextual",
-  appointment_confirm: "Sayın müşterimiz, randevunuz onaylanmıştır. 📅 Görüşmemizi dört gözle bekliyoruz. Herhangi bir değişiklik olursa lütfen bizi bilgilendirin. İyi günler! 🏠",
-  brand_campaign: JSON.stringify({
-    google: { headline: "Jasmine Group | Emlak", description: "Alanya'da güvenilir emlak danışmanlığı. 10+ yıl tecrübe, 500+ mutlu müşteri." },
-    instagram: { caption: "🏠 Jasmine Group ile hayalinizdeki eve kavuşun!\n\n✅ 10+ yıl tecrübe\n✅ 500+ mutlu müşteri\n✅ Profesyonel danışmanlık\n\n📩 DM'den ulaşın!", hashtags: ["#jasminegroup", "#emlak", "#alanya"] },
-    whatsapp: "Merhaba! Jasmine Group olarak Alanya'da 10+ yıldır emlak danışmanlığı yapıyoruz. Satılık/kiralık ev arayışınızda yanınızdayız. Detay için yazabilirsiniz 🏠"
-  }),
-};
-
-// ---- Stateful Multi-Turn Conversation Memory Engine (Fallback) ----
+// ---- Stateful Multi-Turn Conversation Memory Engine (Smart Fallback) ----
 
 interface ConversationState {
   intent: 'RENTAL' | 'SALE' | 'UNKNOWN';
@@ -205,7 +163,6 @@ interface ConversationState {
   roomType: string | null;
   budget: string | null;
   isFurnished: boolean;
-  isStudent: boolean;
 }
 
 function extractConversationState(messages: ChatMessage[]): ConversationState {
@@ -229,17 +186,11 @@ function extractConversationState(messages: ChatMessage[]): ConversationState {
   else if (fullText.includes('stüdyo') || fullText.includes('studio')) roomType = 'Stüdyo';
 
   let budget: string | null = null;
-  const budgetMatch = fullText.match(/(\d+[\d\.]*)\s*(bin|tl|k|milyon)?/i);
+  const budgetMatch = fullText.match(/(\d+[\d\.]*)\s*(bin|tl|k|milyon|euro|€)?/i);
   if (budgetMatch) {
     const num = budgetMatch[1];
     const unit = budgetMatch[2] || '';
-    if (unit.includes('bin') || unit.includes('k') || (parseInt(num) >= 5 && parseInt(num) <= 100)) {
-      budget = `${num}.000 TL`;
-    } else if (unit.includes('milyon')) {
-      budget = `${num} Milyon TL`;
-    } else {
-      budget = `${num} ${unit}`.trim();
-    }
+    budget = `${num} ${unit}`.trim();
   }
 
   return {
@@ -248,64 +199,70 @@ function extractConversationState(messages: ChatMessage[]): ConversationState {
     roomType,
     budget,
     isFurnished: fullText.includes('eşyalı') || fullText.includes('esyali'),
-    isStudent: fullText.includes('öğrenci') || fullText.includes('ogrenci')
   };
 }
 
-function generateSmartFallbackReply(messages: ChatMessage[]): string {
-  const fullText = messages.map(m => m.content).join(' ').toLowerCase();
-  const lastMsgObj = messages[messages.length - 1];
-  const lastMsg = (lastMsgObj?.content || '').toLowerCase();
-  
-  const hasHistory = messages.length > 2 || fullText.includes('asistan:') || fullText.includes('jasmine group');
-
-  // Topic 1: Installments / Credit / Payment options
-  if (lastMsg.includes('taksit') || lastMsg.includes('kredi') || lastMsg.includes('ödeme') || lastMsg.includes('vade')) {
-    return "Tabii ki! Projelerimizde kendi bünyemizde esnek taksit seçenekleri, peşinat kolaylığı ve anlaşmalı bankalarımızla kredi imkanları sunuyoruz. İlgilendiğiniz daire satılık mı yoksa projeden yatırımlık mı acaba?";
-  }
-
-  // Topic 2: Price / Budget queries
-  if (lastMsg.includes('fiyat') || lastMsg.includes('ücret') || lastMsg.includes('kaç para') || lastMsg.includes('ne kadar')) {
-    return "Fiyatlarımız dairenin konumuna, metrekaresine ve site içi imkanlarına göre değişiklik göstermektedir. Size en güncel fiyat listesini iletebilmemiz için düşündüğünüz bütçe aralığı ve oda sayısı nedir?";
-  }
-
-  // Topic 3: Photos / Visuals / Details
-  if (lastMsg.includes('fotoğraf') || lastMsg.includes('resim') || lastMsg.includes('görsel') || lastMsg.includes('detay') || lastMsg.includes('katalog')) {
-    return "Harika! İlgilendiğiniz kriterlere uygun güncel dairelerimizin detaylı fotoğraflarını ve sunum dosyasını hazırlıyorum. Arayışınız kiralık mı yoksa satılık mı acaba?";
-  }
-
-  // Topic 4: Appointment / Office / Location
-  if (lastMsg.includes('randevu') || lastMsg.includes('ofis') || lastMsg.includes('nerde') || lastMsg.includes('konum') || lastMsg.includes('gelsem')) {
-    return "Ofisimiz Alanya merkezde son derece kolay ulaşılan bir konumdadır. Dilerseniz çay/kahve eşliğinde güncel portföyümüzü incelemek için bir randevu oluşturalım. Hangi gün ve saat sizin için uygun olur?";
-  }
-
-  // Topic 5: Rental vs Sale Intent
+export function generateSmartFallbackResponse(messages: ChatMessage[]): string {
   const state = extractConversationState(messages);
-  
+  const lastMsg = (messages[messages.length - 1]?.content || '').toLowerCase();
+
   if (state.intent === 'RENTAL') {
     if (state.location && state.roomType) {
-      return `Süper! ${state.location} bölgesinde ${state.isFurnished ? 'eşyalı ' : ''}${state.roomType} kiralık daire portföyümüzü hemen kontrol ettiriyorum. Aylık düşündüğünüz ortalama bütçe aralığı nedir?`;
+      return JSON.stringify({
+        reply: `Tabii ki! ${state.location} bölgesinde ${state.isFurnished ? 'eşyalı ' : ''}${state.roomType} kiralık daire portföyümüz mevcut. Aylık düşündüğünüz ortalama bütçe nedir acaba?`,
+        detectedIntent: "RESIDENTIAL",
+        suggestedListings: [],
+        isAppointmentRequest: false
+      });
     }
     if (state.location) {
-      return `Tabii ki! ${state.location} bölgesindeki kiralık daire seçeneklerimiz oldukça geniş. Aradığınız ev 1+1 mi yoksa 2+1 mi olsun?`;
+      return JSON.stringify({
+        reply: `Harika! ${state.location} bölgesindeki kiralık daire seçeneklerimiz oldukça geniş. Aradığınız ev 1+1 mi yoksa 2+1 mi olsun?`,
+        detectedIntent: "RESIDENTIAL",
+        suggestedListings: [],
+        isAppointmentRequest: false
+      });
     }
-    return "Tabii ki! Alanya ve Mahmutlar bölgesindeki güncel kiralık daire portföyümüzü kontrol ediyorum. Düşündüğünüz belirli bir bölge veya oda sayısı var mıdır?";
+    return JSON.stringify({
+      reply: "Alanya, Mahmutlar ve Oba bölgesindeki güncel kiralık daire seçeneklerimiz mevcut. Düşündüğünüz belirli bir bölge, oda sayısı (1+1, 2+1) veya bütçe aralığı var mıdır?",
+      detectedIntent: "RESIDENTIAL",
+      suggestedListings: [],
+      isAppointmentRequest: false
+    });
   }
 
   if (state.intent === 'SALE') {
     if (state.location && state.budget) {
-      return `Alanya ${state.location} bölgesinde ${state.budget} bütçenize özel, lansman fiyatlı satılık dairelerimizin detaylarını hazırlıyoruz. Yatırımlık mı yoksa hemen oturum amaçlı mı düşünüyorsunuz?`;
+      return JSON.stringify({
+        reply: `Alanya ${state.location} bölgesinde ${state.budget} bütçenize özel, lansman fiyatlı satılık projelerimizin detaylarını hazırlıyoruz. Yatırımlık mı yoksa hemen oturum amaçlı mı düşünüyorsunuz?`,
+        detectedIntent: "INVESTMENT",
+        suggestedListings: [],
+        isAppointmentRequest: false
+      });
     }
-    return "Alanya genelinde lansmana özel fiyatlı ve yüksek prim getirili satılık projelerimiz var. Yatırımlık mı yoksa oturum amaçlı mı düşünüyorsunuz?";
+    return JSON.stringify({
+      reply: "Alanya genelinde lansmana özel fiyatlı ve yüksek prim getirili satılık projelerimiz var. Düşündüğünüz oda sayısı ve bütçe aralığı nedir?",
+      detectedIntent: "INVESTMENT",
+      suggestedListings: [],
+      isAppointmentRequest: false
+    });
   }
 
-  // If ongoing conversation exists, respond directly without intro greeting
-  if (hasHistory) {
-    return "Size tam yardımcı olabilmem için arayışınız kiralık mı yoksa satılık mı, veya düşündüğünüz oda sayısı (1+1, 2+1) nedir acaba?";
+  if (lastMsg.includes('selam') || lastMsg.includes('merhaba')) {
+    return JSON.stringify({
+      reply: "Merhaba! Jasmine Group'tan ben Efe. Alanya bölgesindeki kiralık veya satılık daire arayışınızda size yardımcı olmaktan memnuniyet duyarım. Nasıl bir ev bakıyordunuz?",
+      detectedIntent: "UNKNOWN",
+      suggestedListings: [],
+      isAppointmentRequest: false
+    });
   }
 
-  // Default initial greeting for new chats only
-  return "Merhaba! Jasmine Group'tan ben. Alanya'da kiralık veya satılık daire arayışınızda size yardımcı olmaktan mutluluk duyarım. Nasıl bir ev arıyorsunuz?";
+  return JSON.stringify({
+    reply: "Size en uygun portföyü sunabilmem için arayışınız kiralık mı yoksa satılık mı, ve tercih ettiğiniz oda sayısı nedir acaba?",
+    detectedIntent: "UNKNOWN",
+    suggestedListings: [],
+    isAppointmentRequest: false
+  });
 }
 
 // ---- Ana API Fonksiyonu ----
@@ -322,11 +279,12 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   const lastMessage = conversationMessages[conversationMessages.length - 1] || { role: 'user', content: 'Merhaba' };
 
   const genAI = getGenAI(customApiKey);
+
+  // OFFICIAL GOOGLE GEMINI MODEL NAMES
   const modelsToTry = [
-    "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-flash-lite-latest",
-    "gemini-flash-latest"
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-2.0-flash-exp"
   ];
   let lastError: any = null;
 
@@ -344,29 +302,24 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
       const result = await chatSession.sendMessage(lastMessage.content);
       const textContent = result.response.text();
 
-      return {
-        content: textContent,
-        isMock: false,
-      };
+      if (textContent && textContent.trim().length > 0) {
+        return {
+          content: textContent,
+          isMock: false,
+        };
+      }
     } catch (err: any) {
       console.warn(`[Gemini Model ${modelName} Warning]:`, err?.message || err);
       lastError = err;
-      if (err?.status === 429 || err?.message?.includes('Quota') || err?.message?.includes('429')) {
-        console.log('[Quota pause detected - Waiting 3 seconds for rate limit reset...]');
-        await new Promise(r => setTimeout(r, 3000));
-        try {
-          const modelWithSystem = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemInstruction });
-          const chatSession = modelWithSystem.startChat({ history: formattedHistory });
-          const result = await chatSession.sendMessage(lastMessage.content);
-          return { content: result.response.text(), isMock: false };
-        } catch (retryErr) {
-          lastError = retryErr;
-        }
-      }
     }
   }
 
-  throw new Error(`Google Gemini API execution failed on all models: ${lastError?.message || lastError}`);
+  console.warn(`[Gemini API Fallback Triggered]: All models failed (${lastError?.message}), using smart dynamic response generator`);
+  
+  return {
+    content: generateSmartFallbackResponse(conversationMessages),
+    isMock: true
+  };
 }
 
 // ---- Yardımcı Fonksiyonlar ----
@@ -378,12 +331,8 @@ export function parseJSONResponse(content: string): Record<string, unknown> | nu
       return JSON.parse(jsonMatch[0]);
     }
     return JSON.parse(content);
-  } catch {
-    console.error('Failed to parse AI JSON response:', content);
+  } catch (error) {
+    console.error('Error parsing JSON response:', error);
     return null;
   }
-}
-
-export function isAIConfigured(): boolean {
-  return !!process.env.GEMINI_API_KEY;
 }
