@@ -142,11 +142,10 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     ];
 
     const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
-    const parsed = parseJSONResponse(aiResponse.content);
-    aiReplyText = (parsed?.reply as string) || (typeof aiResponse.content === 'string' ? aiResponse.content.trim() : '');
-
-    if (!aiReplyText || aiReplyText.trim().length === 0) {
-      aiReplyText = aiResponse.content || textBody;
+    if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
+      aiReplyText = aiResponse.content.trim();
+    } else {
+      aiReplyText = textBody;
     }
   } catch (aiErr: any) {
     console.error('[Meta Webhook AI Error]:', aiErr);

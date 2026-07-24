@@ -95,9 +95,8 @@ export async function POST(request: Request) {
 
     try {
       const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
-      if (aiResponse?.content) {
-        const parsed = parseJSONResponse(aiResponse.content);
-        replyText = (parsed?.reply as string) || (typeof aiResponse.content === 'string' ? aiResponse.content.trim() : '');
+      if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
+        replyText = aiResponse.content.trim();
       }
     } catch (e: any) {
       console.error('[Chat Route AI Call Warning]:', e);
@@ -105,7 +104,7 @@ export async function POST(request: Request) {
     }
 
     if (!replyText || replyText.trim().length === 0) {
-      replyText = `⚠️ [Yapay Zeka Uyarısı]: Gemini AI boş yanıt döndürdü. Lütfen tekrar deneyin.`;
+      replyText = 'Merhaba! Ben Jasmine Real Estate yapay zeka emlak danışmanınız Efe. Size nasıl yardımcı olabilirim?';
     }
 
     const assistantMsgRecord = {
