@@ -112,19 +112,15 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     console.warn('[Meta Webhook DB Save Warning]: Could not persist to DB, saved to shared store', dbErr);
   }
 
-  // 2. Trigger Gemini AI Auto-Response
+  // 2. Build FULL conversation history array for Gemini 3.5 Flash memory
   let aiReplyText = '';
   try {
     let companyName = 'Jasmine Group';
-    let assistantName = 'Efe';
-    let serviceCity = 'Alanya';
     let customGeminiKey: string | undefined = undefined;
 
     try {
       const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
       if (waConfig?.companyName) companyName = waConfig.companyName;
-      if (waConfig?.assistantName) assistantName = waConfig.assistantName;
-      if (waConfig?.serviceCity) serviceCity = waConfig.serviceCity;
       if (waConfig?.geminiApiKey) customGeminiKey = waConfig.geminiApiKey;
     } catch (e) {}
 
@@ -139,22 +135,25 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
 
     const aiMessages = [
       { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: textBody }
+      ...(conv.messages || []).map(m => ({
+        role: m.role === 'customer' ? ('user' as const) : ('assistant' as const),
+        content: m.content
+      }))
     ];
 
     const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
-    let parsed: any = parseJSONResponse(aiResponse.content);
+    const parsed = parseJSONResponse(aiResponse.content);
     aiReplyText = (parsed?.reply as string) || (typeof aiResponse.content === 'string' ? aiResponse.content.trim() : '');
 
     if (!aiReplyText || aiReplyText.trim().length === 0) {
-      aiReplyText = `Merhaba! Alanya bölgesindeki kiralık ve satılık daire portföylerimiz mevcuttur. Nasıl bir ev bakıyordunuz?`;
+      aiReplyText = aiResponse.content || textBody;
     }
   } catch (aiErr: any) {
     console.error('[Meta Webhook AI Error]:', aiErr);
     aiReplyText = `⚠️ [Yapay Zeka Uyarısı]: ${aiErr?.message || 'Gemini AI yanıtı oluşturulamadı.'}`;
   }
 
-  // 3. ALWAYS Send AI Reply back to Customer via Meta WhatsApp Cloud API
+  // 3. Send AI Reply back to Customer via Meta WhatsApp Cloud API
   try {
     console.log(`[Meta Webhook Worker] Sending WhatsApp Cloud API response to ${fromPhone}...`);
     const metaRes = await sendMetaWhatsAppMessage({
@@ -169,7 +168,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     addAssistantMessageToStore(conv.id, `⚠️ [WhatsApp Mesaj İletim Uyarısı]: ${aiReplyText}\n\n(Not: Mesaj telefonunuza iletilemedi: ${errorMsg})`, { sentViaMeta: false, metaStatus: 'FAILED', metaError: errorMsg });
   }
 
-  // Try saving AI response to Prisma DB
+  // Save AI response to Prisma DB if connected
   try {
     await prisma.conversationMessage.create({
       data: {
