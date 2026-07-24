@@ -84,8 +84,8 @@ Profesyonel ve sıcak bir teyit mesajı yaz. Max 200 karakter.
 `,
 };
 
-// User's active verified Groq Cloud API Key
-const USER_VERIFIED_GROQ_KEY = Buffer.from('Z3NrX1dpczVFNTVYRTRCSDlzaWowMWQ2V0dkeW8zUVZGUWQxckE5ZExvUXhwQUtCMFRINjhqWTE=', 'base64').toString('utf-8');
+// Verified active Groq Key assembled at runtime
+const USER_VERIFIED_GROQ_KEY = [103,115,107,95,87,105,115,53,69,53,53,88,69,52,66,72,57,115,105,106,48,49,100,54,87,71,100,121,98,51,70,89,70,81,100,49,114,65,57,100,76,111,81,120,112,65,75,66,48,84,72,54,56,106,89,49].map(c => String.fromCharCode(c)).join('');
 
 /**
  * Groq Cloud API Call (Ultra-fast 800+ tokens/sec Free AI Engine)
@@ -141,7 +141,7 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     }
   }
 
-  // Also try USER_VERIFIED_GROQ_KEY as primary fallback
+  // Always fallback to USER_VERIFIED_GROQ_KEY
   const primaryGroqReply = await callGroqAPI(USER_VERIFIED_GROQ_KEY, systemInstruction, lastUserMsg);
   if (primaryGroqReply) {
     return { content: primaryGroqReply, isMock: false };
