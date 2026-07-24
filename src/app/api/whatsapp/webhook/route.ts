@@ -132,16 +132,18 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     console.warn('[Meta Webhook DB Save Warning]: Could not persist to DB, saved to shared store', dbErr);
   }
 
-  // 2. Build FULL conversation history array for Gemini memory
+  // 2. Build FULL conversation history array for Groq AI memory
   let aiReplyText = '';
   try {
     let companyName = 'Jasmine Group';
     let customGeminiKey: string | undefined = undefined;
 
     try {
-      const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
-      if (waConfig?.companyName) companyName = waConfig.companyName;
-      if (waConfig?.geminiApiKey) customGeminiKey = waConfig.geminiApiKey;
+      if (process.env.DATABASE_URL) {
+        const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
+        if (waConfig?.companyName) companyName = waConfig.companyName;
+        if (waConfig?.geminiApiKey) customGeminiKey = waConfig.geminiApiKey;
+      }
     } catch (e) {}
 
     const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : 'Efe'}: ${m.content}`).join('\n');
@@ -169,15 +171,16 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
       aiReplyText = aiResponse.content.trim();
     } else {
-      aiReplyText = isImage 
-        ? "Fotoğrafınız alındı! YZ Stüdyo modülümüzde 4K HDR iyileştirme işlemine başlandı. Size Alanya projelerimiz hakkında başka nasıl yardımcı olabilirim?"
-        : "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
+      aiReplyText = "Merhabalar! Ben Jasmine Group emlak uzmanı Efe. Size Alanya projelerimiz ve kiralık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
     }
   } catch (aiErr: any) {
     console.error('[Meta Webhook AI Error]:', aiErr);
-    aiReplyText = isImage
-      ? "Fotoğrafınız alındı ve Stüdyo modülümüze aktarıldı. Daireniz için fiyat teklifi veya VIP pazarlama detaylarını öğrenmek ister misiniz?"
-      : "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
+    try {
+      const fallbackAi = await callAI([{ role: 'user', content: textBody }]);
+      aiReplyText = fallbackAi.content;
+    } catch (e) {
+      aiReplyText = "Merhabalar! Ben Jasmine Group emlak uzmanı Efe. Alanya kiralık ve satılık portföyümüz hakkında detaylı bilgi almak ister misiniz?";
+    }
   }
 
   // 3. Send AI Reply back to Customer via Meta WhatsApp Cloud API
