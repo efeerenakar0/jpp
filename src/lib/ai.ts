@@ -1,6 +1,6 @@
 /**
  * Gemini API Client Wrapper
- * Official Google Gemini 2.0 & 1.5 Flash Model Integration
+ * Official Google Gemini 3.5 & 2.5 Flash Model Integration
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -71,7 +71,7 @@ Ton: ${tone === 'resmi' ? 'Resmi ve profesyonel' : tone === 'samimi' ? 'Samimi v
 Sen ${context.companyName} firmasında çalışan, Alanya emlak piyasasını, yatırım kanunlarını, ikamet izni ve Türk Vatandaşlığı mevzuatını avucunun içi gibi bilen, son derece bilgili, tecrübeli, samimi ve iş bitirici Emlak Danışmanı Efe'sin.
 Müşteri karşısında robot veya yapay zeka olduğunu HİSSETMEMELİ. Tıpkı WhatsApp'tan yazışan gerçek ve bilgili bir insan emlak uzmanı gibi yanıt ver.
 
-KURALLAR:
+ÖNEMLİ KURALLAR:
 1. Müşteri ne sorarsa sorsun (Vatandaşlık, İkamet izni, Kiralık daire, Satılık proje, Fiyatlar, Taksit imkanları, Alanya lokasyonları) doğrudan müşterinin özel sorusuna bilgili, uzman bir insan gibi detaylı yanıt ver.
 2. TÜRK VATANDAŞLIĞI SORULURSA:
    - En az $400.000 (400 bin Dolar) tutarında gayrimenkul SATIN ALINMASI gerektiğini açıkla.
@@ -102,145 +102,104 @@ Profesyonel ve sıcak bir teyit mesajı yaz. Max 200 karakter.
 `,
 };
 
-// ---- Dynamic Conversational Memory Engine (Backup) ----
-
-interface ConversationState {
-  intent: 'RENTAL' | 'SALE' | 'CITIZENSHIP' | 'UNKNOWN';
-  location: string | null;
-  roomType: string | null;
-  budget: string | null;
-  isFurnished: boolean;
-}
-
-function extractConversationState(messages: ChatMessage[]): ConversationState {
-  const fullText = messages.map(m => m.content).join(' ').toLowerCase();
-
-  const isCitizenship = fullText.includes('vatandaş') || fullText.includes('citizenship') || fullText.includes('pasaport') || fullText.includes('ikamet');
-  const isRental = fullText.includes('kiralık') || fullText.includes('kira') || fullText.includes('kiralayacağım') || fullText.includes('öğrenci');
-  const isSale = !isRental && (fullText.includes('satılık') || fullText.includes('satın') || fullText.includes('yatırım'));
-
-  let location: string | null = null;
-  if (fullText.includes('mahmutlar')) location = 'Mahmutlar';
-  else if (fullText.includes('oba')) location = 'Oba';
-  else if (fullText.includes('kargıcak')) location = 'Kargıcak';
-  else if (fullText.includes('avsallar')) location = 'Avsallar';
-  else if (fullText.includes('kestel')) location = 'Kestel';
-  else if (fullText.includes('alanya')) location = 'Alanya';
-
-  let roomType: string | null = null;
-  if (fullText.includes('1+1') || fullText.includes('bir artı bir')) roomType = '1+1';
-  else if (fullText.includes('2+1') || fullText.includes('iki artı bir')) roomType = '2+1';
-  else if (fullText.includes('3+1') || fullText.includes('üç artı bir')) roomType = '3+1';
-  else if (fullText.includes('stüdyo') || fullText.includes('studio')) roomType = 'Stüdyo';
-
-  let budget: string | null = null;
-  const budgetMatch = fullText.match(/(\d+[\d\.]*)\s*(bin|tl|k|milyon|euro|€|\$|dolar)?/i);
-  if (budgetMatch) {
-    const num = budgetMatch[1];
-    const unit = budgetMatch[2] || '';
-    budget = `${num} ${unit}`.trim();
-  }
-
-  return {
-    intent: isCitizenship ? 'CITIZENSHIP' : (isRental ? 'RENTAL' : (isSale ? 'SALE' : 'UNKNOWN')),
-    location,
-    roomType,
-    budget,
-    isFurnished: fullText.includes('eşyalı') || fullText.includes('esyali'),
-  };
-}
-
-export function generateSmartFallbackResponse(messages: ChatMessage[]): string {
-  const state = extractConversationState(messages);
-  const lastMsg = (messages[messages.length - 1]?.content || '').toLowerCase();
-
-  // Handle Citizenship & Passport Queries
-  if (lastMsg.includes('vatandaş') || lastMsg.includes('citizenship') || lastMsg.includes('ikamet')) {
-    if (lastMsg.includes('kiralık') || lastMsg.includes('kira')) {
-      return "Kiralık ev ile maalesef Türk Vatandaşlığı alınamamaktadır. Türk Vatandaşlığı hakkı kazanmak için en az $400.000 tutarında gayrimenkul SATIN ALMANIZ gerekmektedir. Vatandaşlığa uygun $400.000+ satılık lüks projelerimiz hakkında bilgi vermek ister misiniz?";
-    }
-    return "Türk Vatandaşlığı başvurusu için Türkiye'de en az $400.000 değerinde gayrimenkul satın almanız gerekmektedir. Jasmine Group olarak vatandaşlığa tam uygun lansman projelerimiz mevcuttur. Detaylı katalog iletmemi ister misiniz?";
-  }
-
-  if (state.intent === 'RENTAL') {
-    if (state.location && state.roomType) {
-      return `Tabii ki! ${state.location} bölgesinde ${state.isFurnished ? 'eşyalı ' : ''}${state.roomType} kiralık daire portföyümüz mevcut. Aylık düşündüğünüz bütçe nedir acaba?`;
-    }
-    return "Alanya, Mahmutlar ve Oba bölgesindeki kiralık daire seçeneklerimiz mevcut. Düşündüğünüz belirli bir bölge veya oda sayısı (1+1, 2+1) var mıdır?";
-  }
-
-  if (state.intent === 'SALE') {
-    return "Alanya genelinde lansmana özel fiyatlı ve yüksek prim getirili satılık projelerimiz var. Düşündüğünüz oda sayısı ve bütçe aralığı nedir?";
-  }
-
-  if (lastMsg.includes('selam') || lastMsg.includes('merhaba')) {
-    return "Merhaba! Jasmine Group'tan ben Efe. Alanya bölgesindeki kiralık veya satılık daire arayışınızda size yardımcı olmaktan memnuniyet duyarım. Nasıl bir ev bakıyordunuz?";
-  }
-
-  return "Size tam yardımcı olabilmem için arayışınız kiralık mı yoksa satılık mı, veya bilgi almak istediğiniz özel bir konu var mıdır?";
-}
-
 // ---- Ana API Fonksiyonu ----
 
 export async function callAI(messages: ChatMessage[], mockKey?: string, customApiKey?: string): Promise<AIResponse> {
   const conversationMessages = messages.filter(m => m.role !== 'system');
   const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
 
-  const formattedHistory = conversationMessages.slice(0, -1).map(m => ({
+  let apiKey = customApiKey || process.env.GEMINI_API_KEY || (bundledCreds as any)?.geminiApiKey || '';
+  if (!apiKey && (bundledCreds as any)?.geminiApiKeyBase64) {
+    try {
+      apiKey = Buffer.from((bundledCreds as any).geminiApiKeyBase64, 'base64').toString('utf-8');
+    } catch (e) {}
+  }
+
+  if (!apiKey) {
+    return {
+      content: "⚠️ [Yapay Zeka Uyarısı]: Gemini API Anahtarı bulunamadı. Lütfen Asistan panelindeki Meta & AI Ayarları butonundan Gemini API Anahtarınızı kaydedin.",
+      isMock: true
+    };
+  }
+
+  const modelsToTry = [
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash"
+  ];
+
+  const contentsPayload = conversationMessages.map(m => ({
     role: m.role === 'user' ? 'user' : 'model',
     parts: [{ text: m.content }]
   }));
 
-  const lastMessage = conversationMessages[conversationMessages.length - 1] || { role: 'user', content: 'Merhaba' };
-
-  const genAI = getGenAI(customApiKey);
-
-  // OFFICIAL GOOGLE GEMINI MODELS (TRY FLASH 2.5, FLASH 2.0, FLASH 1.5, PRO 1.5)
-  const modelsToTry = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash-exp",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-flash-latest"
-  ];
-  let lastError: any = null;
+  const isBearer = apiKey.startsWith('AQ') || apiKey.length > 50;
 
   for (const modelName of modelsToTry) {
     try {
-      const modelWithSystem = genAI.getGenerativeModel({ 
-        model: modelName,
-        systemInstruction: systemInstruction 
+      const endpoint = isBearer 
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`
+        : `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (isBearer) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+          contents: contentsPayload
+        })
       });
 
-      const chatSession = modelWithSystem.startChat({
-        history: formattedHistory,
-      });
+      const data = await response.json();
+      const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-      const result = await chatSession.sendMessage(lastMessage.content);
-      const textContent = result.response.text();
-
-      if (textContent && textContent.trim().length > 0) {
+      if (response.ok && candidateText && candidateText.trim().length > 0) {
+        console.log(`[Google Gemini ${modelName} Live Success]: Generated response`);
         return {
-          content: textContent.trim(),
-          isMock: false,
+          content: candidateText.trim(),
+          isMock: false
         };
       }
+
+      if (data?.error?.message) {
+        console.warn(`[Google Gemini ${modelName} API Error]:`, data.error.message);
+      }
     } catch (err: any) {
-      console.warn(`[Gemini Model ${modelName} Warning]:`, err?.message || err);
-      lastError = err;
+      console.warn(`[Google Gemini ${modelName} Fetch Exception]:`, err?.message || err);
     }
   }
 
-  console.warn(`[Gemini API Fallback Triggered]: All models failed (${lastError?.message}), using dynamic fallback generator`);
-  
+  // Fallback to Generative AI SDK
+  try {
+    const genAI = getGenAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash', systemInstruction });
+    const chatSession = model.startChat({
+      history: conversationMessages.slice(0, -1).map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content }]
+      }))
+    });
+    const lastMsg = conversationMessages[conversationMessages.length - 1]?.content || 'Merhaba';
+    const result = await chatSession.sendMessage(lastMsg);
+    const text = result.response.text();
+    if (text && text.trim().length > 0) {
+      return { content: text.trim(), isMock: false };
+    }
+  } catch (sdkErr: any) {
+    console.warn('[Gemini SDK Fallback Error]:', sdkErr?.message || sdkErr);
+  }
+
   return {
-    content: generateSmartFallbackResponse(conversationMessages),
+    content: "⚠️ [Yapay Zeka Uyarısı]: Google Gemini API Anahtarınız (aistudio.google.com) yetkisiz veya engellenmiş olabilir (API_KEY_SERVICE_BLOCKED). Lütfen aistudio.google.com adresinden yeni bir Gemini API Anahtarı alıp kaydedin.",
     isMock: true
   };
 }
-
-// ---- Yardımcı Fonksiyonlar ----
 
 export function parseJSONResponse(content: string): Record<string, unknown> | null {
   try {

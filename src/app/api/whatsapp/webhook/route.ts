@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage, updateCredentialsCache } from '@/lib/whatsapp';
-import { callAI, PROMPTS, parseJSONResponse, generateSmartFallbackResponse } from '@/lib/ai';
+import { callAI, PROMPTS, parseJSONResponse } from '@/lib/ai';
 import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
 
 // Set to keep track of processed message IDs to prevent duplicates
@@ -147,15 +147,11 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     aiReplyText = (parsed?.reply as string) || (typeof aiResponse.content === 'string' ? aiResponse.content.trim() : '');
 
     if (!aiReplyText || aiReplyText.trim().length === 0) {
-      const fallbackJSON = generateSmartFallbackResponse(aiMessages);
-      const parsedFallback = parseJSONResponse(fallbackJSON);
-      aiReplyText = (parsedFallback?.reply as string) || `Merhaba! Alanya, Mahmutlar ve Oba bölgesindeki güncel kiralık ve satılık daire portföylerimizi kontrol ediyorum. Nasıl bir ev bakıyordunuz?`;
+      aiReplyText = `Merhaba! Alanya bölgesindeki kiralık ve satılık daire portföylerimiz mevcuttur. Nasıl bir ev bakıyordunuz?`;
     }
-  } catch (aiErr) {
+  } catch (aiErr: any) {
     console.error('[Meta Webhook AI Error]:', aiErr);
-    const fallbackJSON = generateSmartFallbackResponse([{ role: 'user', content: textBody }]);
-    const parsedFallback = parseJSONResponse(fallbackJSON);
-    aiReplyText = (parsedFallback?.reply as string) || `Merhaba! Alanya bölgesindeki kiralık ve satılık portföy seçeneklerimiz mevcuttur. Aradığınız ev kiralık mı satılık mı acaba?`;
+    aiReplyText = `⚠️ [Yapay Zeka Uyarısı]: ${aiErr?.message || 'Gemini AI yanıtı oluşturulamadı.'}`;
   }
 
   // 3. ALWAYS Send AI Reply back to Customer via Meta WhatsApp Cloud API
