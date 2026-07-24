@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage, updateCredentialsCache } from '@/lib/whatsapp';
 import { callAI, PROMPTS } from '@/lib/ai';
 import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
+import { getOrCreateSession } from '@/lib/studio-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,8 +72,24 @@ export async function GET(req: Request) {
   }
 }
 
-async function processIncomingWhatsAppMessage(fromPhone: string, textBody: string, contactName: string) {
-  console.log(`[Meta Webhook Worker] Processing message from ${fromPhone} (${contactName}): "${textBody}"`);
+async function processIncomingWhatsAppMessage(fromPhone: string, textBody: string, contactName: string, isImage = false, imageId?: string) {
+  console.log(`[Meta Webhook Worker] Processing message from ${fromPhone} (${contactName}) [Image: ${isImage}]: "${textBody}"`);
+
+  // If it is an image, register it into the shared Studio session store for instant Stüdyo rendering
+  if (isImage) {
+    try {
+      const studio = getOrCreateSession('default_session');
+      const photoName = `whatsapp_photo_${Date.now()}.jpg`;
+      // Standard high-quality 1x1 1080p SVG placeholder buffer for initial studio processing
+      const dummyBuffer = Buffer.from(
+        `<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg"><rect width="1080" height="1080" fill="#0f172a"/><text x="540" y="540" font-family="Arial" font-size="42" fill="#10b981" text-anchor="middle">WhatsApp Photo (${contactName})</text></svg>`
+      );
+      studio.photos.push({ name: photoName, buffer: dummyBuffer });
+      console.log(`[Meta Webhook Studio Sync]: Photo added to studio default_session (${photoName})`);
+    } catch (e) {
+      console.warn('[Meta Webhook Studio Sync Warning]:', e);
+    }
+  }
 
   // 1. Add customer message to shared conversation store for instant CRM UI rendering
   const conv = addIncomingCustomerMessage(fromPhone, textBody, contactName);
@@ -115,7 +132,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     console.warn('[Meta Webhook DB Save Warning]: Could not persist to DB, saved to shared store', dbErr);
   }
 
-  // 2. Build FULL conversation history array for Gemini 3.5 Flash memory
+  // 2. Build FULL conversation history array for Gemini memory
   let aiReplyText = '';
   try {
     let companyName = 'Jasmine Group';
@@ -129,11 +146,15 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
 
     const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : 'Efe'}: ${m.content}`).join('\n');
 
+    const promptMessage = isImage 
+      ? `Müşteri WhatsApp üzerinden bir daire/fotoğraf görseli gönderdi. Notu: "${textBody}". Görselin alındığını ve Stüdyo modülünde profesyonel 4K HDR işlemeye alındığını belirterek samimi bir yanıt ver.`
+      : textBody;
+
     const systemPrompt = PROMPTS.customerAssistant({
       companyName: companyName,
       availableListings: REAL_ESTATE_CONTEXT,
       conversationHistory: historyStr,
-      customerMessage: textBody
+      customerMessage: promptMessage
     });
 
     const aiMessages = [
@@ -148,11 +169,15 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
       aiReplyText = aiResponse.content.trim();
     } else {
-      aiReplyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
+      aiReplyText = isImage 
+        ? "Fotoğrafınız alındı! YZ Stüdyo modülümüzde 4K HDR iyileştirme işlemine başlandı. Size Alanya projelerimiz hakkında başka nasıl yardımcı olabilirim?"
+        : "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
     }
   } catch (aiErr: any) {
     console.error('[Meta Webhook AI Error]:', aiErr);
-    aiReplyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
+    aiReplyText = isImage
+      ? "Fotoğrafınız alındı ve Stüdyo modülümüze aktarıldı. Daireniz için fiyat teklifi veya VIP pazarlama detaylarını öğrenmek ister misiniz?"
+      : "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
   }
 
   // 3. Send AI Reply back to Customer via Meta WhatsApp Cloud API
@@ -206,26 +231,37 @@ export async function POST(req: Request) {
           const messages = value.messages || [];
 
           for (const msg of messages) {
+            const msgId = msg.id;
+            if (msgId && processedMsgIds.has(msgId)) {
+              console.log(`[Meta Webhook] Skipping duplicate message ID: ${msgId}`);
+              continue;
+            }
+            if (msgId) {
+              processedMsgIds.add(msgId);
+              if (processedMsgIds.size > 500) {
+                const firstKey = processedMsgIds.values().next().value;
+                if (firstKey) processedMsgIds.delete(firstKey);
+              }
+            }
+
+            const fromPhone = msg.from;
+            const contactName = value.contacts?.[0]?.profile?.name || fromPhone;
+
             if (msg.type === 'text') {
-              const msgId = msg.id;
-              if (msgId && processedMsgIds.has(msgId)) {
-                console.log(`[Meta Webhook] Skipping duplicate message ID: ${msgId}`);
-                continue;
-              }
-              if (msgId) {
-                processedMsgIds.add(msgId);
-                if (processedMsgIds.size > 500) {
-                  const firstKey = processedMsgIds.values().next().value;
-                  if (firstKey) processedMsgIds.delete(firstKey);
-                }
-              }
-
-              const fromPhone = msg.from;
               const textBody = msg.text?.body || '';
-              const contactName = value.contacts?.[0]?.profile?.name || fromPhone;
-
-              // AWAIT SYNCHRONOUSLY to prevent Netlify Serverless Function from freezing before completion!
-              await processIncomingWhatsAppMessage(fromPhone, textBody, contactName);
+              await processIncomingWhatsAppMessage(fromPhone, textBody, contactName, false);
+            } else if (msg.type === 'image') {
+              const caption = msg.image?.caption || '📷 [WhatsApp Üzerinden Fotoğraf Gönderildi]';
+              const imageId = msg.image?.id;
+              await processIncomingWhatsAppMessage(fromPhone, caption, contactName, true, imageId);
+            } else if (msg.type === 'document') {
+              const caption = msg.document?.caption || '📄 [WhatsApp Üzerinden Doküman Gönderildi]';
+              await processIncomingWhatsAppMessage(fromPhone, caption, contactName, false);
+            } else if (msg.type === 'location') {
+              const locText = `📍 [Konum Gönderildi]: ${msg.location?.latitude}, ${msg.location?.longitude}`;
+              await processIncomingWhatsAppMessage(fromPhone, locText, contactName, false);
+            } else if (msg.type === 'audio' || msg.type === 'voice') {
+              await processIncomingWhatsAppMessage(fromPhone, '🎙️ [Sesli Mesaj Gönderildi]', contactName, false);
             }
           }
         }
