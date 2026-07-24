@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
+import bundledCreds from './meta-credentials.json';
 
 export interface SendTextMessageParams {
   to: string; // Recipient phone number with country code (e.g. 905321234567)
@@ -36,7 +37,7 @@ export function updateCredentialsCache(creds: { token: string; phoneNumberId: st
 }
 
 /**
- * Get active Meta WhatsApp API credentials (Global memory first, /tmp file second, DB third, ENV fourth)
+ * Get active Meta WhatsApp API credentials (Global memory -> /tmp file -> bundled JSON -> DB -> ENV)
  */
 export async function getWhatsAppCredentials() {
   if (globalWhatsAppStore.globalCredentials?.token && globalWhatsAppStore.globalCredentials?.phoneNumberId) {
@@ -61,6 +62,17 @@ export async function getWhatsAppCredentials() {
     }
   } catch (e) {}
 
+  // Fallback to bundled meta-credentials.json
+  if (bundledCreds && (bundledCreds as any).token && (bundledCreds as any).phoneNumberId) {
+    const creds = {
+      token: (bundledCreds as any).token,
+      phoneNumberId: (bundledCreds as any).phoneNumberId,
+      businessAccountId: (bundledCreds as any).businessAccountId || ''
+    };
+    globalWhatsAppStore.globalCredentials = creds;
+    return creds;
+  }
+
   try {
     const config = await prisma.whatsAppConfig.findUnique({
       where: { id: 'default' }
@@ -79,9 +91,9 @@ export async function getWhatsAppCredentials() {
     return { token, phoneNumberId, businessAccountId };
   } catch (e) {
     return globalWhatsAppStore.globalCredentials || globalMeta || {
-      token: process.env.WHATSAPP_TOKEN || '',
-      phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-      businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''
+      token: (bundledCreds as any)?.token || process.env.WHATSAPP_TOKEN || '',
+      phoneNumberId: (bundledCreds as any)?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+      businessAccountId: (bundledCreds as any)?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''
     };
   }
 }

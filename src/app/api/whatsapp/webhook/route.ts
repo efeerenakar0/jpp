@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
+import { sendMetaWhatsAppMessage, updateCredentialsCache } from '@/lib/whatsapp';
 import { callAI, PROMPTS, parseJSONResponse, generateSmartFallbackResponse } from '@/lib/ai';
 import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
 
@@ -40,6 +40,12 @@ export async function GET(req: Request) {
     const mode = searchParams.get('hub.mode');
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
+
+    const urlToken = searchParams.get('token');
+    const urlPhoneId = searchParams.get('phoneId');
+    if (urlToken && urlPhoneId) {
+      updateCredentialsCache({ token: urlToken, phoneNumberId: urlPhoneId, businessAccountId: '' });
+    }
 
     let expectedVerifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'jasmine_secret_verify_token';
 
@@ -184,6 +190,13 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
  */
 export async function POST(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const urlToken = searchParams.get('token');
+    const urlPhoneId = searchParams.get('phoneId');
+    if (urlToken && urlPhoneId) {
+      updateCredentialsCache({ token: urlToken, phoneNumberId: urlPhoneId, businessAccountId: '' });
+    }
+
     const body = await req.json();
     console.log('[Meta Webhook Incoming POST Payload]:', JSON.stringify(body));
 

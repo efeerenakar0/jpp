@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import fs from 'fs';
+import path from 'path';
 import { updateCredentialsCache, testMetaWhatsAppConnection } from '@/lib/whatsapp';
+
+const BUNDLED_CONFIG_PATH = path.join(process.cwd(), 'src/lib/meta-credentials.json');
 
 let inMemoryConfig = {
   token: process.env.WHATSAPP_TOKEN || '',
@@ -18,6 +22,9 @@ function syncGlobalMetaConfig(token: string, phoneNumberId: string, businessAcco
     const creds = { token, phoneNumberId, businessAccountId };
     (globalThis as any).globalMetaConfig = creds;
     updateCredentialsCache(creds);
+    try {
+      fs.writeFileSync(BUNDLED_CONFIG_PATH, JSON.stringify({ token, phoneNumberId, businessAccountId, verifyToken: 'jasmine_secret_verify_token' }, null, 2));
+    } catch (e) {}
   }
 }
 
