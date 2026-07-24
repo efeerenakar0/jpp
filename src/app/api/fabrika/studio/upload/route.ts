@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true, 
       shootId: tempId,
+      version: 'v_fixed_2026',
       logoUrl,
       uploadedCount: photoCount,
       message: `${photoCount} adet fotoğraf stüdyoya başarıyla yüklendi.` 
