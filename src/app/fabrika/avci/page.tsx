@@ -30,8 +30,8 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function AvciPage() {
-  const [profileLoaded, setProfileLoaded] = useState(false);
-  const [hasProfile, setHasProfile] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(true);
+  const [hasProfile, setHasProfile] = useState(true);
   
   const [activeTab, setActiveTab] = useState<'pano' | 'eklenti' | 'mesaj' | 'analiz' | 'whatsapp'>('pano');
   
