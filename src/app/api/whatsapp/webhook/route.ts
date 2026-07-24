@@ -144,7 +144,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
 
     const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
     let parsed: any = parseJSONResponse(aiResponse.content);
-    aiReplyText = parsed?.reply || (typeof aiResponse.content === 'string' && !aiResponse.content.startsWith('{') ? aiResponse.content.trim() : '');
+    aiReplyText = (parsed?.reply as string) || (typeof aiResponse.content === 'string' ? aiResponse.content.trim() : '');
 
     if (!aiReplyText || aiReplyText.trim().length === 0) {
       const fallbackJSON = generateSmartFallbackResponse(aiMessages);
