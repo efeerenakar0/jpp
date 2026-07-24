@@ -61,55 +61,20 @@ Ton: ${tone === 'resmi' ? 'Resmi ve profesyonel' : tone === 'samimi' ? 'Samimi v
 3. Mesaj WhatsApp üzerinden gönderilecek, bu yüzden kısa ve etkili olsun (max 500 karakter).
 `,
 
-  adCopyGoogle: (listing: { title: string; price?: string; location?: string }, targetUrl: string) => `
-Google Ads için bir reklam metni yaz. 
-
-İlan: ${listing.title}
-${listing.price ? `Fiyat: ${listing.price}` : ''}
-${listing.location ? `Konum: ${listing.location}` : ''}
-URL: ${targetUrl}
-
-JSON formatında döndür:
-{
-  "headline1": "... (max 30 karakter)",
-  "headline2": "... (max 30 karakter)", 
-  "headline3": "... (max 30 karakter)",
-  "description1": "... (max 90 karakter)",
-  "description2": "... (max 90 karakter)"
-}
-`,
-
-  adCopyInstagram: (listing: { title: string; price?: string; location?: string; imageUrl?: string }) => `
-Instagram için etkileyici bir post metni yaz. Emoji kullan, hashtag ekle, görsel odaklı ol.
-
-İlan: ${listing.title}
-${listing.price ? `Fiyat: ${listing.price}` : ''}
-${listing.location ? `Konum: ${listing.location}` : ''}
-
-JSON formatında döndür:
-{
-  "caption": "... (max 2200 karakter, emoji ve hashtag dahil)",
-  "hashtags": ["#tag1", "#tag2", ...]
-}
-`,
-
-  adCopyWhatsApp: (listing: { title: string; price?: string; location?: string }) => `
-WhatsApp grupları için samimi bir paylaşım mesajı yaz. Doğal ol, spam gibi görünmesin.
-
-İlan: ${listing.title}
-${listing.price ? `Fiyat: ${listing.price}` : ''}
-${listing.location ? `Konum: ${listing.location}` : ''}
-`,
-
   customerAssistant: (context: { companyName: string; availableListings: string; conversationHistory: string; customerMessage: string }) => `
-Sen ${context.companyName} firmasında çalışan, Alanya emlak piyasasını avucunun içi gibi bilen, tecrübeli, samimi ve iş bitirici Emlak Danışmanı Efe'sin.
-Müşteri karşısında robot veya yapay zeka olduğunu HİSSETMEMELİ. Tıpkı WhatsApp'tan yazışan gerçek bir insan emlak uzmanı gibi yanıt ver.
+Sen ${context.companyName} firmasında çalışan, Alanya emlak piyasasını, yatırım kanunlarını, ikamet izni ve Türk Vatandaşlığı mevzuatını avucunun içi gibi bilen, son derece bilgili, tecrübeli, samimi ve iş bitirici Emlak Danışmanı Efe'sin.
+Müşteri karşısında robot veya yapay zeka olduğunu HİSSETMEMELİ. Tıpkı WhatsApp'tan yazışan gerçek ve bilgili bir insan emlak uzmanı gibi yanıt ver.
 
-KURALLAR:
-1. Müşterinin sorduğu soruya (Kiralık, Satılık, 1+1, 2+1, Fiyat, Bölge) doğrudan odaklanarak yanıt ver.
-2. Müşteri "kiralık" dediyse Alanya ve Mahmutlar'daki kiralık portföylerden bahset, bütçesini ve oda tercihini sor.
-3. KESİNLİKLE HER MESAJDA AYNI TEKRAR EDEN İLETIŞIM CÜMLESINI YAZMA! Müşterinin spesifik olarak yazdığı kelimelere göre dinamik ve doğal konuş.
-4. Mesaj boyutun WhatsApp ekranında rahat okunan kısa, net ve öz olsun.
+ÖNEMLİ UZMANLIK VE İLETİŞİM KURALLARI:
+1. TÜRK VATANDAŞLIĞI VE İKAMET İZNİ SORULURSA:
+   - Türk Vatandaşlığı kazanabilmek için en az $400.000 (400 bin Dolar) tutarında gayrimenkul SATIN ALINMASI gerekmektedir.
+   - Kiralık ev ile KESİNLİKLE Türk Vatandaşı OLUNAMAZ. Kiralık evle sadece geçici turistik ikamet izni başvurusu yapılabileceğini ancak vatandaşlık hakkı vermediğini açıkça belirt.
+   - Vatandaşlığa uygun $400.000+ değerindeki satılık lüks projelerimiz hakkında bilgi vermek istediğini söyle.
+2. MÜŞTERİNİN SPESİFİK SORUSUNA DOĞRUDAN CEVAP VER:
+   - Müşteri ne soruyorsa (Vatandaşlık, Kiralık, Satılık, 1+1, Fiyat, Lokasyon) doğrudan o soruya cevap ver. 
+   - Kesinlikle her mesajda hazır kalıplaşmış "Size en uygun portföyü sunabilmem için..." veya "Alanya Mahmutlar bölgesindeki kiralık..." gibi sabit cümleleri TEKRARLAMA!
+3. MESAJ BOYUTU:
+   - WhatsApp mesajları kısa, öz, anlaşılır ve samimi olmalıdır.
 
 Mevcut İlanlar & Projeler:
 ${context.availableListings}
@@ -139,26 +104,12 @@ Firma: ${details.companyName}
 
 Profesyonel ve sıcak bir teyit mesajı yaz. Max 200 karakter.
 `,
-
-  brandCampaign: (company: { companyName: string; strengths: string[]; serviceAreas: string[] }) => `
-${company.companyName} emlak firması için marka tanıtım kampanyası metinleri üret.
-
-Güçlü Yanlar: ${company.strengths.join(', ')}
-Hizmet Bölgeleri: ${company.serviceAreas.join(', ')}
-
-JSON formatında döndür:
-{
-  "google": { "headline": "...", "description": "..." },
-  "instagram": { "caption": "...", "hashtags": [...] },
-  "whatsapp": "..."
-}
-`,
 };
 
-// ---- Stateful Multi-Turn Conversation Memory Engine (Smart Fallback) ----
+// ---- Stateful Multi-Turn Conversation Memory Engine (Smart Dynamic Fallback) ----
 
 interface ConversationState {
-  intent: 'RENTAL' | 'SALE' | 'UNKNOWN';
+  intent: 'RENTAL' | 'SALE' | 'CITIZENSHIP' | 'UNKNOWN';
   location: string | null;
   roomType: string | null;
   budget: string | null;
@@ -168,6 +119,7 @@ interface ConversationState {
 function extractConversationState(messages: ChatMessage[]): ConversationState {
   const fullText = messages.map(m => m.content).join(' ').toLowerCase();
 
+  const isCitizenship = fullText.includes('vatandaş') || fullText.includes('citizenship') || fullText.includes('pasaport') || fullText.includes('ikamet');
   const isRental = fullText.includes('kiralık') || fullText.includes('kira') || fullText.includes('kiralayacağım') || fullText.includes('öğrenci');
   const isSale = !isRental && (fullText.includes('satılık') || fullText.includes('satın') || fullText.includes('yatırım'));
 
@@ -186,7 +138,7 @@ function extractConversationState(messages: ChatMessage[]): ConversationState {
   else if (fullText.includes('stüdyo') || fullText.includes('studio')) roomType = 'Stüdyo';
 
   let budget: string | null = null;
-  const budgetMatch = fullText.match(/(\d+[\d\.]*)\s*(bin|tl|k|milyon|euro|€)?/i);
+  const budgetMatch = fullText.match(/(\d+[\d\.]*)\s*(bin|tl|k|milyon|euro|€|\$|dolar)?/i);
   if (budgetMatch) {
     const num = budgetMatch[1];
     const unit = budgetMatch[2] || '';
@@ -194,7 +146,7 @@ function extractConversationState(messages: ChatMessage[]): ConversationState {
   }
 
   return {
-    intent: isRental ? 'RENTAL' : (isSale ? 'SALE' : 'UNKNOWN'),
+    intent: isCitizenship ? 'CITIZENSHIP' : (isRental ? 'RENTAL' : (isSale ? 'SALE' : 'UNKNOWN')),
     location,
     roomType,
     budget,
@@ -206,25 +158,35 @@ export function generateSmartFallbackResponse(messages: ChatMessage[]): string {
   const state = extractConversationState(messages);
   const lastMsg = (messages[messages.length - 1]?.content || '').toLowerCase();
 
-  if (state.intent === 'RENTAL') {
-    if (state.location && state.roomType) {
+  // Handle Citizenship & Passport Queries
+  if (lastMsg.includes('vatandaş') || lastMsg.includes('citizenship') || lastMsg.includes('ikamet')) {
+    if (lastMsg.includes('kiralık') || lastMsg.includes('kira')) {
       return JSON.stringify({
-        reply: `Tabii ki! ${state.location} bölgesinde ${state.isFurnished ? 'eşyalı ' : ''}${state.roomType} kiralık daire portföyümüz mevcut. Aylık düşündüğünüz ortalama bütçe nedir acaba?`,
-        detectedIntent: "RESIDENTIAL",
+        reply: "Kiralık ev ile maalesef Türk Vatandaşlığı alınamamaktadır. Türk Vatandaşlığı hakkı kazanmak için en az $400.000 tutarında gayrimenkul SATIN ALMANIZ gerekmektedir. Vatandaşlığa uygun $400.000+ satılık lüks projelerimiz hakkında bilgi vermek ister misiniz?",
+        detectedIntent: "INVESTMENT",
         suggestedListings: [],
         isAppointmentRequest: false
       });
     }
-    if (state.location) {
+    return JSON.stringify({
+      reply: "Türk Vatandaşlığı başvurusu için Türkiye'de en az $400.000 değerinde gayrimenkul satın almanız gerekmektedir. Jasmine Group olarak vatandaşlığa tam uygun lansman projelerimiz mevcuttur. Detaylı katalog iletmemi ister misiniz?",
+      detectedIntent: "INVESTMENT",
+      suggestedListings: [],
+      isAppointmentRequest: false
+    });
+  }
+
+  if (state.intent === 'RENTAL') {
+    if (state.location && state.roomType) {
       return JSON.stringify({
-        reply: `Harika! ${state.location} bölgesindeki kiralık daire seçeneklerimiz oldukça geniş. Aradığınız ev 1+1 mi yoksa 2+1 mi olsun?`,
+        reply: `Tabii ki! ${state.location} bölgesinde ${state.isFurnished ? 'eşyalı ' : ''}${state.roomType} kiralık daire portföyümüz mevcut. Aylık düşündüğünüz bütçe nedir acaba?`,
         detectedIntent: "RESIDENTIAL",
         suggestedListings: [],
         isAppointmentRequest: false
       });
     }
     return JSON.stringify({
-      reply: "Alanya, Mahmutlar ve Oba bölgesindeki güncel kiralık daire seçeneklerimiz mevcut. Düşündüğünüz belirli bir bölge, oda sayısı (1+1, 2+1) veya bütçe aralığı var mıdır?",
+      reply: "Alanya, Mahmutlar ve Oba bölgesindeki kiralık daire seçeneklerimiz mevcut. Düşündüğünüz belirli bir bölge veya oda sayısı (1+1, 2+1) var mıdır?",
       detectedIntent: "RESIDENTIAL",
       suggestedListings: [],
       isAppointmentRequest: false
@@ -232,14 +194,6 @@ export function generateSmartFallbackResponse(messages: ChatMessage[]): string {
   }
 
   if (state.intent === 'SALE') {
-    if (state.location && state.budget) {
-      return JSON.stringify({
-        reply: `Alanya ${state.location} bölgesinde ${state.budget} bütçenize özel, lansman fiyatlı satılık projelerimizin detaylarını hazırlıyoruz. Yatırımlık mı yoksa hemen oturum amaçlı mı düşünüyorsunuz?`,
-        detectedIntent: "INVESTMENT",
-        suggestedListings: [],
-        isAppointmentRequest: false
-      });
-    }
     return JSON.stringify({
       reply: "Alanya genelinde lansmana özel fiyatlı ve yüksek prim getirili satılık projelerimiz var. Düşündüğünüz oda sayısı ve bütçe aralığı nedir?",
       detectedIntent: "INVESTMENT",
@@ -258,7 +212,7 @@ export function generateSmartFallbackResponse(messages: ChatMessage[]): string {
   }
 
   return JSON.stringify({
-    reply: "Size en uygun portföyü sunabilmem için arayışınız kiralık mı yoksa satılık mı, ve tercih ettiğiniz oda sayısı nedir acaba?",
+    reply: "Size tam yardımcı olabilmem için arayışınız kiralık mı yoksa satılık mı, veya bilgi almak istediğiniz özel bir konu var mıdır?",
     detectedIntent: "UNKNOWN",
     suggestedListings: [],
     isAppointmentRequest: false
@@ -280,11 +234,12 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
 
   const genAI = getGenAI(customApiKey);
 
-  // OFFICIAL GOOGLE GEMINI MODEL NAMES
+  // OFFICIAL GOOGLE GEMINI MODEL NAMES (INCLUDES LATEST GEMINI 2.0 & 1.5 MODELS)
   const modelsToTry = [
+    "gemini-2.0-flash-exp",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-2.0-flash-exp"
+    "gemini-flash-latest"
   ];
   let lastError: any = null;
 
