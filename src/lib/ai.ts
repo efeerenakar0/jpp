@@ -92,6 +92,30 @@ Profesyonel ve sıcak bir teyit mesajı yaz. Max 200 karakter.
 `,
 };
 
+function sanitizeContents(messages: ChatMessage[]) {
+  const sanitized: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+  let lastRole = '';
+
+  for (const m of messages) {
+    const role = m.role === 'user' ? 'user' : 'model';
+    const text = m.content ? m.content.trim() : '';
+    if (!text) continue;
+
+    if (sanitized.length > 0 && lastRole === role) {
+      sanitized[sanitized.length - 1].parts[0].text += '\n' + text;
+    } else {
+      sanitized.push({ role, parts: [{ text }] });
+      lastRole = role;
+    }
+  }
+
+  if (sanitized.length > 0 && sanitized[0].role !== 'user') {
+    sanitized.shift();
+  }
+
+  return sanitized;
+}
+
 // ---- Ana API Fonksiyonu ----
 
 export async function callAI(messages: ChatMessage[], mockKey?: string, customApiKey?: string): Promise<AIResponse> {
@@ -109,10 +133,10 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     (bundledCreds as any)?.geminiApiKey
   ])).filter(Boolean) as string[];
 
-  const contentsPayload = conversationMessages.map(m => ({
-    role: m.role === 'user' ? 'user' : 'model',
-    parts: [{ text: m.content }]
-  }));
+  const contentsPayload = sanitizeContents(conversationMessages);
+  if (contentsPayload.length === 0) {
+    contentsPayload.push({ role: 'user', parts: [{ text: lastUserMsg }] });
+  }
 
   // 1. Direct HTTP fetch attempt with verified fallback key (Fastest & Most reliable on AWS Lambda)
   for (const apiKey of keysToTry) {
@@ -136,6 +160,8 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
           content: candidateText.trim(),
           isMock: false
         };
+      } else if (data?.error?.message) {
+        console.warn(`[Gemini API Error for key ${apiKey.substring(0, 10)}...]:`, data.error.message);
       }
     } catch (fetchErr: any) {
       console.warn('[Gemini 3.5 Flash Direct Fetch Warning]:', fetchErr?.message || fetchErr);
@@ -151,13 +177,7 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
         systemInstruction: systemInstruction || undefined
       });
 
-      const history = conversationMessages.slice(0, -1).map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }]
-      }));
-
-      const chat = model.startChat({ history });
-      const result = await chat.sendMessage(lastUserMsg);
+      const result = await model.generateContent(lastUserMsg);
       const text = result.response.text();
 
       if (text && text.trim().length > 0) {
