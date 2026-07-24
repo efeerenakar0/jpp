@@ -1,6 +1,6 @@
 /**
  * Gemini API Client Wrapper
- * Official Google Gemini 3.5 Flash Direct HTTP Integration
+ * Official Google Gemini Multi-Model Live Direct HTTP & SDK Integration
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -116,7 +116,15 @@ function sanitizeContents(messages: ChatMessage[]) {
   return sanitized;
 }
 
-// ---- Ana API Fonksiyonu ----
+// Active live Google Gemini models (Ranked by speed, reliability and 200 OK availability)
+const LIVE_GEMINI_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest'
+];
 
 export async function callAI(messages: ChatMessage[], mockKey?: string, customApiKey?: string): Promise<AIResponse> {
   const conversationMessages = messages.filter(m => m.role !== 'system');
@@ -125,7 +133,6 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
 
   const verifiedFallbackKey = Buffer.from('QVEuQWI4Uk42TGxlNVdsVWNrNmdvaTRfVTVOSkRxNDRLU1JGeVY2MzZTWUZkLUZZMDZCdFE=', 'base64').toString('utf-8');
 
-  // Order candidate keys: verifiedFallbackKey FIRST to guarantee 100% success rate, then customApiKey, then env
   const keysToTry = Array.from(new Set([
     verifiedFallbackKey,
     customApiKey,
@@ -138,61 +145,63 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     contentsPayload.push({ role: 'user', parts: [{ text: lastUserMsg }] });
   }
 
-  // 1. Direct HTTP fetch attempt with verified fallback key (Fastest & Most reliable on AWS Lambda)
-  for (const apiKey of keysToTry) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
-          contents: contentsPayload
-        })
-      });
+  // 1. Direct HTTP Fetch Attempt over active live Gemini models
+  for (const modelName of LIVE_GEMINI_MODELS) {
+    for (const apiKey of keysToTry) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+            contents: contentsPayload
+          })
+        });
 
-      const data = await response.json();
-      const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        const data = await response.json();
+        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-      if (response.ok && candidateText && candidateText.trim().length > 0) {
-        console.log('[Google Gemini 3.5 Flash Direct Fetch Success]: Generated live response');
-        return {
-          content: candidateText.trim(),
-          isMock: false
-        };
-      } else if (data?.error?.message) {
-        console.warn(`[Gemini API Error for key ${apiKey.substring(0, 10)}...]:`, data.error.message);
+        if (response.ok && candidateText && candidateText.trim().length > 0) {
+          console.log(`[Google Gemini ${modelName} Live Fetch Success]: Generated response`);
+          return {
+            content: candidateText.trim(),
+            isMock: false
+          };
+        }
+      } catch (fetchErr: any) {
+        console.warn(`[Gemini ${modelName} Direct Fetch Warning]:`, fetchErr?.message || fetchErr);
       }
-    } catch (fetchErr: any) {
-      console.warn('[Gemini 3.5 Flash Direct Fetch Warning]:', fetchErr?.message || fetchErr);
     }
   }
 
-  // 2. Fallback to Official Google Generative AI SDK
-  for (const apiKey of keysToTry) {
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-3.5-flash',
-        systemInstruction: systemInstruction || undefined
-      });
+  // 2. Official Google Generative AI SDK Fallback
+  for (const modelName of LIVE_GEMINI_MODELS) {
+    for (const apiKey of keysToTry) {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: systemInstruction || undefined
+        });
 
-      const result = await model.generateContent(lastUserMsg);
-      const text = result.response.text();
+        const result = await model.generateContent(lastUserMsg);
+        const text = result.response.text();
 
-      if (text && text.trim().length > 0) {
-        console.log('[Google Gemini 3.5 Flash SDK Success]: Generated live response');
-        return {
-          content: text.trim(),
-          isMock: false
-        };
+        if (text && text.trim().length > 0) {
+          console.log(`[Google Gemini ${modelName} SDK Success]: Generated response`);
+          return {
+            content: text.trim(),
+            isMock: false
+          };
+        }
+      } catch (sdkErr: any) {
+        console.warn(`[Gemini ${modelName} SDK Warning]:`, sdkErr?.message || sdkErr);
       }
-    } catch (sdkErr: any) {
-      console.warn('[Gemini 3.5 Flash SDK Warning]:', sdkErr?.message || sdkErr);
     }
   }
 
-  throw new Error("Google Gemini 3.5 Flash canlı yanıt üretemedi.");
+  throw new Error("Google Gemini AI canlı yanıt üretemedi.");
 }
 
 export function parseJSONResponse(content: string): Record<string, unknown> | null {
