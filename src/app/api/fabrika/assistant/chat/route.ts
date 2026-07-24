@@ -103,11 +103,11 @@ export async function POST(request: Request) {
       }
     } catch (e: any) {
       console.error('[Chat Route AI Call Warning]:', e);
-      replyText = `⚠️ [Yapay Zeka Uyarısı]: ${e?.message || 'Gemini AI yanıt veremedi.'}`;
+      replyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
     }
 
     if (!replyText || replyText.trim().length === 0) {
-      replyText = 'Merhaba! Ben Jasmine Real Estate yapay zeka emlak danışmanınız Efe. Size nasıl yardımcı olabilirim?';
+      replyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
     }
 
     const assistantMsgRecord = {

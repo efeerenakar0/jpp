@@ -148,11 +148,11 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
       aiReplyText = aiResponse.content.trim();
     } else {
-      aiReplyText = textBody;
+      aiReplyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
     }
   } catch (aiErr: any) {
     console.error('[Meta Webhook AI Error]:', aiErr);
-    aiReplyText = `⚠️ [Yapay Zeka Uyarısı]: ${aiErr?.message || 'Gemini AI yanıtı oluşturulamadı.'}`;
+    aiReplyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
   }
 
   // 3. Send AI Reply back to Customer via Meta WhatsApp Cloud API
