@@ -114,6 +114,9 @@ export async function testMetaWhatsAppConnection(testPhone: string, testToken: s
     });
 
     const data = await response.json();
+    if (response.ok && !data.error) {
+      updateCredentialsCache({ token: testToken, phoneNumberId: testPhoneId, businessAccountId: '' });
+    }
     return { ok: response.ok, status: response.status, data };
   } catch (err: any) {
     return { ok: false, status: 500, error: err?.message || 'Meta Cloud API bağlantı hatası' };
@@ -129,12 +132,8 @@ export async function sendMetaWhatsAppMessage({ to, text }: SendTextMessageParam
   }
 
   if (!token || !phoneNumberId) {
-    console.warn('[WhatsApp Cloud API Warning] Meta Token or Phone Number ID is missing on server');
-    return {
-      messaging_product: 'whatsapp',
-      contacts: [{ input: cleanPhone, wa_id: cleanPhone }],
-      messages: [{ id: `mock_msg_${Date.now()}` }]
-    };
+    console.error('[WhatsApp Cloud API Failure]: Meta Access Token or Phone Number ID is missing on Netlify server');
+    throw new Error('Meta WhatsApp Jetonu veya Telefon ID eksik! Lütfen Asistan panelindeki Meta & AI Ayarları butonuna basıp Jetonunuzu kaydedin.');
   }
 
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
@@ -175,7 +174,7 @@ export async function sendMetaWhatsAppMessage({ to, text }: SendTextMessageParam
       }
     } catch (err: any) {
       lastError = err.message || err;
-      if (err.message?.includes('süresi doldu')) {
+      if (err.message?.includes('süresi doldu') || err.message?.includes('eksik')) {
         throw err;
       }
     }
