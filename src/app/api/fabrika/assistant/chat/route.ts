@@ -5,6 +5,7 @@ import { callAI, PROMPTS } from '@/lib/ai';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export async function POST(request: Request) {
   try {
@@ -53,7 +54,6 @@ export async function POST(request: Request) {
         createdAt: new Date().toISOString()
       };
 
-      // Try saving to DB if connected
       try {
         await prisma.conversationMessage.create({
           data: {
@@ -118,7 +118,6 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString()
     };
 
-    // Try saving AI message to DB if connected
     try {
       await prisma.conversationMessage.create({
         data: {
@@ -145,17 +144,21 @@ export async function POST(request: Request) {
       suggestedListings: [],
       isAppointmentRequest: false,
       messageRecord: assistantMsgRecord
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
 
   } catch (error: any) {
     console.error('Error in chat route:', error);
     return NextResponse.json({
       success: true,
-      reply: `⚠️ [Sistem Uyarısı]: İstek işlenirken hata oluştu: ${error.message}`,
+      reply: "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz ve daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?",
       messageRecord: {
         id: `msg_fallback_${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ [Sistem Uyarısı]: ${error.message}`,
+        content: "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz ve daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?",
         createdAt: new Date().toISOString()
       }
     });
