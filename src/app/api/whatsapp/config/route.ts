@@ -11,7 +11,7 @@ let inMemoryConfig = {
   phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '1298466076675143',
   businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '1738114273978260',
   verifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'jasmine_secret_verify_token',
-  geminiApiKey: process.env.GEMINI_API_KEY || Buffer.from('QVEuQWI4Uk42SlRESG4ySFhCMG93T01lMTlHVC1ZMnZoblQ5UWQ1dGpfc3pTTU5RbUZwQQ==', 'base64').toString('utf-8'),
+  geminiApiKey: process.env.GEMINI_API_KEY || Buffer.from('QVEuQWI4Uk42TEhBNXVIT1U3c3IyODRGdkdWYXZsNlh6SmtsTnNGNHQxaTdaM05iWFZ6dw==', 'base64').toString('utf-8'),
   companyName: 'Jasmine Group',
   assistantName: 'Efe',
   serviceCity: 'Alanya'
