@@ -704,7 +704,11 @@ export default function AsistanPage() {
 
                 <input
                   readOnly
-                  value={typeof window !== 'undefined' ? `${window.location.origin}/api/whatsapp/webhook` : 'https://demokullanm.netlify.app/api/whatsapp/webhook'}
+                  value={
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin}/api/whatsapp/webhook${configForm.token && configForm.phoneNumberId ? `?token=${encodeURIComponent(configForm.token)}&phoneId=${encodeURIComponent(configForm.phoneNumberId)}` : ''}`
+                      : 'https://demokullanm.netlify.app/api/whatsapp/webhook'
+                  }
                   className="w-full bg-slate-950 text-emerald-400 font-mono text-xs p-3 rounded-xl border border-emerald-500/20 outline-none select-all"
                 />
 
