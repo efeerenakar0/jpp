@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import OnboardingWizard from '@/components/fabrika/OnboardingWizard';
 import StatusBoard from '@/components/fabrika/StatusBoard';
 import WhatsAppButton from '@/components/fabrika/WhatsAppButton';
 import WhatsAppCRM from '@/components/fabrika/WhatsAppCRM';
@@ -19,22 +18,15 @@ import {
   Puzzle,
   Plus,
   FileSpreadsheet,
-  Calendar,
-  DollarSign,
-  AlertCircle,
-  FileText,
   Bot,
-  Flame,
-  Search
+  Settings,
+  Building2,
+  Save
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function AvciPage() {
-  const [profileLoaded, setProfileLoaded] = useState(true);
-  const [hasProfile, setHasProfile] = useState(true);
-  
   const [activeTab, setActiveTab] = useState<'pano' | 'eklenti' | 'mesaj' | 'analiz' | 'whatsapp'>('pano');
-  
   const [isGeneratingMessages, setIsGeneratingMessages] = useState(false);
   const [tone, setTone] = useState<'resmi' | 'samimi' | 'acil'>('samimi');
   
@@ -49,6 +41,15 @@ export default function AvciPage() {
   const [newPhone, setNewPhone] = useState('');
   const [newOwnerName, setNewOwnerName] = useState('');
   const [newUrl, setNewUrl] = useState('');
+
+  // Settings Modal State
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [companyName, setCompanyName] = useState('Jasmine Group');
+  const [strengths, setStrengths] = useState('Gelişmiş Alanya Portföy Ağı, Ücretsiz VIP Drone Çekimi, Hızlı Satış');
+  const [uniquePoints, setUniquePoints] = useState('Sadece Bize Özel Yabancı Yatırımcı Ağı, Tam Hukuki Destek');
+  const [serviceAreas, setServiceAreas] = useState('Alanya, Mahmutlar, Kargıcak, Oba, Kleopatra');
+  const [extraNotes, setExtraNotes] = useState('Alanya bölgesinde lüks konut ve villa projeleri uzmanı');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // AI Valuation State
   const [analyzingListingId, setAnalyzingListingId] = useState<string | null>(null);
@@ -84,12 +85,44 @@ export default function AvciPage() {
       const res = await fetch('/api/fabrika/onboarding');
       if (res.ok) {
         const data = await res.json();
-        setHasProfile(!!data);
+        if (data) {
+          if (data.companyName) setCompanyName(data.companyName);
+          if (data.strengths) setStrengths(Array.isArray(data.strengths) ? data.strengths.join(', ') : data.strengths);
+          if (data.uniquePoints) setUniquePoints(Array.isArray(data.uniquePoints) ? data.uniquePoints.join(', ') : data.uniquePoints);
+          if (data.serviceAreas) setServiceAreas(Array.isArray(data.serviceAreas) ? data.serviceAreas.join(', ') : data.serviceAreas);
+          if (data.extraNotes) setExtraNotes(data.extraNotes);
+        }
       }
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSettings(true);
+
+    try {
+      const payload = {
+        companyName,
+        strengths: strengths.split(',').map(s => s.trim()).filter(Boolean),
+        uniquePoints: uniquePoints.split(',').map(s => s.trim()).filter(Boolean),
+        serviceAreas: serviceAreas.split(',').map(s => s.trim()).filter(Boolean),
+        extraNotes
+      };
+
+      const res = await fetch('/api/fabrika/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      toast.success('Firma & AI Ayarları Güncellendi!');
+      setSettingsModalOpen(false);
+    } catch (err) {
+      toast.error('Ayarlar güncellenirken hata oluştu.');
     } finally {
-      setProfileLoaded(true);
+      setIsSavingSettings(false);
     }
   };
 
@@ -198,7 +231,7 @@ export default function AvciPage() {
       }
     } catch (error) {
       console.error(error);
-      toast.error('Mesajlar üretilirken hata oluştu.');
+      toast.error('Mesajlar üretilerken hata oluştu.');
     } finally {
       setIsGeneratingMessages(false);
     }
@@ -253,24 +286,8 @@ export default function AvciPage() {
     }, 1200);
   };
 
-  if (!profileLoaded) {
-    return (
-      <div className="min-h-screen bg-[#07090e] flex flex-col items-center justify-center text-white font-sans">
-        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center animate-spin mb-4">
-          <Crosshair className="w-6 h-6 text-amber-400" />
-        </div>
-        <p className="text-sm font-bold text-slate-400 animate-pulse">Avcı Modülü Yükleniyor...</p>
-      </div>
-    );
-  }
-
-  if (!hasProfile) {
-    return <OnboardingWizard />;
-  }
-
   const yellowListings = allListings.filter(l => l.status === 'YELLOW');
   const greenListings = allListings.filter(l => l.status === 'GREEN');
-  const redListings = allListings.filter(l => l.status === 'RED');
 
   return (
     <div className="min-h-screen bg-[#06080d] text-slate-100 p-4 sm:p-8 font-sans selection:bg-amber-500 selection:text-black">
@@ -299,13 +316,21 @@ export default function AvciPage() {
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-400 font-medium mt-1 max-w-xl leading-relaxed">
-                  Sahibinden.com bot korumalarını aşın, sahibinden satılık ilanları ve mal sahibi numaralarını fabrikanıza çekin, AI ile piyasa değerlemesi yapın.
+                  Sahibinden.com bot korumalarını aşın, sahibinden satılık ilanları ve mal sahibi numaralarını fabrikanıza çekin.
                 </p>
               </div>
             </div>
             
-            {/* Quick Action Buttons & Realtime Lead Counters */}
+            {/* Quick Action Buttons & Settings Icon */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+              <button 
+                onClick={() => setSettingsModalOpen(true)}
+                className="px-4 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-amber-400 font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95 shadow-lg"
+                title="Firma & AI Ayarları"
+              >
+                <Settings className="w-4 h-4 text-amber-400 animate-spin-slow" /> Firma & AI Ayarları
+              </button>
+
               <button 
                 onClick={() => setAddModalOpen(true)}
                 className="px-5 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-2xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer"
@@ -318,7 +343,7 @@ export default function AvciPage() {
                 className="px-4 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95"
                 title="CSV İndir"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> Excel/CSV Aktar
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> CSV
               </button>
 
               <div className="flex gap-2 shrink-0">
@@ -694,6 +719,96 @@ export default function AvciPage() {
         </div>
 
       </div>
+
+      {/* FIRMA & AI AYARLARI MODALI (Settings Icon Modal) */}
+      {settingsModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl p-6 space-y-5">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+              <h3 className="font-black text-white text-base flex items-center gap-2">
+                <Settings className="w-5 h-5 text-amber-400" /> Firma & AI Mesaj İpuçları Ayarları
+              </h3>
+              <button 
+                onClick={() => setSettingsModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-colors text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Firma Adı</label>
+                <input 
+                  type="text" 
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white outline-none focus:border-amber-500/50"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Güçlü Yanlarınız (Virgülle ayırın)</label>
+                <textarea 
+                  rows={2}
+                  value={strengths}
+                  onChange={(e) => setStrengths(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white outline-none focus:border-amber-500/50 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Benzersiz Satış Noktaları (USP)</label>
+                <textarea 
+                  rows={2}
+                  value={uniquePoints}
+                  onChange={(e) => setUniquePoints(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white outline-none focus:border-amber-500/50 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Hizmet Bölgeleri (Virgülle ayırın)</label>
+                <input 
+                  type="text" 
+                  value={serviceAreas}
+                  onChange={(e) => setServiceAreas(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white outline-none focus:border-amber-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Ek Notlar (Yapay Zekaya İpuçları)</label>
+                <input 
+                  type="text" 
+                  value={extraNotes}
+                  onChange={(e) => setExtraNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white outline-none focus:border-amber-500/50"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSettingsModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSettings}
+                  className="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-xl cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95 flex items-center gap-2"
+                >
+                  {isSavingSettings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Ayarları Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MANUEL İLAN EKLEME MODALI */}
       {addModalOpen && (
