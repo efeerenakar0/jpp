@@ -1,68 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Josefin+Sans:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #f4f6e9;
-  --color-primary-100: #e5ecd0;
-  --color-primary-200: #cedca8;
-  --color-primary-300: #b1c778;
-  --color-primary-400: #93af4c;
-  --color-primary-500: #749033;
-  --color-primary-600: #587124;
-  --color-primary-700: #43561f;
-  --color-primary-800: #37461d;
-  --color-primary-900: #303d1c;
-  --color-primary-950: #18210b;
+  --font-cinzel: "Cinzel", serif;
+  --font-josefin: "Josefin Sans", sans-serif;
+  --font-sans: "Outfit", "Josefin Sans", sans-serif;
 
-  --color-gold-400: #e2b968;
-  --color-gold-500: #d4af37;
-  --color-gold-600: #b5952f;
-
-  --font-serif: "Plus Jakarta Sans", "Playfair Display", serif;
-  --font-sans: "Plus Jakarta Sans", "Inter", sans-serif;
+  --color-brand-primary: #10b981;
+  --color-brand-accent: #f59e0b;
+  --color-brand-dark: #020617;
+  --color-brand-card: #0f172a;
 }
 
 @layer base {
   :root {
-    --background: #090d16;
+    --background: #020617;
     --foreground: #f8fafc;
+    --card-bg: rgba(15, 23, 42, 0.7);
+    --card-border: rgba(255, 255, 255, 0.08);
   }
-}
 
-@layer base {
   * {
-    @apply border-slate-800;
+    border-color: rgba(255, 255, 255, 0.08);
   }
+
   body {
-    @apply bg-[#090d16] text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-slate-950;
+    background-color: #020617;
+    color: #f8fafc;
+    font-family: var(--font-sans);
+    antialiased: true;
+    selection-background-color: #10b981;
+    selection-color: #020617;
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: 'Cinzel', serif;
   }
 }
 
-/* Custom Stitch High-Tech Scrollbar */
+/* Custom UI/UX Pro Max Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #020617;
 }
 ::-webkit-scrollbar-thumb {
   background: #1e293b;
   border-radius: 9999px;
-  border: 2px solid #090d16;
+  border: 2px solid #020617;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
 
-/* Google Stitch Keyframe Animations */
+/* Keyframe Animations */
 @keyframes float {
   0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-10px) rotate(1deg); }
+  50% { transform: translateY(-8px) rotate(0.5deg); }
 }
 
 @keyframes pulseGlow {
   0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.05); }
+  50% { opacity: 0.85; transform: scale(1.03); }
 }
 
 .animate-float {
@@ -73,17 +74,25 @@
   animation: pulseGlow 4s ease-in-out infinite;
 }
 
-.stitch-glass {
+.glass-card {
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.stitch-glass-glow {
+.glass-card-glow {
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-  box-shadow: 0 0 35px rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.12);
+}
+
+.glass-card-gold {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.12);
 }
