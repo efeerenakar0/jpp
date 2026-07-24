@@ -21,12 +21,12 @@ export interface MetaWhatsAppResponse {
 }
 
 const globalWhatsAppStore = globalThis as unknown as {
-  globalCredentials: { token: string; phoneNumberId: string; businessAccountId: string } | null;
+  globalCredentials: { token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string } | null;
 };
 
 const TMP_CONFIG_PATH = '/tmp/jasmine_whatsapp_config.json';
 
-export function updateCredentialsCache(creds: { token: string; phoneNumberId: string; businessAccountId: string }) {
+export function updateCredentialsCache(creds: { token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string }) {
   if (creds.token && creds.phoneNumberId) {
     globalWhatsAppStore.globalCredentials = creds;
     (globalThis as any).globalMetaConfig = creds;
@@ -67,7 +67,8 @@ export async function getWhatsAppCredentials() {
     const creds = {
       token: (bundledCreds as any).token,
       phoneNumberId: (bundledCreds as any).phoneNumberId,
-      businessAccountId: (bundledCreds as any).businessAccountId || ''
+      businessAccountId: (bundledCreds as any).businessAccountId || '',
+      geminiApiKey: (bundledCreds as any).geminiApiKey || process.env.GEMINI_API_KEY || ''
     };
     globalWhatsAppStore.globalCredentials = creds;
     return creds;
@@ -81,19 +82,21 @@ export async function getWhatsAppCredentials() {
     const token = config?.token || process.env.WHATSAPP_TOKEN || '';
     const phoneNumberId = config?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
     const businessAccountId = config?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
+    const geminiApiKey = config?.geminiApiKey || (bundledCreds as any)?.geminiApiKey || process.env.GEMINI_API_KEY || '';
 
     if (token && phoneNumberId) {
-      const creds = { token, phoneNumberId, businessAccountId };
+      const creds = { token, phoneNumberId, businessAccountId, geminiApiKey };
       globalWhatsAppStore.globalCredentials = creds;
       try { fs.writeFileSync(TMP_CONFIG_PATH, JSON.stringify(creds)); } catch (e) {}
     }
 
-    return { token, phoneNumberId, businessAccountId };
+    return { token, phoneNumberId, businessAccountId, geminiApiKey };
   } catch (e) {
     return globalWhatsAppStore.globalCredentials || globalMeta || {
       token: (bundledCreds as any)?.token || process.env.WHATSAPP_TOKEN || '',
       phoneNumberId: (bundledCreds as any)?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-      businessAccountId: (bundledCreds as any)?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || ''
+      businessAccountId: (bundledCreds as any)?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+      geminiApiKey: (bundledCreds as any)?.geminiApiKey || process.env.GEMINI_API_KEY || ''
     };
   }
 }

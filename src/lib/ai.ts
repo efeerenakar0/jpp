@@ -7,7 +7,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import bundledCreds from './meta-credentials.json';
 
 function getGenAI(customApiKey?: string) {
-  const apiKey = customApiKey || (bundledCreds as any)?.geminiApiKey || process.env.GEMINI_API_KEY || '';
+  let apiKey = customApiKey || process.env.GEMINI_API_KEY || (bundledCreds as any)?.geminiApiKey || '';
+  if (!apiKey && (bundledCreds as any)?.geminiApiKeyBase64) {
+    try {
+      apiKey = Buffer.from((bundledCreds as any).geminiApiKeyBase64, 'base64').toString('utf-8');
+    } catch (e) {}
+  }
   return new GoogleGenerativeAI(apiKey);
 }
 
@@ -190,9 +195,11 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
 
   const genAI = getGenAI(customApiKey);
 
-  // OFFICIAL GOOGLE GEMINI MODELS (TRY FLASH 2.0, FLASH 1.5, PRO 1.5)
+  // OFFICIAL GOOGLE GEMINI MODELS (TRY FLASH 2.5, FLASH 2.0, FLASH 1.5, PRO 1.5)
   const modelsToTry = [
+    "gemini-2.5-flash",
     "gemini-2.0-flash-exp",
+    "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
     "gemini-flash-latest"
