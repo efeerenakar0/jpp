@@ -1,6 +1,6 @@
 /**
  * Gemini API Client Wrapper
- * Official Google Gemini 3.5 Flash Direct Integration
+ * Official Google Gemini 3.5 & 2.0 Flash Direct Integration
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -111,7 +111,8 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   const modelsToTry = [
     "gemini-3.5-flash",
     "gemini-3.6-flash",
-    "gemini-2.0-flash"
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
   ];
 
   const contentsPayload = conversationMessages.map(m => ({
@@ -121,30 +122,35 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
 
   for (const apiKey of keysToTry) {
     for (const modelName of modelsToTry) {
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      const attempts: Array<{ url: string; headers: Record<string, string> }> = [
+        { url: `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, headers: { 'Content-Type': 'application/json' } },
+        { url: `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` } }
+      ];
 
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
-            contents: contentsPayload
-          })
-        });
+      for (const attempt of attempts) {
+        try {
+          const response = await fetch(attempt.url, {
+            method: 'POST',
+            headers: attempt.headers,
+            body: JSON.stringify({
+              system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+              contents: contentsPayload
+            })
+          });
 
-        const data = await response.json();
-        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          const data = await response.json();
+          const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-        if (response.ok && candidateText && candidateText.trim().length > 0) {
-          console.log(`[Google Gemini ${modelName} Live Success]: Generated response`);
-          return {
-            content: candidateText.trim(),
-            isMock: false
-          };
+          if (response.ok && candidateText && candidateText.trim().length > 0) {
+            console.log(`[Google Gemini ${modelName} Live Success]: Generated response`);
+            return {
+              content: candidateText.trim(),
+              isMock: false
+            };
+          }
+        } catch (err: any) {
+          console.warn(`[Google Gemini ${modelName} Fetch Exception]:`, err?.message || err);
         }
-      } catch (err: any) {
-        console.warn(`[Google Gemini ${modelName} Fetch Exception]:`, err?.message || err);
       }
     }
   }
@@ -160,7 +166,7 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     }
   } catch (e) {}
 
-  throw new Error("Google Gemini 3.5 Flash API yanıt üretemedi. Lütfen API anahtarınızı kontrol edin.");
+  throw new Error("Google Gemini API Anahtarınızın süresi dolmuş veya geçersiz. Lütfen aistudio.google.com adresinden yeni bir API Anahtarı alıp kaydedin.");
 }
 
 export function parseJSONResponse(content: string): Record<string, unknown> | null {
