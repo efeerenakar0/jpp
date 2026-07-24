@@ -90,8 +90,26 @@ const USER_VERIFIED_GROQ_KEY = [103,115,107,95,87,105,115,53,69,53,53,88,69,52,6
 /**
  * Groq Cloud API Call (Ultra-fast 800+ tokens/sec Free AI Engine)
  */
-async function callGroqAPI(apiKey: string, systemPrompt: string, userPrompt: string): Promise<string | null> {
+async function callGroqAPI(apiKey: string, systemPrompt: string, conversationMessages: ChatMessage[]): Promise<string | null> {
   try {
+    const validSystemPrompt = systemPrompt && systemPrompt.trim().length > 0
+      ? systemPrompt.trim()
+      : "Sen Jasmine Group emlak kıdemli danışmanı Efe'sin. Alanya kiralık ve satılık gayrimenkul portföyleri hakkında müşterilere WhatsApp üzerinden samimi, bilgili ve yardımsever yanıtlar ver.";
+
+    const formattedMessages = [
+      { role: "system", content: validSystemPrompt }
+    ];
+
+    for (const m of conversationMessages) {
+      if (!m.content || !m.content.trim()) continue;
+      const role = m.role === 'assistant' ? 'assistant' : 'user';
+      formattedMessages.push({ role, content: m.content.trim() });
+    }
+
+    if (formattedMessages.length === 1) {
+      formattedMessages.push({ role: "user", content: "Merhaba" });
+    }
+
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -100,10 +118,7 @@ async function callGroqAPI(apiKey: string, systemPrompt: string, userPrompt: str
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ]
+        messages: formattedMessages
       })
     });
 
@@ -136,13 +151,13 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   // 1. Primary AI Engine: Groq Cloud Llama 3.3 70B (Ultra-fast live AI)
   for (const apiKey of keysToTry) {
     if (apiKey.startsWith('gsk_')) {
-      const groqReply = await callGroqAPI(apiKey, systemInstruction, lastUserMsg);
+      const groqReply = await callGroqAPI(apiKey, systemInstruction, conversationMessages);
       if (groqReply) return { content: groqReply, isMock: false };
     }
   }
 
   // Always fallback to USER_VERIFIED_GROQ_KEY
-  const primaryGroqReply = await callGroqAPI(USER_VERIFIED_GROQ_KEY, systemInstruction, lastUserMsg);
+  const primaryGroqReply = await callGroqAPI(USER_VERIFIED_GROQ_KEY, systemInstruction, conversationMessages);
   if (primaryGroqReply) {
     return { content: primaryGroqReply, isMock: false };
   }
