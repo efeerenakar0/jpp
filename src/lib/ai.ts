@@ -3,8 +3,6 @@
  * Direct HTTP Integration to Google Gemini API using User Verified Active Key
  */
 
-import bundledCreds from './meta-credentials.json';
-
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -128,13 +126,11 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   const lastUserMsg = conversationMessages[conversationMessages.length - 1]?.content || 'Merhaba';
 
   const envKey = process.env.GEMINI_API_KEY || '';
-  const bundledKey = (bundledCreds as any)?.geminiApiKey || '';
 
   const keysToTry = Array.from(new Set([
     customApiKey,
     USER_VERIFIED_KEY,
-    envKey,
-    bundledKey
+    envKey
   ])).filter(k => Boolean(k) && typeof k === 'string' && k.length > 10) as string[];
 
   const contentsPayload = sanitizeContents(conversationMessages);
