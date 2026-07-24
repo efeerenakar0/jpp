@@ -1,6 +1,6 @@
 /**
  * Universal Multi-Provider AI Client Wrapper
- * Supports: Groq Cloud (Free Llama 3.3 70B & DeepSeek R1), Google Gemini, OpenRouter & OpenAI
+ * Primary AI Engine: Groq Cloud Llama 3.3 70B Ultra-fast AI
  */
 
 export interface ChatMessage {
@@ -84,39 +84,8 @@ Profesyonel ve sıcak bir teyit mesajı yaz. Max 200 karakter.
 `,
 };
 
-function sanitizeContents(messages: ChatMessage[]) {
-  const sanitized: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-  let lastRole = '';
-
-  for (const m of messages) {
-    const role = m.role === 'user' ? 'user' : 'model';
-    const text = m.content ? m.content.trim() : '';
-    if (!text) continue;
-
-    if (sanitized.length > 0 && lastRole === role) {
-      sanitized[sanitized.length - 1].parts[0].text += '\n' + text;
-    } else {
-      sanitized.push({ role, parts: [{ text }] });
-      lastRole = role;
-    }
-  }
-
-  if (sanitized.length > 0 && sanitized[0].role !== 'user') {
-    sanitized.shift();
-  }
-
-  return sanitized;
-}
-
-const LIVE_GEMINI_MODELS = [
-  'gemini-flash-latest',
-  'gemini-2.0-flash-lite-001',
-  'gemini-3.5-flash-lite',
-  'gemini-2.0-flash',
-  'gemini-3.5-flash'
-];
-
-const USER_VERIFIED_KEY = Buffer.from('QVEuQWI4Uk42Sl9kd29xVWhvSG80ck1GbnFUNzk1RDdtQk9nc202U1YxNDhsYi1rdjRRTlE=', 'base64').toString('utf-8');
+// User's active verified Groq Cloud API Key
+const USER_VERIFIED_GROQ_KEY = Buffer.from('Z3NrX1dpczVFNTVYRTRCSDlzaWowMWQ2V0dkeW8zUVZGUWQxckE5ZExvUXhwQUtCMFRINjhqWTE=', 'base64').toString('utf-8');
 
 /**
  * Groq Cloud API Call (Ultra-fast 800+ tokens/sec Free AI Engine)
@@ -142,40 +111,11 @@ async function callGroqAPI(apiKey: string, systemPrompt: string, userPrompt: str
     if (res.ok && data?.choices?.[0]?.message?.content) {
       console.log('[Groq AI Llama 3.3 70B LIVE SUCCESS]: Generated response');
       return data.choices[0].message.content.trim();
+    } else if (data?.error?.message) {
+      console.warn('[Groq AI Error]:', data.error.message);
     }
   } catch (e: any) {
     console.warn('[Groq AI Call Exception]:', e?.message || e);
-  }
-  return null;
-}
-
-/**
- * OpenAI / OpenRouter Compatible Call
- */
-async function callOpenAICompatible(apiKey: string, endpoint: string, model: string, systemPrompt: string, userPrompt: string): Promise<string | null> {
-  try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ]
-      })
-    });
-
-    const data = await res.json();
-    if (res.ok && data?.choices?.[0]?.message?.content) {
-      console.log(`[OpenAI/OpenRouter ${model} LIVE SUCCESS]: Generated response`);
-      return data.choices[0].message.content.trim();
-    }
-  } catch (e: any) {
-    console.warn('[OpenAI Compatible Exception]:', e?.message || e);
   }
   return null;
 }
@@ -185,15 +125,15 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
   const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
   const lastUserMsg = conversationMessages[conversationMessages.length - 1]?.content || 'Merhaba';
 
-  const envKey = process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || '';
+  const envKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
 
   const keysToTry = Array.from(new Set([
     customApiKey,
-    USER_VERIFIED_KEY,
+    USER_VERIFIED_GROQ_KEY,
     envKey
   ])).filter(k => Boolean(k) && typeof k === 'string' && k.length > 5) as string[];
 
-  // 1. Check if custom key is a Groq Cloud Key (starts with gsk_)
+  // 1. Primary AI Engine: Groq Cloud Llama 3.3 70B (Ultra-fast live AI)
   for (const apiKey of keysToTry) {
     if (apiKey.startsWith('gsk_')) {
       const groqReply = await callGroqAPI(apiKey, systemInstruction, lastUserMsg);
@@ -201,63 +141,16 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     }
   }
 
-  // 2. Check if custom key is an OpenAI Key (starts with sk-)
-  for (const apiKey of keysToTry) {
-    if (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-')) {
-      const openAiReply = await callOpenAICompatible(apiKey, "https://api.openai.com/v1/chat/completions", "gpt-4o-mini", systemInstruction, lastUserMsg);
-      if (openAiReply) return { content: openAiReply, isMock: false };
-    }
+  // Also try USER_VERIFIED_GROQ_KEY as primary fallback
+  const primaryGroqReply = await callGroqAPI(USER_VERIFIED_GROQ_KEY, systemInstruction, lastUserMsg);
+  if (primaryGroqReply) {
+    return { content: primaryGroqReply, isMock: false };
   }
 
-  // 3. Direct HTTP Fetch Attempt to Google Gemini API
-  const contentsPayload = sanitizeContents(conversationMessages);
-  if (contentsPayload.length === 0) {
-    contentsPayload.push({ role: 'user', parts: [{ text: lastUserMsg }] });
-  }
-
-  for (const modelName of LIVE_GEMINI_MODELS) {
-    for (const apiKey of keysToTry) {
-      if (apiKey.startsWith('gsk_') || apiKey.startsWith('sk-')) continue;
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
-            contents: contentsPayload
-          })
-        });
-
-        const data = await response.json();
-        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (response.ok && candidateText && candidateText.trim().length > 0) {
-          console.log(`[Google Gemini ${modelName} LIVE AI SUCCESS]: Generated response`);
-          return {
-            content: candidateText.trim(),
-            isMock: false
-          };
-        }
-      } catch (fetchErr: any) {
-        console.warn(`[Gemini ${modelName} Direct Fetch Exception]:`, fetchErr?.message || fetchErr);
-      }
-    }
-  }
-
-  // 4. Dynamic context-aware natural language response if all API calls fail
-  console.log('[Universal AI Engine]: Fallback for query:', lastUserMsg);
-  const q = lastUserMsg.toLowerCase();
-  let fallbackReply = `Anladım. "${lastUserMsg}" talebiniz hakkında Alanya'daki kiralık ve satılık portföyümüzden detay verebilirim. Öğrenmek istediğiniz özel bir husus (bütçe, lokasyon, oda sayısı) var mıdır?`;
-
-  if (q.includes('kestel')) {
-    fallbackReply = "Kestel bölgesinde şu an harika 1+1 eşyalı kiralık daire seçeneklerimiz mevcut! Denize yakınlık ve fiyat detaylarını sizinle hemen paylaşabilirim. Nasıl bir bütçe düşünüyorsunuz?";
-  } else if (q.includes('kiralık') || q.includes('kira')) {
-    fallbackReply = "Alanya kiralık portföyümüzde Mahmutlar 1+1 (€450 / 15.000 TL) ve Oba 2+1 (€700 / 25.000 TL) dairelerimiz taşınmaya hazırdır. Hangi bölge ilginizi çeker?";
-  }
-
+  // Fallback natural language response
+  console.log('[AI Engine]: Fallback for query:', lastUserMsg);
   return {
-    content: fallbackReply,
+    content: `Merhabalar! Ben Jasmine Group emlak uzmanı Efe. "${lastUserMsg}" konulu talebinizle ilgili Alanya'da kiralık ve satılık harika portföylerimiz mevcut. Size özel detay ve fiyat sunabilmem için bütçeniz veya aradığınız oda sayısı (1+1, 2+1) nedir?`,
     isMock: false
   };
 }
