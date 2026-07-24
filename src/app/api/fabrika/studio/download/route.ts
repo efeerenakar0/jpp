@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getOrCreateSession } from '@/lib/studio-store';
 import JSZip from 'jszip';
-import fs from 'fs';
-import path from 'path';
 import sharp from 'sharp';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function sanitizeAscii(str: string): string {
   return str
@@ -30,8 +31,8 @@ async function createHDPropertyImage(roomName: string, filterName: string, water
   const width = 1920;
   const height = 1080;
 
-  let themeColor = '#2dd4bf';
   let bgGradEnd = '#0d9488';
+  let themeColor = '#2dd4bf';
   if (filterName.includes('Sicak') || filterName.includes('Sıcak')) {
     themeColor = '#fb923c';
     bgGradEnd = '#c2410c';
@@ -50,7 +51,7 @@ async function createHDPropertyImage(roomName: string, filterName: string, water
   const watermarkSvg = watermark ? `
     <g transform="translate(80, 960)" filter="url(#shadow)">
       <circle cx="28" cy="28" r="28" fill="${textColor}"/>
-      <text x="18" y="42" font-family="sans-serif" font-size="32" font-weight="bold" fill="#000000">J</text>
+      <text x="18" y="42" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#000000">J</text>
       <text x="76" y="40" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="${textColor}">${safeWebsiteText}</text>
     </g>
   ` : '';
@@ -69,16 +70,9 @@ async function createHDPropertyImage(roomName: string, filterName: string, water
     <rect width="100%" height="100%" fill="url(#bgGrad)"/>
     <polygon points="0,680 1920,680 1920,1080 0,1080" fill="#020617" opacity="0.45"/>
     <line x1="0" y1="680" x2="1920" y2="680" stroke="${themeColor}" stroke-width="3" opacity="0.5"/>
-    <line x1="960" y1="680" x2="960" y2="1080" stroke="${themeColor}" stroke-width="1.5" opacity="0.3"/>
-    <polygon points="1200,0 1920,0 1920,680 1400,680" fill="#ffffff" opacity="0.05"/>
-    <text x="100" y="140" font-family="sans-serif" font-size="22" font-weight="bold" fill="${themeColor}" letter-spacing="4">JASMINE GROUP - DIJITAL STUDYO HDR</text>
-    <text x="100" y="210" font-family="sans-serif" font-size="48" font-weight="bold" fill="#ffffff">${safeRoomText.toUpperCase()}</text>
-    <text x="100" y="260" font-family="sans-serif" font-size="24" fill="#94a3b8">Filtre Kalibrasyonu: ${safeFilterText} (4K Sensor Optimizasyonu)</text>
-    <rect x="100" y="310" width="840" height="260" rx="16" fill="#1e293b" opacity="0.75" stroke="${themeColor}" stroke-width="1.5"/>
-    <text x="130" y="370" font-family="sans-serif" font-size="22" fill="#e2e8f0">+ Genis Aci Distorsiyon Duzeltildi</text>
-    <text x="130" y="420" font-family="sans-serif" font-size="22" fill="#e2e8f0">+ Golge ve Yansima Dengeleme (HDR Tone-Mapping)</text>
-    <text x="130" y="470" font-family="sans-serif" font-size="22" fill="#e2e8f0">+ ${watermark ? 'Logo ve Web Filigrani Eklendi' : 'Orijinal HDR Cikti'}</text>
-    <text x="130" y="520" font-family="sans-serif" font-size="22" fill="${themeColor}">+ Portallara Hazir Yuksek Cozunurluk HD JPEG</text>
+    <text x="100" y="140" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="${themeColor}" letter-spacing="4">JASMINE GROUP - DIJITAL STUDYO HDR</text>
+    <text x="100" y="210" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffffff">${safeRoomText.toUpperCase()}</text>
+    <text x="100" y="260" font-family="Arial, sans-serif" font-size="24" fill="#94a3b8">Filtre Kalibrasyonu: ${safeFilterText} (4K Sensor Optimizasyonu)</text>
     ${watermarkSvg}
   </svg>`;
 
@@ -91,8 +85,6 @@ export async function GET(request: Request) {
     const shootId = searchParams.get('shootId');
     const rawFilter = searchParams.get('filter') || 'Ferah_Gun_Isigi';
     const watermark = searchParams.get('watermark') === 'true';
-    const website = searchParams.get('website') || 'www.jasminegroup.com';
-    const textColor = searchParams.get('textColor') || '#ffffff';
 
     const safeFilterName = sanitizeAscii(rawFilter);
     const folderName = `Jasmine_Studio_${safeFilterName}_${watermark ? 'Filigranli' : 'HDR'}`;
@@ -102,30 +94,26 @@ export async function GET(request: Request) {
 
     let addedRealPhotos = false;
 
-    // If shootId is provided, look for user's actual uploaded processed photos
     if (shootId) {
-      try {
-        const shoot = await prisma.photoShoot.findUnique({ where: { id: shootId } });
-        if (shoot && shoot.uploadedPhotos) {
-          const photoPaths: string[] = JSON.parse(shoot.uploadedPhotos);
-          for (let pIdx = 0; pIdx < photoPaths.length; pIdx++) {
-            const fileName = `${shootId}_${safeFilterName}_${watermark ? 'wm' : 'hdr'}_${pIdx}.jpg`;
-            const absolutePath = path.join(process.cwd(), 'public', 'uploads', 'studio', fileName);
-            
-            if (fs.existsSync(absolutePath)) {
-              const imageBuffer = fs.readFileSync(absolutePath);
-              folder?.file(`Foto_${pIdx + 1}_${watermark ? 'Filigranli' : 'HDR'}.jpg`, imageBuffer);
-              addedRealPhotos = true;
-            }
-          }
+      const session = getOrCreateSession(shootId);
+      const processedFilterData = session.processed[safeFilterName];
+
+      if (processedFilterData) {
+        const targetList = watermark ? processedFilterData.watermarkedPhotos : processedFilterData.hdrPhotos;
+        
+        for (let i = 0; i < targetList.length; i++) {
+          const photo = targetList[i];
+          folder?.file(photo.name, photo.buffer);
+          addedRealPhotos = true;
         }
-      } catch (dbErr) {
-        console.error('Error fetching shoot for download:', dbErr);
       }
     }
 
     // Fallback if no specific shoot photos found: generate HD property images
     if (!addedRealPhotos) {
+      const website = searchParams.get('website') || 'www.jasminegroup.com';
+      const textColor = searchParams.get('textColor') || '#ffffff';
+
       const salonJpg = await createHDPropertyImage('Salon ve Yasam Alani', rawFilter, watermark, website, textColor);
       const mutfakJpg = await createHDPropertyImage('Amerikan Mutfak ve Ada', rawFilter, watermark, website, textColor);
       const manzaraJpg = await createHDPropertyImage('Deniz ve Toros Manzarali Balkon', rawFilter, watermark, website, textColor);
@@ -139,11 +127,11 @@ export async function GET(request: Request) {
     folder?.file('Studyo_Raporu.txt', `JASMINE GROUP DİJİTAL FOTOĞRAF STÜDYOSU
 ---------------------------------------------
 Filtre Paketi : ${rawFilter}
-Filigran      : ${watermark ? 'Evet (Logo PNG + ' + website + ')' : 'Hayır (Orijinal HDR)'}
-Çözünürlük    : Gemini AI & Sharp HDR Optimizasyonu
+Filigran      : ${watermark ? 'Evet (Logo PNG + Web Filigranı)' : 'Hayır (Orijinal HDR)'}
+Çözünürlük    : Gemini AI & Sharp 4K Optimizasyonu
 İşlem Tarihi  : ${new Date().toLocaleString('tr-TR')}
 ---------------------------------------------
-Fotoğraflarınız kullanıma hazırdır.
+Fotoğraflarınız başarıyla stüdyo kalitesine yükseltildi.
 `);
 
     const uint8Array = await zip.generateAsync({
