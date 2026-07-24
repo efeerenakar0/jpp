@@ -94,15 +94,7 @@ export default function AsistanPage() {
     if (!c) return true;
     const deletedIds = getDeletedConvIds();
     const id = String(c.id || '').toLowerCase();
-    const name = String(c.customerName || '').toLowerCase();
-    const phone = normalizePhone(c.customerPhone);
-    return (
-      id.includes('demo') || 
-      id === 'demo_conv_1' || 
-      name.includes('ahmet') || 
-      phone === '905321234567' || 
-      deletedIds.has(c.id)
-    );
+    return id === 'demo_conv_dummy_test_1' || deletedIds.has(c.id);
   };
 
   // Smart Merging Engine to Prevent Serverless Disappearing Messages & Duplicate Cards

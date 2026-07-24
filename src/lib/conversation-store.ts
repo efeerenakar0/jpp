@@ -51,9 +51,8 @@ export function normalizePhoneNumber(phone?: string | null): string {
 export function isBannedConversation(c: any): boolean {
   if (!c) return true;
   const id = String(c.id || '').toLowerCase();
-  const name = String(c.customerName || '').toLowerCase();
-  const phone = normalizePhoneNumber(c.customerPhone);
-  return id.includes('demo') || id === 'demo_conv_1' || name.includes('ahmet') || phone === '905321234567';
+  // Only filter explicitly marked dummy test IDs, allow ALL real customer names and numbers
+  return id === 'demo_conv_dummy_test_1';
 }
 
 function loadFromFileStore(): StoredConversation[] {
