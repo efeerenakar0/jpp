@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { callAI, PROMPTS } from '@/lib/ai';
-import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
 
 /**
  * Simulate an incoming Meta WhatsApp Message for instant UI testing
@@ -14,10 +13,11 @@ export async function POST(req: Request) {
     const message = body.message || 'Merhaba, Alanya projeleri hakkında bilgi alabilir miyim?';
 
     const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const hasValidDb = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql'));
 
     // 1. Save to WhatsAppMessage (CRM Avcı) if DB is connected
-    try {
-      if (process.env.DATABASE_URL) {
+    if (hasValidDb) {
+      try {
         await prisma.whatsAppMessage.create({
           data: {
             phone: cleanPhone,
@@ -26,13 +26,13 @@ export async function POST(req: Request) {
             status: 'SENT'
           }
         });
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
     // 2. Create or update CustomerConversation (Asistan CRM)
     let convId = `conv_sim_${Date.now()}`;
-    try {
-      if (process.env.DATABASE_URL) {
+    if (hasValidDb) {
+      try {
         let conv = await prisma.customerConversation.findFirst({
           where: { customerPhone: cleanPhone }
         });
@@ -70,8 +70,8 @@ export async function POST(req: Request) {
           });
           convId = newConv.id;
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
     // 3. Trigger Groq AI Auto-Response
     const systemPrompt = PROMPTS.customerAssistant({
@@ -89,8 +89,8 @@ export async function POST(req: Request) {
     const replyText = aiResponse.content;
 
     // Save AI reply to DB if connected
-    try {
-      if (process.env.DATABASE_URL) {
+    if (hasValidDb) {
+      try {
         await prisma.conversationMessage.create({
           data: {
             conversationId: convId,
@@ -98,8 +98,8 @@ export async function POST(req: Request) {
             content: replyText
           }
         });
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
     return NextResponse.json({
       success: true,

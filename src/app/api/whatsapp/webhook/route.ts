@@ -94,42 +94,46 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
   // 1. Add customer message to shared conversation store for instant CRM UI rendering
   const conv = addIncomingCustomerMessage(fromPhone, textBody, contactName);
 
+  const hasValidDb = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql'));
+
   // Try saving customer message to Prisma DB if connected
-  try {
-    let dbConv = await prisma.customerConversation.findFirst({
-      where: { customerPhone: fromPhone }
-    });
-
-    if (!dbConv) {
-      dbConv = await prisma.customerConversation.create({
-        data: {
-          customerName: contactName,
-          customerPhone: fromPhone,
-          channel: 'WHATSAPP',
-          intent: 'INVESTMENT'
-        }
+  if (hasValidDb) {
+    try {
+      let dbConv = await prisma.customerConversation.findFirst({
+        where: { customerPhone: fromPhone }
       });
+
+      if (!dbConv) {
+        dbConv = await prisma.customerConversation.create({
+          data: {
+            customerName: contactName,
+            customerPhone: fromPhone,
+            channel: 'WHATSAPP',
+            intent: 'INVESTMENT'
+          }
+        });
+      }
+
+      if (dbConv) {
+        await prisma.conversationMessage.create({
+          data: {
+            conversationId: dbConv.id,
+            role: 'customer',
+            content: textBody
+          }
+        });
+
+        await prisma.customerConversation.update({
+          where: { id: dbConv.id },
+          data: {
+            summary: textBody,
+            updatedAt: new Date()
+          }
+        });
+      }
+    } catch (dbErr) {
+      console.warn('[Meta Webhook DB Save Warning]: Could not persist to DB, saved to shared store', dbErr);
     }
-
-    if (dbConv) {
-      await prisma.conversationMessage.create({
-        data: {
-          conversationId: dbConv.id,
-          role: 'customer',
-          content: textBody
-        }
-      });
-
-      await prisma.customerConversation.update({
-        where: { id: dbConv.id },
-        data: {
-          summary: textBody,
-          updatedAt: new Date()
-        }
-      });
-    }
-  } catch (dbErr) {
-    console.warn('[Meta Webhook DB Save Warning]: Could not persist to DB, saved to shared store', dbErr);
   }
 
   // 2. Build FULL conversation history array for Groq AI memory
@@ -138,13 +142,13 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     let companyName = 'Jasmine Group';
     let customGeminiKey: string | undefined = undefined;
 
-    try {
-      if (process.env.DATABASE_URL) {
+    if (hasValidDb) {
+      try {
         const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
         if (waConfig?.companyName) companyName = waConfig.companyName;
         if (waConfig?.geminiApiKey) customGeminiKey = waConfig.geminiApiKey;
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
     const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : 'Efe'}: ${m.content}`).join('\n');
 
