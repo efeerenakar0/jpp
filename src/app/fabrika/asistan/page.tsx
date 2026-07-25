@@ -634,28 +634,34 @@ export default function AsistanPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      Web Sitesi Adresi
+                      Web Sitesi (Tam Link)
                     </label>
                     <input
                       type="text"
                       value={configForm.websiteUrl}
                       onChange={(e) => setConfigForm({ ...configForm, websiteUrl: e.target.value })}
-                      placeholder="https://..."
+                      placeholder="https://siteadresi.com"
                       className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
                     />
+                    <span className="block text-[9px] text-slate-400 mt-1 leading-tight">
+                      Örn: https://siteadresi.com
+                    </span>
                   </div>
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      Instagram Sayfası
+                      Instagram (Tam Link)
                     </label>
                     <input
                       type="text"
                       value={configForm.instagramUrl}
                       onChange={(e) => setConfigForm({ ...configForm, instagramUrl: e.target.value })}
-                      placeholder="https://instagram.com/..."
+                      placeholder="https://instagram.com/kullanici"
                       className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
                     />
+                    <span className="block text-[9px] text-rose-400 font-medium mt-1 leading-tight">
+                      ⚠️ Sadece kullanıcı adı yazmayın. https:// ile başlayan tam linki girin.
+                    </span>
                   </div>
 
                   <div>
@@ -669,6 +675,9 @@ export default function AsistanPage() {
                       placeholder="Türkçe, İngilizce, Rusça"
                       className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
                     />
+                    <span className="block text-[9px] text-slate-400 mt-1 leading-tight">
+                      Virgülle ayırarak yazın.
+                    </span>
                   </div>
                 </div>
               </div>
