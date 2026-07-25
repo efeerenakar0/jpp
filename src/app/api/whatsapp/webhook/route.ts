@@ -157,6 +157,9 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
     let companyName = 'Jasmine Group';
     let companyAddress = '';
     let companyDetails = '';
+    let websiteUrl = '';
+    let instagramUrl = '';
+    let languages = 'Türkçe';
 
     const hasValidDb = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql'));
     if (hasValidDb) {
@@ -165,6 +168,9 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
         if (waConfig?.companyName) companyName = waConfig.companyName;
         if (waConfig?.companyAddress) companyAddress = waConfig.companyAddress;
         if (waConfig?.companyDetails) companyDetails = waConfig.companyDetails;
+        if (waConfig?.websiteUrl) websiteUrl = waConfig.websiteUrl;
+        if (waConfig?.instagramUrl) instagramUrl = waConfig.instagramUrl;
+        if (waConfig?.languages) languages = waConfig.languages;
       } catch (e) {}
     }
 
@@ -174,13 +180,14 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
       ? `Müşteri WhatsApp üzerinden bir daire/fotoğraf görseli gönderdi. Notu: "${textBody}". Görselin alındığını ve Stüdyo modülünde profesyonel 4K HDR işlemeye alındığını belirterek samimi bir yanıt ver.`
       : textBody;
 
-    // Enhance real estate context with address and details
+    // Enhance real estate context with address, details, website, instagram, and languages
     let enhancedContext = REAL_ESTATE_CONTEXT;
-    if (companyAddress || companyDetails) {
-      enhancedContext += `\n\nEK FİRMA BİLGİLERİ:\n`;
-      if (companyAddress) enhancedContext += `- Şirket Adresi: ${companyAddress}\n`;
-      if (companyDetails) enhancedContext += `- Ek Bilgiler: ${companyDetails}\n`;
-    }
+    enhancedContext += `\n\nEK FİRMA BİLGİLERİ (Yapay zeka bunu aklında tutmalı ve müşteriler sorduğunda kullanmalı):\n`;
+    if (companyAddress) enhancedContext += `- Şirket/Ofis Adresi: ${companyAddress}\n`;
+    if (websiteUrl) enhancedContext += `- Web Sitesi Adresi (URL): ${websiteUrl}\n`;
+    if (instagramUrl) enhancedContext += `- Instagram Sayfası (URL): ${instagramUrl}\n`;
+    if (languages) enhancedContext += `- Hizmet Verdiğimiz Diller: ${languages}\n`;
+    if (companyDetails) enhancedContext += `- Ek Firma Notları & Kuralları: ${companyDetails}\n`;
 
     const systemPrompt = PROMPTS.customerAssistant({
       companyName: companyName,

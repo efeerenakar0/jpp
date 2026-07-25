@@ -64,7 +64,10 @@ export default function AsistanPage() {
     assistantName: 'Efe',
     serviceCity: 'Alanya',
     companyAddress: '',
-    companyDetails: ''
+    companyDetails: '',
+    websiteUrl: '',
+    instagramUrl: '',
+    languages: 'Türkçe'
   });
 
   // Modal State
@@ -270,7 +273,10 @@ export default function AsistanPage() {
             assistantName: data.assistantName || prev.assistantName,
             serviceCity: data.serviceCity || prev.serviceCity,
             companyAddress: data.companyAddress || prev.companyAddress,
-            companyDetails: data.companyDetails || prev.companyDetails
+            companyDetails: data.companyDetails || prev.companyDetails,
+            websiteUrl: data.websiteUrl || prev.websiteUrl,
+            instagramUrl: data.instagramUrl || prev.instagramUrl,
+            languages: data.languages || prev.languages
           }));
         }
       }
@@ -620,6 +626,47 @@ export default function AsistanPage() {
                       value={configForm.serviceCity}
                       onChange={(e) => setConfigForm({ ...configForm, serviceCity: e.target.value })}
                       placeholder="Alanya"
+                      className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Web Sitesi Adresi
+                    </label>
+                    <input
+                      type="text"
+                      value={configForm.websiteUrl}
+                      onChange={(e) => setConfigForm({ ...configForm, websiteUrl: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Instagram Sayfası
+                    </label>
+                    <input
+                      type="text"
+                      value={configForm.instagramUrl}
+                      onChange={(e) => setConfigForm({ ...configForm, instagramUrl: e.target.value })}
+                      placeholder="https://instagram.com/..."
+                      className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Desteklenen Diller
+                    </label>
+                    <input
+                      type="text"
+                      value={configForm.languages}
+                      onChange={(e) => setConfigForm({ ...configForm, languages: e.target.value })}
+                      placeholder="Türkçe, İngilizce, Rusça"
                       className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
                     />
                   </div>

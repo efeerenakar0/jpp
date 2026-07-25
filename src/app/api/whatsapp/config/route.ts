@@ -16,7 +16,10 @@ let inMemoryConfig = {
   assistantName: 'Efe',
   serviceCity: 'Alanya',
   companyAddress: '',
-  companyDetails: ''
+  companyDetails: '',
+  websiteUrl: '',
+  instagramUrl: '',
+  languages: 'Türkçe'
 };
 
 function syncGlobalMetaConfig(token: string, phoneNumberId: string, businessAccountId: string) {
@@ -57,6 +60,9 @@ export async function GET(req: Request) {
     const serviceCity = config?.serviceCity || inMemoryConfig.serviceCity;
     const companyAddress = config?.companyAddress || inMemoryConfig.companyAddress;
     const companyDetails = config?.companyDetails || inMemoryConfig.companyDetails;
+    const websiteUrl = config?.websiteUrl || inMemoryConfig.websiteUrl;
+    const instagramUrl = config?.instagramUrl || inMemoryConfig.instagramUrl;
+    const languages = config?.languages || inMemoryConfig.languages;
 
     syncGlobalMetaConfig(token, phoneNumberId, businessAccountId);
 
@@ -73,6 +79,9 @@ export async function GET(req: Request) {
       serviceCity,
       companyAddress,
       companyDetails,
+      websiteUrl,
+      instagramUrl,
+      languages,
       source: token ? 'ACTIVE' : 'NONE'
     });
   } catch (error: any) {
@@ -90,6 +99,9 @@ export async function GET(req: Request) {
       serviceCity: inMemoryConfig.serviceCity,
       companyAddress: inMemoryConfig.companyAddress,
       companyDetails: inMemoryConfig.companyDetails,
+      websiteUrl: inMemoryConfig.websiteUrl,
+      instagramUrl: inMemoryConfig.instagramUrl,
+      languages: inMemoryConfig.languages,
       source: 'FALLBACK'
     });
   }
@@ -110,7 +122,10 @@ export async function POST(req: Request) {
       assistantName, 
       serviceCity,
       companyAddress,
-      companyDetails
+      companyDetails,
+      websiteUrl,
+      instagramUrl,
+      languages
     } = body;
 
     // Handle Meta API Live Test Action
@@ -152,7 +167,10 @@ export async function POST(req: Request) {
       assistantName: assistantName || 'Efe',
       serviceCity: serviceCity || 'Alanya',
       companyAddress: companyAddress || '',
-      companyDetails: companyDetails || ''
+      companyDetails: companyDetails || '',
+      websiteUrl: websiteUrl || '',
+      instagramUrl: instagramUrl || '',
+      languages: languages || 'Türkçe'
     };
 
     syncGlobalMetaConfig(inMemoryConfig.token, inMemoryConfig.phoneNumberId, inMemoryConfig.businessAccountId);
@@ -170,7 +188,10 @@ export async function POST(req: Request) {
           assistantName: assistantName !== undefined ? assistantName : undefined,
           serviceCity: serviceCity !== undefined ? serviceCity : undefined,
           companyAddress: companyAddress !== undefined ? companyAddress : undefined,
-          companyDetails: companyDetails !== undefined ? companyDetails : undefined
+          companyDetails: companyDetails !== undefined ? companyDetails : undefined,
+          websiteUrl: websiteUrl !== undefined ? websiteUrl : undefined,
+          instagramUrl: instagramUrl !== undefined ? instagramUrl : undefined,
+          languages: languages !== undefined ? languages : undefined
         },
         create: {
           id: 'default',
@@ -183,7 +204,10 @@ export async function POST(req: Request) {
           assistantName: assistantName || 'Efe',
           serviceCity: serviceCity || 'Alanya',
           companyAddress: companyAddress || null,
-          companyDetails: companyDetails || null
+          companyDetails: companyDetails || null,
+          websiteUrl: websiteUrl || null,
+          instagramUrl: instagramUrl || null,
+          languages: languages || 'Türkçe'
         }
       });
     } catch (dbErr) {}

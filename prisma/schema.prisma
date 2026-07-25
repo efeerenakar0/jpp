@@ -439,6 +439,9 @@ model WhatsAppConfig {
   serviceCity       String?  @default("Alanya")
   companyAddress    String?  @db.Text
   companyDetails    String?  @db.Text
+  websiteUrl        String?  @db.Text
+  instagramUrl      String?  @db.Text
+  languages         String?  @db.Text
   updatedAt         DateTime @updatedAt
 }
 
