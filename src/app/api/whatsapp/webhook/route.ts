@@ -155,6 +155,8 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
   let aiReplyText = '';
   try {
     let companyName = 'Jasmine Group';
+    let assistantName = 'Efe';
+    let serviceCity = 'Alanya';
     let companyAddress = '';
     let companyDetails = '';
     let websiteUrl = '';
@@ -166,6 +168,8 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
       try {
         const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
         if (waConfig?.companyName) companyName = waConfig.companyName;
+        if (waConfig?.assistantName) assistantName = waConfig.assistantName;
+        if (waConfig?.serviceCity) serviceCity = waConfig.serviceCity;
         if (waConfig?.companyAddress) companyAddress = waConfig.companyAddress;
         if (waConfig?.companyDetails) companyDetails = waConfig.companyDetails;
         if (waConfig?.websiteUrl) websiteUrl = waConfig.websiteUrl;
@@ -174,7 +178,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
       } catch (e) {}
     }
 
-    const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : 'Efe'}: ${m.content}`).join('\n');
+    const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : assistantName}: ${m.content}`).join('\n');
 
     const promptMessage = isImage 
       ? `Müşteri WhatsApp üzerinden bir daire/fotoğraf görseli gönderdi. Notu: "${textBody}". Görselin alındığını ve Stüdyo modülünde profesyonel 4K HDR işlemeye alındığını belirterek samimi bir yanıt ver.`
@@ -193,7 +197,9 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
       companyName: companyName,
       availableListings: enhancedContext,
       conversationHistory: historyStr,
-      customerMessage: promptMessage
+      customerMessage: promptMessage,
+      assistantName: assistantName,
+      serviceCity: serviceCity
     });
 
     const aiMessages = [

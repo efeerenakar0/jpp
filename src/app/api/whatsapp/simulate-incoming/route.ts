@@ -11,6 +11,8 @@ export async function POST(req: Request) {
     const message = body.message || 'Merhaba, Alanya projeleri hakkında bilgi alabilir miyim?';
 
     let companyName = 'Jasmine Group';
+    let assistantName = 'Efe';
+    let serviceCity = 'Alanya';
     let companyAddress = '';
     let companyDetails = '';
     let websiteUrl = '';
@@ -22,6 +24,8 @@ export async function POST(req: Request) {
       try {
         const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
         if (waConfig?.companyName) companyName = waConfig.companyName;
+        if (waConfig?.assistantName) assistantName = waConfig.assistantName;
+        if (waConfig?.serviceCity) serviceCity = waConfig.serviceCity;
         if (waConfig?.companyAddress) companyAddress = waConfig.companyAddress;
         if (waConfig?.companyDetails) companyDetails = waConfig.companyDetails;
         if (waConfig?.websiteUrl) websiteUrl = waConfig.websiteUrl;
@@ -43,7 +47,9 @@ export async function POST(req: Request) {
       companyName: companyName,
       availableListings: listings,
       conversationHistory: `Müşteri: ${message}`,
-      customerMessage: message
+      customerMessage: message,
+      assistantName: assistantName,
+      serviceCity: serviceCity
     });
 
     const aiResponse = await callAI([

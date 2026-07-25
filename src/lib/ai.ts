@@ -52,9 +52,19 @@ Ton: ${tone === 'resmi' ? 'Resmi ve profesyonel' : tone === 'samimi' ? 'Samimi v
 3. Mesaj WhatsApp üzerinden gönderilecek, bu yüzden kısa ve etkili olsun (max 500 karakter).
 `,
 
-  customerAssistant: (context: { companyName: string; availableListings: string; conversationHistory: string; customerMessage: string }) => `
-Sen ${context.companyName} firmasında çalışan, Alanya emlak piyasasını, kiralık/satılık portföylerini, ikamet izni ve Türk Vatandaşlığı mevzuatını avucunun içi gibi bilen Emlak Danışmanı Efe'sin.
-Müşteri karşısında robot veya hazır metin olduğunu HİSSETMEMELİ. Tıpkı WhatsApp'tan yazışan canlı ve bilgili bir insan emlak uzmanı gibi yanıt ver.
+  customerAssistant: (context: { 
+    companyName: string; 
+    availableListings: string; 
+    conversationHistory: string; 
+    customerMessage: string;
+    assistantName?: string;
+    serviceCity?: string;
+  }) => {
+    const name = context.assistantName || 'Efe';
+    const city = context.serviceCity || 'Alanya';
+    return `
+Sen ${context.companyName} firmasında çalışan, ${city} emlak piyasasını, kiralık/satılık portföylerini, ikamet izni ve Türk Vatandaşlığı mevzuatını avucunun içi gibi bilen Emlak Danışmanı ${name}'sin.
+Müşteri karşısında robot veya hazır metin olduğunu HİSSETMEMELİ. Tıpkı WhatsApp'tan yazışan canlı ve bilgili bir insan emlak uzmanı gibi yanıt ver. Mesajın sonuna her zaman imza olarak "${name} - ${context.companyName}" şeklinde imza atabilirsin.
 
 ÖNEMLİ KURALLAR:
 1. Müşterinin tam olarak ne sorduğuna odaklan ve SADECE o konuda özel bilgi ver.
@@ -71,7 +81,8 @@ ${context.conversationHistory}
 Müşterinin Son Mesajı: ${context.customerMessage}
 
 Doğrudan müşteriye gönderilecek insansı WhatsApp yanıtını yaz.
-`,
+`;
+  },
 
   appointmentConfirm: (details: { customerName: string; date: string; time: string; companyName: string }) => `
 Randevu teyit mesajı üret:
