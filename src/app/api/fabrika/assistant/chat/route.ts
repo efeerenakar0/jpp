@@ -9,158 +9,129 @@ export const fetchCache = 'force-no-store';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { conversationId, message } = body;
+    const body = (await request.json()) as {
+      conversationId?: string;
+      message?: string;
+    };
+    const conversationId = body.conversationId?.trim();
+    const message = body.message?.trim();
 
     if (!conversationId || !message) {
-      return NextResponse.json({ error: 'Conversation ID and message are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Sohbet ID’si ve mesaj gerekli.' },
+        { status: 400 }
+      );
     }
 
-    let conversation: any = null;
-    try {
-      conversation = await prisma.customerConversation.findUnique({
-        where: { id: conversationId },
-        include: {
-          messages: {
-            orderBy: { createdAt: 'asc' }
-          }
-        }
-      });
-    } catch (e) {
-      console.warn('[Assistant Chat DB Warning]: DB not connected, using fallback mode');
+    const conversation = await prisma.customerConversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 30,
+        },
+      },
+    });
+
+    if (!conversation) {
+      return NextResponse.json(
+        { error: 'Sohbet bulunamadı.' },
+        { status: 404 }
+      );
     }
 
-    const customerPhone = conversation?.customerPhone || '';
+    const customerPhone = conversation.customerPhone?.replace(/[^0-9]/g, '') || '';
 
-    // 1. Send via Meta WhatsApp Cloud API if phone is attached
-    if (customerPhone && customerPhone.replace(/[^0-9]/g, '').length >= 10) {
-      console.log(`[Assistant Direct Chat] Sending real WhatsApp API message to ${customerPhone}: ${message}`);
-      
-      let metaResult: any = null;
+    if (customerPhone.length >= 10) {
+      let metaResponse;
       try {
-        metaResult = await sendMetaWhatsAppMessage({
+        metaResponse = await sendMetaWhatsAppMessage({
           to: customerPhone,
-          text: message
+          text: message,
         });
-      } catch (metaErr: any) {
-        console.error('[Assistant Direct Chat Meta Error]:', metaErr);
+      } catch (error) {
+        console.error('[Assistant WhatsApp Send Error]:', error);
+        return NextResponse.json(
+          { error: 'Mesaj WhatsApp’a gönderilemedi.' },
+          { status: 502 }
+        );
       }
 
-      const assistantMsgRecord = {
-        id: `msg_sent_${Date.now()}`,
-        conversationId,
-        role: 'assistant',
-        content: message,
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        await prisma.conversationMessage.create({
-          data: {
-            conversationId,
-            role: 'assistant',
-            content: message,
-            metadata: JSON.stringify({ sentViaMetaApi: true, metaResult })
-          }
-        });
-      } catch (e) {}
+      const savedMessage = await prisma.conversationMessage.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: message,
+          metadata: JSON.stringify({
+            sentViaMetaApi: true,
+            metaMessageId: metaResponse.messages?.[0]?.id || null,
+          }),
+        },
+      });
 
       return NextResponse.json({
         success: true,
         sentToWhatsApp: true,
-        messageRecord: assistantMsgRecord
+        messageRecord: savedMessage,
       });
     }
 
-    // 2. SIMULATION / TEST CHAT: Run Gemini AI
-    let companyName = 'Jasmine Group';
-    let customGeminiKey: string | undefined = undefined;
-
-    try {
-      const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
-      if (waConfig?.companyName) companyName = waConfig.companyName;
-      if (waConfig?.geminiApiKey) customGeminiKey = waConfig.geminiApiKey;
-    } catch (e) {}
-
-    const systemPrompt = PROMPTS.customerAssistant({
-      companyName: companyName,
-      availableListings: 'Alanya Mahmutlar, Kargıcak ve Kleopatra projeleri',
-      conversationHistory: `Müşteri: ${message}`,
-      customerMessage: message
+    const config = await prisma.whatsAppConfig.findUnique({
+      where: { id: 'default' },
     });
+    const companyName = config?.companyName || 'Jasmine Group';
+    const history = conversation.messages
+      .map((item) => `${item.role}: ${item.content}`)
+      .join('\n');
+    const systemPrompt = PROMPTS.customerAssistant({
+      companyName,
+      availableListings: 'Alanya portföy veritabanındaki güncel projeler',
+      conversationHistory: history,
+      customerMessage: message,
+      assistantName: config?.assistantName || 'Efe',
+      serviceCity: config?.serviceCity || 'Alanya',
+    });
+    const aiResponse = await callAI([
+      { role: 'system', content: systemPrompt },
+      ...conversation.messages.map((item) => ({
+        role:
+          item.role === 'assistant'
+            ? ('assistant' as const)
+            : ('user' as const),
+        content: item.content,
+      })),
+      { role: 'user', content: message },
+    ]);
 
-    const aiMessages = [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: message }
-    ];
-
-    let replyText = '';
-
-    try {
-      const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
-      if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
-        replyText = aiResponse.content.trim();
-      }
-    } catch (e: any) {
-      console.error('[Chat Route AI Call Warning]:', e);
-      replyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
-    }
-
-    if (!replyText || replyText.trim().length === 0) {
-      replyText = "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz, kiralık ve satılık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
-    }
-
-    const assistantMsgRecord = {
-      id: `msg_ai_${Date.now()}`,
-      conversationId,
-      role: 'assistant',
-      content: replyText,
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      await prisma.conversationMessage.create({
+    const [customerMessage, assistantMessage] = await prisma.$transaction([
+      prisma.conversationMessage.create({
         data: {
           conversationId,
           role: 'customer',
-          content: message
-        }
-      });
-
-      await prisma.conversationMessage.create({
+          content: message,
+        },
+      }),
+      prisma.conversationMessage.create({
         data: {
           conversationId,
           role: 'assistant',
-          content: replyText
-        }
-      });
-    } catch (e) {}
+          content: aiResponse.content,
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
       sentToWhatsApp: false,
-      reply: replyText,
-      intent: 'INVESTMENT',
-      suggestedListings: [],
-      isAppointmentRequest: false,
-      messageRecord: assistantMsgRecord
-    }, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
-      }
+      reply: aiResponse.content,
+      messageRecord: assistantMessage,
+      requestMessageId: customerMessage.id,
     });
-
-  } catch (error: any) {
-    console.error('Error in chat route:', error);
-    return NextResponse.json({
-      success: true,
-      reply: "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz ve daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?",
-      messageRecord: {
-        id: `msg_fallback_${Date.now()}`,
-        role: 'assistant',
-        content: "Merhaba! Ben Jasmine Group emlak ve yatırım uzmanı Efe. Size Alanya projelerimiz ve daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?",
-        createdAt: new Date().toISOString()
-      }
-    });
+  } catch (error) {
+    console.error('[Assistant Chat Error]:', error);
+    return NextResponse.json(
+      { error: 'Asistan mesajı işleyemedi.' },
+      { status: 502 }
+    );
   }
 }

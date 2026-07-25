@@ -1,84 +1,115 @@
+import { AdPlatform } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { callAI, PROMPTS, parseJSONResponse } from '@/lib/ai';
+import { callAI, parseJSONResponse } from '@/lib/ai';
 
-export async function POST(req: Request) {
+type GeneratedAd = {
+  platform?: string;
+  headline?: string;
+  body?: string;
+  callToAction?: string;
+  targetUrl?: string;
+};
+
+function isAdPlatform(value?: string): value is AdPlatform {
+  return value === 'GOOGLE_ADS' || value === 'INSTAGRAM' || value === 'WHATSAPP';
+}
+
+export async function POST(request: Request) {
   try {
-    const { listingId, type, companyName } = await req.json();
-
-    const actualCompanyName = companyName || 'Jasmine Group';
-
-    const sampleCampaign = {
-      id: `camp_${Date.now()}`,
-      name: type === 'listing' ? 'Mahmutlar 2+1 Lüks Daire Kampanyası' : `${actualCompanyName} Kurumsal Marka Kampanyası`,
-      type: type || 'brand',
-      description: 'Otomatik üretilen yapay zeka reklam seti',
-      createdAt: new Date().toISOString(),
-      adCopies: [
-        {
-          id: `ad_google_${Date.now()}`,
-          platform: 'GOOGLE_ADS',
-          headline: JSON.stringify({
-            headline1: `${actualCompanyName} | Alanya Lüks Projeler`,
-            headline2: 'Deniz Manzaralı Yatırım Fırsatları',
-            headline3: '%0 Faizli Esnek Ödeme Plânı'
-          }),
-          body: JSON.stringify({
-            description1: 'Alanya Mahmutlar ve Kargıcak bölgesinde hemen teslim lüks konutlar.',
-            description2: 'Detaylı katalog ve fiyat listesini hemen ücretsiz indirin.'
-          }),
-          targetUrl: 'https://demokullanm.netlify.app/projeler'
-        },
-        {
-          id: `ad_insta_${Date.now()}`,
-          platform: 'INSTAGRAM',
-          headline: 'Instagram Reels & Post Metni',
-          body: JSON.stringify({
-            caption: `🌊 Alanya Mahmutlar'da Akdeniz manzaralı lüks yaşam sizi bekliyor! ${actualCompanyName} güvencesiyle hayalinizdeki yatırıma hemen sahip olun. ✨`,
-            hashtags: ['#AlanyaEmlak', '#JasmineGroup', '#LuksKonut', '#Yatirim']
-          })
-        },
-        {
-          id: `ad_wa_${Date.now()}`,
-          platform: 'WHATSAPP',
-          headline: 'WhatsApp Toplu Mesaj Metni',
-          body: `Sayın Müşterimiz, ${actualCompanyName} olarak Alanya bölgesindeki lansmana özel lüks daire ve villa projelerimizi incelemeniz için sizi davet ediyoruz. Katalog için bu mesaja dönüş yapabilirsiniz.`
-        }
-      ]
+    const body = (await request.json()) as {
+      listingId?: string;
+      type?: 'listing' | 'brand';
+      companyName?: string;
     };
+    const campaignType = body.type || 'brand';
+    const companyName = body.companyName?.trim() || 'Jasmine Group';
+    const listing = body.listingId
+      ? await prisma.huntedListing.findUnique({ where: { id: body.listingId } })
+      : null;
 
-    // Try creating campaign in DB if connected
-    try {
-      if (type === 'brand') {
-        await prisma.adCampaign.create({
-          data: {
-            name: `${actualCompanyName} Marka Kampanyası`,
-            type: 'brand',
-            description: 'Otomatik üretilen marka reklam seti',
-            adCopies: {
-              create: [
-                {
-                  platform: 'GOOGLE_ADS',
-                  headline: JSON.stringify({ headline1: actualCompanyName }),
-                  body: JSON.stringify({ description1: 'Kurumsal Emlak Danışmanlığı' }),
-                  targetUrl: 'https://demokullanm.netlify.app'
-                }
-              ]
-            }
-          }
-        });
-      }
-    } catch (e) {}
+    if (campaignType === 'listing' && !listing) {
+      return NextResponse.json(
+        { error: 'Reklam üretilecek portföy bulunamadı.' },
+        { status: 404 }
+      );
+    }
 
-    return NextResponse.json(sampleCampaign);
-  } catch (error: any) {
-    console.error('Error generating ad copy:', error);
-    return NextResponse.json({
-      id: `camp_fallback_${Date.now()}`,
-      name: 'Jasmine Group Reklam Kampanyası',
-      type: 'brand',
-      description: 'Yapay zeka reklam seti',
-      adCopies: []
+    const prompt = `
+${companyName} için gayrimenkul reklam kampanyası üret.
+Kampanya tipi: ${campaignType}
+Portföy: ${listing ? JSON.stringify({
+  title: listing.title,
+  price: listing.price,
+  location: listing.location,
+  roomCount: listing.roomCount,
+  area: listing.area,
+  sourceUrl: listing.sourceUrl,
+}) : 'Kurumsal marka kampanyası'}
+
+Yalnızca şu JSON yapısını döndür:
+{
+  "name": "kampanya adı",
+  "description": "kısa açıklama",
+  "adCopies": [
+    { "platform": "GOOGLE_ADS", "headline": "...", "body": "...", "callToAction": "...", "targetUrl": "..." },
+    { "platform": "INSTAGRAM", "headline": "...", "body": "...", "callToAction": "...", "targetUrl": "..." },
+    { "platform": "WHATSAPP", "headline": "...", "body": "...", "callToAction": "...", "targetUrl": "..." }
+  ]
+}
+Gerçek olmayan fiyat, kampanya avantajı veya teslim tarihi uydurma.
+`;
+    const aiResponse = await callAI([{ role: 'user', content: prompt }]);
+    const generated = parseJSONResponse(aiResponse.content) as {
+      name?: string;
+      description?: string;
+      adCopies?: GeneratedAd[];
+    } | null;
+    const validAds = generated?.adCopies?.filter(
+      (ad) => isAdPlatform(ad.platform) && ad.headline?.trim() && ad.body?.trim()
+    );
+
+    if (!generated?.name?.trim() || !validAds?.length) {
+      return NextResponse.json(
+        { error: 'AI geçerli bir reklam seti oluşturamadı.' },
+        { status: 502 }
+      );
+    }
+
+    const campaign = await prisma.adCampaign.create({
+      data: {
+        name: generated.name.trim(),
+        description: generated.description?.trim(),
+        type: campaignType,
+        adCopies: {
+          create: validAds.map((ad) => ({
+            platform: ad.platform as AdPlatform,
+            headline: ad.headline!.trim(),
+            body: ad.body!.trim(),
+            callToAction: ad.callToAction?.trim(),
+            targetUrl: ad.targetUrl?.trim(),
+            listingId: listing?.id,
+          })),
+        },
+      },
+      include: { adCopies: true },
     });
+
+    await prisma.notification.create({
+      data: {
+        type: 'AD_COPY_READY',
+        title: 'Reklam Taslakları Hazır',
+        message: `${campaign.name} için ${campaign.adCopies.length} reklam taslağı üretildi.`,
+        link: '/fabrika/pazarlamaci',
+      },
+    });
+
+    return NextResponse.json(campaign, { status: 201 });
+  } catch (error) {
+    console.error('[Marketing Generate Error]:', error);
+    return NextResponse.json(
+      { error: 'Reklam kampanyası üretilemedi.' },
+      { status: 502 }
+    );
   }
 }

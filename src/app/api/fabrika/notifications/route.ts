@@ -1,118 +1,95 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { NotificationType } from '@prisma/client';
 
-let inMemoryNotifications = [
-  {
-    id: 'notif_1',
-    type: 'SYSTEM',
-    title: 'AI Fabrikası Aktif',
-    message: 'Jasmine Group Yapay Zeka Fabrikası Netlify bulut sunucusunda kesintisiz çalışıyor.',
-    link: '/fabrika',
-    read: false,
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'notif_2',
-    type: 'NEW_CUSTOMER_MESSAGE',
-    title: 'Yeni Müşteri Etkileşimi',
-    message: 'WhatsApp Asistanı üzerinden 1 yeni canlı sorgulama alındı.',
-    link: '/fabrika/asistan',
-    read: false,
-    createdAt: new Date(Date.now() - 1800000).toISOString()
-  }
-];
-
-// GET: Bildirimleri listele
 export async function GET() {
   try {
     const notifications = await prisma.notification.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    if (notifications && notifications.length > 0) {
-      return NextResponse.json({ notifications });
-    }
-    return NextResponse.json({ notifications: inMemoryNotifications });
+
+    return NextResponse.json({ notifications });
   } catch (error) {
-    console.warn('[Notification GET DB Warning]: Using memory store fallback', error);
-    return NextResponse.json({ notifications: inMemoryNotifications });
+    console.error('[Notification GET Error]:', error);
+    return NextResponse.json(
+      { error: 'Bildirimler veritabanından alınamadı.' },
+      { status: 503 }
+    );
   }
 }
 
-// PATCH: Bildirim okundu işaretle
-export async function PATCH(req: Request) {
+export async function PATCH(request: Request) {
   try {
-    const body = await req.json();
+    const body = (await request.json()) as {
+      id?: string;
+      read?: boolean;
+      markAllRead?: boolean;
+    };
 
     if (body.markAllRead) {
-      inMemoryNotifications = inMemoryNotifications.map(n => ({ ...n, read: true }));
-      try {
-        await prisma.notification.updateMany({
-          where: { read: false },
-          data: { read: true },
-        });
-      } catch (e) {}
-      return NextResponse.json({ success: true });
+      const result = await prisma.notification.updateMany({
+        where: { read: false },
+        data: { read: true },
+      });
+      return NextResponse.json({ success: true, updated: result.count });
     }
 
-    if (body.id) {
-      inMemoryNotifications = inMemoryNotifications.map(n => n.id === body.id ? { ...n, read: body.read ?? true } : n);
-      try {
-        await prisma.notification.update({
-          where: { id: body.id },
-          data: { read: body.read ?? true },
-        });
-      } catch (e) {}
-      return NextResponse.json({ success: true });
+    if (!body.id) {
+      return NextResponse.json(
+        { error: 'Bildirim ID’si gerekli.' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({ error: 'ID veya markAllRead gerekli' }, { status: 400 });
+    const notification = await prisma.notification.update({
+      where: { id: body.id },
+      data: { read: body.read ?? true },
+    });
+
+    return NextResponse.json({ success: true, notification });
   } catch (error) {
-    inMemoryNotifications = inMemoryNotifications.map(n => ({ ...n, read: true }));
-    return NextResponse.json({ success: true });
+    console.error('[Notification PATCH Error]:', error);
+    return NextResponse.json(
+      { error: 'Bildirim güncellenemedi.' },
+      { status: 503 }
+    );
   }
 }
 
-// POST: Yeni bildirim oluştur
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-
-    const newNotif = {
-      id: `notif_${Date.now()}`,
-      type: body.type || 'SYSTEM',
-      title: body.title || 'Yeni Bildirim',
-      message: body.message || '',
-      link: body.link || '/fabrika',
-      read: false,
-      createdAt: new Date().toISOString()
+    const body = (await request.json()) as {
+      type?: NotificationType;
+      title?: string;
+      message?: string;
+      link?: string;
+      metadata?: unknown;
     };
-    inMemoryNotifications.unshift(newNotif);
 
-    try {
-      await prisma.notification.create({
-        data: {
-          type: body.type || 'SYSTEM',
-          title: body.title,
-          message: body.message,
-          link: body.link,
-          metadata: body.metadata ? JSON.stringify(body.metadata) : null,
-        },
-      });
-    } catch (e) {}
+    if (!body.title?.trim() || !body.message?.trim()) {
+      return NextResponse.json(
+        { error: 'Bildirim başlığı ve mesajı gerekli.' },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({ notification: newNotif });
+    const notification = await prisma.notification.create({
+      data: {
+        type: body.type || 'SYSTEM',
+        title: body.title.trim(),
+        message: body.message.trim(),
+        link: body.link,
+        metadata: body.metadata ? JSON.stringify(body.metadata) : null,
+      },
+    });
+
+    return NextResponse.json({ notification }, { status: 201 });
   } catch (error) {
-    const fallbackNotif = {
-      id: `notif_${Date.now()}`,
-      type: 'SYSTEM',
-      title: 'Sistem Bildirimi',
-      message: 'İşlem tamamlandı',
-      link: '/fabrika',
-      read: false,
-      createdAt: new Date().toISOString()
-    };
-    inMemoryNotifications.unshift(fallbackNotif);
-    return NextResponse.json({ notification: fallbackNotif });
+    console.error('[Notification POST Error]:', error);
+    return NextResponse.json(
+      { error: 'Bildirim oluşturulamadı.' },
+      { status: 503 }
+    );
   }
 }

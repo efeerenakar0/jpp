@@ -13,11 +13,7 @@ import {
   MessageCircle,
   Aperture,
   Sparkles,
-  Zap,
   ArrowRight,
-  TrendingUp,
-  Building2,
-  ShieldCheck,
   Cpu,
   Clock,
   Layers
@@ -42,6 +38,14 @@ type ChatMessage = {
   createdAt: string;
 };
 
+type OperationalContext = {
+  activeProjects: number;
+  huntedListings: number;
+  pendingAppointments: number;
+  activeConversations: number;
+  unreadNotifications: number;
+};
+
 const getNotificationStyles = (type: string) => {
   switch (type) {
     case 'GREEN_LISTING': return { icon: Crosshair, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
@@ -58,23 +62,20 @@ export default function CommandCenter() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [context, setContext] = useState<OperationalContext>({
+    activeProjects: 0,
+    huntedListings: 0,
+    pendingAppointments: 0,
+    activeConversations: 0,
+    unreadNotifications: 0,
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const fetchData = async () => {
+  async function fetchData() {
     try {
       const notifRes = await fetch('/api/fabrika/notifications');
       const notifData = await notifRes.json();
-      if (notifData.success) {
+      if (notifRes.ok && Array.isArray(notifData.notifications)) {
         setNotifications(notifData.notifications.slice(0, 10));
       }
 
@@ -82,11 +83,27 @@ export default function CommandCenter() {
       const chatData = await chatRes.json();
       if (chatData.success) {
         setMessages(chatData.messages);
+        if (chatData.context) {
+          setContext(chatData.context);
+        }
       }
     } catch (err) {
       console.error('Data fetch error:', err);
     }
-  };
+  }
+
+  useEffect(() => {
+    const initialTimeout = setTimeout(fetchData, 0);
+    const interval = setInterval(fetchData, 5000);
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +142,7 @@ export default function CommandCenter() {
       } else {
         toast.error(data.error || 'Mesaj gönderilemedi');
       }
-    } catch (error) {
+    } catch {
       toast.error('Bağlantı hatası');
     } finally {
       setIsSending(false);
@@ -139,7 +156,7 @@ export default function CommandCenter() {
       icon: Crosshair,
       href: '/fabrika/avci',
       color: 'from-amber-500 to-emerald-500',
-      badge: '3 Yeni Sarı İlan',
+      badge: `${context.huntedListings} kayıt`,
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
     },
     {
@@ -148,7 +165,7 @@ export default function CommandCenter() {
       icon: MessageCircle,
       href: '/fabrika/asistan',
       color: 'from-rose-500 to-pink-600',
-      badge: 'Canlı WhatsApp Sync',
+      badge: `${context.activeConversations} aktif sohbet`,
       badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30'
     },
     {
@@ -157,16 +174,16 @@ export default function CommandCenter() {
       icon: Megaphone,
       href: '/fabrika/pazarlamaci',
       color: 'from-amber-400 to-amber-600',
-      badge: '4K Kampanya Seti',
+      badge: 'AI taslak üretimi',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30'
     },
     {
       title: 'Stüdyo',
-      subtitle: '4K Gayrimenkul Görsel HDR & Filigran Motoru',
+      subtitle: 'Işık, renk, keskinlik & filigran motoru',
       icon: Aperture,
       href: '/fabrika/studyo',
       color: 'from-purple-500 to-indigo-600',
-      badge: 'Sharp HDR Active',
+      badge: 'Sharp işleme',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30'
     },
     {
@@ -192,10 +209,10 @@ export default function CommandCenter() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> UI/UX Pro Max 2.0 Zekası Devrede
+                <Sparkles className="w-3.5 h-3.5" /> Jasmine Group Pilot Sürümü
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
-                <Cpu className="w-3.5 h-3.5" /> Otonom Emlak Fabrikası
+                <Cpu className="w-3.5 h-3.5" /> İnsan Onaylı Operasyon
               </span>
             </div>
             <h1 className="text-3xl lg:text-4xl font-extrabold text-white tracking-tight font-heading">
@@ -208,20 +225,20 @@ export default function CommandCenter() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
             <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-emerald-400">12</div>
+              <div className="text-2xl font-black text-emerald-400">{context.activeProjects}</div>
               <div className="text-[11px] text-slate-400 font-medium mt-0.5">Aktif Portföy</div>
             </div>
             <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-amber-400">%98.4</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-0.5">AI Doğruluk</div>
+              <div className="text-2xl font-black text-amber-400">{context.huntedListings}</div>
+              <div className="text-[11px] text-slate-400 font-medium mt-0.5">Avcı Kaydı</div>
             </div>
             <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-cyan-400">48</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-0.5">WhatsApp Yanıtı</div>
+              <div className="text-2xl font-black text-cyan-400">{context.activeConversations}</div>
+              <div className="text-[11px] text-slate-400 font-medium mt-0.5">Aktif Sohbet</div>
             </div>
             <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-purple-400">4K</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-0.5">HDR Stüdyo</div>
+              <div className="text-2xl font-black text-purple-400">{context.pendingAppointments}</div>
+              <div className="text-[11px] text-slate-400 font-medium mt-0.5">Bekleyen Randevu</div>
             </div>
           </div>
         </div>

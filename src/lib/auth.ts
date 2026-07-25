@@ -71,6 +71,6 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/admin/giris',
   },
-  secret: process.env.NEXTAUTH_SECRET || "jasmine_default_secret_key_2026",
+  secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt" }
 };

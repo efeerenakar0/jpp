@@ -1,238 +1,210 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { sendMetaWhatsAppMessage, updateCredentialsCache } from '@/lib/whatsapp';
+import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
 import { callAI, PROMPTS } from '@/lib/ai';
-import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
-import { getOrCreateSession } from '@/lib/studio-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const maxDuration = 60;
 
-// Set to keep track of processed message IDs to prevent duplicates
-const processedMsgIds = new Set<string>();
+const processedMessageIds = new Set<string>();
 
-const REAL_ESTATE_CONTEXT = `
-JASMINE GROUP ALANYA GÜNCEL PORTFÖY LİSTESİ:
-1. State of Art Residence (Mahmutlar / SATILIK & İNŞAAT PROJESİ):
-   - Tip: 1+1 (55m²) ve 2+1 (90m²)
-   - Özellikler: Denize 400m, Açık/Kapalı Havuz, Sauna, Fitness, Türk Hamamı, 7/24 Güvenlik
-   - Fiyat: 1+1 €85.000'den başlayan lansman fiyatları.
-
-2. Jasmine View Life (Oba / LÜKS SATILIK):
-   - Tip: 2+1 ve 3+1 Çatı Dubleks
-   - Özellikler: Doğa Manzaralı, Özel Garaj, Yetişkin Havuzu, Çocuk Oyun Alanı
-   - Fiyat: €140.000 - €250.000
-
-3. Milano Pearl Residence (Kargıcak / DENİZE SIFIR PROJE):
-   - Tip: 1+1, 2+1 ve 4+1 Villa
-   - Özellikler: Özel Plaj Alanı, Sonsuzluk Havuzu, Spa Merkezi
-   - Fiyat: €110.000'den başlayan fiyatlar.
-
-4. GÜNCEL KİRALIK DAİRELERİMİZ (Mahmutlar & Oba):
-   - Mahmutlar 1+1 Full Eşyalı Rezidans Daire: Aylık €450 (veya 15.000 TL)
-   - Oba 2+1 Site İçi Lüks Kiralık Daire: Aylık €700 (veya 25.000 TL)
-   - Sezonluk ve Yıllık kiralama seçenekleri mevcultur.
-`;
-
-/**
- * Meta WhatsApp Webhook Verification (GET)
- */
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
+export async function GET(request: Request) {
+  const searchParams = new URL(request.url).searchParams;
   const mode = searchParams.get('hub.mode');
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
+  const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
 
-  const EXPECTED_VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'jasmine_secret_verify_token';
+  if (!expectedToken) {
+    return NextResponse.json(
+      { error: 'Webhook verification is not configured' },
+      { status: 503 }
+    );
+  }
 
-  if (mode === 'subscribe' && token === EXPECTED_VERIFY_TOKEN) {
-    console.log('[Meta Webhook Verified Successfully]');
-    return new Response(challenge, { status: 200 });
+  if (mode === 'subscribe' && token === expectedToken && challenge) {
+    return new Response(challenge, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    });
   }
 
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
-/**
- * Meta WhatsApp Webhook Listener (POST)
- */
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
+    const body = await request.json();
 
-    // Check if this is a Meta WhatsApp event
-    if (body.object !== 'whatsapp_business_account') {
-      return NextResponse.json({ status: 'ignored' }, { status: 200 });
+    if (body?.object !== 'whatsapp_business_account') {
+      return NextResponse.json({ status: 'ignored' });
     }
 
-    const entry = body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
+    const value = body.entry?.[0]?.changes?.[0]?.value;
+    const message = value?.messages?.[0];
+    const contact = value?.contacts?.[0];
 
-    if (!value || !value.messages || value.messages.length === 0) {
-      return NextResponse.json({ status: 'no_messages' }, { status: 200 });
+    if (!message) {
+      return NextResponse.json({ status: 'no_messages' });
     }
 
-    const message = value.messages[0];
-    const contact = value.contacts?.[0];
-
-    const messageId = message.id;
-    if (processedMsgIds.has(messageId)) {
-      console.log(`[Meta Webhook] Duplicate message ID skipped: ${messageId}`);
-      return NextResponse.json({ status: 'duplicate_skipped' }, { status: 200 });
+    const messageId = String(message.id || '');
+    if (messageId && processedMessageIds.has(messageId)) {
+      return NextResponse.json({ status: 'duplicate' });
     }
-    processedMsgIds.add(messageId);
-    if (processedMsgIds.size > 1000) {
-      const firstKey = processedMsgIds.keys().next().value;
-      if (firstKey) processedMsgIds.delete(firstKey);
+    if (messageId) {
+      processedMessageIds.add(messageId);
     }
 
-    const fromPhone = message.from; // Customer phone e.g. "905321234567"
-    const contactName = contact?.profile?.name || 'Müşteri';
-    const messageType = message.type;
+    const fromPhone = String(message.from || '');
+    const contactName =
+      String(contact?.profile?.name || '').trim() || `WhatsApp ${fromPhone.slice(-4)}`;
+    const messageType = String(message.type || 'unknown');
+    const text =
+      messageType === 'text'
+        ? String(message.text?.body || '')
+        : messageType === 'image'
+          ? String(message.image?.caption || 'Müşteri bir görsel gönderdi.')
+          : `[${messageType} mesajı alındı]`;
 
-    let textBody = '';
-    let isImage = false;
-
-    if (messageType === 'text') {
-      textBody = message.text?.body || '';
-    } else if (messageType === 'image') {
-      isImage = true;
-      textBody = message.image?.caption || 'Müşteri bir daire fotoğrafı gönderdi.';
-    } else if (messageType === 'document') {
-      textBody = `[Doküman Gönderildi]: ${message.document?.filename || 'Dosya'}`;
-    } else if (messageType === 'location') {
-      textBody = `[Konum Gönderildi]: Enlem ${message.location?.latitude}, Boylam ${message.location?.longitude}`;
-    } else if (messageType === 'audio' || messageType === 'voice') {
-      textBody = '[Sesli Mesaj Gönderildi]';
-    } else {
-      textBody = `[${messageType} mesajı alındı]`;
+    if (!fromPhone || !text) {
+      return NextResponse.json({ status: 'invalid_message' }, { status: 400 });
     }
 
-    console.log(`[Meta Webhook Received] From: ${contactName} (${fromPhone}) Type: ${messageType} Body: ${textBody}`);
-
-    // Update credentials cache from Meta payload if available
-    const metadata = value.metadata;
-    if (metadata?.phone_number_id) {
-      updateCredentialsCache({ phoneNumberId: metadata.phone_number_id });
-    }
-
-    // Async worker processing to prevent blocking Meta HTTP 200 response
-    processIncomingWhatsAppMessage(fromPhone, contactName, textBody, isImage).catch(err => {
-      console.error('[Meta Webhook Async Worker Error]:', err);
+    after(async () => {
+      await processIncomingMessage({
+        fromPhone,
+        contactName,
+        text,
+        messageId,
+        messageType,
+      });
     });
 
-    return NextResponse.json({ status: 'success' }, { status: 200 });
-  } catch (error: any) {
-    console.error('[Meta Webhook Error]:', error);
-    return NextResponse.json({ status: 'error', message: error?.message }, { status: 200 });
+    return NextResponse.json({ status: 'accepted' }, { status: 200 });
+  } catch (error) {
+    console.error('[WhatsApp Webhook Parse Error]:', error);
+    return NextResponse.json({ status: 'invalid_payload' }, { status: 400 });
   }
 }
 
-/**
- * Worker Function to Process Incoming WhatsApp Messages and Auto-Reply via Groq AI
- */
-async function processIncomingWhatsAppMessage(fromPhone: string, contactName: string, textBody: string, isImage: boolean) {
-  // Sync image to Stüdyo session if an image was sent
-  if (isImage) {
-    try {
-      const studio = getOrCreateSession('default_session');
-      const photoName = `whatsapp_photo_${Date.now()}.jpg`;
-      const dummyBuffer = Buffer.from(
-        `<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg"><rect width="1080" height="1080" fill="#0f172a"/><text x="540" y="540" font-family="Arial" font-size="42" fill="#10b981" text-anchor="middle">WhatsApp Photo (${contactName})</text></svg>`
-      );
-      studio.photos.push({ name: photoName, buffer: dummyBuffer });
-      console.log(`[Meta Webhook Studio Sync]: Photo added to studio default_session (${photoName})`);
-    } catch (e) {
-      console.warn('[Meta Webhook Studio Sync Warning]:', e);
-    }
-  }
-
-  // 1. Add customer message to shared conversation store for instant CRM UI rendering
-  const conv = addIncomingCustomerMessage(fromPhone, textBody, contactName);
-
-  // 2. Build FULL conversation history array for Groq AI memory
-  let aiReplyText = '';
+async function processIncomingMessage(input: {
+  fromPhone: string;
+  contactName: string;
+  text: string;
+  messageId: string;
+  messageType: string;
+}) {
   try {
-    let companyName = 'Jasmine Group';
-    let assistantName = 'Efe';
-    let serviceCity = 'Alanya';
-    let companyAddress = '';
-    let companyDetails = '';
-    let websiteUrl = '';
-    let instagramUrl = '';
-    let languages = 'Türkçe';
+    let conversation = await prisma.customerConversation.findFirst({
+      where: {
+        customerPhone: input.fromPhone,
+        channel: 'WHATSAPP',
+        isActive: true,
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 30,
+        },
+      },
+    });
 
-    const hasValidDb = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql'));
-    if (hasValidDb) {
-      try {
-        const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
-        if (waConfig?.companyName) companyName = waConfig.companyName;
-        if (waConfig?.assistantName) assistantName = waConfig.assistantName;
-        if (waConfig?.serviceCity) serviceCity = waConfig.serviceCity;
-        if (waConfig?.companyAddress) companyAddress = waConfig.companyAddress;
-        if (waConfig?.companyDetails) companyDetails = waConfig.companyDetails;
-        if (waConfig?.websiteUrl) websiteUrl = waConfig.websiteUrl;
-        if (waConfig?.instagramUrl) instagramUrl = waConfig.instagramUrl;
-        if (waConfig?.languages) languages = waConfig.languages;
-      } catch (e) {}
+    if (!conversation) {
+      conversation = await prisma.customerConversation.create({
+        data: {
+          customerName: input.contactName,
+          customerPhone: input.fromPhone,
+          channel: 'WHATSAPP',
+        },
+        include: { messages: true },
+      });
     }
 
-    const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : assistantName}: ${m.content}`).join('\n');
+    await prisma.conversationMessage.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'customer',
+        content: input.text,
+        metadata: JSON.stringify({
+          provider: 'meta',
+          providerMessageId: input.messageId || null,
+          messageType: input.messageType,
+        }),
+      },
+    });
 
-    const promptMessage = isImage 
-      ? `Müşteri WhatsApp üzerinden bir daire/fotoğraf görseli gönderdi. Notu: "${textBody}". Görselin alındığını ve Stüdyo modülünde profesyonel 4K HDR işlemeye alındığını belirterek samimi bir yanıt ver.`
-      : textBody;
-
-    // Enhance real estate context with address, details, website, instagram, and languages
-    let enhancedContext = REAL_ESTATE_CONTEXT;
-    enhancedContext += `\n\nEK FİRMA BİLGİLERİ (Yapay zeka bunu aklında tutmalı ve müşteriler sorduğunda kullanmalı):\n`;
-    if (companyAddress) enhancedContext += `- Şirket/Ofis Adresi: ${companyAddress}\n`;
-    if (websiteUrl) enhancedContext += `- Web Sitesi Adresi (URL): ${websiteUrl}\n`;
-    if (instagramUrl) enhancedContext += `- Instagram Sayfası (URL): ${instagramUrl}\n`;
-    if (languages) enhancedContext += `- Hizmet Verdiğimiz Diller: ${languages}\n`;
-    if (companyDetails) enhancedContext += `- Ek Firma Notları & Kuralları: ${companyDetails}\n`;
-
+    const [config, projects] = await Promise.all([
+      prisma.whatsAppConfig.findUnique({ where: { id: 'default' } }),
+      prisma.project.findMany({
+        where: { published: true },
+        select: {
+          name: true,
+          location: true,
+          price: true,
+          shortDescription: true,
+        },
+        take: 12,
+      }),
+    ]);
+    const companyName = config?.companyName || 'Jasmine Group';
+    const history = conversation.messages
+      .map((item) => `${item.role}: ${item.content}`)
+      .join('\n');
+    const customerMessage =
+      input.messageType === 'image'
+        ? `${input.text} Görselin ulaştığını söyle; incelenmeden işlendiğini veya iyileştirildiğini iddia etme.`
+        : input.text;
     const systemPrompt = PROMPTS.customerAssistant({
-      companyName: companyName,
-      availableListings: enhancedContext,
-      conversationHistory: historyStr,
-      customerMessage: promptMessage,
-      assistantName: assistantName,
-      serviceCity: serviceCity
+      companyName,
+      availableListings: JSON.stringify(projects),
+      conversationHistory: history,
+      customerMessage,
+      assistantName: config?.assistantName || 'Efe',
+      serviceCity: config?.serviceCity || 'Alanya',
+    });
+    const aiResponse = await callAI([
+      { role: 'system', content: systemPrompt },
+      ...conversation.messages.map((item) => ({
+        role:
+          item.role === 'assistant'
+            ? ('assistant' as const)
+            : ('user' as const),
+        content: item.content,
+      })),
+      { role: 'user', content: customerMessage },
+    ]);
+    const metaResponse = await sendMetaWhatsAppMessage({
+      to: input.fromPhone,
+      text: aiResponse.content,
     });
 
-    const aiMessages = [
-      { role: 'system' as const, content: systemPrompt },
-      ...(conv.messages || []).map(m => ({
-        role: m.role === 'customer' ? ('user' as const) : ('assistant' as const),
-        content: m.content
-      }))
-    ];
-
-    const aiResponse = await callAI(aiMessages, 'assistant');
-    if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
-      aiReplyText = aiResponse.content.trim();
-    } else {
-      aiReplyText = "Merhabalar! Ben Jasmine Group emlak uzmanı Efe. Size Alanya projelerimiz ve kiralık daire seçeneklerimiz hakkında nasıl yardımcı olabilirim?";
-    }
-  } catch (aiErr: any) {
-    console.error('[Meta Webhook AI Error]:', aiErr);
-    aiReplyText = "Merhabalar! Ben Jasmine Group emlak uzmanı Efe. Alanya kiralık ve satılık portföyümüz hakkında detaylı bilgi almak ister misiniz?";
-  }
-
-  // 3. Send AI Reply back to Customer via Meta WhatsApp Cloud API
-  try {
-    console.log(`[Meta Webhook Worker] Sending WhatsApp Cloud API response to ${fromPhone}...`);
-    const metaRes = await sendMetaWhatsAppMessage({
-      to: fromPhone,
-      text: aiReplyText
+    await prisma.conversationMessage.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'assistant',
+        content: aiResponse.content,
+        metadata: JSON.stringify({
+          provider: 'meta',
+          providerMessageId: metaResponse.messages?.[0]?.id || null,
+          deliveryRequested: true,
+        }),
+      },
     });
-    console.log(`[Meta Webhook Worker] Successfully sent response to ${fromPhone}:`, metaRes);
-    addAssistantMessageToStore(conv.id, aiReplyText, { sentViaMeta: true, metaStatus: 'DELIVERED' });
-  } catch (sendErr: any) {
-    const errorMsg = sendErr?.message || String(sendErr);
-    console.error('[Meta Webhook Send Error]:', errorMsg);
-    addAssistantMessageToStore(conv.id, `⚠️ [WhatsApp Mesaj İletim Uyarısı]: ${aiReplyText}\n\n(Not: Mesaj telefonunuza iletilemedi: ${errorMsg})`, { sentViaMeta: false, metaStatus: 'FAILED', metaError: errorMsg });
+  } catch (error) {
+    console.error('[WhatsApp Webhook Worker Error]:', error);
+    await prisma.notification
+      .create({
+        data: {
+          type: 'SYSTEM',
+          title: 'WhatsApp Asistan Hatası',
+          message: `${input.fromPhone.slice(-4)} ile biten numaranın mesajı otomatik yanıtlanamadı.`,
+          link: '/fabrika/asistan',
+        },
+      })
+      .catch((notificationError) => {
+        console.error('[WhatsApp Error Notification Failed]:', notificationError);
+      });
   }
 }

@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://neondb_owner:npg_cF1QziKohf2G@ep-withered-smoke-ajfxwd31-pooler.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require"
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -24,39 +24,39 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  favorites     Favorite[]
-  appointments  Appointment[]
-  leads         Lead[]
+  favorites    Favorite[]
+  appointments Appointment[]
+  leads        Lead[]
 }
 
 model Project {
-  id               String    @id @default(cuid())
-  slug             String    @unique
+  id               String   @id @default(cuid())
+  slug             String   @unique
   name             String
   location         String
-  status           String    // e.g., "Satışta", "Yapım Aşamasında", "Tamamlandı"
-  image            String    // Kapak görseli
+  status           String // e.g., "Satışta", "Yapım Aşamasında", "Tamamlandı"
+  image            String // Kapak görseli
   shortDescription String
-  description      String    @db.Text
-  features         String[]  // Sosyal donatılar vb. array olarak
+  description      String   @db.Text
+  features         String[] // Sosyal donatılar vb. array olarak
   deliveryDate     String
   price            String
-  progress         Int       @default(0) // % inşaat durumu
-  published        Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  progress         Int      @default(0) // % inşaat durumu
+  published        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  units            Unit[]
-  favorites        Favorite[]
+  units     Unit[]
+  favorites Favorite[]
 }
 
 model Unit {
   id        String   @id @default(cuid())
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type      String   // e.g., "1+1", "2+1"
-  area      String   // e.g., "55m² - 65m²"
-  price     String?  // nullable if not specified
+  type      String // e.g., "1+1", "2+1"
+  area      String // e.g., "55m² - 65m²"
+  price     String? // nullable if not specified
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -74,15 +74,15 @@ model Service {
 }
 
 model BlogPost {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  title       String
-  excerpt     String
-  content     String   @db.Text
-  image       String
-  published   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  excerpt   String
+  content   String   @db.Text
+  image     String
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model FAQ {
@@ -109,7 +109,7 @@ model Lead {
   message   String     @db.Text
   status    LeadStatus @default(NEW)
   notes     String?    @db.Text
-  userId    String?    // If created by an agent
+  userId    String? // If created by an agent
   user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -139,7 +139,7 @@ model NewsletterSubscriber {
   id        String   @id @default(cuid())
   email     String   @unique
   verified  Boolean  @default(false)
-  token     String?  // Verification token
+  token     String? // Verification token
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -182,8 +182,8 @@ model AgentApplication {
 
 enum HuntingStatus {
   YELLOW // Pazarlıkta
-  RED    // Elendi
-  GREEN  // Avlandı - siteye eklenmek üzere
+  RED // Elendi
+  GREEN // Avlandı - siteye eklenmek üzere
 }
 
 enum AdPlatform {
@@ -193,8 +193,8 @@ enum AdPlatform {
 }
 
 enum CustomerIntent {
-  INVESTMENT   // Yatırımlık
-  RESIDENTIAL  // Oturmalık
+  INVESTMENT // Yatırımlık
+  RESIDENTIAL // Oturmalık
   BOTH
   UNKNOWN
 }
@@ -233,12 +233,12 @@ model CompanyProfile {
 
 model HuntedListing {
   id              String        @id @default(cuid())
-  sourceUrl       String        // Sahibinden.com link
+  sourceUrl       String // Sahibinden.com link
   title           String
   price           String?
   location        String?
-  roomCount       String?       // e.g. "3+1"
-  area            String?       // e.g. "120 m²"
+  roomCount       String? // e.g. "3+1"
+  area            String? // e.g. "120 m²"
   ownerName       String?
   ownerPhone      String?
   imageUrl        String?
@@ -247,21 +247,21 @@ model HuntedListing {
   whatsappStatus  String        @default("BEKLIYOR") // BEKLIYOR, GONDERILDI, CEVAPLANDI
   notes           String?       @db.Text
   syncedToSite    Boolean       @default(false) // Modül 1'e gönderildi mi?
-  syncedProjectId String?       // Bağlanan Project id
+  syncedProjectId String? // Bağlanan Project id
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  messages        HuntingMessage[]
-  adCopies        AdCopy[]
+  messages HuntingMessage[]
+  adCopies AdCopy[]
 }
 
 model WhatsAppMessage {
-  id          String   @id @default(cuid())
-  phone       String
-  fromMe      Boolean
-  content     String   @db.Text
-  status      String   @default("SENT") // SENT, DRAFT
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  phone     String
+  fromMe    Boolean
+  content   String   @db.Text
+  status    String   @default("SENT") // SENT, DRAFT
+  createdAt DateTime @default(now())
 }
 
 model HuntingMessage {
@@ -269,7 +269,7 @@ model HuntingMessage {
   listingId String
   listing   HuntedListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   content   String        @db.Text // Üretilen ikna mesajı
-  tone      String?       // e.g. "resmi", "samimi", "acil"
+  tone      String? // e.g. "resmi", "samimi", "acil"
   sent      Boolean       @default(false) // WhatsApp'tan gönderildi mi?
   createdAt DateTime      @default(now())
 }
@@ -280,9 +280,9 @@ model WebsiteTemplate {
   id          String   @id @default(cuid())
   name        String
   description String
-  thumbnail   String   // Önizleme görseli yolu
-  category    String   // e.g. "modern", "klasik", "minimal"
-  htmlPath    String   // Şablon dosya yolu
+  thumbnail   String // Önizleme görseli yolu
+  category    String // e.g. "modern", "klasik", "minimal"
+  htmlPath    String // Şablon dosya yolu
   createdAt   DateTime @default(now())
 
   generatedSites GeneratedWebsite[]
@@ -299,7 +299,7 @@ model GeneratedWebsite {
   phone        String?
   email        String?
   address      String?
-  zipFilePath  String?          // Üretilen .zip dosya yolu
+  zipFilePath  String? // Üretilen .zip dosya yolu
   status       String           @default("pending") // pending, generating, ready, error
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -308,48 +308,48 @@ model GeneratedWebsite {
 // --- Modül 3: Pazarlamacı / Reklam Ekibi ---
 
 model AdCampaign {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
-  description String?    @db.Text
-  type        String     // "listing" veya "brand"
-  isActive    Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  description String?  @db.Text
+  type        String // "listing" veya "brand"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  adCopies    AdCopy[]
+  adCopies AdCopy[]
 }
 
 model AdCopy {
-  id          String         @id @default(cuid())
-  campaignId  String?
-  campaign    AdCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  listingId   String?
-  listing     HuntedListing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
-  platform    AdPlatform
-  headline    String
-  body        String         @db.Text
+  id           String         @id @default(cuid())
+  campaignId   String?
+  campaign     AdCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  listingId    String?
+  listing      HuntedListing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  platform     AdPlatform
+  headline     String
+  body         String         @db.Text
   callToAction String?
-  targetUrl   String?        // İlan veya ana sayfa linki
-  approved    Boolean        @default(false)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  targetUrl    String? // İlan veya ana sayfa linki
+  approved     Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 }
 
 // --- Modül 4: Asistan / CRM ---
 
 model CustomerConversation {
-  id          String             @id @default(cuid())
-  customerName String
+  id            String              @id @default(cuid())
+  customerName  String
   customerPhone String?
   customerEmail String?
-  channel     ConversationChannel @default(WEB_CHAT)
-  intent      CustomerIntent     @default(UNKNOWN)
-  summary     String?            @db.Text // AI tarafından üretilen özet
-  isActive    Boolean            @default(true)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  channel       ConversationChannel @default(WEB_CHAT)
+  intent        CustomerIntent      @default(UNKNOWN)
+  summary       String?             @db.Text // AI tarafından üretilen özet
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
-  messages    ConversationMessage[]
+  messages            ConversationMessage[]
   appointmentRequests AppointmentRequest[]
 }
 
@@ -357,7 +357,7 @@ model ConversationMessage {
   id             String               @id @default(cuid())
   conversationId String
   conversation   CustomerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String               // "customer", "assistant", "patron"
+  role           String // "customer", "assistant", "patron"
   content        String               @db.Text
   metadata       String?              @db.Text // JSON: çapraz satış önerileri vb.
   createdAt      DateTime             @default(now())
@@ -370,7 +370,7 @@ model AppointmentRequest {
   customerName   String
   customerPhone  String?
   proposedDate   DateTime?
-  proposedTime   String?              // e.g. "14:00"
+  proposedTime   String? // e.g. "14:00"
   status         AppointmentStatus    @default(PENDING)
   patronNote     String?              @db.Text
   confirmMessage String?              @db.Text // AI'ın ürettiği teyit mesajı
@@ -385,7 +385,7 @@ model Notification {
   type      NotificationType
   title     String
   message   String           @db.Text
-  link      String?          // İlgili sayfaya yönlendirme linki
+  link      String? // İlgili sayfaya yönlendirme linki
   read      Boolean          @default(false)
   metadata  String?          @db.Text // JSON: ek bilgiler
   createdAt DateTime         @default(now())
@@ -394,27 +394,27 @@ model Notification {
 // --- Modül 5: Dijital Fotoğraf Stüdyosu ---
 
 model PhotoShoot {
-  id             String             @id @default(cuid())
-  device         String             // e.g. "iPhone 15 Pro", "Samsung S Serisi"
-  uploadedCount  Int                @default(0)
-  uploadedPhotos String?            @db.Text // JSON: yüklenen orijinal fotoğrafların yolları
-  status         String             @default("pending") // pending, processing, ready, error
-  logoUrl        String?            @db.Text // Yüklenen PNG logo
-  websiteUrl     String?            // Eklenmek istenen web sitesi adresi
-  textColor      String?            @default("#ffffff") // Web sitesi ve filigran yazı rengi
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id             String   @id @default(cuid())
+  device         String // e.g. "iPhone 15 Pro", "Samsung S Serisi"
+  uploadedCount  Int      @default(0)
+  uploadedPhotos String?  @db.Text // JSON: yüklenen orijinal fotoğrafların yolları
+  status         String   @default("pending") // pending, processing, ready, error
+  logoUrl        String?  @db.Text // Yüklenen PNG logo
+  websiteUrl     String? // Eklenmek istenen web sitesi adresi
+  textColor      String?  @default("#ffffff") // Web sitesi ve filigran yazı rengi
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  packages       ProcessedPackage[]
+  packages ProcessedPackage[]
 }
 
 model ProcessedPackage {
   id                String     @id @default(cuid())
   shootId           String
   shoot             PhotoShoot @relation(fields: [shootId], references: [id], onDelete: Cascade)
-  filterName        String     // e.g. "Ferah Gün Işığı"
-  zipUrl            String     // Orijinal Profesyonel HDR ZIP linki
-  watermarkedZipUrl String?    // Logo ve Web sitesi filigranlı ZIP linki
+  filterName        String // e.g. "Ferah Gün Işığı"
+  zipUrl            String // Orijinal Profesyonel HDR ZIP linki
+  watermarkedZipUrl String? // Logo ve Web sitesi filigranlı ZIP linki
   createdAt         DateTime   @default(now())
 }
 
@@ -422,7 +422,7 @@ model ProcessedPackage {
 
 model GeneralManagerMessage {
   id        String   @id @default(cuid())
-  role      String   // "patron", "asistan", "system"
+  role      String // "patron", "asistan", "system"
   content   String   @db.Text
   createdAt DateTime @default(now())
 }
@@ -432,7 +432,7 @@ model WhatsAppConfig {
   token             String?  @db.Text
   phoneNumberId     String?
   businessAccountId String?
-  verifyToken       String   @default("jasmine_secret_verify_token")
+  verifyToken       String   @default("configure-in-environment")
   geminiApiKey      String?  @db.Text
   companyName       String?  @default("Jasmine Group")
   assistantName     String?  @default("Efe")
@@ -444,4 +444,3 @@ model WhatsAppConfig {
   languages         String?  @db.Text
   updatedAt         DateTime @updatedAt
 }
-

@@ -11,8 +11,8 @@ import {
   Aperture,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
-  Building2
+  Building2,
+  LogOut
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -69,6 +69,16 @@ const modules = [
 export default function FabrikaSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await fetch('/api/fabrika-auth/logout', { method: 'POST' });
+    } finally {
+      window.location.assign('/fabrika-giris');
+    }
+  }
 
   return (
     <aside
@@ -175,20 +185,39 @@ export default function FabrikaSidebar() {
       {/* Bottom Profile Section */}
       <div className={`p-4 border-t border-slate-800/80 ${collapsed ? 'text-center' : ''}`}>
         {!collapsed && (
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-black text-slate-950 shadow-md">
-              P
+          <div className="flex items-center justify-between gap-3 px-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-black text-slate-950 shadow-md">
+                P
+              </div>
+              <div>
+                <p className="text-xs font-black text-white">Patron</p>
+                <p className="text-[10px] text-amber-400 font-bold">Genel Müdür</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-black text-white">Patron</p>
-              <p className="text-[10px] text-amber-400 font-bold">Genel Müdür</p>
-            </div>
+            <button
+              aria-label="Oturumu kapat"
+              className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-400 transition hover:border-rose-500/30 hover:text-rose-300 disabled:opacity-50"
+              disabled={loggingOut}
+              onClick={handleLogout}
+              title="Oturumu kapat"
+              type="button"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         )}
         {collapsed && (
-          <div className="w-8 h-8 mx-auto rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-black text-slate-950 shadow-md">
-            P
-          </div>
+          <button
+            aria-label="Oturumu kapat"
+            className="mx-auto flex h-8 w-8 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition hover:text-rose-300 disabled:opacity-50"
+            disabled={loggingOut}
+            onClick={handleLogout}
+            title="Oturumu kapat"
+            type="button"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         )}
       </div>
     </aside>
