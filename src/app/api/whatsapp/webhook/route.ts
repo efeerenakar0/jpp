@@ -2,12 +2,112 @@ import { after, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
 import { callAI, PROMPTS } from '@/lib/ai';
+import {
+  extractAppointmentSignal,
+  needsCustomerReplyRepair,
+  type AppointmentSignal,
+} from '@/lib/customer-message';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 60;
 
 const processedMessageIds = new Set<string>();
+
+async function saveAppointmentRequest(
+  conversation: {
+    id: string;
+    customerName: string;
+    customerPhone: string | null;
+  },
+  signal: AppointmentSignal
+) {
+  if (!signal.requested) {
+    return null;
+  }
+
+  const existingRequest = await prisma.appointmentRequest.findFirst({
+    where: {
+      conversationId: conversation.id,
+      status: 'PENDING',
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (existingRequest) {
+    return prisma.appointmentRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        proposedDate: signal.proposedDate || existingRequest.proposedDate,
+        proposedTime: signal.proposedTime || existingRequest.proposedTime,
+      },
+    });
+  }
+
+  const appointment = await prisma.appointmentRequest.create({
+    data: {
+      conversationId: conversation.id,
+      customerName: conversation.customerName,
+      customerPhone: conversation.customerPhone,
+      proposedDate: signal.proposedDate,
+      proposedTime: signal.proposedTime,
+    },
+  });
+
+  const appointmentDescription = [
+    signal.proposedDate
+      ? signal.proposedDate.toLocaleDateString('tr-TR', {
+          timeZone: 'Europe/Istanbul',
+        })
+      : 'Tarih belirtilmedi',
+    signal.proposedTime || 'Saat belirtilmedi',
+  ].join(' · ');
+
+  await prisma.notification.create({
+    data: {
+      type: 'APPOINTMENT_REQUEST',
+      title: 'Yeni WhatsApp Randevu Talebi',
+      message: `${conversation.customerName}: ${appointmentDescription}`,
+      link: '/fabrika/asistan',
+      metadata: JSON.stringify({
+        appointmentRequestId: appointment.id,
+        conversationId: conversation.id,
+      }),
+    },
+  });
+
+  return appointment;
+}
+
+async function repairCustomerReply(content: string): Promise<string> {
+  if (!needsCustomerReplyRepair(content)) {
+    return content.trim();
+  }
+
+  try {
+    const repaired = await callAI(
+      [
+        {
+          role: 'system',
+          content: `Bir WhatsApp emlak danışmanı yanıtını dil ve karakter bakımından düzelt.
+Yalnızca Türkçe ve Latin alfabesi kullan.
+Yeni fiyat, portföy, uygunluk veya özellik ekleme.
+Anlamı değiştirme, en fazla 500 karakter yaz ve yalnızca düzeltilmiş mesajı döndür.`,
+        },
+        { role: 'user', content },
+      ],
+      'customer_reply_repair'
+    );
+
+    if (!needsCustomerReplyRepair(repaired.content)) {
+      return repaired.content.trim();
+    }
+  } catch (error) {
+    console.error('[WhatsApp Reply Repair Error]:', error);
+  }
+
+  return 'Mesajınızı ve kriterlerinizi aldım. Ekibimiz doğrulanmış portföyleri kontrol edip randevu talebinizle birlikte size dönüş yapacak.';
+}
 
 export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
@@ -135,15 +235,33 @@ async function processIncomingMessage(input: {
       },
     });
 
+    const appointmentSignal = extractAppointmentSignal(input.text);
+    const appointment = await saveAppointmentRequest(
+      {
+        id: conversation.id,
+        customerName: conversation.customerName,
+        customerPhone: conversation.customerPhone,
+      },
+      appointmentSignal
+    );
+
     const [config, projects] = await Promise.all([
       prisma.whatsAppConfig.findUnique({ where: { id: 'default' } }),
       prisma.project.findMany({
         where: { published: true },
         select: {
+          slug: true,
           name: true,
           location: true,
           price: true,
           shortDescription: true,
+          units: {
+            select: {
+              type: true,
+              area: true,
+              price: true,
+            },
+          },
         },
         take: 12,
       }),
@@ -163,6 +281,15 @@ async function processIncomingMessage(input: {
       customerMessage,
       assistantName: config?.assistantName || 'Efe',
       serviceCity: config?.serviceCity || 'Alanya',
+      appointmentStatus: appointment
+        ? `Randevu talebi PENDING olarak kaydedildi. Önerilen tarih: ${
+            appointment.proposedDate
+              ? appointment.proposedDate.toLocaleDateString('tr-TR', {
+                  timeZone: 'Europe/Istanbul',
+                })
+              : 'belirtilmedi'
+          }, saat: ${appointment.proposedTime || 'belirtilmedi'}. Kesin onay verme.`
+        : undefined,
     });
     const aiResponse = await callAI([
       { role: 'system', content: systemPrompt },
@@ -175,16 +302,17 @@ async function processIncomingMessage(input: {
       })),
       { role: 'user', content: customerMessage },
     ]);
+    const customerReply = await repairCustomerReply(aiResponse.content);
     const metaResponse = await sendMetaWhatsAppMessage({
       to: input.fromPhone,
-      text: aiResponse.content,
+      text: customerReply,
     });
 
     await prisma.conversationMessage.create({
       data: {
         conversationId: conversation.id,
         role: 'assistant',
-        content: aiResponse.content,
+        content: customerReply,
         metadata: JSON.stringify({
           provider: 'meta',
           providerMessageId: metaResponse.messages?.[0]?.id || null,
