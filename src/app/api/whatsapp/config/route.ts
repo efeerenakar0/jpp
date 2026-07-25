@@ -14,7 +14,9 @@ let inMemoryConfig = {
   geminiApiKey: process.env.GEMINI_API_KEY || Buffer.from('QVEuQWI4Uk42TGxlNVdsVWNrNmdvaTRfVTVOSkRxNDRLU1JGeVY2MzZTWUZkLUZZMDZCdFE=', 'base64').toString('utf-8'),
   companyName: 'Jasmine Group',
   assistantName: 'Efe',
-  serviceCity: 'Alanya'
+  serviceCity: 'Alanya',
+  companyAddress: '',
+  companyDetails: ''
 };
 
 function syncGlobalMetaConfig(token: string, phoneNumberId: string, businessAccountId: string) {
@@ -53,6 +55,8 @@ export async function GET(req: Request) {
     const companyName = config?.companyName || inMemoryConfig.companyName;
     const assistantName = config?.assistantName || inMemoryConfig.assistantName;
     const serviceCity = config?.serviceCity || inMemoryConfig.serviceCity;
+    const companyAddress = config?.companyAddress || inMemoryConfig.companyAddress;
+    const companyDetails = config?.companyDetails || inMemoryConfig.companyDetails;
 
     syncGlobalMetaConfig(token, phoneNumberId, businessAccountId);
 
@@ -67,6 +71,8 @@ export async function GET(req: Request) {
       companyName,
       assistantName,
       serviceCity,
+      companyAddress,
+      companyDetails,
       source: token ? 'ACTIVE' : 'NONE'
     });
   } catch (error: any) {
@@ -82,6 +88,8 @@ export async function GET(req: Request) {
       companyName: inMemoryConfig.companyName,
       assistantName: inMemoryConfig.assistantName,
       serviceCity: inMemoryConfig.serviceCity,
+      companyAddress: inMemoryConfig.companyAddress,
+      companyDetails: inMemoryConfig.companyDetails,
       source: 'FALLBACK'
     });
   }
@@ -90,7 +98,20 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, testPhone, token, phoneNumberId, businessAccountId, verifyToken, geminiApiKey, companyName, assistantName, serviceCity } = body;
+    const { 
+      action, 
+      testPhone, 
+      token, 
+      phoneNumberId, 
+      businessAccountId, 
+      verifyToken, 
+      geminiApiKey, 
+      companyName, 
+      assistantName, 
+      serviceCity,
+      companyAddress,
+      companyDetails
+    } = body;
 
     // Handle Meta API Live Test Action
     if (action === 'test') {
@@ -129,7 +150,9 @@ export async function POST(req: Request) {
       geminiApiKey: geminiApiKey || inMemoryConfig.geminiApiKey,
       companyName: companyName || 'Jasmine Group',
       assistantName: assistantName || 'Efe',
-      serviceCity: serviceCity || 'Alanya'
+      serviceCity: serviceCity || 'Alanya',
+      companyAddress: companyAddress || '',
+      companyDetails: companyDetails || ''
     };
 
     syncGlobalMetaConfig(inMemoryConfig.token, inMemoryConfig.phoneNumberId, inMemoryConfig.businessAccountId);
@@ -145,7 +168,9 @@ export async function POST(req: Request) {
           geminiApiKey: geminiApiKey || null,
           companyName: companyName || 'Jasmine Group',
           assistantName: assistantName || 'Efe',
-          serviceCity: serviceCity || 'Alanya'
+          serviceCity: serviceCity || 'Alanya',
+          companyAddress: companyAddress || null,
+          companyDetails: companyDetails || null
         },
         create: {
           id: 'default',
@@ -156,30 +181,21 @@ export async function POST(req: Request) {
           geminiApiKey: geminiApiKey || null,
           companyName: companyName || 'Jasmine Group',
           assistantName: assistantName || 'Efe',
-          serviceCity: serviceCity || 'Alanya'
+          serviceCity: serviceCity || 'Alanya',
+          companyAddress: companyAddress || null,
+          companyDetails: companyDetails || null
         }
       });
     } catch (dbErr) {}
 
     return NextResponse.json({
       success: true,
-      message: 'Meta WhatsApp API & AI ayarları başarıyla kaydedildi!',
-      config: {
-        configured: Boolean(inMemoryConfig.token && inMemoryConfig.phoneNumberId),
-        phoneNumberId: inMemoryConfig.phoneNumberId,
-        source: 'ACTIVE'
-      }
+      message: '🟢 Ayarlar başarıyla kaydedildi!'
     });
   } catch (error: any) {
-    syncGlobalMetaConfig(inMemoryConfig.token, inMemoryConfig.phoneNumberId, inMemoryConfig.businessAccountId);
     return NextResponse.json({
-      success: true,
-      message: 'Meta WhatsApp API ayarları kaydedildi!',
-      config: {
-        configured: Boolean(inMemoryConfig.token && inMemoryConfig.phoneNumberId),
-        phoneNumberId: inMemoryConfig.phoneNumberId,
-        source: 'MEMORY'
-      }
-    });
+      success: false,
+      error: error?.message || 'Ayarlar kaydedilirken hata oluştu'
+    }, { status: 500 });
   }
 }

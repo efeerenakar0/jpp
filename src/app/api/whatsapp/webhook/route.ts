@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage, updateCredentialsCache } from '@/lib/whatsapp';
 import { callAI, PROMPTS } from '@/lib/ai';
 import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
@@ -153,16 +154,37 @@ async function processIncomingWhatsAppMessage(fromPhone: string, contactName: st
   // 2. Build FULL conversation history array for Groq AI memory
   let aiReplyText = '';
   try {
-    const companyName = 'Jasmine Group';
+    let companyName = 'Jasmine Group';
+    let companyAddress = '';
+    let companyDetails = '';
+
+    const hasValidDb = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql'));
+    if (hasValidDb) {
+      try {
+        const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
+        if (waConfig?.companyName) companyName = waConfig.companyName;
+        if (waConfig?.companyAddress) companyAddress = waConfig.companyAddress;
+        if (waConfig?.companyDetails) companyDetails = waConfig.companyDetails;
+      } catch (e) {}
+    }
+
     const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : 'Efe'}: ${m.content}`).join('\n');
 
     const promptMessage = isImage 
       ? `Müşteri WhatsApp üzerinden bir daire/fotoğraf görseli gönderdi. Notu: "${textBody}". Görselin alındığını ve Stüdyo modülünde profesyonel 4K HDR işlemeye alındığını belirterek samimi bir yanıt ver.`
       : textBody;
 
+    // Enhance real estate context with address and details
+    let enhancedContext = REAL_ESTATE_CONTEXT;
+    if (companyAddress || companyDetails) {
+      enhancedContext += `\n\nEK FİRMA BİLGİLERİ:\n`;
+      if (companyAddress) enhancedContext += `- Şirket Adresi: ${companyAddress}\n`;
+      if (companyDetails) enhancedContext += `- Ek Bilgiler: ${companyDetails}\n`;
+    }
+
     const systemPrompt = PROMPTS.customerAssistant({
       companyName: companyName,
-      availableListings: REAL_ESTATE_CONTEXT,
+      availableListings: enhancedContext,
       conversationHistory: historyStr,
       customerMessage: promptMessage
     });

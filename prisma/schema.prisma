@@ -437,6 +437,8 @@ model WhatsAppConfig {
   companyName       String?  @default("Jasmine Group")
   assistantName     String?  @default("Efe")
   serviceCity       String?  @default("Alanya")
+  companyAddress    String?  @db.Text
+  companyDetails    String?  @db.Text
   updatedAt         DateTime @updatedAt
 }
 

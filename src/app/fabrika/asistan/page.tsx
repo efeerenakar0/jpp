@@ -62,7 +62,9 @@ export default function AsistanPage() {
     geminiApiKey: '',
     companyName: 'Jasmine Group',
     assistantName: 'Efe',
-    serviceCity: 'Alanya'
+    serviceCity: 'Alanya',
+    companyAddress: '',
+    companyDetails: ''
   });
 
   // Modal State
@@ -266,7 +268,9 @@ export default function AsistanPage() {
             geminiApiKey: data.geminiApiKey || prev.geminiApiKey,
             companyName: data.companyName || prev.companyName,
             assistantName: data.assistantName || prev.assistantName,
-            serviceCity: data.serviceCity || prev.serviceCity
+            serviceCity: data.serviceCity || prev.serviceCity,
+            companyAddress: data.companyAddress || prev.companyAddress,
+            companyDetails: data.companyDetails || prev.companyDetails
           }));
         }
       }
@@ -552,27 +556,31 @@ export default function AsistanPage() {
                   <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
                     <Sparkles className="w-4 h-4" /> Yapay Zeka Danışman & Şirket Profili
                   </div>
-                  <a 
-                    href="https://aistudio.google.com/app/apikey" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-[11px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors hover:underline"
-                  >
-                    <span>Gemini API Key Al</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Google Gemini API Key (Seçeneğe Bağlı)
+                    Şirket / Ofis Adresi
                   </label>
-                  <input
-                    type="password"
-                    value={configForm.geminiApiKey}
-                    onChange={(e) => setConfigForm({ ...configForm, geminiApiKey: e.target.value })}
-                    placeholder="AIzaSy... (Boş bırakılırsa varsayılan anahtar çalışır)"
-                    className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
+                  <textarea
+                    rows={2}
+                    value={configForm.companyAddress}
+                    onChange={(e) => setConfigForm({ ...configForm, companyAddress: e.target.value })}
+                    placeholder="Örn: Mahmutlar Mah. Barbaros Cad. Jasmine Towers No:12 Alanya/Antalya"
+                    className="w-full bg-slate-950 text-white text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none resize-none custom-scrollbar"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Şirket Hakkında İlave Bilgiler & Hizmet Detayları
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={configForm.companyDetails}
+                    onChange={(e) => setConfigForm({ ...configForm, companyDetails: e.target.value })}
+                    placeholder="Örn: Haftanın 7 günü 09:00 - 19:00 saatleri arasında açığız. Satış sonrası tapu ve abonelik işlemlerinde ücretsiz destek sağlıyoruz."
+                    className="w-full bg-slate-950 text-white text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none resize-none custom-scrollbar"
                   />
                 </div>
 
