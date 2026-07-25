@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { callAI, PROMPTS } from '@/lib/ai';
 
 /**
@@ -9,10 +10,31 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message = body.message || 'Merhaba, Alanya projeleri hakkında bilgi alabilir miyim?';
 
+    let companyName = 'Jasmine Group';
+    let companyAddress = '';
+    let companyDetails = '';
+
+    const hasValidDb = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql'));
+    if (hasValidDb) {
+      try {
+        const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
+        if (waConfig?.companyName) companyName = waConfig.companyName;
+        if (waConfig?.companyAddress) companyAddress = waConfig.companyAddress;
+        if (waConfig?.companyDetails) companyDetails = waConfig.companyDetails;
+      } catch (e) {}
+    }
+
+    let listings = 'Mahmutlar 1+1, Oba 2+1, Kestel 1+1';
+    if (companyAddress || companyDetails) {
+      listings += `\n\nEK FİRMA BİLGİLERİ:\n`;
+      if (companyAddress) listings += `- Şirket Adresi: ${companyAddress}\n`;
+      if (companyDetails) listings += `- Ek Bilgiler: ${companyDetails}\n`;
+    }
+
     // 1. Trigger Groq AI Auto-Response
     const systemPrompt = PROMPTS.customerAssistant({
-      companyName: 'Jasmine Group',
-      availableListings: 'Mahmutlar 1+1, Oba 2+1, Kestel 1+1',
+      companyName: companyName,
+      availableListings: listings,
       conversationHistory: `Müşteri: ${message}`,
       customerMessage: message
     });
