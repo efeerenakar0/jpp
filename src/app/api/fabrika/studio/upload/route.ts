@@ -48,17 +48,14 @@ export async function POST(request: Request) {
       success: true, 
       shootId: tempId,
       logoUrl: session.logoBase64 ? 'attached' : null,
-      uploadedCount: session.photos.length > 0 ? session.photos.length : 1,
+      uploadedCount: session.photos.length,
       message: `${session.photos.length} adet fotoğraf stüdyoya başarıyla yüklendi.` 
     }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Studio Upload Error:', error);
     return NextResponse.json({ 
-      success: true, 
-      shootId: tempId,
-      logoUrl: null,
-      uploadedCount: session.photos.length || 1,
-      message: 'Fotoğraflar stüdyoya başarıyla yüklendi.' 
-    }, { status: 200 });
+      success: false,
+      error: error instanceof Error ? error.message : 'Fotoğraflar yüklenemedi.',
+    }, { status: 500 });
   }
 }

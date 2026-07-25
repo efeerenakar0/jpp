@@ -15,7 +15,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
     token: '',
     phoneNumberId: '',
     businessAccountId: '',
-    verifyToken: 'jasmine_secret_verify_token'
+    verifyToken: ''
   });
 
   const [waChats, setWaChats] = useState<any[]>([]);
@@ -51,10 +51,10 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
       if (res.ok) {
         const data = await res.json();
         setConfigForm({
-          token: data.tokenRaw || '',
+          token: '',
           phoneNumberId: data.phoneNumberId || '',
           businessAccountId: data.businessAccountId || '',
-          verifyToken: data.verifyToken || 'jasmine_secret_verify_token'
+          verifyToken: ''
         });
       }
     } catch (e) {

@@ -13,7 +13,9 @@ function log(msg) {
 async function checkTunnelHealth() {
   if (!currentTunnelUrl) return false;
   try {
-    const res = await fetch(`${currentTunnelUrl}/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=jasmine_secret_verify_token&hub.challenge=health_check`, {
+    const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+    if (!verifyToken) throw new Error('WHATSAPP_WEBHOOK_VERIFY_TOKEN is missing');
+    const res = await fetch(`${currentTunnelUrl}/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(verifyToken)}&hub.challenge=health_check`, {
       timeout: 3000
     });
     const text = await res.text();

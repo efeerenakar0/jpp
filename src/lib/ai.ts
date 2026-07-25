@@ -96,9 +96,6 @@ Profesyonel ve sıcak bir teyit mesajı yaz. Max 200 karakter.
 `,
 };
 
-// Verified active Groq Key assembled at runtime
-const USER_VERIFIED_GROQ_KEY = [103,115,107,95,87,105,115,53,69,53,53,88,69,52,66,72,57,115,105,106,48,49,100,54,87,71,100,121,98,51,70,89,70,81,100,49,114,65,57,100,76,111,81,120,112,65,75,66,48,84,72,54,56,106,89,49].map(c => String.fromCharCode(c)).join('');
-
 /**
  * Groq Cloud API Call (Ultra-fast 800+ tokens/sec Free AI Engine)
  */
@@ -147,16 +144,13 @@ async function callGroqAPI(apiKey: string, systemPrompt: string, conversationMes
   return null;
 }
 
-export async function callAI(messages: ChatMessage[], mockKey?: string, customApiKey?: string): Promise<AIResponse> {
+export async function callAI(messages: ChatMessage[], _requestType?: string, customApiKey?: string): Promise<AIResponse> {
   const conversationMessages = messages.filter(m => m.role !== 'system');
   const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
-  const lastUserMsg = conversationMessages[conversationMessages.length - 1]?.content || 'Merhaba';
-
-  const envKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
+  const envKey = process.env.GROQ_API_KEY || '';
 
   const keysToTry = Array.from(new Set([
     customApiKey,
-    USER_VERIFIED_GROQ_KEY,
     envKey
   ])).filter(k => Boolean(k) && typeof k === 'string' && k.length > 5) as string[];
 
@@ -168,18 +162,11 @@ export async function callAI(messages: ChatMessage[], mockKey?: string, customAp
     }
   }
 
-  // Always fallback to USER_VERIFIED_GROQ_KEY
-  const primaryGroqReply = await callGroqAPI(USER_VERIFIED_GROQ_KEY, systemInstruction, conversationMessages);
-  if (primaryGroqReply) {
-    return { content: primaryGroqReply, isMock: false };
-  }
-
-  // Fallback natural language response
-  console.log('[AI Engine]: Fallback for query:', lastUserMsg);
-  return {
-    content: `Merhabalar! Ben Jasmine Group emlak uzmanı Efe. "${lastUserMsg}" konulu talebinizle ilgili Alanya'da kiralık ve satılık harika portföylerimiz mevcut. Size özel detay ve fiyat sunabilmem için bütçeniz veya aradığınız oda sayısı (1+1, 2+1) nedir?`,
-    isMock: false
-  };
+  throw new Error(
+    keysToTry.length === 0
+      ? 'AI provider is not configured'
+      : 'AI provider did not return a valid response'
+  );
 }
 
 export function parseJSONResponse(content: string): Record<string, unknown> | null {

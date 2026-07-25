@@ -58,7 +58,7 @@ export default function AsistanPage() {
     token: '',
     phoneNumberId: '',
     businessAccountId: '',
-    verifyToken: 'jasmine_secret_verify_token',
+    verifyToken: '',
     geminiApiKey: '',
     companyName: 'Jasmine Group',
     assistantName: 'Efe',
@@ -235,50 +235,25 @@ export default function AsistanPage() {
 
   const fetchMetaConfig = async () => {
     try {
-      let activeToken = configForm.token;
-      let activePhoneId = configForm.phoneNumberId;
-
-      if (typeof window !== 'undefined') {
-        const localSaved = localStorage.getItem('jasmine_meta_config');
-        if (localSaved) {
-          try {
-            const parsed = JSON.parse(localSaved);
-            if (parsed.token || parsed.phoneNumberId || parsed.geminiApiKey) {
-              setConfigForm(prev => ({ ...prev, ...parsed }));
-              activeToken = parsed.token || activeToken;
-              activePhoneId = parsed.phoneNumberId || activePhoneId;
-            }
-          } catch (e) {}
-        }
-      }
-
-      const res = await fetch('/api/whatsapp/config', { 
-        cache: 'no-store',
-        headers: {
-          'x-meta-token': activeToken,
-          'x-meta-phone-id': activePhoneId
-        }
-      });
+      const res = await fetch('/api/whatsapp/config', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        if (data.tokenRaw || data.phoneNumberId) {
-          setConfigForm(prev => ({
-            ...prev,
-            token: data.tokenRaw || prev.token,
-            phoneNumberId: data.phoneNumberId || prev.phoneNumberId,
-            businessAccountId: data.businessAccountId || prev.businessAccountId,
-            verifyToken: data.verifyToken || prev.verifyToken,
-            geminiApiKey: data.geminiApiKey || prev.geminiApiKey,
-            companyName: data.companyName || prev.companyName,
-            assistantName: data.assistantName || prev.assistantName,
-            serviceCity: data.serviceCity || prev.serviceCity,
-            companyAddress: data.companyAddress || prev.companyAddress,
-            companyDetails: data.companyDetails || prev.companyDetails,
-            websiteUrl: data.websiteUrl || prev.websiteUrl,
-            instagramUrl: data.instagramUrl || prev.instagramUrl,
-            languages: data.languages || prev.languages
-          }));
-        }
+        setConfigForm(prev => ({
+          ...prev,
+          token: '',
+          phoneNumberId: data.phoneNumberId || prev.phoneNumberId,
+          businessAccountId: data.businessAccountId || prev.businessAccountId,
+          verifyToken: '',
+          geminiApiKey: '',
+          companyName: data.companyName || prev.companyName,
+          assistantName: data.assistantName || prev.assistantName,
+          serviceCity: data.serviceCity || prev.serviceCity,
+          companyAddress: data.companyAddress || prev.companyAddress,
+          companyDetails: data.companyDetails || prev.companyDetails,
+          websiteUrl: data.websiteUrl || prev.websiteUrl,
+          instagramUrl: data.instagramUrl || prev.instagramUrl,
+          languages: data.languages || prev.languages
+        }));
       }
     } catch (e) {
       console.error('Config fetch error');
@@ -290,10 +265,6 @@ export default function AsistanPage() {
     setIsSavingConfig(true);
     const toastId = toast.loading('Ayarlar kaydediliyor...');
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('jasmine_meta_config', JSON.stringify(configForm));
-    }
-
     try {
       const res = await fetch('/api/whatsapp/config', {
         method: 'POST',
@@ -301,11 +272,14 @@ export default function AsistanPage() {
         body: JSON.stringify(configForm)
       });
       const data = await res.json();
-      toast.success('Meta API & AI ayarları tarayıcı ve sisteme kalıcı olarak kaydedildi!', { id: toastId });
+      if (!res.ok) {
+        throw new Error(data.error || 'Ayarlar kaydedilemedi.');
+      }
+      toast.success('Meta API ve firma ayarları güvenli biçimde kaydedildi.', { id: toastId });
       setIsSettingsOpen(false);
     } catch (error) {
-      toast.success('Meta API & AI ayarları tarayıcıya kalıcı kaydedildi!', { id: toastId });
-      setIsSettingsOpen(false);
+      const message = error instanceof Error ? error.message : 'Ayarlar kaydedilemedi.';
+      toast.error(message, { id: toastId });
     } finally {
       setIsSavingConfig(false);
     }
@@ -315,26 +289,9 @@ export default function AsistanPage() {
     try {
       if (isInitial) setIsLoading(true);
 
-      let activeToken = configForm.token;
-      let activePhoneId = configForm.phoneNumberId;
-      if (typeof window !== 'undefined' && (!activeToken || !activePhoneId)) {
-        const raw = localStorage.getItem('jasmine_meta_config');
-        if (raw) {
-          try {
-            const p = JSON.parse(raw);
-            activeToken = activeToken || p.token;
-            activePhoneId = activePhoneId || p.phoneNumberId;
-          } catch(e) {}
-        }
-      }
-
-      const headers: Record<string, string> = {};
-      if (activeToken) headers['x-meta-token'] = activeToken;
-      if (activePhoneId) headers['x-meta-phone-id'] = activePhoneId;
-
       const [convRes, apptRes] = await Promise.all([
-        fetch('/api/fabrika/assistant/conversations', { cache: 'no-store', headers }),
-        fetch('/api/fabrika/assistant/appointment', { cache: 'no-store', headers })
+        fetch('/api/fabrika/assistant/conversations', { cache: 'no-store' }),
+        fetch('/api/fabrika/assistant/appointment', { cache: 'no-store' })
       ]);
       if (convRes.ok) {
         const data = await convRes.json();
@@ -428,64 +385,52 @@ export default function AsistanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: selectedConvId, message: text })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.messageRecord) {
-          setCurrentMessages(prev => [...prev, data.messageRecord]);
-          setConversations(prev => {
-            const updated = prev.map(c => {
-              if (c.id === selectedConvId) {
-                const msgs = [...(c.messages || []), data.messageRecord];
-                return { ...c, summary: data.messageRecord.content, updatedAt: new Date().toISOString(), messages: msgs, _count: { messages: msgs.length } };
-              }
-              return c;
-            });
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Mesaj gönderilemedi.');
+      }
+      if (data.messageRecord) {
+        setCurrentMessages(prev => [...prev, data.messageRecord]);
+        setConversations(prev => {
+          const updated = prev.map(c => {
+            if (c.id === selectedConvId) {
+              const msgs = [...(c.messages || []), data.messageRecord];
+              return { ...c, summary: data.messageRecord.content, updatedAt: new Date().toISOString(), messages: msgs, _count: { messages: msgs.length } };
             }
-            return updated;
+            return c;
           });
-        }
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
+          }
+          return updated;
+        });
       }
     } catch (error) {
       console.error('Failed to send message', error);
+      toast.error(error instanceof Error ? error.message : 'Mesaj gönderilemedi.');
     }
   };
 
   const handleCreateConversation = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newConv: Conversation = {
-      id: `conv_${Date.now()}`,
-      customerName: newCustomerName,
-      customerPhone: newCustomerPhone || null,
-      channel: 'WHATSAPP',
-      intent: 'INVESTMENT',
-      summary: 'Yeni sohbet başlatıldı',
-      updatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      messages: [],
-      _count: { messages: 0 }
-    };
-
-    setConversations(prev => {
-      const updated = [newConv, ...prev];
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
-      }
-      return updated;
-    });
-    setSelectedConvId(newConv.id);
-    setIsModalOpen(false);
-    setNewCustomerName('');
-    setNewCustomerPhone('');
-
     try {
-      await fetch('/api/fabrika/assistant/conversations', {
+      const response = await fetch('/api/fabrika/assistant/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerName: newCustomerName, customerPhone: newCustomerPhone })
       });
-    } catch (error) {}
+      const conversation = await response.json();
+      if (!response.ok) {
+        throw new Error(conversation.error || 'Sohbet oluşturulamadı.');
+      }
+      setConversations(prev => [conversation, ...prev]);
+      setSelectedConvId(conversation.id);
+      setIsModalOpen(false);
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Sohbet oluşturulamadı.');
+    }
   };
 
   const handleApprove = async (id: string) => {
@@ -778,7 +723,7 @@ export default function AsistanPage() {
                 />
 
                 <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-emerald-500/10">
-                  <span>Verify Token: <code className="text-white font-mono">jasmine_secret_verify_token</code></span>
+                  <span>Verify Token: <code className="text-white font-mono">Vercel ortam değişkeninde saklanır</code></span>
                   <span className="text-emerald-400 font-semibold">HTTP 200 OK Bekleme Süresi: 0.05sn</span>
                 </div>
 
@@ -791,7 +736,7 @@ export default function AsistanPage() {
                     <li><a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer" className="text-rose-300 underline">Meta App Dashboard</a> &gt; <b>WhatsApp</b> &gt; <b>Configuration</b> sayfasına gidin.</li>
                     <li><b>Webhook</b> kısmındaki <b>Edit (Düzenle)</b> butonuna tıklayın.</li>
                     <li><b>Callback URL</b> alanına yukarıdaki canlı URL&apos;i yapıştırın.</li>
-                    <li><b>Verify Token</b> alanına <code className="text-white">jasmine_secret_verify_token</code> yazın.</li>
+                    <li><b>Verify Token</b> değerini güvenli Vercel ortam ayarınızdan alın.</li>
                     <li>Kaydedip <b>messages</b> olayına abone olun.</li>
                   </ol>
                 </div>

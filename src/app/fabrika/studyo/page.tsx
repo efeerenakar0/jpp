@@ -136,7 +136,7 @@ export default function StudioPage() {
 
       setCurrentShootId(uploadData.shootId);
       setProcessProgress(25);
-      setCurrentProcessText('Gemini Görsel Yapay Zekası geniş açı ve ışık analizini tamamlıyor...');
+      setCurrentProcessText('Sharp görüntü motoru ışık ve renk analizini tamamlıyor...');
 
       // 2. Process (UI Progress animation)
       const texts = [
@@ -155,7 +155,7 @@ export default function StudioPage() {
         await new Promise(r => setTimeout(r, 80));
       }
 
-      // Call Process API (which uses WhatsAppConfig Gemini API and Sharp on actual uploaded photos)
+      // Call Process API, which applies Sharp filters to the uploaded photos.
       const processRes = await fetch('/api/fabrika/studio/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -164,30 +164,22 @@ export default function StudioPage() {
       const processData = await processRes.json();
       if (!processRes.ok) throw new Error(processData.error || 'İşleme hatası');
 
-      setPackages(processData.packages || [
-        { shootId: uploadData?.shootId || 'shoot_demo', filterName: 'Ferah Gün Işığı', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: uploadData?.shootId || 'shoot_demo', filterName: 'Lüks & Sıcak Atmosfer', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: uploadData?.shootId || 'shoot_demo', filterName: 'Canlı & Doygun Renkler', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: uploadData?.shootId || 'shoot_demo', filterName: 'HDR Sinematik', zipUrl: '#', watermarkedZipUrl: '#' }
-      ]);
-      setHasWatermark(processData.hasWatermark || true);
+      if (!Array.isArray(processData.packages) || processData.packages.length === 0) {
+        throw new Error('Sunucu indirilebilir bir görsel paketi oluşturmadı.');
+      }
+      setPackages(processData.packages);
+      setHasWatermark(Boolean(processData.hasWatermark));
       setProcessProgress(100);
       setIsUploading(false);
       setStep('RESULTS');
-      toast.success('Fotoğraflarınız Gemini AI stüdyo kalitesine yükseltildi!');
+      toast.success('Fotoğraflarınız işlendi ve indirilebilir paketler hazırlandı.');
     } catch (err: any) {
-      console.error('Studio Processing Handled:', err);
-      setPackages([
-        { shootId: 'shoot_demo', filterName: 'Ferah Gün Işığı', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: 'shoot_demo', filterName: 'Lüks & Sıcak Atmosfer', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: 'shoot_demo', filterName: 'Canlı & Doygun Renkler', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: 'shoot_demo', filterName: 'HDR Sinematik', zipUrl: '#', watermarkedZipUrl: '#' }
-      ]);
-      setHasWatermark(true);
-      setProcessProgress(100);
+      console.error('Studio Processing Error:', err);
+      setPackages([]);
+      setHasWatermark(false);
+      setProcessProgress(0);
       setIsUploading(false);
-      setStep('RESULTS');
-      toast.success('Fotoğraflarınız Gemini AI stüdyo kalitesine yükseltildi!');
+      toast.error(err?.message || 'Fotoğraflar işlenemedi. Lütfen tekrar deneyin.');
     }
   };
 

@@ -74,7 +74,7 @@ async function processSinglePhoto(
     const hexColor = textColor || '#ffffff';
 
     let logoImageSvg = '';
-    let textOffsetX = logoSize + 20;
+    const textOffsetX = logoSize + 20;
 
     if (logoBase64) {
       const mime = logoMime || 'image/png';
@@ -119,16 +119,11 @@ export async function POST(request: Request) {
       'HDR Sinematik'
     ];
 
-    // If no user photos uploaded, create a sample high-res base image
     if (session.photos.length === 0) {
-      const sampleSvg = `
-        <svg width="1920" height="1080" xmlns="http://www.w3.org/2000/svg">
-          <rect width="1920" height="1080" fill="#1e293b"/>
-          <text x="960" y="540" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#f59e0b" text-anchor="middle">Jasmine AI Stüdyo 4K Örnek Görsel</text>
-        </svg>
-      `;
-      const sampleBuf = await sharp(Buffer.from(sampleSvg)).png().toBuffer();
-      session.photos.push({ name: 'Salon_Yasam_Alani.jpg', buffer: sampleBuf });
+      return NextResponse.json(
+        { success: false, error: 'İşlenecek fotoğraf bulunamadı.' },
+        { status: 400 }
+      );
     }
 
     // Process all photo buffers for each filter
@@ -158,7 +153,7 @@ export async function POST(request: Request) {
             name: `${pIdx + 1}_${baseName}_${cleanFilter}_HDR.jpg`,
             buffer: hdrBuf
           });
-        } catch (e) {
+        } catch {
           hdrPhotos.push({ name: `${pIdx + 1}_${baseName}_HDR.jpg`, buffer: photo.buffer });
         }
 
@@ -177,7 +172,7 @@ export async function POST(request: Request) {
             name: `${pIdx + 1}_${baseName}_${cleanFilter}_Filigranli.jpg`,
             buffer: wmBuf
           });
-        } catch (e) {
+        } catch {
           watermarkedPhotos.push({ name: `${pIdx + 1}_${baseName}_Filigranli.jpg`, buffer: photo.buffer });
         }
       }
@@ -202,23 +197,16 @@ export async function POST(request: Request) {
       success: true, 
       packages: processedPackagesData,
       hasWatermark: Boolean(session.logoBase64 || session.websiteUrl),
-      aiEnhancementReport: `Gemini AI ve Sharp grafik motoru ${session.photos.length} adet fotoğrafınızı geniş açı düzeltmesi, HDR gölge aydınlatması ve canlı renk tonlarıyla 4K stüdyo kalitesine işledi.`,
+      aiEnhancementReport: `Sharp görüntü motoru ${session.photos.length} adet fotoğrafa seçilen ışık, renk, keskinlik ve filigran ayarlarını uyguladı.`,
       websiteUrl: session.websiteUrl,
       textColor: session.textColor,
       device: session.device
     }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Studio Process Error:', error);
     return NextResponse.json({ 
-      success: true, 
-      packages: [
-        { shootId: 'shoot_demo', filterName: 'Ferah Gün Işığı', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: 'shoot_demo', filterName: 'Lüks & Sıcak Atmosfer', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: 'shoot_demo', filterName: 'Canlı & Doygun Renkler', zipUrl: '#', watermarkedZipUrl: '#' },
-        { shootId: 'shoot_demo', filterName: 'HDR Sinematik', zipUrl: '#', watermarkedZipUrl: '#' }
-      ],
-      hasWatermark: true,
-      aiEnhancementReport: 'Gemini AI görsel optimizasyonu başarıyla tamamlandı.',
-    }, { status: 200 });
+      success: false,
+      error: error instanceof Error ? error.message : 'Görseller işlenemedi.',
+    }, { status: 500 });
   }
 }

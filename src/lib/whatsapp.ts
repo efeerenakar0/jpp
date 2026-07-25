@@ -1,6 +1,4 @@
 import prisma from '@/lib/prisma';
-import fs from 'fs';
-import path from 'path';
 
 export interface SendTextMessageParams {
   to: string; // Recipient phone number with country code (e.g. 905321234567)
@@ -23,29 +21,12 @@ const globalWhatsAppStore = globalThis as unknown as {
   globalCredentials: { token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string } | null;
 };
 
-const TMP_CONFIG_PATH = '/tmp/jasmine_whatsapp_config.json';
-
 export function updateCredentialsCache(creds: Partial<{ token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string }>) {
   if (creds.token || creds.phoneNumberId) {
     const existing = globalWhatsAppStore.globalCredentials || { token: '', phoneNumberId: '', businessAccountId: '' };
     const merged = { ...existing, ...creds };
-    globalWhatsAppStore.globalCredentials = merged as any;
-    (globalThis as any).globalMetaConfig = merged;
-    try {
-      fs.writeFileSync(TMP_CONFIG_PATH, JSON.stringify(merged));
-    } catch (e) {}
+    globalWhatsAppStore.globalCredentials = merged;
   }
-}
-
-export function getCredentialsFromTmp(): { token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string } | null {
-  try {
-    if (fs.existsSync(TMP_CONFIG_PATH)) {
-      const data = fs.readFileSync(TMP_CONFIG_PATH, 'utf-8');
-      const parsed = JSON.parse(data);
-      if (parsed.token && parsed.phoneNumberId) return parsed;
-    }
-  } catch (e) {}
-  return null;
 }
 
 /**
@@ -57,18 +38,12 @@ export async function getActiveWhatsAppCredentials(): Promise<{
   businessAccountId: string;
   geminiApiKey?: string;
 }> {
-  // 1. Check in-memory store or /tmp file cache first
+  // 1. Check the process cache first
   if (globalWhatsAppStore.globalCredentials?.token && globalWhatsAppStore.globalCredentials?.phoneNumberId) {
     return globalWhatsAppStore.globalCredentials;
   }
 
-  const tmpCreds = getCredentialsFromTmp();
-  if (tmpCreds?.token && tmpCreds?.phoneNumberId) {
-    globalWhatsAppStore.globalCredentials = tmpCreds;
-    return tmpCreds;
-  }
-
-  // 2. Check Database if connected
+  // 2. Check the database
   try {
     if (process.env.DATABASE_URL) {
       const config = await prisma.whatsAppConfig.findUnique({
@@ -79,7 +54,7 @@ export async function getActiveWhatsAppCredentials(): Promise<{
         const creds = {
           token: config.token,
           phoneNumberId: config.phoneNumberId,
-          businessAccountId: config.businessAccountId,
+          businessAccountId: config.businessAccountId || '',
           geminiApiKey: config.geminiApiKey || undefined
         };
         globalWhatsAppStore.globalCredentials = creds;
@@ -107,21 +82,16 @@ export async function getActiveWhatsAppCredentials(): Promise<{
     return creds;
   }
 
-  // 4. Bundled fallback
-  const fallback = {
-    token: "EABCAaXLAhawBSNmK2ZAVy8Q3ZBkYkDrwIQyw4DyKFTX6EOafdWxu9jibWhh8yd2xMcteRjzZC99rObRXRnjAm40vA4NWIZCpBvTawNZCLlmZA3HTQT2CMklC7bRbPWcoPPGwilRC1wMXZBT9gszrYsZBznTuLMZCod08ad6ygCvL0QZBhZC9mvV6Q2JrcKZBgghb2QZDZD",
-    phoneNumberId: "1298466076675143",
-    businessAccountId: "1738114273978260",
-    geminiApiKey: undefined
-  };
-
-  globalWhatsAppStore.globalCredentials = fallback;
-  return fallback;
+  throw new Error('Meta WhatsApp credentials are not configured');
 }
 
 export const getWhatsAppCredentials = getActiveWhatsAppCredentials;
 
-export async function testMetaWhatsAppConnection(phoneOrCreds?: any, token?: string, phoneId?: string): Promise<boolean> {
+export async function testMetaWhatsAppConnection(
+  phoneOrCreds?: { token?: string; phoneNumberId?: string },
+  token?: string,
+  phoneId?: string
+): Promise<boolean> {
   try {
     let activeToken = token;
     let activePhoneId = phoneId;
