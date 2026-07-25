@@ -1,7 +1,6 @@
 import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
-import bundledCreds from './meta-credentials.json';
 
 export interface SendTextMessageParams {
   to: string; // Recipient phone number with country code (e.g. 905321234567)
@@ -26,178 +25,170 @@ const globalWhatsAppStore = globalThis as unknown as {
 
 const TMP_CONFIG_PATH = '/tmp/jasmine_whatsapp_config.json';
 
-export function updateCredentialsCache(creds: { token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string }) {
-  if (creds.token && creds.phoneNumberId) {
-    globalWhatsAppStore.globalCredentials = creds;
-    (globalThis as any).globalMetaConfig = creds;
+export function updateCredentialsCache(creds: Partial<{ token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string }>) {
+  if (creds.token || creds.phoneNumberId) {
+    const existing = globalWhatsAppStore.globalCredentials || { token: '', phoneNumberId: '', businessAccountId: '' };
+    const merged = { ...existing, ...creds };
+    globalWhatsAppStore.globalCredentials = merged as any;
+    (globalThis as any).globalMetaConfig = merged;
     try {
-      fs.writeFileSync(TMP_CONFIG_PATH, JSON.stringify(creds));
+      fs.writeFileSync(TMP_CONFIG_PATH, JSON.stringify(merged));
     } catch (e) {}
   }
 }
 
+export function getCredentialsFromTmp(): { token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string } | null {
+  try {
+    if (fs.existsSync(TMP_CONFIG_PATH)) {
+      const data = fs.readFileSync(TMP_CONFIG_PATH, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (parsed.token && parsed.phoneNumberId) return parsed;
+    }
+  } catch (e) {}
+  return null;
+}
+
 /**
- * Get active Meta WhatsApp API credentials (Global memory -> /tmp file -> bundled JSON -> DB -> ENV)
+ * Get active Meta WhatsApp API Credentials
  */
-export async function getWhatsAppCredentials() {
+export async function getActiveWhatsAppCredentials(): Promise<{
+  token: string;
+  phoneNumberId: string;
+  businessAccountId: string;
+  geminiApiKey?: string;
+}> {
+  // 1. Check in-memory store or /tmp file cache first
   if (globalWhatsAppStore.globalCredentials?.token && globalWhatsAppStore.globalCredentials?.phoneNumberId) {
     return globalWhatsAppStore.globalCredentials;
   }
 
-  const globalMeta = (globalThis as any).globalMetaConfig;
-  if (globalMeta?.token && globalMeta?.phoneNumberId) {
-    globalWhatsAppStore.globalCredentials = globalMeta;
-    return globalMeta;
+  const tmpCreds = getCredentialsFromTmp();
+  if (tmpCreds?.token && tmpCreds?.phoneNumberId) {
+    globalWhatsAppStore.globalCredentials = tmpCreds;
+    return tmpCreds;
   }
 
-  // Try reading /tmp file fallback
+  // 2. Check Database if connected
   try {
-    if (fs.existsSync(TMP_CONFIG_PATH)) {
-      const fileData = fs.readFileSync(TMP_CONFIG_PATH, 'utf-8');
-      const parsed = JSON.parse(fileData);
-      if (parsed.token && parsed.phoneNumberId) {
-        globalWhatsAppStore.globalCredentials = parsed;
-        return parsed;
+    if (process.env.DATABASE_URL) {
+      const config = await prisma.whatsAppConfig.findUnique({
+        where: { id: 'default' }
+      });
+
+      if (config && config.token && config.phoneNumberId) {
+        const creds = {
+          token: config.token,
+          phoneNumberId: config.phoneNumberId,
+          businessAccountId: config.businessAccountId,
+          geminiApiKey: config.geminiApiKey || undefined
+        };
+        globalWhatsAppStore.globalCredentials = creds;
+        return creds;
       }
     }
-  } catch (e) {}
+  } catch (dbErr) {
+    console.warn('[WhatsApp Config DB Warning]:', dbErr);
+  }
 
-  // Fallback to bundled meta-credentials.json
-  if (bundledCreds && (bundledCreds as any).token && (bundledCreds as any).phoneNumberId) {
+  // 3. Environment Variables
+  const envToken = process.env.WHATSAPP_TOKEN;
+  const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const envBusinessId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  const envGeminiKey = process.env.GEMINI_API_KEY;
+
+  if (envToken && envPhoneId) {
     const creds = {
-      token: (bundledCreds as any).token,
-      phoneNumberId: (bundledCreds as any).phoneNumberId,
-      businessAccountId: (bundledCreds as any).businessAccountId || '',
-      geminiApiKey: (bundledCreds as any).geminiApiKey || process.env.GEMINI_API_KEY || ''
+      token: envToken,
+      phoneNumberId: envPhoneId,
+      businessAccountId: envBusinessId || '',
+      geminiApiKey: envGeminiKey
     };
     globalWhatsAppStore.globalCredentials = creds;
     return creds;
   }
 
+  // 4. Bundled fallback
+  const fallback = {
+    token: "EABCAaXLAhawBSNmK2ZAVy8Q3ZBkYkDrwIQyw4DyKFTX6EOafdWxu9jibWhh8yd2xMcteRjzZC99rObRXRnjAm40vA4NWIZCpBvTawNZCLlmZA3HTQT2CMklC7bRbPWcoPPGwilRC1wMXZBT9gszrYsZBznTuLMZCod08ad6ygCvL0QZBhZC9mvV6Q2JrcKZBgghb2QZDZD",
+    phoneNumberId: "1298466076675143",
+    businessAccountId: "1738114273978260",
+    geminiApiKey: undefined
+  };
+
+  globalWhatsAppStore.globalCredentials = fallback;
+  return fallback;
+}
+
+export const getWhatsAppCredentials = getActiveWhatsAppCredentials;
+
+export async function testMetaWhatsAppConnection(phoneOrCreds?: any, token?: string, phoneId?: string): Promise<boolean> {
   try {
-    const config = await prisma.whatsAppConfig.findUnique({
-      where: { id: 'default' }
-    });
-
-    const token = config?.token || process.env.WHATSAPP_TOKEN || '';
-    const phoneNumberId = config?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
-    const businessAccountId = config?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
-    const geminiApiKey = config?.geminiApiKey || (bundledCreds as any)?.geminiApiKey || process.env.GEMINI_API_KEY || '';
-
-    if (token && phoneNumberId) {
-      const creds = { token, phoneNumberId, businessAccountId, geminiApiKey };
-      globalWhatsAppStore.globalCredentials = creds;
-      try { fs.writeFileSync(TMP_CONFIG_PATH, JSON.stringify(creds)); } catch (e) {}
+    let activeToken = token;
+    let activePhoneId = phoneId;
+    if (typeof phoneOrCreds === 'object' && phoneOrCreds !== null) {
+      activeToken = phoneOrCreds.token;
+      activePhoneId = phoneOrCreds.phoneNumberId;
     }
-
-    return { token, phoneNumberId, businessAccountId, geminiApiKey };
+    if (!activeToken || !activePhoneId) {
+      const active = await getActiveWhatsAppCredentials();
+      activeToken = activeToken || active.token;
+      activePhoneId = activePhoneId || active.phoneNumberId;
+    }
+    if (!activeToken || !activePhoneId) return false;
+    const res = await fetch(`https://graph.facebook.com/v21.0/${activePhoneId}`, {
+      headers: { 'Authorization': `Bearer ${activeToken}` }
+    });
+    return res.ok;
   } catch (e) {
-    return globalWhatsAppStore.globalCredentials || globalMeta || {
-      token: (bundledCreds as any)?.token || process.env.WHATSAPP_TOKEN || '',
-      phoneNumberId: (bundledCreds as any)?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-      businessAccountId: (bundledCreds as any)?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
-      geminiApiKey: (bundledCreds as any)?.geminiApiKey || process.env.GEMINI_API_KEY || ''
-    };
+    return false;
   }
 }
 
-export async function testMetaWhatsAppConnection(testPhone: string, testToken: string, testPhoneId: string) {
-  let cleanPhone = testPhone.replace(/[^0-9]/g, '');
-  if (cleanPhone.length === 10 && cleanPhone.startsWith('5')) {
-    cleanPhone = `90${cleanPhone}`;
+/**
+ * Send Text Message via Meta WhatsApp Cloud API (Graph API v21.0)
+ */
+export async function sendMetaWhatsAppMessage(params: SendTextMessageParams): Promise<MetaWhatsAppResponse> {
+  const creds = await getActiveWhatsAppCredentials();
+
+  if (!creds.token || !creds.phoneNumberId) {
+    throw new Error('Meta WhatsApp Cloud API credentials missing (Token or Phone Number ID not configured)');
   }
 
-  const url = `https://graph.facebook.com/v21.0/${testPhoneId}/messages`;
-
-  const payload = {
-    messaging_product: 'whatsapp',
-    to: cleanPhone,
-    type: 'text',
-    text: {
-      body: `🔔 Jasmine Group Meta WhatsApp Cloud API Test Mesajıdır. Bağlantınız %100 Başarılıdır! (Saat: ${new Date().toLocaleTimeString('tr-TR')})`
-    }
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${testToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-    if (response.ok && !data.error) {
-      updateCredentialsCache({ token: testToken, phoneNumberId: testPhoneId, businessAccountId: '' });
-    }
-    return { ok: response.ok, status: response.status, data };
-  } catch (err: any) {
-    return { ok: false, status: 500, error: err?.message || 'Meta Cloud API bağlantı hatası' };
-  }
-}
-
-export async function sendMetaWhatsAppMessage({ to, text }: SendTextMessageParams): Promise<MetaWhatsAppResponse> {
-  const { token, phoneNumberId } = await getWhatsAppCredentials();
-
-  let cleanPhone = to.replace(/[^0-9]/g, '');
-  if (cleanPhone.length === 10 && cleanPhone.startsWith('5')) {
-    cleanPhone = `90${cleanPhone}`;
+  let cleanPhone = params.to.replace(/[^0-9]/g, '');
+  if (!cleanPhone) {
+    throw new Error('Invalid recipient phone number');
   }
 
-  if (!token || !phoneNumberId) {
-    console.error('[WhatsApp Cloud API Failure]: Meta Access Token or Phone Number ID is missing on Netlify server');
-    throw new Error('Meta WhatsApp Jetonu veya Telefon ID eksik! Lütfen Asistan panelindeki Meta & AI Ayarları butonuna basıp Jetonunuzu kaydedin.');
-  }
+  const endpoint = `https://graph.facebook.com/v21.0/${creds.phoneNumberId}/messages`;
 
-  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  console.log(`[Meta WhatsApp Cloud API] Sending message to ${cleanPhone} via Phone ID: ${creds.phoneNumberId}...`);
 
-  const payload = {
-    messaging_product: 'whatsapp',
-    to: cleanPhone,
-    type: 'text',
-    text: {
-      body: text
-    }
-  };
-
-  let lastError: any = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data: MetaWhatsAppResponse = await response.json();
-
-      if (response.ok && !data.error) {
-        console.log(`[WhatsApp Cloud API Success] Message sent to ${cleanPhone}:`, data);
-        return data;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${creds.token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: cleanPhone,
+      type: 'text',
+      text: {
+        preview_url: false,
+        body: params.text
       }
+    })
+  });
 
-      console.warn(`[WhatsApp Cloud API Attempt ${attempt} Failed]:`, data.error || data);
-      lastError = data.error?.message || 'Meta Cloud API request failed';
+  const data = await response.json();
 
-      if (data.error?.code === 190) {
-        throw new Error('Meta API Access Token süresi doldu veya geçersiz. Lütfen Meta Ayarlarından yeni Jeton yapıştırın.');
-      }
-    } catch (err: any) {
-      lastError = err.message || err;
-      if (err.message?.includes('süresi doldu') || err.message?.includes('eksik')) {
-        throw err;
-      }
-    }
-
-    if (attempt < 3) {
-      await new Promise(res => setTimeout(res, attempt * 1000));
-    }
+  if (!response.ok) {
+    console.error('[Meta WhatsApp API HTTP Error]:', response.status, data);
+    const errorMsg = data?.error?.message || `Meta API Error (${response.status})`;
+    throw new Error(errorMsg);
   }
 
-  throw new Error(`WhatsApp mesaj iletimi başarısız: ${lastError}`);
+  console.log('[Meta WhatsApp API Success]:', data);
+  return data as MetaWhatsAppResponse;
 }

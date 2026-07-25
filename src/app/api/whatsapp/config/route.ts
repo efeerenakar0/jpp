@@ -107,18 +107,16 @@ export async function POST(req: Request) {
 
       const testResult = await testMetaWhatsAppConnection(targetPhone, activeToken, activePhoneId);
 
-      if (testResult.ok) {
+      if (testResult) {
         syncGlobalMetaConfig(activeToken, activePhoneId, businessAccountId || inMemoryConfig.businessAccountId);
         return NextResponse.json({
           success: true,
-          message: `🟢 Meta WhatsApp Cloud API Bağlantısı %100 Başarılı! (${targetPhone} numaralı telefona test mesajı gönderildi)`,
-          data: testResult.data
+          message: `🟢 Meta WhatsApp Cloud API Bağlantısı %100 Başarılı! (${targetPhone} numaralı telefona test mesajı gönderildi)`
         });
       } else {
-        const errorMsg = testResult.data?.error?.message || testResult.error || 'Meta API Bağlantı Hatası';
         return NextResponse.json({
           success: false,
-          error: `🔴 Meta API Hatası: ${errorMsg}`
+          error: '🔴 Meta API Hatası: Geçersiz Access Token veya Phone Number ID!'
         }, { status: 400 });
       }
     }

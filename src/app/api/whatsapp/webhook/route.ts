@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 import { sendMetaWhatsAppMessage, updateCredentialsCache } from '@/lib/whatsapp';
 import { callAI, PROMPTS } from '@/lib/ai';
 import { addIncomingCustomerMessage, addAssistantMessageToStore } from '@/lib/conversation-store';
@@ -31,56 +30,113 @@ JASMINE GROUP ALANYA GÜNCEL PORTFÖY LİSTESİ:
 4. GÜNCEL KİRALIK DAİRELERİMİZ (Mahmutlar & Oba):
    - Mahmutlar 1+1 Full Eşyalı Rezidans Daire: Aylık €450 (veya 15.000 TL)
    - Oba 2+1 Site İçi Lüks Kiralık Daire: Aylık €700 (veya 25.000 TL)
-   - Sezonluk ve Yıllık kiralama seçenekleri mevcuttur.
+   - Sezonluk ve Yıllık kiralama seçenekleri mevcultur.
 `;
 
 /**
  * Meta WhatsApp Webhook Verification (GET)
  */
 export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const mode = searchParams.get('hub.mode');
+  const token = searchParams.get('hub.verify_token');
+  const challenge = searchParams.get('hub.challenge');
+
+  const EXPECTED_VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'jasmine_secret_verify_token';
+
+  if (mode === 'subscribe' && token === EXPECTED_VERIFY_TOKEN) {
+    console.log('[Meta Webhook Verified Successfully]');
+    return new Response(challenge, { status: 200 });
+  }
+
+  return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
+}
+
+/**
+ * Meta WhatsApp Webhook Listener (POST)
+ */
+export async function POST(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
+    const body = await req.json();
 
-    const mode = searchParams.get('hub.mode');
-    const token = searchParams.get('hub.verify_token');
-    const challenge = searchParams.get('hub.challenge');
-
-    const urlToken = searchParams.get('token');
-    const urlPhoneId = searchParams.get('phoneId');
-    if (urlToken && urlPhoneId) {
-      updateCredentialsCache({ token: urlToken, phoneNumberId: urlPhoneId, businessAccountId: '' });
+    // Check if this is a Meta WhatsApp event
+    if (body.object !== 'whatsapp_business_account') {
+      return NextResponse.json({ status: 'ignored' }, { status: 200 });
     }
 
-    let expectedVerifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'jasmine_secret_verify_token';
+    const entry = body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
 
-    try {
-      const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
-      if (waConfig?.verifyToken) {
-        expectedVerifyToken = waConfig.verifyToken;
-      }
-    } catch (dbErr) {}
-
-    if (mode === 'subscribe' && token === expectedVerifyToken) {
-      console.log('[Meta Webhook Verified Successfully]');
-      return new Response(challenge, { status: 200 });
+    if (!value || !value.messages || value.messages.length === 0) {
+      return NextResponse.json({ status: 'no_messages' }, { status: 200 });
     }
 
-    console.warn('[Meta Webhook Verification Failed]: Token mismatch', { received: token, expected: expectedVerifyToken });
-    return new Response('Verification failed', { status: 403 });
+    const message = value.messages[0];
+    const contact = value.contacts?.[0];
+
+    const messageId = message.id;
+    if (processedMsgIds.has(messageId)) {
+      console.log(`[Meta Webhook] Duplicate message ID skipped: ${messageId}`);
+      return NextResponse.json({ status: 'duplicate_skipped' }, { status: 200 });
+    }
+    processedMsgIds.add(messageId);
+    if (processedMsgIds.size > 1000) {
+      const firstKey = processedMsgIds.keys().next().value;
+      if (firstKey) processedMsgIds.delete(firstKey);
+    }
+
+    const fromPhone = message.from; // Customer phone e.g. "905321234567"
+    const contactName = contact?.profile?.name || 'Müşteri';
+    const messageType = message.type;
+
+    let textBody = '';
+    let isImage = false;
+
+    if (messageType === 'text') {
+      textBody = message.text?.body || '';
+    } else if (messageType === 'image') {
+      isImage = true;
+      textBody = message.image?.caption || 'Müşteri bir daire fotoğrafı gönderdi.';
+    } else if (messageType === 'document') {
+      textBody = `[Doküman Gönderildi]: ${message.document?.filename || 'Dosya'}`;
+    } else if (messageType === 'location') {
+      textBody = `[Konum Gönderildi]: Enlem ${message.location?.latitude}, Boylam ${message.location?.longitude}`;
+    } else if (messageType === 'audio' || messageType === 'voice') {
+      textBody = '[Sesli Mesaj Gönderildi]';
+    } else {
+      textBody = `[${messageType} mesajı alındı]`;
+    }
+
+    console.log(`[Meta Webhook Received] From: ${contactName} (${fromPhone}) Type: ${messageType} Body: ${textBody}`);
+
+    // Update credentials cache from Meta payload if available
+    const metadata = value.metadata;
+    if (metadata?.phone_number_id) {
+      updateCredentialsCache({ phoneNumberId: metadata.phone_number_id });
+    }
+
+    // Async worker processing to prevent blocking Meta HTTP 200 response
+    processIncomingWhatsAppMessage(fromPhone, contactName, textBody, isImage).catch(err => {
+      console.error('[Meta Webhook Async Worker Error]:', err);
+    });
+
+    return NextResponse.json({ status: 'success' }, { status: 200 });
   } catch (error: any) {
-    return new Response('Internal Server Error: ' + error.message, { status: 500 });
+    console.error('[Meta Webhook Error]:', error);
+    return NextResponse.json({ status: 'error', message: error?.message }, { status: 200 });
   }
 }
 
-async function processIncomingWhatsAppMessage(fromPhone: string, textBody: string, contactName: string, isImage = false, imageId?: string) {
-  console.log(`[Meta Webhook Worker] Processing message from ${fromPhone} (${contactName}) [Image: ${isImage}]: "${textBody}"`);
-
-  // If it is an image, register it into the shared Studio session store for instant Stüdyo rendering
+/**
+ * Worker Function to Process Incoming WhatsApp Messages and Auto-Reply via Groq AI
+ */
+async function processIncomingWhatsAppMessage(fromPhone: string, contactName: string, textBody: string, isImage: boolean) {
+  // Sync image to Stüdyo session if an image was sent
   if (isImage) {
     try {
       const studio = getOrCreateSession('default_session');
       const photoName = `whatsapp_photo_${Date.now()}.jpg`;
-      // Standard high-quality 1x1 1080p SVG placeholder buffer for initial studio processing
       const dummyBuffer = Buffer.from(
         `<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg"><rect width="1080" height="1080" fill="#0f172a"/><text x="540" y="540" font-family="Arial" font-size="42" fill="#10b981" text-anchor="middle">WhatsApp Photo (${contactName})</text></svg>`
       );
@@ -94,62 +150,10 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
   // 1. Add customer message to shared conversation store for instant CRM UI rendering
   const conv = addIncomingCustomerMessage(fromPhone, textBody, contactName);
 
-  const hasValidDb = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql'));
-
-  // Try saving customer message to Prisma DB if connected
-  if (hasValidDb) {
-    try {
-      let dbConv = await prisma.customerConversation.findFirst({
-        where: { customerPhone: fromPhone }
-      });
-
-      if (!dbConv) {
-        dbConv = await prisma.customerConversation.create({
-          data: {
-            customerName: contactName,
-            customerPhone: fromPhone,
-            channel: 'WHATSAPP',
-            intent: 'INVESTMENT'
-          }
-        });
-      }
-
-      if (dbConv) {
-        await prisma.conversationMessage.create({
-          data: {
-            conversationId: dbConv.id,
-            role: 'customer',
-            content: textBody
-          }
-        });
-
-        await prisma.customerConversation.update({
-          where: { id: dbConv.id },
-          data: {
-            summary: textBody,
-            updatedAt: new Date()
-          }
-        });
-      }
-    } catch (dbErr) {
-      console.warn('[Meta Webhook DB Save Warning]: Could not persist to DB, saved to shared store', dbErr);
-    }
-  }
-
   // 2. Build FULL conversation history array for Groq AI memory
   let aiReplyText = '';
   try {
-    let companyName = 'Jasmine Group';
-    let customGeminiKey: string | undefined = undefined;
-
-    if (hasValidDb) {
-      try {
-        const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: 'default' } });
-        if (waConfig?.companyName) companyName = waConfig.companyName;
-        if (waConfig?.geminiApiKey) customGeminiKey = waConfig.geminiApiKey;
-      } catch (e) {}
-    }
-
+    const companyName = 'Jasmine Group';
     const historyStr = (conv.messages || []).map(m => `${m.role === 'customer' ? 'Müşteri' : 'Efe'}: ${m.content}`).join('\n');
 
     const promptMessage = isImage 
@@ -171,7 +175,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
       }))
     ];
 
-    const aiResponse = await callAI(aiMessages, 'assistant', customGeminiKey);
+    const aiResponse = await callAI(aiMessages, 'assistant');
     if (aiResponse?.content && typeof aiResponse.content === 'string' && aiResponse.content.trim().length > 0) {
       aiReplyText = aiResponse.content.trim();
     } else {
@@ -179,12 +183,7 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     }
   } catch (aiErr: any) {
     console.error('[Meta Webhook AI Error]:', aiErr);
-    try {
-      const fallbackAi = await callAI([{ role: 'user', content: textBody }]);
-      aiReplyText = fallbackAi.content;
-    } catch (e) {
-      aiReplyText = "Merhabalar! Ben Jasmine Group emlak uzmanı Efe. Alanya kiralık ve satılık portföyümüz hakkında detaylı bilgi almak ister misiniz?";
-    }
+    aiReplyText = "Merhabalar! Ben Jasmine Group emlak uzmanı Efe. Alanya kiralık ve satılık portföyümüz hakkında detaylı bilgi almak ister misiniz?";
   }
 
   // 3. Send AI Reply back to Customer via Meta WhatsApp Cloud API
@@ -200,85 +199,5 @@ async function processIncomingWhatsAppMessage(fromPhone: string, textBody: strin
     const errorMsg = sendErr?.message || String(sendErr);
     console.error('[Meta Webhook Send Error]:', errorMsg);
     addAssistantMessageToStore(conv.id, `⚠️ [WhatsApp Mesaj İletim Uyarısı]: ${aiReplyText}\n\n(Not: Mesaj telefonunuza iletilemedi: ${errorMsg})`, { sentViaMeta: false, metaStatus: 'FAILED', metaError: errorMsg });
-  }
-
-  // Save AI response to Prisma DB if connected
-  try {
-    await prisma.conversationMessage.create({
-      data: {
-        conversationId: conv.id,
-        role: 'assistant',
-        content: aiReplyText
-      }
-    });
-  } catch (e) {}
-}
-
-/**
- * Meta Incoming Messages & Events Handler (POST)
- */
-export async function POST(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const urlToken = searchParams.get('token');
-    const urlPhoneId = searchParams.get('phoneId');
-    if (urlToken && urlPhoneId) {
-      updateCredentialsCache({ token: urlToken, phoneNumberId: urlPhoneId, businessAccountId: '' });
-    }
-
-    const body = await req.json();
-    console.log('[Meta Webhook Incoming POST Payload]:', JSON.stringify(body));
-
-    if (body.object === 'whatsapp_business_account') {
-      const entries = body.entry || [];
-      for (const entry of entries) {
-        const changes = entry.changes || [];
-        for (const change of changes) {
-          const value = change.value || {};
-          const messages = value.messages || [];
-
-          for (const msg of messages) {
-            const msgId = msg.id;
-            if (msgId && processedMsgIds.has(msgId)) {
-              console.log(`[Meta Webhook] Skipping duplicate message ID: ${msgId}`);
-              continue;
-            }
-            if (msgId) {
-              processedMsgIds.add(msgId);
-              if (processedMsgIds.size > 500) {
-                const firstKey = processedMsgIds.values().next().value;
-                if (firstKey) processedMsgIds.delete(firstKey);
-              }
-            }
-
-            const fromPhone = msg.from;
-            const contactName = value.contacts?.[0]?.profile?.name || fromPhone;
-
-            if (msg.type === 'text') {
-              const textBody = msg.text?.body || '';
-              await processIncomingWhatsAppMessage(fromPhone, textBody, contactName, false);
-            } else if (msg.type === 'image') {
-              const caption = msg.image?.caption || '📷 [WhatsApp Üzerinden Fotoğraf Gönderildi]';
-              const imageId = msg.image?.id;
-              await processIncomingWhatsAppMessage(fromPhone, caption, contactName, true, imageId);
-            } else if (msg.type === 'document') {
-              const caption = msg.document?.caption || '📄 [WhatsApp Üzerinden Doküman Gönderildi]';
-              await processIncomingWhatsAppMessage(fromPhone, caption, contactName, false);
-            } else if (msg.type === 'location') {
-              const locText = `📍 [Konum Gönderildi]: ${msg.location?.latitude}, ${msg.location?.longitude}`;
-              await processIncomingWhatsAppMessage(fromPhone, locText, contactName, false);
-            } else if (msg.type === 'audio' || msg.type === 'voice') {
-              await processIncomingWhatsAppMessage(fromPhone, '🎙️ [Sesli Mesaj Gönderildi]', contactName, false);
-            }
-          }
-        }
-      }
-      return NextResponse.json({ status: 'success' }, { status: 200 });
-    }
-
-    return NextResponse.json({ status: 'not a whatsapp event' }, { status: 404 });
-  } catch (error: any) {
-    console.error('[Meta Webhook POST Error]:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
