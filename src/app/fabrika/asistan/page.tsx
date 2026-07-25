@@ -241,7 +241,7 @@ export default function AsistanPage() {
           try {
             const parsed = JSON.parse(localSaved);
             if (parsed.token || parsed.phoneNumberId || parsed.geminiApiKey) {
-              setConfigForm(parsed);
+              setConfigForm(prev => ({ ...prev, ...parsed }));
               activeToken = parsed.token || activeToken;
               activePhoneId = parsed.phoneNumberId || activePhoneId;
             }
