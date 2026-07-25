@@ -161,16 +161,16 @@ export async function POST(req: Request) {
       await prisma.whatsAppConfig.upsert({
         where: { id: 'default' },
         update: {
-          token: token || null,
-          phoneNumberId: phoneNumberId || null,
-          businessAccountId: businessAccountId || null,
-          verifyToken: verifyToken || 'jasmine_secret_verify_token',
-          geminiApiKey: geminiApiKey || null,
-          companyName: companyName || 'Jasmine Group',
-          assistantName: assistantName || 'Efe',
-          serviceCity: serviceCity || 'Alanya',
-          companyAddress: companyAddress || null,
-          companyDetails: companyDetails || null
+          token: token !== undefined ? token : undefined,
+          phoneNumberId: phoneNumberId !== undefined ? phoneNumberId : undefined,
+          businessAccountId: businessAccountId !== undefined ? businessAccountId : undefined,
+          verifyToken: verifyToken !== undefined ? verifyToken : undefined,
+          geminiApiKey: geminiApiKey !== undefined ? geminiApiKey : undefined,
+          companyName: companyName !== undefined ? companyName : undefined,
+          assistantName: assistantName !== undefined ? assistantName : undefined,
+          serviceCity: serviceCity !== undefined ? serviceCity : undefined,
+          companyAddress: companyAddress !== undefined ? companyAddress : undefined,
+          companyDetails: companyDetails !== undefined ? companyDetails : undefined
         },
         create: {
           id: 'default',
