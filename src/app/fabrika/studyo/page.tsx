@@ -6,6 +6,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Download,
+  ExternalLink,
+  KeyRound,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -14,6 +16,15 @@ import {
   X,
 } from 'lucide-react';
 import PageHeader from '@/components/fabrika/PageHeader';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import toast from 'react-hot-toast';
 
 type StudioScreen = 'upload' | 'results';
@@ -22,6 +33,39 @@ type StudioResult = {
   name: string;
   previewUrl: string;
   downloadUrl: string;
+};
+
+type StudioProvider = 'OPENAI' | 'GEMINI';
+
+type ProviderStatus = {
+  provider: StudioProvider;
+  configured: boolean;
+  active: boolean;
+  keyHint: string | null;
+  model: string;
+};
+
+const PROVIDER_DETAILS: Record<StudioProvider, {
+  label: string;
+  description: string;
+  keyUrl: string;
+  keyUrlLabel: string;
+  defaultModel: string;
+}> = {
+  OPENAI: {
+    label: 'OpenAI GPT Image',
+    description: 'GPT Image ile yüksek kaliteli portföy görseli düzenleme.',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    keyUrlLabel: 'OpenAI API anahtarı al',
+    defaultModel: 'gpt-image-1',
+  },
+  GEMINI: {
+    label: 'Google Gemini',
+    description: 'Gemini Flash Image ile hızlı görsel düzenleme.',
+    keyUrl: 'https://aistudio.google.com/app/apikey',
+    keyUrlLabel: 'Gemini API anahtarı al',
+    defaultModel: 'gemini-2.5-flash-image',
+  },
 };
 
 const AUTO_PROMPT =
@@ -36,6 +80,13 @@ export default function StudioPage() {
   const [results, setResults] = useState<StudioResult[]>([]);
   const [zipUrl, setZipUrl] = useState('');
   const [activeResult, setActiveResult] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [provider, setProvider] = useState<StudioProvider>('OPENAI');
+  const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState(PROVIDER_DETAILS.OPENAI.defaultModel);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filePreviews = useMemo(
@@ -72,6 +123,69 @@ export default function StudioPage() {
     setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
+  const selectedProviderStatus = providerStatuses.find(
+    (statusItem) => statusItem.provider === provider
+  );
+  const activeProviderStatus = providerStatuses.find((statusItem) => statusItem.active);
+
+  const loadSettings = async () => {
+    setIsLoadingSettings(true);
+    try {
+      const response = await fetch('/api/fabrika/studio/settings', { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'API ayarları yüklenemedi.');
+      const statuses = (data.providers || []) as ProviderStatus[];
+      setProviderStatuses(statuses);
+      const active = statuses.find((statusItem) => statusItem.active);
+      const nextProvider = active?.provider || provider;
+      setProvider(nextProvider);
+      setModel(
+        statuses.find((statusItem) => statusItem.provider === nextProvider)?.model ||
+          PROVIDER_DETAILS[nextProvider].defaultModel
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'API ayarları yüklenemedi.');
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  };
+
+  const openSettings = () => {
+    setSettingsOpen(true);
+    setApiKey('');
+    void loadSettings();
+  };
+
+  const selectProvider = (nextProvider: StudioProvider) => {
+    setProvider(nextProvider);
+    setApiKey('');
+    setModel(
+      providerStatuses.find((statusItem) => statusItem.provider === nextProvider)?.model ||
+        PROVIDER_DETAILS[nextProvider].defaultModel
+    );
+  };
+
+  const saveSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      const response = await fetch('/api/fabrika/studio/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, apiKey, model, active: true }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'API ayarları kaydedilemedi.');
+      toast.success(`${PROVIDER_DETAILS[provider].label} ayarları kaydedildi.`);
+      setApiKey('');
+      setSettingsOpen(false);
+      await loadSettings();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'API ayarları kaydedilemedi.');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   const startProcessing = async () => {
     if (!files.length) {
       toast.error('Önce en az bir fotoğraf yükleyin.');
@@ -90,7 +204,7 @@ export default function StudioPage() {
       if (!uploadResponse.ok) throw new Error(uploadData.error || 'Fotoğraflar yüklenemedi.');
 
       setProgress(38);
-      setStatus('GPT Image, portföy kalitesini koruyarak ışık ve renkleri iyileştiriyor…');
+      setStatus('Seçtiğiniz AI motoru, portföy kalitesini koruyarak ışık ve renkleri iyileştiriyor…');
       const processResponse = await fetch('/api/fabrika/studio/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,8 +248,15 @@ export default function StudioPage() {
         icon={Aperture}
         actions={
           <>
-            <span className="hidden items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 sm:inline-flex">
-              <Sparkles className="h-3.5 w-3.5" /> GPT Image destekli
+            <button
+              type="button"
+              onClick={openSettings}
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+            >
+              <KeyRound className="h-3.5 w-3.5" /> API ayarları
+            </button>
+            <span className="hidden items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-300 sm:inline-flex">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-300" /> {activeProviderStatus ? PROVIDER_DETAILS[activeProviderStatus.provider].label : 'AI sağlayıcısı seçin'}
             </span>
             {screen === 'results' && (
               <button
@@ -254,6 +375,80 @@ export default function StudioPage() {
           </section>
         )}
       </main>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto border-slate-700 bg-slate-950 p-0 text-slate-100 shadow-2xl">
+          <DialogHeader className="border-b border-slate-800 p-6 pr-12">
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-white"><KeyRound className="h-5 w-5 text-emerald-300" /> Stüdyo API ayarları</DialogTitle>
+            <DialogDescription className="mt-2 text-sm leading-6 text-slate-400">
+              Her şirket kendi anahtarını ekler. Anahtar sadece şifreli olarak sunucuda saklanır ve tekrar görüntülenmez.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 p-6">
+            <fieldset disabled={isLoadingSettings || isSavingSettings}>
+              <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Görsel AI sağlayıcısı</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(Object.keys(PROVIDER_DETAILS) as StudioProvider[]).map((providerOption) => {
+                  const detail = PROVIDER_DETAILS[providerOption];
+                  const statusItem = providerStatuses.find((item) => item.provider === providerOption);
+                  return (
+                    <button
+                      key={providerOption}
+                      type="button"
+                      onClick={() => selectProvider(providerOption)}
+                      aria-pressed={provider === providerOption}
+                      className={`rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${provider === providerOption ? 'border-emerald-400/50 bg-emerald-400/10' : 'border-slate-700 bg-slate-900 hover:border-slate-600'}`}
+                    >
+                      <span className="block text-sm font-bold text-white">{detail.label}</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-400">{detail.description}</span>
+                      {statusItem?.configured && <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${statusItem.active ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-800 text-slate-400'}`}>{statusItem.active ? 'Aktif' : 'Yapılandırıldı'} · {statusItem.keyHint}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div>
+                  <p className="text-sm font-bold text-white">{PROVIDER_DETAILS[provider].label} anahtarı</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{selectedProviderStatus?.configured ? `Mevcut anahtar: ${selectedProviderStatus.keyHint}. Değiştirmek için yeni anahtar girin.` : 'İlk kullanım için API anahtarınızı ekleyin.'}</p>
+                </div>
+                <a href={PROVIDER_DETAILS[provider].keyUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
+                  {PROVIDER_DETAILS[provider].keyUrlLabel} <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+              <label htmlFor="studio-api-key" className="mt-4 block text-xs font-bold text-slate-300">API anahtarı</label>
+              <Input
+                id="studio-api-key"
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder={selectedProviderStatus?.configured ? 'Yalnızca değiştirmek isterseniz yeni anahtar girin' : 'API anahtarınızı yapıştırın'}
+                className="mt-2 h-11 border-slate-700 bg-slate-950 text-white placeholder:text-slate-500 focus-visible:border-emerald-300 focus-visible:ring-emerald-300/20"
+              />
+              <label htmlFor="studio-model" className="mt-4 block text-xs font-bold text-slate-300">Görsel model</label>
+              <Input
+                id="studio-model"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder={PROVIDER_DETAILS[provider].defaultModel}
+                className="mt-2 h-11 border-slate-700 bg-slate-950 text-white placeholder:text-slate-500 focus-visible:border-emerald-300 focus-visible:ring-emerald-300/20"
+              />
+              <p className="mt-3 text-xs leading-5 text-slate-500">Kaydettiğiniz sağlayıcı Stüdyo için aktif olur. İsterseniz sonra diğer sağlayıcıya geçebilirsiniz.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="border-slate-800 bg-slate-900 p-4">
+            <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">Vazgeç</button>
+            <button type="button" onClick={saveSettings} disabled={isSavingSettings || (!apiKey && !selectedProviderStatus?.configured)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-300 px-4 py-2.5 text-sm font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100">
+              {isSavingSettings && <Loader2 className="h-4 w-4 animate-spin" />} Ayarları kaydet
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {isProcessing && <div className="fixed inset-0 z-50 grid place-items-center bg-[#07120f]/80 px-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-3xl border border-emerald-300/20 bg-slate-950 p-7 text-center shadow-2xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-300/15 text-emerald-300"><Loader2 className="h-8 w-8 animate-spin" /></div><h2 className="mt-5 text-xl font-extrabold text-white">Görselleriniz işleniyor</h2><p className="mt-2 text-sm leading-6 text-slate-400">{status}</p><div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-teal-400 transition-all duration-500" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs font-bold text-emerald-300">%{progress}</p></div></div>}
     </div>
