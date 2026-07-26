@@ -3,6 +3,7 @@
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Aperture,
+  AlertCircle,
   ArrowRight,
   CheckCircle2,
   Download,
@@ -81,10 +82,11 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
       'API keys sayfasını açın.',
       'Create API key düğmesine basın.',
       'Yeni bir proje seçin veya AI Studio tarafından oluşturulan projeyi kullanın.',
+      'Billing bölümünü açıp bu proje için ücretli API kullanımını etkinleştirin.',
       'Oluşan Gemini API anahtarını kopyalayın.',
       'Bu ekrandaki API anahtarı alanına yapıştırıp ayarları kaydedin.',
     ],
-    note: 'Gemini anahtarınız seçtiğiniz Google projesinin kullanım limitleri ve faturalandırma durumuyla çalışır.',
+    note: 'Gemini 2.5 Flash Image ücretsiz pakette kullanılamaz. Görsel üretmek için API anahtarının bağlı olduğu Google projesinde faturalandırma açık olmalıdır.',
   },
 };
 
@@ -94,6 +96,7 @@ export default function StudioPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState<StudioResult[]>([]);
   const [zipUrl, setZipUrl] = useState('');
   const [activeResult, setActiveResult] = useState(0);
@@ -210,6 +213,7 @@ export default function StudioPage() {
     }
 
     setIsProcessing(true);
+    setErrorMessage('');
     setProgress(12);
     setStatus('Fotoğraflar güvenli olarak stüdyoya yükleniyor…');
 
@@ -238,7 +242,11 @@ export default function StudioPage() {
       setScreen('results');
       toast.success(`${processData.processedCount} fotoğrafınız iyileştirildi.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.');
+      const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
+      setErrorMessage(message);
+      setProgress(0);
+      setStatus('');
+      toast.error(message);
     } finally {
       setIsProcessing(false);
     }
@@ -251,6 +259,7 @@ export default function StudioPage() {
     setZipUrl('');
     setActiveResult(0);
     setProgress(0);
+    setErrorMessage('');
   };
 
   const activePhoto = results[activeResult];
@@ -342,6 +351,28 @@ export default function StudioPage() {
                 </div>
               )}
             </div>
+
+            {errorMessage && (
+              <div
+                role="alert"
+                className="mt-5 flex flex-col gap-4 rounded-xl border border-rose-400/25 bg-rose-400/10 p-4 sm:flex-row sm:items-start sm:justify-between"
+              >
+                <div className="flex gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-300" />
+                  <div>
+                    <p className="text-sm font-bold text-rose-100">İşlem tamamlanamadı</p>
+                    <p className="mt-1 text-xs leading-5 text-rose-100/80">{errorMessage}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={openSettings}
+                  className="shrink-0 rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                >
+                  API ayarlarını aç
+                </button>
+              </div>
+            )}
 
             <div className="mt-7 flex flex-col items-center justify-between gap-4 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] p-4 sm:flex-row sm:px-5">
               <div className="flex items-center gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> API anahtarınız sadece tek seferlik görselinizi oluşturmak için sunucuda kullanılır. Tarayıcıya gönderilmez.</div>

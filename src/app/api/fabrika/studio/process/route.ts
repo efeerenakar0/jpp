@@ -26,6 +26,67 @@ type ProcessedImage = {
   extension: string;
 };
 
+class StudioProviderError extends Error {
+  constructor(
+    readonly provider: 'OPENAI' | 'GEMINI',
+    readonly status: number,
+    readonly providerMessage: string
+  ) {
+    super(providerMessage);
+    this.name = 'StudioProviderError';
+  }
+}
+
+function studioErrorResponse(error: unknown) {
+  if (!(error instanceof StudioProviderError)) {
+    return {
+      status: 500,
+      message: error instanceof Error ? error.message : 'Görseller işlenemedi.',
+    };
+  }
+
+  const normalized = error.providerMessage.toLowerCase();
+  const quotaExceeded =
+    error.status === 429 ||
+    normalized.includes('quota') ||
+    normalized.includes('billing');
+  const unauthorized =
+    error.status === 401 ||
+    error.status === 403 ||
+    normalized.includes('api key not valid') ||
+    normalized.includes('invalid api key');
+
+  if (error.provider === 'GEMINI' && quotaExceeded) {
+    return {
+      status: 429,
+      message:
+        'Gemini görsel oluşturma ücretsiz pakette kullanılamıyor. Google AI Studio’da bu API anahtarının bağlı olduğu proje için Billing bölümünden ücretli kullanımı açın, ardından tekrar deneyin.',
+    };
+  }
+
+  if (error.provider === 'OPENAI' && quotaExceeded) {
+    return {
+      status: 429,
+      message:
+        'OpenAI hesabınızın görsel oluşturma bakiyesi veya kullanım limiti yetersiz. OpenAI Platform Billing bölümünü kontrol edip tekrar deneyin.',
+    };
+  }
+
+  if (unauthorized) {
+    return {
+      status: 401,
+      message: `${error.provider === 'GEMINI' ? 'Gemini' : 'OpenAI'} API anahtarı geçersiz veya bu projede yetkili değil. Stüdyo API ayarlarından anahtarı kontrol edin.`,
+    };
+  }
+
+  return {
+    status: 502,
+    message: `${
+      error.provider === 'GEMINI' ? 'Gemini' : 'OpenAI'
+    } görsel servisi isteği tamamlayamadı. API ayarlarınızı ve seçilen modeli kontrol edip tekrar deneyin.`,
+  };
+}
+
 async function enhanceWithOpenAI(
   photo: { name: string; buffer: Buffer },
   apiKey: string,
@@ -56,7 +117,11 @@ async function enhanceWithOpenAI(
 
   const image = payload?.data?.[0]?.b64_json;
   if (!response.ok || !image) {
-    throw new Error(payload?.error?.message || 'OpenAI görsel düzenleme yanıtı alınamadı.');
+    throw new StudioProviderError(
+      'OPENAI',
+      response.status,
+      payload?.error?.message || 'OpenAI görsel düzenleme yanıtı alınamadı.'
+    );
   }
   return { buffer: Buffer.from(image, 'base64'), mimeType: 'image/jpeg', extension: 'jpg' };
 }
@@ -104,7 +169,11 @@ async function enhanceWithGemini(
   )?.inlineData;
 
   if (!response.ok || !image?.data) {
-    throw new Error(payload?.error?.message || 'Gemini görsel düzenleme yanıtı alınamadı.');
+    throw new StudioProviderError(
+      'GEMINI',
+      response.status,
+      payload?.error?.message || 'Gemini görsel düzenleme yanıtı alınamadı.'
+    );
   }
 
   const mimeType = image.mimeType || 'image/png';
@@ -179,9 +248,10 @@ export async function POST(request: Request) {
     });
   } catch (error: unknown) {
     console.error('Studio Process Error:', error);
+    const responseError = studioErrorResponse(error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Görseller işlenemedi.' },
-      { status: 500 }
+      { success: false, error: responseError.message },
+      { status: responseError.status }
     );
   }
 }

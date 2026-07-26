@@ -11,6 +11,20 @@ export const STUDIO_PROVIDER_DEFAULTS: Record<StudioProvider, string> = {
   [AiProvider.GEMINI]: 'gemini-2.5-flash-image',
 };
 
+const DEPRECATED_GEMINI_MODELS = new Set([
+  'gemini-2.5-flash-image-preview',
+  'gemini-2.5-flash-preview-image',
+]);
+
+export function normalizeStudioModel(provider: StudioProvider, model?: string | null) {
+  const normalized = model?.trim();
+  if (!normalized) return STUDIO_PROVIDER_DEFAULTS[provider];
+  if (provider === AiProvider.GEMINI && DEPRECATED_GEMINI_MODELS.has(normalized)) {
+    return STUDIO_PROVIDER_DEFAULTS[AiProvider.GEMINI];
+  }
+  return normalized;
+}
+
 function encryptionKey() {
   const secret =
     process.env.COMPANY_AI_CREDENTIAL_ENCRYPTION_KEY?.trim() ||
@@ -100,7 +114,7 @@ export async function saveCompanyStudioCredential(input: {
       provider: input.provider,
       encryptedApiKey: encryptApiKey(apiKey || ''),
       keyHint: keyHint(apiKey || ''),
-      model: input.model?.trim() || STUDIO_PROVIDER_DEFAULTS[input.provider],
+      model: normalizeStudioModel(input.provider, input.model),
       active: input.active,
     },
     update: {
@@ -110,7 +124,7 @@ export async function saveCompanyStudioCredential(input: {
             keyHint: keyHint(apiKey),
           }
         : {}),
-      model: input.model?.trim() || STUDIO_PROVIDER_DEFAULTS[input.provider],
+      model: normalizeStudioModel(input.provider, input.model),
       active: input.active,
     },
   });
@@ -127,7 +141,10 @@ export async function getCompanyStudioCredential(accountId: string) {
   return {
     provider: credential.provider as StudioProvider,
     apiKey: decryptApiKey(credential.encryptedApiKey),
-    model: credential.model || STUDIO_PROVIDER_DEFAULTS[credential.provider as StudioProvider],
+    model: normalizeStudioModel(
+      credential.provider as StudioProvider,
+      credential.model
+    ),
   };
 }
 
@@ -144,7 +161,7 @@ export function publicStudioCredentialStatus(credentials: Array<{
       configured: Boolean(credential),
       active: credential?.active || false,
       keyHint: credential?.keyHint || null,
-      model: credential?.model || STUDIO_PROVIDER_DEFAULTS[provider],
+      model: normalizeStudioModel(provider, credential?.model),
     };
   });
 }
