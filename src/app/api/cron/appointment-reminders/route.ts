@@ -85,14 +85,6 @@ export async function GET(request: Request) {
           where: { id: appointment.conversationId },
           data: { summary: content },
         }),
-        prisma.notification.create({
-          data: {
-            type: 'SYSTEM',
-            title: 'Otomatik Randevu Hatırlatması Gönderildi',
-            message: `${appointment.customerName} için WhatsApp hatırlatması gönderildi.`,
-            link: '/fabrika/asistan',
-          },
-        }),
       ]);
       results.push({ appointmentId: appointment.id, status: 'sent' });
     } catch (error) {

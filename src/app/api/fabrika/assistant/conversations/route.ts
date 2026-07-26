@@ -119,22 +119,6 @@ export async function PATCH(request: Request) {
       },
     });
 
-    if (typeof body.aiEnabled === 'boolean') {
-      await prisma.notification.create({
-        data: {
-          type: 'SYSTEM',
-          title: body.aiEnabled
-            ? 'Yapay Zeka Yeniden Devrede'
-            : 'Sohbet İnsana Devredildi',
-          message: `${conversation.customerName} sohbeti ${
-            body.aiEnabled ? 'otomatik yanıta açıldı' : 'manuel yanıta alındı'
-          }.`,
-          link: '/fabrika/asistan',
-          metadata: JSON.stringify({ conversationId: id }),
-        },
-      });
-    }
-
     return NextResponse.json(conversation);
   } catch (error) {
     console.error('[Conversations PATCH Error]:', error);

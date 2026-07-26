@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { NotificationType } from '@prisma/client';
+import { importantNotificationWhere } from '@/lib/important-notifications';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const importantOnly =
+      new URL(request.url).searchParams.get('scope') === 'important';
     const notifications = await prisma.notification.findMany({
+      ...(importantOnly ? { where: importantNotificationWhere } : {}),
       orderBy: { createdAt: 'desc' },
       take: 50,
     });

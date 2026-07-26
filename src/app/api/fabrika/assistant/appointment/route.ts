@@ -257,26 +257,6 @@ export async function PATCH(request: Request) {
     });
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.notification.create({
-        data: {
-          type: 'SYSTEM',
-          title:
-            action === 'cancel'
-              ? 'Randevu İptal Edildi'
-              : action === 'reschedule'
-                ? 'Randevu Değiştirildi'
-                : action === 'remind'
-                  ? 'Randevu Hatırlatıldı'
-                  : 'Randevu Onayı Gönderildi',
-          message: `${appointment.customerName} için WhatsApp mesajı gönderildi.`,
-          link: '/fabrika/asistan',
-          metadata: JSON.stringify({
-            appointmentRequestId: appointment.id,
-            providerMessageId: delivery.providerMessageId,
-            action,
-          }),
-        },
-      });
       await tx.customerConversation.update({
         where: { id: appointment.conversationId },
         data: { summary: content },
