@@ -96,7 +96,7 @@ export function extractAppointmentSignal(
 ): AppointmentSignal {
   const normalizedText = normalizeTurkish(text);
   const requested =
-    /\b(randevu|gorus|gorusme|gorusebilir|gorebilir|gosterebilir|ziyaret|toplanti)\b/.test(
+    /\b(randevu|gorus\w*|gorebilir\w*|gosterebilir\w*|ziyaret\w*|toplanti)\b/.test(
       normalizedText
     ) ||
     /\b(ofise|ofisiniz|yaniniza)\s+(gel|gelebilir|ugra)/.test(normalizedText);
