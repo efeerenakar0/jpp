@@ -124,3 +124,11 @@ export function needsCustomerReplyRepair(content: string): boolean {
     /\b(approximately|available|appointment|tomorrow)\b/i.test(content)
   );
 }
+
+export function prematurelyConfirmsAppointment(content: string): boolean {
+  const normalizedContent = normalizeTurkish(content);
+  return (
+    /\b(bugun|yarin).{0,40}\bgorusmek uzere\b/.test(normalizedContent) ||
+    /\brandevu.{0,30}\b(onaylandi|kesinlesti|kesin)\b/.test(normalizedContent)
+  );
+}

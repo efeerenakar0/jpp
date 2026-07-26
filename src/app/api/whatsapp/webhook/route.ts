@@ -5,6 +5,7 @@ import { callAI, PROMPTS } from '@/lib/ai';
 import {
   extractAppointmentSignal,
   needsCustomerReplyRepair,
+  prematurelyConfirmsAppointment,
   type AppointmentSignal,
 } from '@/lib/customer-message';
 
@@ -79,8 +80,14 @@ async function saveAppointmentRequest(
   return appointment;
 }
 
-async function repairCustomerReply(content: string): Promise<string> {
-  if (!needsCustomerReplyRepair(content)) {
+async function repairCustomerReply(
+  content: string,
+  hasPendingAppointment: boolean
+): Promise<string> {
+  const confirmsPendingAppointment =
+    hasPendingAppointment && prematurelyConfirmsAppointment(content);
+
+  if (!needsCustomerReplyRepair(content) && !confirmsPendingAppointment) {
     return content.trim();
   }
 
@@ -92,6 +99,7 @@ async function repairCustomerReply(content: string): Promise<string> {
           content: `Bir WhatsApp emlak danışmanı yanıtını dil ve karakter bakımından düzelt.
 Yalnızca Türkçe ve Latin alfabesi kullan.
 Yeni fiyat, portföy, uygunluk veya özellik ekleme.
+Randevu henüz beklemedeyse kesinleşmiş gibi "görüşmek üzere" deme; talebin ekip tarafından onaylanıp müşteriye dönüş yapılacağını söyle.
 Anlamı değiştirme, en fazla 500 karakter yaz ve yalnızca düzeltilmiş mesajı döndür.`,
         },
         { role: 'user', content },
@@ -99,7 +107,13 @@ Anlamı değiştirme, en fazla 500 karakter yaz ve yalnızca düzeltilmiş mesaj
       'customer_reply_repair'
     );
 
-    if (!needsCustomerReplyRepair(repaired.content)) {
+    if (
+      !needsCustomerReplyRepair(repaired.content) &&
+      !(
+        hasPendingAppointment &&
+        prematurelyConfirmsAppointment(repaired.content)
+      )
+    ) {
       return repaired.content.trim();
     }
   } catch (error) {
@@ -302,7 +316,10 @@ async function processIncomingMessage(input: {
       })),
       { role: 'user', content: customerMessage },
     ]);
-    const customerReply = await repairCustomerReply(aiResponse.content);
+    const customerReply = await repairCustomerReply(
+      aiResponse.content,
+      Boolean(appointment)
+    );
     const metaResponse = await sendMetaWhatsAppMessage({
       to: input.fromPhone,
       text: customerReply,
