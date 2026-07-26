@@ -6,6 +6,13 @@ import NotificationBell from './NotificationBell';
 
 const pageNames: Record<string, string> = {
   '/fabrika': 'Komuta Merkezi',
+  '/fabrika/crm': 'Merkezi CRM',
+  '/fabrika/portfoyler': 'Portföy Yönetimi',
+  '/fabrika/satis': 'Satış Hunisi',
+  '/fabrika/eslestirme': 'Akıllı Eşleştirme',
+  '/fabrika/takvim': 'Randevular ve Görevler',
+  '/fabrika/satici-portali': 'Satıcı Müşteri Portalı',
+  '/fabrika/sirket': 'Şirket ve Ekip',
   '/fabrika/asistan': 'Asistan',
   '/fabrika/avci': 'Avcı',
   '/fabrika/pazarlamaci': 'Pazarlamacı',

@@ -1,20 +1,42 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { callAI } from '@/lib/ai';
+import { requireFabrikaAccount } from '@/lib/fabrika-session';
 
-async function getOperationalContext() {
+async function getOperationalContext(companyAccountId: string) {
   const [
     activeProjects,
     huntedListings,
     pendingAppointments,
     activeConversations,
     unreadNotifications,
+    crmContacts,
+    activeCrmProperties,
+    openDeals,
+    overdueTasks,
   ] = await Promise.all([
     prisma.project.count({ where: { published: true } }),
     prisma.huntedListing.count(),
     prisma.appointmentRequest.count({ where: { status: 'PENDING' } }),
     prisma.customerConversation.count({ where: { isActive: true } }),
     prisma.notification.count({ where: { read: false } }),
+    prisma.crmContact.count({ where: { companyAccountId } }),
+    prisma.crmProperty.count({
+      where: { companyAccountId, status: 'ACTIVE' },
+    }),
+    prisma.crmDeal.count({
+      where: {
+        companyAccountId,
+        stage: { notIn: ['WON', 'LOST'] },
+      },
+    }),
+    prisma.crmTask.count({
+      where: {
+        companyAccountId,
+        status: 'OPEN',
+        dueAt: { lt: new Date() },
+      },
+    }),
   ]);
 
   return {
@@ -23,6 +45,10 @@ async function getOperationalContext() {
     pendingAppointments,
     activeConversations,
     unreadNotifications,
+    crmContacts,
+    activeCrmProperties,
+    openDeals,
+    overdueTasks,
   };
 }
 
@@ -38,7 +64,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const context = await getOperationalContext();
+    const account = await requireFabrikaAccount();
+    const context = await getOperationalContext(account.id);
     const recentMessages = await prisma.generalManagerMessage.findMany({
       orderBy: { createdAt: 'desc' },
       take: 12,
@@ -94,12 +121,13 @@ Kurallar:
 
 export async function GET() {
   try {
+    const account = await requireFabrikaAccount();
     const [messages, context] = await Promise.all([
       prisma.generalManagerMessage.findMany({
         orderBy: { createdAt: 'asc' },
         take: 50,
       }),
-      getOperationalContext(),
+      getOperationalContext(account.id),
     ]);
 
     return NextResponse.json({ success: true, messages, context });

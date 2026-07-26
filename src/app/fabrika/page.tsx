@@ -15,6 +15,12 @@ import {
   MessageCircle,
   Send,
   AlertTriangle,
+  Users,
+  Home,
+  Kanban,
+  Sparkles,
+  CalendarDays,
+  Share2,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -48,6 +54,16 @@ type OperationalContext = {
   unreadNotifications: number;
 };
 
+type WorkspaceMetrics = {
+  contacts: number;
+  activeProperties: number;
+  openDeals: number;
+  overdueTasks: number;
+  pipelineValue: number;
+  wonCommission: number;
+  averageMatchScore: number;
+};
+
 const getNotificationStyles = (type: string) => {
   switch (type) {
     case 'GREEN_LISTING':
@@ -74,6 +90,7 @@ export default function CommandCenter() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [workspaceMetrics, setWorkspaceMetrics] = useState<WorkspaceMetrics | null>(null);
   const [context, setContext] = useState<OperationalContext>({
     activeProjects: 0,
     huntedListings: 0,
@@ -83,7 +100,7 @@ export default function CommandCenter() {
   });
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  async function fetchData() {
+  async function fetchData(includeWorkspace = false) {
     try {
       const notifRes = await fetch('/api/fabrika/notifications?scope=important');
       const notifData = await notifRes.json();
@@ -99,13 +116,21 @@ export default function CommandCenter() {
           setContext(chatData.context);
         }
       }
+
+      if (includeWorkspace) {
+        const workspaceRes = await fetch('/api/fabrika/workspace');
+        const workspaceData = await workspaceRes.json();
+        if (workspaceRes.ok && workspaceData.success) {
+          setWorkspaceMetrics(workspaceData.workspace.metrics);
+        }
+      }
     } catch (err) {
       console.error('Data fetch error:', err);
     }
   }
 
   useEffect(() => {
-    const initialTimeout = setTimeout(fetchData, 0);
+    const initialTimeout = setTimeout(() => fetchData(true), 0);
     const interval = setInterval(fetchData, 5000);
     return () => {
       clearTimeout(initialTimeout);
@@ -215,6 +240,51 @@ export default function CommandCenter() {
     },
   ];
 
+  const operatingCore = [
+    {
+      title: 'Merkezi CRM',
+      subtitle: 'Müşteri profilleri ve şirket hafızası',
+      icon: Users,
+      href: '/fabrika/crm',
+      badge: `${workspaceMetrics?.contacts || 0} müşteri`,
+    },
+    {
+      title: 'Portföyler',
+      subtitle: 'Portföy, malik ve performans yönetimi',
+      icon: Home,
+      href: '/fabrika/portfoyler',
+      badge: `${workspaceMetrics?.activeProperties || 0} aktif`,
+    },
+    {
+      title: 'Satış Hunisi',
+      subtitle: 'Fırsatlar, aşamalar ve komisyon görünümü',
+      icon: Kanban,
+      href: '/fabrika/satis',
+      badge: `${workspaceMetrics?.openDeals || 0} fırsat`,
+    },
+    {
+      title: 'Eşleştirme',
+      subtitle: 'Müşteri tercihlerini portföylerle eşleştir',
+      icon: Sparkles,
+      href: '/fabrika/eslestirme',
+      badge: `%${workspaceMetrics?.averageMatchScore || 0} ortalama`,
+    },
+    {
+      title: 'Takvim',
+      subtitle: 'Randevu, gösterim ve takip görevleri',
+      icon: CalendarDays,
+      href: '/fabrika/takvim',
+      badge: `${workspaceMetrics?.overdueTasks || 0} geciken`,
+    },
+    {
+      title: 'Satıcı Portalı',
+      subtitle: 'Mülk sahibine şeffaf performans raporu',
+      icon: Share2,
+      href: '/fabrika/satici-portali',
+      badge: 'Paylaşılabilir',
+    },
+  ];
+
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
@@ -235,11 +305,46 @@ export default function CommandCenter() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Aktif portföy" value={context.activeProjects} icon={Activity} status="success" />
-        <StatCard label="Avcı kaydı" value={context.huntedListings} icon={Crosshair} />
-        <StatCard label="Aktif sohbet" value={context.activeConversations} icon={MessageCircle} status="success" />
-        <StatCard label="Bekleyen randevu" value={context.pendingAppointments} icon={Clock} status="warning" />
+        <StatCard label="CRM müşterisi" value={workspaceMetrics?.contacts || 0} icon={Users} status="success" />
+        <StatCard label="Aktif portföy" value={workspaceMetrics?.activeProperties || 0} icon={Activity} />
+        <StatCard label="Açık satış fırsatı" value={workspaceMetrics?.openDeals || 0} icon={Kanban} status="success" />
+        <StatCard label="Geciken görev" value={workspaceMetrics?.overdueTasks || 0} icon={Clock} status="warning" />
       </div>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-white">Emlak işletim sistemi</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Müşteriden satış kapanışına kadar merkezi çalışma alanı</p>
+          </div>
+          <span className="text-xs text-slate-500">6 çalışma alanı</span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {operatingCore.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                className="group flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-emerald-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                href={item.href}
+                key={item.title}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                    <span className="shrink-0 rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{item.subtitle}</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">

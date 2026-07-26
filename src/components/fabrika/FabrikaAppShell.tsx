@@ -6,9 +6,13 @@ import FabrikaTopbar from './FabrikaTopbar';
 
 interface FabrikaAppShellProps {
   children: React.ReactNode;
+  account: {
+    companyName: string;
+    ownerName: string;
+  };
 }
 
-export default function FabrikaAppShell({ children }: FabrikaAppShellProps) {
+export default function FabrikaAppShell({ children, account }: FabrikaAppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   return (
@@ -21,8 +25,10 @@ export default function FabrikaAppShell({ children }: FabrikaAppShellProps) {
       </a>
 
       <FabrikaSidebar
+        companyName={account.companyName}
         mobileOpen={mobileNavigationOpen}
         onMobileClose={() => setMobileNavigationOpen(false)}
+        ownerName={account.ownerName}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

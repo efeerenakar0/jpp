@@ -245,6 +245,74 @@ enum AiProvider {
   GEMINI
 }
 
+enum CompanyMemberRole {
+  OWNER
+  MANAGER
+  AGENT
+  VIEWER
+}
+
+enum CrmContactType {
+  BUYER
+  SELLER
+  INVESTOR
+  TENANT
+  OTHER
+}
+
+enum CrmContactStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  VIEWING
+  OFFER
+  WON
+  LOST
+}
+
+enum ConsentStatus {
+  UNKNOWN
+  GRANTED
+  REVOKED
+}
+
+enum CrmPropertyStatus {
+  DRAFT
+  ACTIVE
+  RESERVED
+  SOLD
+  RENTED
+  ARCHIVED
+}
+
+enum CrmDealStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  MATCHED
+  VIEWING
+  OFFER
+  CONTRACT
+  WON
+  LOST
+}
+
+enum CrmTaskStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum CrmTaskType {
+  CALL
+  MESSAGE
+  MEETING
+  VIEWING
+  FOLLOW_UP
+  DOCUMENT
+  OTHER
+}
+
 model CompanyAccount {
   id                   String               @id @default(cuid())
   companyName          String
@@ -267,6 +335,13 @@ model CompanyAccount {
   updatedAt            DateTime             @updatedAt
 
   aiCredentials CompanyAiCredential[]
+  members       CompanyMember[]
+  crmContacts   CrmContact[]
+  crmProperties CrmProperty[]
+  crmDeals      CrmDeal[]
+  crmTasks      CrmTask[]
+  crmMatches    CrmMatch[]
+  crmActivities CrmActivity[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -285,6 +360,203 @@ model CompanyAiCredential {
   updatedAt        DateTime       @updatedAt
 
   @@unique([companyAccountId, provider])
+}
+
+model CompanyMember {
+  id               String            @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  name             String
+  email            String?
+  phone            String?
+  role             CompanyMemberRole @default(AGENT)
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  contacts   CrmContact[]
+  properties CrmProperty[]
+  deals      CrmDeal[]
+  tasks      CrmTask[]
+  activities CrmActivity[]
+
+  @@unique([companyAccountId, email])
+  @@index([companyAccountId, active])
+}
+
+model CrmContact {
+  id                   String          @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount  @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  assignedMemberId     String?
+  assignedMember       CompanyMember?  @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  name                 String
+  phone                String?
+  email                String?
+  type                 CrmContactType  @default(BUYER)
+  stage                CrmContactStage @default(NEW)
+  source               String?
+  desiredLocation      String?
+  desiredRoomCount     String?
+  budgetMin            Float?
+  budgetMax            Float?
+  notes                String?         @db.Text
+  tags                 String[]        @default([])
+  score                Int             @default(50)
+  consentStatus        ConsentStatus   @default(UNKNOWN)
+  consentUpdatedAt     DateTime?
+  nextActionAt         DateTime?
+  sourceConversationId String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  ownedProperties CrmProperty[] @relation("PropertyOwner")
+  deals           CrmDeal[]
+  tasks           CrmTask[]
+  matches         CrmMatch[]
+  activities      CrmActivity[]
+
+  @@unique([companyAccountId, sourceConversationId])
+  @@index([companyAccountId, stage])
+  @@index([companyAccountId, phone])
+  @@index([assignedMemberId])
+}
+
+model CrmProperty {
+  id                  String            @id @default(cuid())
+  companyAccountId    String
+  companyAccount      CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  ownerContactId      String?
+  ownerContact        CrmContact?       @relation("PropertyOwner", fields: [ownerContactId], references: [id], onDelete: SetNull)
+  assignedMemberId    String?
+  assignedMember      CompanyMember?    @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  title               String
+  referenceCode       String?
+  location            String?
+  price               Float?
+  roomCount           String?
+  area                Float?
+  status              CrmPropertyStatus @default(DRAFT)
+  description         String?           @db.Text
+  imageUrl            String?
+  sourceListingId     String?
+  sellerPortalToken   String            @unique @default(uuid())
+  sellerPortalEnabled Boolean           @default(true)
+  listingViews        Int               @default(0)
+  inquiryCount        Int               @default(0)
+  showingCount        Int               @default(0)
+  offerCount          Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  deals      CrmDeal[]
+  tasks      CrmTask[]
+  matches    CrmMatch[]
+  activities CrmActivity[]
+
+  @@unique([companyAccountId, sourceListingId])
+  @@index([companyAccountId, status])
+  @@index([ownerContactId])
+  @@index([assignedMemberId])
+}
+
+model CrmDeal {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  contactId        String
+  contact          CrmContact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  propertyId       String?
+  property         CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  assignedMemberId String?
+  assignedMember   CompanyMember? @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  title            String
+  stage            CrmDealStage   @default(NEW)
+  estimatedValue   Float?
+  commissionRate   Float?         @default(2)
+  probability      Int            @default(20)
+  nextAction       String?
+  expectedCloseAt  DateTime?
+  closedAt         DateTime?
+  notes            String?        @db.Text
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  tasks      CrmTask[]
+  activities CrmActivity[]
+
+  @@index([companyAccountId, stage])
+  @@index([contactId])
+  @@index([propertyId])
+  @@index([assignedMemberId])
+}
+
+model CrmTask {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  contactId        String?
+  contact          CrmContact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  propertyId       String?
+  property         CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  dealId           String?
+  deal             CrmDeal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  assignedMemberId String?
+  assignedMember   CompanyMember? @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  type             CrmTaskType    @default(FOLLOW_UP)
+  title            String
+  description      String?        @db.Text
+  dueAt            DateTime?
+  priority         Int            @default(2)
+  status           CrmTaskStatus  @default(OPEN)
+  completedAt      DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([companyAccountId, status, dueAt])
+  @@index([assignedMemberId])
+}
+
+model CrmMatch {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  contactId        String
+  contact          CrmContact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  propertyId       String
+  property         CrmProperty    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  score            Int
+  reasons          String[]       @default([])
+  status           String         @default("NEW")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([companyAccountId, contactId, propertyId])
+  @@index([companyAccountId, score])
+}
+
+model CrmActivity {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  contactId        String?
+  contact          CrmContact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  propertyId       String?
+  property         CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  dealId           String?
+  deal             CrmDeal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  actorMemberId    String?
+  actorMember      CompanyMember? @relation(fields: [actorMemberId], references: [id], onDelete: SetNull)
+  type             String
+  title            String
+  description      String?        @db.Text
+  metadata         String?        @db.Text
+  createdAt        DateTime       @default(now())
+
+  @@index([companyAccountId, createdAt])
+  @@index([contactId])
+  @@index([propertyId])
+  @@index([dealId])
 }
 
 model PlatformAdminLoginAttempt {

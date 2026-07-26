@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx prisma db execute --file prisma/deploy/assistant-v3.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/platform-admin.sql --schema prisma/schema.prisma && npm run build",
+  "buildCommand": "npx prisma db execute --file prisma/deploy/assistant-v3.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/platform-admin.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/workspace-crm.sql --schema prisma/schema.prisma && npm run build",
   "crons": [
     {
       "path": "/api/cron/appointment-reminders",
