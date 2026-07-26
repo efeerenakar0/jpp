@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Calendar, Clock, User, Phone, Check, X, Bell } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Check, X, Bell, Loader2, Send } from 'lucide-react';
 
 interface Appointment {
   id: string;
@@ -10,6 +10,7 @@ interface Appointment {
   proposedDate: string | null;
   proposedTime: string | null;
   status: string;
+  confirmationSent?: boolean;
   createdAt: string;
   conversation: {
     summary?: string | null;
@@ -20,9 +21,17 @@ interface AppointmentApprovalProps {
   appointments: Appointment[];
   onApprove: (id: string, note?: string) => Promise<void>;
   onReject: (id: string) => Promise<void>;
+  onResend: (id: string) => Promise<void>;
+  processingId: string | null;
 }
 
-export default function AppointmentApproval({ appointments, onApprove, onReject }: AppointmentApprovalProps) {
+export default function AppointmentApproval({
+  appointments,
+  onApprove,
+  onReject,
+  onResend,
+  processingId
+}: AppointmentApprovalProps) {
   const pendingAppointments = appointments.filter(a => a.status === 'PENDING');
 
   if (appointments.length === 0) {
@@ -55,6 +64,7 @@ export default function AppointmentApproval({ appointments, onApprove, onReject 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {appointments.map((appointment) => {
           const isPending = appointment.status === 'PENDING';
+          const isProcessing = processingId === appointment.id;
           const date = appointment.proposedDate ? new Date(appointment.proposedDate).toLocaleDateString('tr-TR') : 'Tarih Belirtilmemiş';
           
           return (
@@ -124,18 +134,46 @@ export default function AppointmentApproval({ appointments, onApprove, onReject 
                 <div className="flex gap-2 mt-auto">
                   <button 
                     onClick={() => onApprove(appointment.id)}
+                    disabled={isProcessing}
                     className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1"
                   >
-                    <Check className="w-4 h-4" />
-                    Onayla
+                    {isProcessing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
+                    {isProcessing ? 'Gönderiliyor' : 'Onayla'}
                   </button>
                   <button 
                     onClick={() => onReject(appointment.id)}
+                    disabled={isProcessing}
                     className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1"
                   >
                     <X className="w-4 h-4" />
                     Reddet
                   </button>
+                </div>
+              )}
+
+              {appointment.status === 'APPROVED' && !appointment.confirmationSent && (
+                <button
+                  onClick={() => onResend(appointment.id)}
+                  disabled={isProcessing}
+                  className="w-full bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-60 text-emerald-400 border border-emerald-500/20 rounded-lg py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {isProcessing ? 'Gönderiliyor' : 'WhatsApp’a Gönder'}
+                </button>
+              )}
+
+              {appointment.status === 'APPROVED' && appointment.confirmationSent && (
+                <div className="text-xs text-emerald-400 flex items-center justify-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" />
+                  WhatsApp mesajı gönderildi
                 </div>
               )}
             </div>

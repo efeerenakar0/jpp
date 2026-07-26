@@ -34,9 +34,11 @@ interface Conversation {
 interface Appointment {
   id: string;
   customerName: string;
+  customerPhone?: string | null;
   proposedDate: string | null;
   proposedTime: string | null;
   status: string;
+  confirmationSent?: boolean;
   createdAt: string;
   conversation: { summary?: string | null };
 }
@@ -52,6 +54,7 @@ export default function AsistanPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [appointmentActionId, setAppointmentActionId] = useState<string | null>(null);
 
   // Meta & AI Config State
   const [configForm, setConfigForm] = useState({
@@ -434,25 +437,60 @@ export default function AsistanPage() {
   };
 
   const handleApprove = async (id: string) => {
+    setAppointmentActionId(id);
     try {
       const res = await fetch('/api/fabrika/assistant/appointment', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action: 'approve' })
       });
-      if (res.ok) fetchData();
-    } catch (e) {}
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Randevu onaylanamadı.');
+      toast.success('Randevu onaylandı ve WhatsApp mesajı gönderildi.');
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Randevu onaylanamadı.');
+    } finally {
+      setAppointmentActionId(null);
+    }
+  };
+
+  const handleResendConfirmation = async (id: string) => {
+    setAppointmentActionId(id);
+    try {
+      const res = await fetch('/api/fabrika/assistant/appointment', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'resend' })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'WhatsApp mesajı gönderilemedi.');
+      toast.success('Randevu onayı WhatsApp üzerinden gönderildi.');
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'WhatsApp mesajı gönderilemedi.');
+    } finally {
+      setAppointmentActionId(null);
+    }
   };
 
   const handleReject = async (id: string) => {
+    setAppointmentActionId(id);
     try {
       const res = await fetch('/api/fabrika/assistant/appointment', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action: 'reject' })
       });
-      if (res.ok) fetchData();
-    } catch (e) {}
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Randevu reddedilemedi.');
+      toast.success('Randevu talebi reddedildi.');
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Randevu reddedilemedi.');
+    } finally {
+      setAppointmentActionId(null);
+    }
   };
 
   const intentColors: Record<string, string> = {
@@ -940,7 +978,9 @@ export default function AsistanPage() {
           <AppointmentApproval 
             appointments={appointments} 
             onApprove={handleApprove} 
-            onReject={handleReject} 
+            onReject={handleReject}
+            onResend={handleResendConfirmation}
+            processingId={appointmentActionId}
           />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[720px]">
