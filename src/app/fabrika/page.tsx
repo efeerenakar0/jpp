@@ -16,7 +16,8 @@ import {
   ArrowRight,
   Cpu,
   Clock,
-  Layers
+  Layers,
+  AlertTriangle
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -53,6 +54,8 @@ const getNotificationStyles = (type: string) => {
     case 'AD_COPY_READY': return { icon: Megaphone, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
     case 'APPOINTMENT_REQUEST': return { icon: MessageCircle, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' };
     case 'STUDIO_READY': return { icon: Aperture, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' };
+    case 'NEW_CUSTOMER_MESSAGE': return { icon: MessageCircle, color: 'text-amber-300', bg: 'bg-amber-500/10 border-amber-500/30' };
+    case 'SYSTEM': return { icon: AlertTriangle, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' };
     default: return { icon: Bell, color: 'text-slate-400', bg: 'bg-slate-800 border-slate-700' };
   }
 };
@@ -73,10 +76,10 @@ export default function CommandCenter() {
 
   async function fetchData() {
     try {
-      const notifRes = await fetch('/api/fabrika/notifications');
+      const notifRes = await fetch('/api/fabrika/notifications?scope=important');
       const notifData = await notifRes.json();
       if (notifRes.ok && Array.isArray(notifData.notifications)) {
-        setNotifications(notifData.notifications.slice(0, 10));
+        setNotifications(notifData.notifications.slice(0, 8));
       }
 
       const chatRes = await fetch('/api/fabrika/general-manager/chat');
@@ -303,20 +306,20 @@ export default function CommandCenter() {
                 <Activity className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white font-heading">Canlı Operasyon Akışı</h3>
+                <h3 className="text-base font-bold text-white font-heading">Kritik Operasyon Akışı</h3>
                 <p className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Gerçek Zamanlı AI Logları
+                  <AlertTriangle className="w-3 h-3" /> Müdahale veya karar gerektiren olaylar
                 </p>
               </div>
             </div>
-            <span className="text-xs text-slate-500 font-mono">{notifications.length} Bildirim</span>
+            <span className="text-xs text-slate-500 font-mono">{notifications.length} Kritik Kayıt</span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
             {notifications.length === 0 ? (
               <div className="text-center py-20 text-slate-500">
                 <Bell className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                <p className="text-xs font-medium">Henüz bir operasyon kaydı yok.</p>
+                <p className="text-xs font-medium">Şu anda müdahale gerektiren olay yok.</p>
               </div>
             ) : (
               notifications.map((notif) => {
