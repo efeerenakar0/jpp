@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trash2, ExternalLink, ShieldCheck, Clock, CheckCircle2, XCircle, Search, Sparkles } from 'lucide-react';
+import { Trash2, ExternalLink, Clock, CheckCircle2, XCircle, Search, Sparkles, type LucideIcon } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
+import EmptyState from './EmptyState';
+import FilterBar from './FilterBar';
 
 type HuntingStatus = 'YELLOW' | 'RED' | 'GREEN';
 
@@ -40,7 +43,7 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
   const redListings = filtered.filter((l) => l.status === 'RED');
   const greenListings = filtered.filter((l) => l.status === 'GREEN');
 
-  const Column = ({ 
+  const renderColumn = ({
     title, 
     badgeText,
     badgeBg,
@@ -55,9 +58,9 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
     borderColor: string;
     items: Listing[];
     targetStatuses: { label: string; status: HuntingStatus; btnClass: string }[];
-    icon: any;
+    icon: LucideIcon;
   }) => (
-    <div className={`bg-slate-950/70 border ${borderColor} rounded-3xl p-5 flex flex-col h-full backdrop-blur-xl shadow-xl`}>
+    <section className={`flex h-full flex-col rounded-xl border bg-slate-900 p-4 ${borderColor}`}>
       <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-4">
         <div className="flex items-center gap-2.5">
           <div className={`p-2 rounded-xl ${badgeBg} flex items-center justify-center`}>
@@ -72,11 +75,11 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
       
       <div className="flex-1 overflow-y-auto space-y-3.5 pr-1.5 custom-scrollbar min-h-[450px] max-h-[600px]">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-slate-800/60 rounded-2xl p-6">
-            <Clock className="w-8 h-8 text-slate-700 mb-2" />
-            <p className="text-xs font-bold text-slate-400">Bu sütunda henüz ilan yok</p>
-            <p className="text-[11px] text-slate-600 mt-1">Chrome eklentisiyle Sahibinden&apos;den ilan çekin</p>
-          </div>
+          <EmptyState
+            icon={Clock}
+            title="Bu sütunda ilan yok"
+            description="Yeni kayıtlar eklendiğinde burada görüntülenecek."
+          />
         ) : (
           items.map((listing) => (
             <div 
@@ -84,13 +87,25 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
               className="relative bg-slate-900/90 border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-4 transition-all duration-200 group hover:shadow-xl hover:shadow-amber-500/5 flex flex-col justify-between"
             >
               {onDeleteListing && (
-                <button
-                  onClick={() => onDeleteListing(listing.id)}
-                  className="absolute top-3.5 right-3.5 p-1.5 bg-red-500/10 text-red-400 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500/20 active:scale-95 cursor-pointer"
-                  title="İlanı Sil"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="absolute right-3.5 top-3.5">
+                  <ConfirmDialog
+                    trigger={
+                      <button
+                        type="button"
+                        className="rounded-lg bg-rose-500/10 p-1.5 text-rose-400 opacity-100 transition-colors hover:bg-rose-500/20 sm:opacity-0 sm:group-hover:opacity-100"
+                        title="İlanı sil"
+                        aria-label={`${listing.title} ilanını sil`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    }
+                    title="İlan silinsin mi?"
+                    description="Bu kayıt durum panosundan kaldırılacak. Bu işlem geri alınamaz."
+                    confirmLabel="İlanı sil"
+                    destructive
+                    onConfirm={() => onDeleteListing(listing.id)}
+                  />
+                </div>
               )}
 
               <div>
@@ -151,13 +166,13 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
           ))
         )}
       </div>
-    </div>
+    </section>
   );
 
   return (
     <div className="space-y-6">
       {/* Filter / Search Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-950/80 border border-slate-800/80 p-4 rounded-2xl backdrop-blur-xl">
+      <FilterBar label="İlan arama ve durum açıklamaları">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -174,45 +189,45 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Portföyümüze Katıldı</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-400" /> Pasif</span>
         </div>
-      </div>
+      </FilterBar>
 
       {/* Grid Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Column 
-          title="Sıcak Pazarlıkta" 
-          badgeText="Aday"
-          badgeBg="bg-amber-500/20 text-amber-300 border border-amber-500/30" 
-          borderColor="border-amber-500/20"
-          items={yellowListings} 
-          icon={Sparkles}
-          targetStatuses={[
+        {renderColumn({
+          title: 'Sıcak Pazarlıkta',
+          badgeText: 'Aday',
+          badgeBg: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+          borderColor: 'border-amber-500/20',
+          items: yellowListings,
+          icon: Sparkles,
+          targetStatuses: [
             { label: 'Elendi', status: 'RED', btnClass: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' },
             { label: ' Portföye Katıldı', status: 'GREEN', btnClass: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30' }
-          ]} 
-        />
-        <Column 
-          title="Portföyümüze Katıldı" 
-          badgeText="İlan"
-          badgeBg="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" 
-          borderColor="border-emerald-500/20"
-          items={greenListings} 
-          icon={CheckCircle2}
-          targetStatuses={[
+          ],
+        })}
+        {renderColumn({
+          title: 'Portföyümüze Katıldı',
+          badgeText: 'İlan',
+          badgeBg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+          borderColor: 'border-emerald-500/20',
+          items: greenListings,
+          icon: CheckCircle2,
+          targetStatuses: [
             { label: 'Pazarlığa Al', status: 'YELLOW', btnClass: 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20' },
             { label: 'Pasif', status: 'RED', btnClass: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
-          ]} 
-        />
-        <Column 
-          title="Pasif / Elendi" 
-          badgeText="İlan"
-          badgeBg="bg-red-500/20 text-red-300 border border-red-500/30" 
-          borderColor="border-red-500/20"
-          items={redListings} 
-          icon={XCircle}
-          targetStatuses={[
+          ],
+        })}
+        {renderColumn({
+          title: 'Pasif / Elendi',
+          badgeText: 'İlan',
+          badgeBg: 'bg-red-500/20 text-red-300 border border-red-500/30',
+          borderColor: 'border-red-500/20',
+          items: redListings,
+          icon: XCircle,
+          targetStatuses: [
             { label: 'Yeniden Pazarlığa Al', status: 'YELLOW', btnClass: 'bg-amber-500/20 border-amber-500/30 text-amber-300 hover:bg-amber-500/30' }
-          ]} 
-        />
+          ],
+        })}
       </div>
     </div>
   );

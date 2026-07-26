@@ -1,3 +1,110 @@
 .root {
   --radius: 0.75rem;
+  --fabrika-surface: #0f172a;
+  --fabrika-surface-muted: #111c30;
+  --fabrika-border: #1e293b;
+  --fabrika-primary: #10b981;
+  color-scheme: dark;
+  font-family: var(--font-sans);
+}
+
+.root :global(h1),
+.root :global(h2),
+.root :global(h3),
+.root :global(.font-heading) {
+  font-family: var(--font-sans) !important;
+  letter-spacing: -0.02em;
+}
+
+.root :global(.glass-card),
+.root :global(.glass-card-glow),
+.root :global(.glass-card-gold) {
+  background: var(--fabrika-surface) !important;
+  border-color: var(--fabrika-border) !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2) !important;
+  backdrop-filter: none !important;
+}
+
+.root :global([class*="shadow-cyan"]),
+.root :global([class*="shadow-purple"]),
+.root :global([class*="shadow-rose"]),
+.root :global([class*="shadow-emerald"]),
+.root :global([class*="shadow-amber"]),
+.root :global([class*="shadow-\["]) {
+  box-shadow: none !important;
+}
+
+.root :global(.rounded-3xl) {
+  border-radius: 0.75rem !important;
+}
+
+.root :global(.backdrop-blur-xl),
+.root :global(.backdrop-blur-2xl),
+.root :global(.backdrop-blur-3xl) {
+  backdrop-filter: none !important;
+}
+
+.root :global([class*="blur-\["]) {
+  display: none !important;
+}
+
+.root :global([class*="text-cyan-"]),
+.root :global([class*="text-blue-"]),
+.root :global([class*="text-purple-"]) {
+  color: #34d399 !important;
+}
+
+.root :global([class*="bg-cyan-"]),
+.root :global([class*="bg-blue-"]),
+.root :global([class*="bg-purple-"]) {
+  background-color: rgb(16 185 129 / 0.1) !important;
+}
+
+.root :global([class*="border-cyan-"]),
+.root :global([class*="border-blue-"]),
+.root :global([class*="border-purple-"]) {
+  border-color: rgb(16 185 129 / 0.25) !important;
+}
+
+.root :global([class*="from-cyan-"]),
+.root :global([class*="from-blue-"]),
+.root :global([class*="from-purple-"]) {
+  background-image: none !important;
+  background-color: #10b981 !important;
+}
+
+.root :global(input),
+.root :global(textarea),
+.root :global(select) {
+  min-height: 2.5rem;
+}
+
+.root :global(input:focus-visible),
+.root :global(textarea:focus-visible),
+.root :global(select:focus-visible),
+.root :global(button:focus-visible),
+.root :global(a:focus-visible) {
+  outline: 2px solid var(--fabrika-primary);
+  outline-offset: 2px;
+}
+
+.root :global(button),
+.root :global(a) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.root :global(.animate-float),
+.root :global(.animate-pulse-glow) {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root *,
+  .root *::before,
+  .root *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

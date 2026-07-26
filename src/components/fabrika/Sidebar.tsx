@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
-  LogOut
+  LogOut,
+  X
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -66,7 +67,15 @@ const modules = [
   },
 ];
 
-export default function FabrikaSidebar() {
+interface FabrikaSidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export default function FabrikaSidebar({
+  mobileOpen = false,
+  onMobileClose,
+}: FabrikaSidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -81,34 +90,49 @@ export default function FabrikaSidebar() {
   }
 
   return (
+    <>
+      {mobileOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-slate-950/75 lg:hidden"
+          onClick={onMobileClose}
+          aria-label="Navigasyonu kapat"
+        />
+      )}
     <aside
       className={`
-        relative flex flex-col h-full
-        bg-slate-950/90 border-r border-slate-800/80 backdrop-blur-2xl
-        transition-all duration-300 ease-in-out z-20
-        ${collapsed ? 'w-20' : 'w-72'}
+        fixed inset-y-0 left-0 z-50 flex h-full w-72 flex-col
+        border-r border-slate-800 bg-[#07101f]
+        transition-transform duration-200 ease-out lg:relative lg:z-20 lg:translate-x-0
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${collapsed ? 'lg:w-20' : 'lg:w-72'}
       `}
     >
       {/* Logo */}
-      <div className="p-5 border-b border-slate-800/80">
-        <Link href="/fabrika" className="flex items-center gap-3">
-          <div className="relative shrink-0">
-            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400 to-amber-500 rounded-2xl blur-sm opacity-70" />
-            <div className="relative w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center border border-white/10">
-              <Building2 className="w-5 h-5 text-cyan-400" />
-            </div>
+      <div className="flex h-16 items-center justify-between border-b border-slate-800 px-4">
+        <Link href="/fabrika" className="flex items-center gap-3" onClick={onMobileClose}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
+            <Building2 className="h-[18px] w-[18px] text-emerald-400" />
           </div>
           {!collapsed && (
             <div className="overflow-hidden">
-              <h2 className="text-base font-black text-white tracking-tight leading-tight">Jasmine AI</h2>
-              <p className="text-[9px] text-cyan-400 font-extrabold tracking-widest uppercase -mt-0.5">Fabrika</p>
+              <h2 className="text-sm font-semibold leading-tight tracking-tight text-white">Jasmine AI</h2>
+              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-400">Fabrika</p>
             </div>
           )}
         </Link>
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 lg:hidden"
+          onClick={onMobileClose}
+          aria-label="Navigasyonu kapat"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+      <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Fabrika modülleri">
         {modules.map((item) => {
           const isActive = pathname === item.href || 
             (item.href !== '/fabrika' && pathname.startsWith(item.href));
@@ -118,31 +142,32 @@ export default function FabrikaSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onMobileClose}
               className={`
-                group relative flex items-center gap-3 px-3 py-3 rounded-2xl
-                transition-all duration-200 cursor-pointer
+                group relative flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5
+                transition-colors duration-150
                 ${isActive 
-                  ? 'bg-slate-900 border border-slate-800 shadow-xl' 
-                  : 'hover:bg-slate-900/50 border border-transparent'
+                  ? 'border-emerald-500/20 bg-emerald-500/10 text-white'
+                  : 'border-transparent text-slate-400 hover:border-slate-800 hover:bg-slate-900 hover:text-slate-100'
                 }
               `}
+              aria-current={isActive ? 'page' : undefined}
               title={collapsed ? item.name : undefined}
             >
               {/* Active indicator */}
               {isActive && (
-                <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full bg-gradient-to-b ${item.color}`} />
+                <div className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-emerald-400" />
               )}
               
               {/* Icon */}
               <div className={`
-                w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
-                transition-all duration-200
+                flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors
                 ${isActive 
-                  ? `bg-gradient-to-br ${item.color} text-slate-950 shadow-md` 
-                  : 'bg-slate-900 text-slate-400 group-hover:text-white border border-slate-800'
+                  ? 'border-emerald-500/20 bg-emerald-500/15 text-emerald-300'
+                  : 'border-slate-800 bg-slate-900 text-slate-500 group-hover:text-slate-300'
                 }
               `}>
-                <Icon className="w-4 h-4 stroke-[2.5]" />
+                <Icon className="h-4 w-4" />
               </div>
 
               {/* Label */}
@@ -150,21 +175,15 @@ export default function FabrikaSidebar() {
                 <div className="overflow-hidden">
                   <div className="flex items-center gap-2">
                     {item.moduleNumber && (
-                      <span className={`
-                        text-[9px] font-extrabold px-1.5 py-0.5 rounded-md uppercase font-mono
-                        ${isActive 
-                          ? 'bg-cyan-500/20 text-cyan-300' 
-                          : 'bg-slate-800 text-slate-500'
-                        }
-                      `}>
+                      <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase text-slate-500">
                         M{item.moduleNumber}
                       </span>
                     )}
-                    <span className={`text-xs font-black ${isActive ? 'text-white' : 'text-slate-300'}`}>
+                    <span className={`text-xs font-semibold ${isActive ? 'text-white' : 'text-slate-300'}`}>
                       {item.name}
                     </span>
                   </div>
-                  <p className={`text-[10px] mt-0.5 font-medium ${isActive ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <p className="mt-0.5 text-[10px] font-normal text-slate-500">
                     {item.description}
                   </p>
                 </div>
@@ -177,27 +196,28 @@ export default function FabrikaSidebar() {
       {/* Collapse Button */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 bg-slate-900 border border-slate-700 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 transition-all z-30 cursor-pointer shadow-md"
+        className="absolute -right-3 top-20 z-30 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 lg:flex"
+        aria-label={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
       >
         {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
       </button>
 
       {/* Bottom Profile Section */}
-      <div className={`p-4 border-t border-slate-800/80 ${collapsed ? 'text-center' : ''}`}>
+      <div className={`border-t border-slate-800 p-4 ${collapsed ? 'text-center' : ''}`}>
         {!collapsed && (
           <div className="flex items-center justify-between gap-3 px-2">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-black text-slate-950 shadow-md">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200">
                 P
               </div>
               <div>
-                <p className="text-xs font-black text-white">Patron</p>
-                <p className="text-[10px] text-amber-400 font-bold">Genel Müdür</p>
+                <p className="text-xs font-semibold text-white">Patron</p>
+                <p className="text-[10px] font-medium text-slate-500">Genel Müdür</p>
               </div>
             </div>
             <button
               aria-label="Oturumu kapat"
-              className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-400 transition hover:border-rose-500/30 hover:text-rose-300 disabled:opacity-50"
+              className="rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-400 transition hover:border-rose-500/30 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
               disabled={loggingOut}
               onClick={handleLogout}
               title="Oturumu kapat"
@@ -210,7 +230,7 @@ export default function FabrikaSidebar() {
         {collapsed && (
           <button
             aria-label="Oturumu kapat"
-            className="mx-auto flex h-8 w-8 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition hover:text-rose-300 disabled:opacity-50"
+            className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 transition hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
             disabled={loggingOut}
             onClick={handleLogout}
             title="Oturumu kapat"
@@ -221,5 +241,6 @@ export default function FabrikaSidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }
