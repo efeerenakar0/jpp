@@ -3,8 +3,11 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 export const FABRIKA_SESSION_COOKIE = 'jasmine_fabrika_session';
 export const FABRIKA_SESSION_MAX_AGE = 60 * 60 * 12;
 
-type FabrikaSessionPayload = {
+export type FabrikaSessionPayload = {
   scope: 'fabrika';
+  accountId: string;
+  companyName: string;
+  sessionVersion: number;
   issuedAt: number;
   expiresAt: number;
   nonce: string;
@@ -31,28 +34,14 @@ function sign(encodedPayload: string, secret: string): string {
 }
 
 export function isFabrikaAuthConfigured(): boolean {
-  return Boolean(
-    getRequiredEnv('FABRIKA_ACCESS_KEY') &&
-    getRequiredEnv('FABRIKA_VERIFICATION_CODE') &&
-    getRequiredEnv('FABRIKA_SESSION_SECRET')
-  );
+  return Boolean(getRequiredEnv('FABRIKA_SESSION_SECRET'));
 }
 
-export function validateFabrikaCredentials(accessKey: string, verificationCode: string): boolean {
-  const expectedAccessKey = getRequiredEnv('FABRIKA_ACCESS_KEY');
-  const expectedVerificationCode = getRequiredEnv('FABRIKA_VERIFICATION_CODE');
-
-  if (!expectedAccessKey || !expectedVerificationCode) {
-    return false;
-  }
-
-  return (
-    safeEqual(accessKey.trim(), expectedAccessKey) &&
-    safeEqual(verificationCode.trim(), expectedVerificationCode)
-  );
-}
-
-export function createFabrikaSessionToken(): string {
+export function createFabrikaSessionToken(account: {
+  id: string;
+  companyName: string;
+  sessionVersion: number;
+}): string {
   const secret = getRequiredEnv('FABRIKA_SESSION_SECRET');
 
   if (!secret) {
@@ -62,6 +51,9 @@ export function createFabrikaSessionToken(): string {
   const now = Math.floor(Date.now() / 1000);
   const payload: FabrikaSessionPayload = {
     scope: 'fabrika',
+    accountId: account.id,
+    companyName: account.companyName,
+    sessionVersion: account.sessionVersion,
     issuedAt: now,
     expiresAt: now + FABRIKA_SESSION_MAX_AGE,
     nonce: randomUUID(),
@@ -71,23 +63,25 @@ export function createFabrikaSessionToken(): string {
   return `${encodedPayload}.${sign(encodedPayload, secret)}`;
 }
 
-export function verifyFabrikaSessionToken(token?: string): boolean {
+export function readFabrikaSessionToken(
+  token?: string
+): FabrikaSessionPayload | null {
   const secret = getRequiredEnv('FABRIKA_SESSION_SECRET');
 
   if (!secret || !token) {
-    return false;
+    return null;
   }
 
   const [encodedPayload, providedSignature] = token.split('.');
 
   if (!encodedPayload || !providedSignature) {
-    return false;
+    return null;
   }
 
   const expectedSignature = sign(encodedPayload, secret);
 
   if (!safeEqual(providedSignature, expectedSignature)) {
-    return false;
+    return null;
   }
 
   try {
@@ -96,8 +90,22 @@ export function verifyFabrikaSessionToken(token?: string): boolean {
     ) as FabrikaSessionPayload;
     const now = Math.floor(Date.now() / 1000);
 
-    return payload.scope === 'fabrika' && payload.expiresAt > now;
+    if (
+      payload.scope !== 'fabrika' ||
+      !payload.accountId ||
+      !payload.companyName ||
+      !Number.isInteger(payload.sessionVersion) ||
+      payload.expiresAt <= now
+    ) {
+      return null;
+    }
+
+    return payload;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function verifyFabrikaSessionToken(token?: string): boolean {
+  return Boolean(readFabrikaSessionToken(token));
 }

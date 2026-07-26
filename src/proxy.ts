@@ -2,8 +2,13 @@ import { getToken } from 'next-auth/jwt';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   FABRIKA_SESSION_COOKIE,
-  verifyFabrikaSessionToken,
+  readFabrikaSessionToken,
 } from '@/lib/fabrika-auth';
+import {
+  PLATFORM_ADMIN_SESSION_COOKIE,
+  verifyPlatformAdminSessionToken,
+} from '@/lib/platform-admin-auth';
+import prisma from '@/lib/prisma';
 
 const FABRIKA_LOGIN_PATH = '/fabrika-giris';
 const PUBLIC_WHATSAPP_WEBHOOKS = new Set([
@@ -31,7 +36,61 @@ function unauthorizedApiResponse() {
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionToken = request.cookies.get(FABRIKA_SESSION_COOKIE)?.value;
-  const hasFabrikaSession = verifyFabrikaSessionToken(sessionToken);
+  const sessionPayload = readFabrikaSessionToken(sessionToken);
+  const companyAccount = sessionPayload
+    ? await prisma.companyAccount.findUnique({
+        where: { id: sessionPayload.accountId },
+        select: {
+          status: true,
+          subscriptionStatus: true,
+          subscriptionEndsAt: true,
+          workspaceEnabled: true,
+          sessionVersion: true,
+        },
+      })
+    : null;
+  const hasFabrikaSession = Boolean(
+    sessionPayload &&
+      companyAccount?.status === 'ACTIVE' &&
+      companyAccount.workspaceEnabled &&
+      companyAccount.sessionVersion === sessionPayload.sessionVersion &&
+      (!companyAccount.subscriptionEndsAt ||
+        companyAccount.subscriptionEndsAt.getTime() > Date.now()) &&
+      (companyAccount.subscriptionStatus === 'ACTIVE' ||
+        companyAccount.subscriptionStatus === 'TRIAL')
+  );
+
+  const platformAdminToken = request.cookies.get(
+    PLATFORM_ADMIN_SESSION_COOKIE
+  )?.value;
+  const hasPlatformAdminSession =
+    verifyPlatformAdminSessionToken(platformAdminToken);
+  const isPlatformAdminLogin =
+    pathname === '/platform-admin/giris' ||
+    pathname === '/api/platform-admin/login';
+  const isPlatformAdminPath =
+    pathname === '/platform-admin' ||
+    pathname.startsWith('/platform-admin/') ||
+    pathname.startsWith('/api/platform-admin/');
+
+  if (isPlatformAdminLogin) {
+    return hasPlatformAdminSession
+      ? NextResponse.redirect(new URL('/platform-admin', request.url))
+      : NextResponse.next();
+  }
+
+  if (isPlatformAdminPath && !hasPlatformAdminSession) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Platform yöneticisi oturumu gerekli.' },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.redirect(
+      new URL('/platform-admin/giris', request.url)
+    );
+  }
 
   if (pathname === FABRIKA_LOGIN_PATH) {
     return hasFabrikaSession
@@ -86,5 +145,7 @@ export const config = {
     '/api/fabrika/:path*',
     '/api/whatsapp/:path*',
     '/api/portfolios/:path*',
+    '/platform-admin/:path*',
+    '/api/platform-admin/:path*',
   ],
 };
