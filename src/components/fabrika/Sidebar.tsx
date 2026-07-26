@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-const modules = [
+const primaryModules = [
   {
     name: 'Komuta Merkezi',
     href: '/fabrika',
@@ -32,6 +32,49 @@ const modules = [
     color: 'from-amber-400 to-amber-600',
     description: 'Genel Müdür',
   },
+  {
+    name: 'Yazılımcı',
+    href: '/fabrika/yazilimci',
+    icon: Code2,
+    color: 'from-cyan-400 to-teal-500',
+    description: 'Site Oluşturucu & SEO',
+    moduleNumber: 1,
+  },
+  {
+    name: 'Avcı',
+    href: '/fabrika/avci',
+    icon: Crosshair,
+    color: 'from-amber-400 to-amber-600',
+    description: 'Portföy Toplayıcı',
+    moduleNumber: 2,
+  },
+  {
+    name: 'Pazarlamacı',
+    href: '/fabrika/pazarlamaci',
+    icon: Megaphone,
+    color: 'from-emerald-400 to-teal-400',
+    description: 'Reklam Ekibi',
+    moduleNumber: 3,
+  },
+  {
+    name: 'Asistan',
+    href: '/fabrika/asistan',
+    icon: MessageCircle,
+    color: 'from-rose-400 to-purple-500',
+    description: 'CRM & İletişim',
+    moduleNumber: 4,
+  },
+  {
+    name: 'Stüdyo',
+    href: '/fabrika/studyo',
+    icon: Aperture,
+    color: 'from-cyan-400 to-blue-500',
+    description: 'Görsel Optimizasyon',
+    moduleNumber: 5,
+  },
+];
+
+const realEstatePackages = [
   {
     name: 'Merkezi CRM',
     href: '/fabrika/crm',
@@ -80,46 +123,6 @@ const modules = [
     icon: Settings2,
     color: 'from-emerald-400 to-teal-500',
     description: 'Roller & Abonelik',
-  },
-  {
-    name: 'Yazılımcı',
-    href: '/fabrika/yazilimci',
-    icon: Code2,
-    color: 'from-cyan-400 to-teal-500',
-    description: 'Site Oluşturucu & SEO',
-    moduleNumber: 1,
-  },
-  {
-    name: 'Avcı',
-    href: '/fabrika/avci',
-    icon: Crosshair,
-    color: 'from-amber-400 to-amber-600',
-    description: 'Portföy Toplayıcı',
-    moduleNumber: 2,
-  },
-  {
-    name: 'Pazarlamacı',
-    href: '/fabrika/pazarlamaci',
-    icon: Megaphone,
-    color: 'from-emerald-400 to-teal-400',
-    description: 'Reklam Ekibi',
-    moduleNumber: 3,
-  },
-  {
-    name: 'Asistan',
-    href: '/fabrika/asistan',
-    icon: MessageCircle,
-    color: 'from-rose-400 to-purple-500',
-    description: 'CRM & İletişim',
-    moduleNumber: 4,
-  },
-  {
-    name: 'Stüdyo',
-    href: '/fabrika/studyo',
-    icon: Aperture,
-    color: 'from-cyan-400 to-blue-500',
-    description: 'Görsel Optimizasyon',
-    moduleNumber: 5,
   },
 ];
 
@@ -192,8 +195,9 @@ export default function FabrikaSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Fabrika modülleri">
-        {modules.map((item) => {
+      <nav className="custom-scrollbar flex-1 overflow-y-auto px-3 py-4" aria-label="Fabrika modülleri">
+        <div className="space-y-1">
+        {primaryModules.map((item) => {
           const isActive = pathname === item.href || 
             (item.href !== '/fabrika' && pathname.startsWith(item.href));
           const Icon = item.icon;
@@ -251,6 +255,68 @@ export default function FabrikaSidebar({
             </Link>
           );
         })}
+        </div>
+
+        <div className="my-4 border-t border-slate-800 pt-3">
+          {!collapsed && (
+            <div className="mb-2 flex items-center justify-between px-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-400">
+                Emlak operasyon paketi
+              </p>
+              <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-300">
+                Yeni
+              </span>
+            </div>
+          )}
+          <div className="space-y-1" role="group" aria-label="Emlak operasyon paketi">
+          {realEstatePackages.map((item) => {
+          const isActive = pathname === item.href ||
+            (item.href !== '/fabrika' && pathname.startsWith(item.href));
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onMobileClose}
+              className={`
+                group relative flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5
+                transition-colors duration-150
+                ${isActive
+                  ? 'border-emerald-500/20 bg-emerald-500/10 text-white'
+                  : 'border-transparent text-slate-400 hover:border-slate-800 hover:bg-slate-900 hover:text-slate-100'
+                }
+              `}
+              aria-current={isActive ? 'page' : undefined}
+              title={collapsed ? item.name : undefined}
+            >
+              {isActive && (
+                <div className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-emerald-400" />
+              )}
+              <div className={`
+                flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors
+                ${isActive
+                  ? 'border-emerald-500/20 bg-emerald-500/15 text-emerald-300'
+                  : 'border-slate-800 bg-slate-900 text-slate-500 group-hover:text-slate-300'
+                }
+              `}>
+                <Icon className="h-4 w-4" />
+              </div>
+              {!collapsed && (
+                <div className="overflow-hidden">
+                  <span className={`text-xs font-semibold ${isActive ? 'text-white' : 'text-slate-300'}`}>
+                    {item.name}
+                  </span>
+                  <p className="mt-0.5 text-[10px] font-normal text-slate-500">
+                    {item.description}
+                  </p>
+                </div>
+              )}
+            </Link>
+          );
+        })}
+          </div>
+        </div>
       </nav>
 
       {/* Collapse Button */}
