@@ -5,60 +5,54 @@ import JSZip from 'jszip';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-function sanitizeAscii(value: string): string {
-  return value
-    .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
-    .replace(/ü/g, 'u').replace(/Ü/g, 'U')
-    .replace(/ş/g, 's').replace(/Ş/g, 'S')
-    .replace(/ı/g, 'i').replace(/İ/g, 'I')
-    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
-    .replace(/ç/g, 'c').replace(/Ç/g, 'C')
-    .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .replace(/_+/g, '_');
-}
-
 export async function GET(request: Request) {
   try {
     const searchParams = new URL(request.url).searchParams;
     const shootId = searchParams.get('shootId');
-    const rawFilter = searchParams.get('filter');
-    const watermark = searchParams.get('watermark') === 'true';
+    const format = searchParams.get('format');
+    const imageIndex = Number(searchParams.get('index'));
+    const asDownload = searchParams.get('download') === 'true';
 
-    if (!shootId || !rawFilter) {
-      return NextResponse.json(
-        { error: 'Çekim ID’si ve filtre gerekli.' },
-        { status: 400 }
-      );
+    if (!shootId || !format) {
+      return NextResponse.json({ error: 'Çekim ID’si ve indirme biçimi gerekli.' }, { status: 400 });
     }
 
-    const safeFilterName = sanitizeAscii(rawFilter);
     const session = getOrCreateSession(shootId);
-    const processed = session.processed[safeFilterName];
-    const photos = watermark
-      ? processed?.watermarkedPhotos
-      : processed?.hdrPhotos;
-
-    if (!photos?.length) {
-      return NextResponse.json(
-        { error: 'İndirilecek işlenmiş fotoğraf bulunamadı.' },
-        { status: 404 }
-      );
+    const photos = session.aiPhotos;
+    if (!photos.length) {
+      return NextResponse.json({ error: 'İndirilecek işlenmiş fotoğraf bulunamadı.' }, { status: 404 });
     }
 
-    const folderName = `Jasmine_Studio_${safeFilterName}_${watermark ? 'Filigranli' : 'Islenmis'}`;
+    if (format === 'single') {
+      const photo = photos[imageIndex];
+      if (!photo) {
+        return NextResponse.json({ error: 'İstenen görsel bulunamadı.' }, { status: 404 });
+      }
+      return new NextResponse(new Uint8Array(photo.buffer), {
+        headers: {
+          'Content-Type': photo.mimeType,
+          'Content-Disposition': `${asDownload ? 'attachment' : 'inline'}; filename="${photo.name}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
+    if (format !== 'zip') {
+      return NextResponse.json({ error: 'Geçersiz indirme biçimi.' }, { status: 400 });
+    }
+
+    const folderName = 'Jasmine_Studio_AI_Iyilestirilmis';
     const zip = new JSZip();
     const folder = zip.folder(folderName);
-
     for (const photo of photos) {
       folder?.file(photo.name, photo.buffer);
     }
-
     folder?.file(
       'Studyo_Raporu.txt',
       `JASMINE GROUP DİJİTAL FOTOĞRAF STÜDYOSU
-Filtre Paketi : ${rawFilter}
-Filigran      : ${watermark ? 'Evet' : 'Hayır'}
-İşlem Motoru  : Sharp ışık, renk ve keskinlik düzenleme
+İşlem Motoru  : ${session.aiProvider === 'GEMINI' ? 'Google Gemini' : 'OpenAI GPT Image'}
+Model          : ${session.aiModel || 'Varsayılan model'}
+İşlem          : Portföy görselleri için ışık, renk, netlik ve genel kalite iyileştirmesi
 İşlem Tarihi  : ${new Date().toLocaleString('tr-TR')}
 `
     );
@@ -68,13 +62,7 @@ Filigran      : ${watermark ? 'Evet' : 'Hayır'}
       compression: 'DEFLATE',
       compressionOptions: { level: 6 },
     });
-    const responseBody = archive.buffer.slice(
-      archive.byteOffset,
-      archive.byteOffset + archive.byteLength
-    ) as ArrayBuffer;
-
-    return new NextResponse(responseBody, {
-      status: 200,
+    return new NextResponse(archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength) as ArrayBuffer, {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${folderName}.zip"`,
@@ -84,9 +72,6 @@ Filigran      : ${watermark ? 'Evet' : 'Hayır'}
     });
   } catch (error) {
     console.error('[Studio Download Error]:', error);
-    return NextResponse.json(
-      { error: 'İndirme dosyası oluşturulamadı.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'İndirme dosyası oluşturulamadı.' }, { status: 500 });
   }
 }

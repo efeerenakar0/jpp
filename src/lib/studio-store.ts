@@ -15,6 +15,13 @@ interface StudioSession {
     hdrPhotos: Array<{ name: string; buffer: Buffer }>;
     watermarkedPhotos: Array<{ name: string; buffer: Buffer }>;
   }>;
+  aiPhotos: Array<{
+    name: string;
+    buffer: Buffer;
+    mimeType: string;
+  }>;
+  aiProvider: string | null;
+  aiModel: string | null;
 }
 
 // Global variable survives across warm Lambda calls in Node.js runtime
@@ -38,7 +45,10 @@ export function getOrCreateSession(shootId: string): StudioSession {
       logoBase64: null,
       logoMime: null,
       photos: [],
-      processed: {}
+      processed: {},
+      aiPhotos: [],
+      aiProvider: null,
+      aiModel: null,
     };
   }
   return studioSessions[shootId];
