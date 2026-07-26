@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Bot, Plus, MessageSquare, Calendar, BarChart3, Users, Clock, Loader2, 
-  Target, X, Settings, Key, Phone, ShieldCheck, ExternalLink, Save, Trash2,
-  Search, Sparkles, Coffee, Building2, CheckCircle2, Zap, Send, ArrowUpRight,
-  Filter, PhoneCall, ChevronRight, UserCheck, Smartphone, HelpCircle
+  Bot, Plus, MessageSquare, Calendar, BarChart3, Clock, Loader2,
+  X, Settings, Key, Phone, ShieldCheck, ExternalLink, Save, Trash2,
+  Search, Sparkles, CheckCircle2, Smartphone, HelpCircle
 } from 'lucide-react';
 import ChatInterface from '@/components/fabrika/ChatInterface';
 import AppointmentApproval from '@/components/fabrika/AppointmentApproval';
@@ -16,6 +15,12 @@ interface Message {
   role: string;
   content: string;
   createdAt: string;
+  deliveryStatus?: string;
+  messageType?: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  failedAt?: string | null;
+  errorMessage?: string | null;
 }
 
 interface Conversation {
@@ -25,6 +30,10 @@ interface Conversation {
   channel?: string;
   intent: string;
   summary: string | null;
+  notes?: string | null;
+  tags?: string[];
+  aiEnabled?: boolean;
+  lastCustomerMessageAt?: string | null;
   updatedAt: string;
   createdAt?: string;
   messages: Message[];
@@ -39,9 +48,32 @@ interface Appointment {
   proposedTime: string | null;
   status: string;
   confirmationSent?: boolean;
+  reminderSentAt?: string | null;
   createdAt: string;
   conversation: { summary?: string | null };
 }
+
+interface AssistantMetrics {
+  activeConversations: number;
+  handoffConversations: number;
+  todayMessages: number;
+  incomingMessages: number;
+  outgoingMessages: number;
+  deliveredMessages: number;
+  readMessages: number;
+  failedMessages: number;
+  readRate: number;
+  pendingAppointments: number;
+  approvedToday: number;
+}
+
+type AppointmentAction =
+  | 'approve'
+  | 'reject'
+  | 'resend'
+  | 'reschedule'
+  | 'cancel'
+  | 'remind';
 
 export default function AsistanPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -55,6 +87,8 @@ export default function AsistanPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [appointmentActionId, setAppointmentActionId] = useState<string | null>(null);
+  const [isCleaningData, setIsCleaningData] = useState(false);
+  const [metrics, setMetrics] = useState<AssistantMetrics | null>(null);
 
   // Meta & AI Config State
   const [configForm, setConfigForm] = useState({
@@ -70,21 +104,20 @@ export default function AsistanPage() {
     companyDetails: '',
     websiteUrl: '',
     instagramUrl: '',
-    languages: 'Türkçe'
+    languages: 'Türkçe',
+    fallbackTemplateName: '',
+    templateLanguage: 'tr'
   });
 
   // Modal State
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   
-  // Real-time messages for selected conversation
-  const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
-
   const getDeletedConvIds = (): Set<string> => {
     if (typeof window !== 'undefined') {
       const raw = localStorage.getItem('jasmine_deleted_conv_ids');
       if (raw) {
-        try { return new Set(JSON.parse(raw)); } catch (e) {}
+        try { return new Set(JSON.parse(raw)); } catch {}
       }
     }
     return new Set();
@@ -111,7 +144,7 @@ export default function AsistanPage() {
     if (typeof window !== 'undefined') {
       const raw = localStorage.getItem('jasmine_conversations_cache');
       if (raw) {
-        try { cachedConvs = JSON.parse(raw); } catch (e) {}
+        try { cachedConvs = JSON.parse(raw); } catch {}
       }
     }
 
@@ -162,40 +195,62 @@ export default function AsistanPage() {
     return result;
   };
 
-  const handleClearCache = () => {
+  const clearLocalCache = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('jasmine_conversations_cache');
       localStorage.removeItem('jasmine_deleted_conv_ids');
     }
     setConversations([]);
     setSelectedConvId(null);
-    setCurrentMessages([]);
-    toast.success('Tüm sohbet geçmişi ve eski test verileri sıfırlandı!');
-    fetchData(true);
+  };
+
+  const handleCleanupData = async () => {
+    setIsCleaningData(true);
+    try {
+      const previewResponse = await fetch(
+        '/api/fabrika/assistant/cleanup',
+        { cache: 'no-store' }
+      );
+      const preview = await previewResponse.json();
+      if (!previewResponse.ok) {
+        throw new Error(preview.error || 'Temizlik önizlemesi alınamadı.');
+      }
+      const total =
+        preview.testConversationCount + preview.invalidMessageCount;
+      if (total === 0) {
+        clearLocalCache();
+        await fetchData(true);
+        toast.success('Temizlenecek test veya hatalı kayıt bulunmadı.');
+        return;
+      }
+      const confirmed = window.confirm(
+        `${preview.testConversationCount} test sohbeti ve ${preview.invalidMessageCount} hatalı, gönderilmemiş mesaj kalıcı olarak silinecek. Devam edilsin mi?`
+      );
+      if (!confirmed) {
+        return;
+      }
+      const response = await fetch('/api/fabrika/assistant/cleanup', {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Veriler temizlenemedi.');
+      }
+      clearLocalCache();
+      await fetchData(true);
+      toast.success(
+        `${result.deletedTestConversations} test sohbeti ve ${result.deletedInvalidMessages} hatalı mesaj temizlendi.`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Veriler temizlenemedi.'
+      );
+    } finally {
+      setIsCleaningData(false);
+    }
   };
 
   useEffect(() => {
-    // Instant local cache restoration on page load (excluding demo/deleted)
-    if (typeof window !== 'undefined') {
-      const raw = localStorage.getItem('jasmine_conversations_cache');
-      if (raw) {
-        try {
-          const cached = JSON.parse(raw);
-          if (Array.isArray(cached)) {
-            const cleaned = cached.filter(c => !isDemoOrDeleted(c));
-            localStorage.setItem('jasmine_conversations_cache', JSON.stringify(cleaned));
-            setConversations(cleaned);
-            if (cleaned.length > 0) {
-              setSelectedConvId(cleaned[0].id);
-            } else {
-              setSelectedConvId(null);
-              setCurrentMessages([]);
-            }
-          }
-        } catch (e) {}
-      }
-    }
-
     fetchData(true);
     fetchMetaConfig();
 
@@ -204,6 +259,8 @@ export default function AsistanPage() {
     }, 2000);
 
     return () => clearInterval(interval);
+    // The polling lifecycle is intentionally created once per page mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [isTestingMeta, setIsTestingMeta] = useState(false);
@@ -229,14 +286,19 @@ export default function AsistanPage() {
       } else {
         toast.error(data.error || 'Meta API Bağlantı Hatası', { id: toastId, duration: 9000 });
       }
-    } catch (e: any) {
-      toast.error('Test isteği atılamadı: ' + e?.message, { id: toastId });
+    } catch (error: unknown) {
+      toast.error(
+        `Test isteği atılamadı: ${
+          error instanceof Error ? error.message : 'Bilinmeyen hata'
+        }`,
+        { id: toastId }
+      );
     } finally {
       setIsTestingMeta(false);
     }
   };
 
-  const fetchMetaConfig = async () => {
+  async function fetchMetaConfig() {
     try {
       const res = await fetch('/api/whatsapp/config', { cache: 'no-store' });
       if (res.ok) {
@@ -255,13 +317,16 @@ export default function AsistanPage() {
           companyDetails: data.companyDetails || prev.companyDetails,
           websiteUrl: data.websiteUrl || prev.websiteUrl,
           instagramUrl: data.instagramUrl || prev.instagramUrl,
-          languages: data.languages || prev.languages
+          languages: data.languages || prev.languages,
+          fallbackTemplateName:
+            data.fallbackTemplateName || prev.fallbackTemplateName,
+          templateLanguage: data.templateLanguage || prev.templateLanguage
         }));
       }
-    } catch (e) {
+    } catch {
       console.error('Config fetch error');
     }
-  };
+  }
 
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,13 +353,14 @@ export default function AsistanPage() {
     }
   };
 
-  const fetchData = async (isInitial = false) => {
+  async function fetchData(isInitial = false) {
     try {
       if (isInitial) setIsLoading(true);
 
-      const [convRes, apptRes] = await Promise.all([
+      const [convRes, apptRes, metricsRes] = await Promise.all([
         fetch('/api/fabrika/assistant/conversations', { cache: 'no-store' }),
-        fetch('/api/fabrika/assistant/appointment', { cache: 'no-store' })
+        fetch('/api/fabrika/assistant/appointment', { cache: 'no-store' }),
+        fetch('/api/fabrika/assistant/metrics', { cache: 'no-store' })
       ]);
       if (convRes.ok) {
         const data = await convRes.json();
@@ -314,12 +380,15 @@ export default function AsistanPage() {
         const data = await apptRes.json();
         if (Array.isArray(data)) setAppointments(data);
       }
+      if (metricsRes.ok) {
+        setMetrics(await metricsRes.json());
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       if (isInitial) setIsLoading(false);
     }
-  };
+  }
 
   const handleDeleteConversation = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -328,7 +397,7 @@ export default function AsistanPage() {
     const toastId = toast.loading('Sohbet siliniyor...');
     try {
       await fetch(`/api/fabrika/assistant/conversations?id=${id}`, { method: 'DELETE' });
-    } catch (error) {}
+    } catch {}
 
     // Record deleted ID in LocalStorage permanently
     if (typeof window !== 'undefined') {
@@ -349,38 +418,8 @@ export default function AsistanPage() {
     toast.success('Sohbet başarıyla silindi!', { id: toastId });
   };
 
-  useEffect(() => {
-    if (selectedConvId) {
-      const conv = conversations.find(c => c.id === selectedConvId);
-      if (conv && conv.messages) {
-        setCurrentMessages(prev => {
-          if (JSON.stringify(prev) === JSON.stringify(conv.messages)) return prev;
-          return conv.messages;
-        });
-      }
-    }
-  }, [selectedConvId, conversations]);
-
   const handleSendMessage = async (text: string) => {
     if (!selectedConvId) return;
-
-    const newMsg: Message = { id: `msg_${Date.now()}`, role: 'customer', content: text, createdAt: new Date().toISOString() };
-    
-    // Update local state & LocalStorage immediately
-    setCurrentMessages(prev => [...prev, newMsg]);
-    setConversations(prev => {
-      const updated = prev.map(c => {
-        if (c.id === selectedConvId) {
-          const msgs = [...(c.messages || []), newMsg];
-          return { ...c, summary: text, updatedAt: new Date().toISOString(), messages: msgs, _count: { messages: msgs.length } };
-        }
-        return c;
-      });
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('jasmine_conversations_cache', JSON.stringify(updated));
-      }
-      return updated;
-    });
 
     try {
       const res = await fetch('/api/fabrika/assistant/chat', {
@@ -393,7 +432,6 @@ export default function AsistanPage() {
         throw new Error(data.error || 'Mesaj gönderilemedi.');
       }
       if (data.messageRecord) {
-        setCurrentMessages(prev => [...prev, data.messageRecord]);
         setConversations(prev => {
           const updated = prev.map(c => {
             if (c.id === selectedConvId) {
@@ -408,9 +446,57 @@ export default function AsistanPage() {
           return updated;
         });
       }
+      toast.success(
+        data.sentToWhatsApp
+          ? 'Mesaj WhatsApp’a gönderildi.'
+          : 'Mesaj konuşmaya kaydedildi.'
+      );
     } catch (error) {
       console.error('Failed to send message', error);
       toast.error(error instanceof Error ? error.message : 'Mesaj gönderilemedi.');
+    }
+  };
+
+  const handleUpdateConversation = async (updates: {
+    notes?: string;
+    tags?: string[];
+    aiEnabled?: boolean;
+  }) => {
+    if (!selectedConvId) return;
+
+    try {
+      const response = await fetch('/api/fabrika/assistant/conversations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedConvId, ...updates }),
+      });
+      const updatedConversation = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          updatedConversation.error || 'Müşteri bilgileri güncellenemedi.'
+        );
+      }
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === selectedConvId
+            ? { ...conversation, ...updatedConversation }
+            : conversation
+        )
+      );
+      toast.success(
+        typeof updates.aiEnabled === 'boolean'
+          ? updates.aiEnabled
+            ? 'Yapay zeka yeniden devreye alındı.'
+            : 'Sohbet insan temsilciye devredildi.'
+          : 'Müşteri bilgileri kaydedildi.'
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Müşteri bilgileri güncellenemedi.'
+      );
+      throw error;
     }
   };
 
@@ -436,58 +522,41 @@ export default function AsistanPage() {
     }
   };
 
-  const handleApprove = async (id: string) => {
+  const handleAppointmentAction = async (
+    id: string,
+    action: AppointmentAction,
+    data?: { proposedDate?: string; proposedTime?: string }
+  ) => {
     setAppointmentActionId(id);
     try {
       const res = await fetch('/api/fabrika/assistant/appointment', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action: 'approve' })
+        body: JSON.stringify({ id, action, ...data })
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Randevu onaylanamadı.');
-      toast.success('Randevu onaylandı ve WhatsApp mesajı gönderildi.');
+      if (!res.ok) {
+        throw new Error(result.error || 'Randevu işlemi tamamlanamadı.');
+      }
+      const successMessages: Record<AppointmentAction, string> = {
+        approve: 'Randevu onaylandı ve WhatsApp mesajı gönderildi.',
+        reject: 'Randevu talebi reddedildi.',
+        resend: 'Randevu onayı WhatsApp üzerinden gönderildi.',
+        reschedule: 'Randevu değiştirildi ve müşteriye bildirildi.',
+        cancel: 'Randevu iptal edildi ve müşteriye bildirildi.',
+        remind: 'Randevu hatırlatması WhatsApp üzerinden gönderildi.',
+      };
+      toast.success(
+        action === 'reschedule' && !result.messageRecord
+          ? 'Randevu tarihi kaydedildi; onay bekliyor.'
+          : successMessages[action]
+      );
       await fetchData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Randevu onaylanamadı.');
-    } finally {
-      setAppointmentActionId(null);
-    }
-  };
-
-  const handleResendConfirmation = async (id: string) => {
-    setAppointmentActionId(id);
-    try {
-      const res = await fetch('/api/fabrika/assistant/appointment', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action: 'resend' })
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'WhatsApp mesajı gönderilemedi.');
-      toast.success('Randevu onayı WhatsApp üzerinden gönderildi.');
-      await fetchData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'WhatsApp mesajı gönderilemedi.');
-    } finally {
-      setAppointmentActionId(null);
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    setAppointmentActionId(id);
-    try {
-      const res = await fetch('/api/fabrika/assistant/appointment', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action: 'reject' })
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Randevu reddedilemedi.');
-      toast.success('Randevu talebi reddedildi.');
-      await fetchData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Randevu reddedilemedi.');
+      toast.error(
+        error instanceof Error ? error.message : 'Randevu işlemi tamamlanamadı.'
+      );
+      throw error;
     } finally {
       setAppointmentActionId(null);
     }
@@ -512,6 +581,9 @@ export default function AsistanPage() {
     if (filterIntent === 'HOT') return conv.intent === 'INVESTMENT' || conv.intent === 'BOTH';
     return true;
   });
+  const selectedConversation = conversations.find(
+    (conversation) => conversation.id === selectedConvId
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-rose-500 selection:text-white relative overflow-x-hidden">
@@ -739,6 +811,66 @@ export default function AsistanPage() {
                 </div>
               </div>
 
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <Clock className="w-4 h-4 text-amber-300 mt-0.5 shrink-0" />
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-200">
+                      24 Saat Sonrası Meta Şablonu
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Meta’da onaylanmış ve gövdesinde tek metin değişkeni bulunan
+                      şablonun adını girin. Süre dolduğunda manuel mesajlar ve
+                      randevu bildirimleri bu şablonla gönderilir.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px] gap-3">
+                  <div>
+                    <label
+                      htmlFor="fallback-template-name"
+                      className="block text-[11px] font-semibold text-slate-300 mb-1"
+                    >
+                      Onaylı şablon adı
+                    </label>
+                    <input
+                      id="fallback-template-name"
+                      type="text"
+                      value={configForm.fallbackTemplateName}
+                      onChange={(event) =>
+                        setConfigForm({
+                          ...configForm,
+                          fallbackTemplateName: event.target.value,
+                        })
+                      }
+                      placeholder="jasmine_bildirim"
+                      className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-700 focus-visible:ring-2 focus-visible:ring-amber-400 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="template-language"
+                      className="block text-[11px] font-semibold text-slate-300 mb-1"
+                    >
+                      Dil kodu
+                    </label>
+                    <input
+                      id="template-language"
+                      type="text"
+                      value={configForm.templateLanguage}
+                      onChange={(event) =>
+                        setConfigForm({
+                          ...configForm,
+                          templateLanguage: event.target.value,
+                        })
+                      }
+                      placeholder="tr"
+                      className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-700 focus-visible:ring-2 focus-visible:ring-amber-400 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Webhook Callback Display & Quick Guide Box */}
               <div className="bg-emerald-950/20 p-4 rounded-2xl border border-emerald-500/30 text-xs space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -826,10 +958,12 @@ export default function AsistanPage() {
                   <h1 className="text-xl font-extrabold text-white flex items-center gap-2">
                     Yapay Zeka Asistanı & WhatsApp CRM
                     <span className="text-xs font-normal px-2.5 py-0.5 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-full font-semibold">
-                      v2.4 Live Engine
+                      v3.0 CRM
                     </span>
                   </h1>
-                  <p className="text-xs text-slate-400">Otonom müşteri görüşmeleri, randevu takibi ve ilan sunum paneli</p>
+                  <p className="text-xs text-slate-400">
+                    WhatsApp teslim takibi, insan devri ve uçtan uca randevu yönetimi
+                  </p>
                 </div>
               </div>
             </div>
@@ -848,11 +982,17 @@ export default function AsistanPage() {
               </button>
 
               <button 
-                onClick={handleClearCache}
+                onClick={handleCleanupData}
+                disabled={isCleaningData}
                 className="flex items-center gap-1.5 text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 px-3.5 py-2 rounded-xl border border-rose-500/30 transition-all cursor-pointer shadow-sm active:scale-95"
-                title="Tüm eski test sohbetlerini ve tarayıcı önbelleğini sıfırla"
+                title="Test sohbetlerini ve hatalı, gönderilmemiş mesajları önizleyip temizle"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Önbelleği Sıfırla
+                {isCleaningData ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                )}
+                Veri Temizliği
               </button>
 
               <button 
@@ -872,7 +1012,12 @@ export default function AsistanPage() {
               </div>
               <div>
                 <div className="text-[11px] text-slate-400 font-medium">Aktif Sohbetler</div>
-                <div className="text-base font-extrabold text-white">{conversations.length} Müşteri</div>
+                <div className="text-base font-extrabold text-white">
+                  {metrics?.activeConversations ?? conversations.length} müşteri
+                </div>
+                <div className="text-[10px] text-blue-300">
+                  {metrics?.handoffConversations ?? 0} insan temsilcide
+                </div>
               </div>
             </div>
 
@@ -886,26 +1031,39 @@ export default function AsistanPage() {
               <div>
                 <div className="text-[11px] text-slate-400 font-medium">Onay Bekleyen Randevular</div>
                 <div className="text-base font-extrabold text-rose-400">{pendingAppointments} Talep</div>
+                <div className="text-[10px] text-emerald-300">
+                  Bugün {metrics?.approvedToday ?? 0} onay
+                </div>
               </div>
             </div>
 
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-3.5 flex items-center gap-3.5 hover:border-slate-700 transition-all">
               <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-                <Zap className="w-4 h-4" />
+                <BarChart3 className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400 font-medium">AI Cevaplama Hızı</div>
-                <div className="text-base font-extrabold text-emerald-400">&lt; 0.05s Asenkron</div>
+                <div className="text-[11px] text-slate-400 font-medium">Bugünkü Mesajlar</div>
+                <div className="text-base font-extrabold text-emerald-400">
+                  {metrics?.todayMessages ?? 0} mesaj
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  {metrics?.incomingMessages ?? 0} gelen · {metrics?.outgoingMessages ?? 0} giden
+                </div>
               </div>
             </div>
 
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-3.5 flex items-center gap-3.5 hover:border-slate-700 transition-all">
               <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20">
-                <Building2 className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400 font-medium">Canlı Portföy Sunumu</div>
-                <div className="text-base font-extrabold text-purple-300">Alanya Projeleri</div>
+                <div className="text-[11px] text-slate-400 font-medium">Okunma Oranı</div>
+                <div className="text-base font-extrabold text-purple-300">
+                  %{metrics?.readRate ?? 0}
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  {metrics?.deliveredMessages ?? 0} teslim · {metrics?.failedMessages ?? 0} hata
+                </div>
               </div>
             </div>
           </div>
@@ -977,9 +1135,7 @@ export default function AsistanPage() {
         ) : activeTab === 'appointments' ? (
           <AppointmentApproval 
             appointments={appointments} 
-            onApprove={handleApprove} 
-            onReject={handleReject}
-            onResend={handleResendConfirmation}
+            onAction={handleAppointmentAction}
             processingId={appointmentActionId}
           />
         ) : (
@@ -999,11 +1155,16 @@ export default function AsistanPage() {
                   />
                 </div>
                 <button
-                  onClick={handleClearCache}
+                  onClick={handleCleanupData}
+                  disabled={isCleaningData}
                   className="p-2.5 bg-rose-950/50 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 rounded-xl transition-all cursor-pointer shrink-0"
-                  title="Eski sohbetleri ve tüm önbelleği temizle"
+                  title="Test ve hatalı verileri temizle"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  {isCleaningData ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
                 </button>
               </div>
 
@@ -1030,6 +1191,11 @@ export default function AsistanPage() {
                           {conv.customerName}
                         </div>
                         <div className="flex items-center gap-1">
+                          {conv.aiEnabled === false && (
+                            <span className="text-[9px] px-2 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300 font-bold">
+                              İnsanda
+                            </span>
+                          )}
                           <span className={`text-[10px] px-2.5 py-0.5 rounded-full border font-bold ${intentColors[conv.intent] || intentColors.UNKNOWN}`}>
                             {conv.intent === 'INVESTMENT' ? 'Yatırımcı' : conv.intent === 'RESIDENTIAL' ? 'Konut' : 'İlgilenen'}
                           </span>
@@ -1046,6 +1212,18 @@ export default function AsistanPage() {
                       <div className="text-xs text-slate-400 truncate mb-2">
                         {conv.summary || 'Henüz mesaj yok'}
                       </div>
+                      {conv.tags && conv.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {conv.tags.slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-1.5 py-0.5 text-[9px] rounded bg-purple-500/10 border border-purple-500/20 text-purple-300"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                       <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-800/50 pt-2">
                         <span className="flex items-center gap-1 font-mono">
@@ -1054,7 +1232,7 @@ export default function AsistanPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {new Date(conv.updatedAt || Date.now()).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(conv.updatedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     </div>
@@ -1067,12 +1245,18 @@ export default function AsistanPage() {
             <div className="lg:col-span-8 h-full">
               {selectedConvId ? (
                 <ChatInterface 
+                  key={selectedConvId}
                   conversationId={selectedConvId}
-                  messages={currentMessages}
+                  messages={selectedConversation?.messages || []}
                   onSendMessage={handleSendMessage}
+                  onUpdateConversation={handleUpdateConversation}
                   onDeleteConversation={() => handleDeleteConversation(selectedConvId)}
-                  customerName={conversations.find(c => c.id === selectedConvId)?.customerName || 'Müşteri'}
-                  intent={conversations.find(c => c.id === selectedConvId)?.intent || 'UNKNOWN'}
+                  customerName={selectedConversation?.customerName || 'Müşteri'}
+                  intent={selectedConversation?.intent || 'UNKNOWN'}
+                  notes={selectedConversation?.notes}
+                  tags={selectedConversation?.tags}
+                  aiEnabled={selectedConversation?.aiEnabled !== false}
+                  lastCustomerMessageAt={selectedConversation?.lastCustomerMessageAt}
                 />
               ) : (
                 <div className="h-full bg-slate-900/60 border border-slate-800/80 rounded-3xl flex flex-col items-center justify-center p-8 text-center shadow-2xl">

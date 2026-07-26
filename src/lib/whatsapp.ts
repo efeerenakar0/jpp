@@ -5,6 +5,13 @@ export interface SendTextMessageParams {
   text: string;
 }
 
+export interface SendTemplateMessageParams {
+  to: string;
+  templateName: string;
+  languageCode: string;
+  bodyText: string;
+}
+
 export interface MetaWhatsAppResponse {
   messaging_product: string;
   contacts?: Array<{ input: string; wa_id: string }>;
@@ -109,7 +116,7 @@ export async function testMetaWhatsAppConnection(
       headers: { 'Authorization': `Bearer ${activeToken}` }
     });
     return res.ok;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -124,7 +131,7 @@ export async function sendMetaWhatsAppMessage(params: SendTextMessageParams): Pr
     throw new Error('Meta WhatsApp Cloud API credentials missing (Token or Phone Number ID not configured)');
   }
 
-  let cleanPhone = params.to.replace(/[^0-9]/g, '');
+  const cleanPhone = params.to.replace(/[^0-9]/g, '');
   if (!cleanPhone) {
     throw new Error('Invalid recipient phone number');
   }
@@ -160,5 +167,62 @@ export async function sendMetaWhatsAppMessage(params: SendTextMessageParams): Pr
   }
 
   console.log('[Meta WhatsApp API Success]:', data);
+  return data as MetaWhatsAppResponse;
+}
+
+/**
+ * Send an approved Meta template outside the 24-hour customer service window.
+ * The configured template must contain one text variable in its body.
+ */
+export async function sendMetaWhatsAppTemplate(
+  params: SendTemplateMessageParams
+): Promise<MetaWhatsAppResponse> {
+  const creds = await getActiveWhatsAppCredentials();
+  const cleanPhone = params.to.replace(/[^0-9]/g, '');
+  const templateName = params.templateName.trim();
+  const languageCode = params.languageCode.trim() || 'tr';
+
+  if (!cleanPhone) {
+    throw new Error('Geçersiz alıcı telefon numarası.');
+  }
+  if (!templateName) {
+    throw new Error('Meta WhatsApp şablon adı yapılandırılmamış.');
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/v21.0/${creds.phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${creds.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanPhone,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [
+            {
+              type: 'body',
+              parameters: [{ type: 'text', text: params.bodyText }],
+            },
+          ],
+        },
+      }),
+    }
+  );
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error('[Meta WhatsApp Template Error]:', response.status, data);
+    throw new Error(
+      data?.error?.message || `Meta şablon API hatası (${response.status})`
+    );
+  }
+
   return data as MetaWhatsAppResponse;
 }
