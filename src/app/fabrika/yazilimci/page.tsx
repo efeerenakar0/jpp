@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Monitor, Code, Download, MessageSquare, Send, Loader2, Server, Globe } from 'lucide-react';
+import { Monitor, Code, Download, Send, Loader2, Server, Globe } from 'lucide-react';
+import PageHeader from '@/components/fabrika/PageHeader';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function YazilimciPage() {
@@ -80,7 +81,7 @@ export default function YazilimciPage() {
         if (data.reply) {
             setChatMessages(prev => [...prev, { role: 'model', content: data.reply }]);
         }
-    } catch (error) {
+    } catch {
         toast.error('Bağlantı hatası.');
     } finally {
         setIsTyping(false);
@@ -88,30 +89,26 @@ export default function YazilimciPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 p-4 md:p-8 font-sans">
+    <div className="space-y-6 pb-8 text-slate-100">
       <Toaster position="top-right" />
-      <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-300">
+      <div className="space-y-6">
         
-        {/* Header - Stitch Glass */}
-        <div className="bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl backdrop-blur-2xl flex flex-col md:flex-row items-center gap-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-2xl flex items-center justify-center border border-cyan-400/30 shadow-lg shadow-cyan-500/20 shrink-0">
-                <Code className="w-8 h-8 text-slate-950 stroke-[2.5]" />
-            </div>
-            <div>
-                <h1 className="text-2xl font-black text-white flex items-center gap-2">
-                  Yazılımcı & IT Entegratör
-                  <span className="text-xs px-2.5 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 rounded-full font-bold">
-                    Otonom Web Şablon Oluşturucu
-                  </span>
-                </h1>
-                <p className="text-xs text-slate-400 font-medium mt-1">Web sitenizi saniyeler içinde inşa edin ve yayınlamak için yapay zeka destekli IT uzmanından yardım alın.</p>
-            </div>
-        </div>
+        <PageHeader
+          eyebrow="Web ve teknik operasyon"
+          title="Yazılımcı & IT Entegratör"
+          description="Web sitesi şablonunuzu üretin ve yayın sürecinde yapay zeka destekli teknik yardım alın."
+          icon={Code}
+          actions={
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
+              Web şablon oluşturucu
+            </span>
+          }
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             
             {/* Left Pane: Onboarding & Site Generator */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-8 backdrop-blur-xl shadow-2xl flex flex-col h-[700px]">
+            <div className="flex min-h-[640px] flex-col rounded-xl border border-slate-800 bg-slate-900 p-5 sm:p-6 lg:h-[700px]">
                 <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                     <Globe className="w-5 h-5 text-cyan-400" /> Web Sitesi Kurulumu
                 </h2>
@@ -201,7 +198,7 @@ export default function YazilimciPage() {
             </div>
 
             {/* Right Pane: IT Support Chatbot */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col h-[700px] overflow-hidden">
+            <div className="flex min-h-[640px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900 lg:h-[700px]">
                 <div className="bg-slate-950 p-6 flex justify-between items-center border-b border-slate-800">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800">

@@ -19,7 +19,6 @@ export default function AdCopyCard({
   platform,
   headline,
   body,
-  callToAction,
   targetUrl,
   approved,
   onApprove
@@ -63,14 +62,14 @@ export default function AdCopyCard({
   const Icon = config.icon;
 
   const renderGoogleAds = () => {
-    let parsedBody: any = {};
+    let parsedBody: Record<string, string> = {};
     try {
       parsedBody = JSON.parse(body);
     } catch {
       parsedBody = { description1: body };
     }
     
-    let parsedHeadline: any = {};
+    let parsedHeadline: Record<string, string> = {};
     try {
       parsedHeadline = JSON.parse(headline);
     } catch {
@@ -121,7 +120,7 @@ export default function AdCopyCard({
   };
 
   const renderInstagram = () => {
-    let parsedBody: any = {};
+    let parsedBody: { caption?: string; hashtags?: string[] } = {};
     try {
       parsedBody = JSON.parse(body);
     } catch {

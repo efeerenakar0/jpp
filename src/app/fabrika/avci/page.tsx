@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import StatusBoard from '@/components/fabrika/StatusBoard';
 import WhatsAppButton from '@/components/fabrika/WhatsAppButton';
 import WhatsAppCRM from '@/components/fabrika/WhatsAppCRM';
+import FilterBar from '@/components/fabrika/FilterBar';
+import PageHeader from '@/components/fabrika/PageHeader';
+import StatCard from '@/components/fabrika/StatCard';
 import { 
   Crosshair, 
   Sparkles, 
@@ -290,84 +293,67 @@ export default function AvciPage() {
   const greenListings = allListings.filter(l => l.status === 'GREEN');
 
   return (
-    <div className="min-h-screen bg-[#06080d] text-slate-100 p-4 sm:p-8 font-sans selection:bg-amber-500 selection:text-black">
+    <div className="space-y-6 pb-8 text-slate-100">
       <Toaster position="top-right" />
       
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="space-y-6">
         
-        {/* Header Hero Banner - Ultra Luxury Dark Glassmorphism */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800/80 p-6 sm:p-8 rounded-3xl backdrop-blur-3xl shadow-2xl">
-          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 -mb-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-            <div className="flex items-center gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shadow-2xl shadow-amber-500/30 shrink-0 border border-amber-300/40">
-                <Crosshair className="w-7 h-7 text-slate-950 stroke-[2.5]" />
-              </div>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                    AVCI MODÜLÜ PRO
-                  </h1>
-                  <span className="text-[11px] px-3 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 rounded-full font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-                    <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                    Otonom Portföy Avcısı & AI Değerleme
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-400 font-medium mt-1 max-w-xl leading-relaxed">
-                  Sahibinden.com bot korumalarını aşın, sahibinden satılık ilanları ve mal sahibi numaralarını fabrikanıza çekin.
-                </p>
-              </div>
-            </div>
-            
-            {/* Quick Action Buttons & Settings Icon */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-              <button 
+        <PageHeader
+          eyebrow="Portföy operasyonu"
+          title="Avcı"
+          description="İlanları toplayın, durumlarını yönetin, değerleme çalıştırın ve mal sahibi iletişim sürecini takip edin."
+          icon={Crosshair}
+          actions={
+            <>
+              <button
+                type="button"
                 onClick={() => setSettingsModalOpen(true)}
-                className="px-4 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-amber-400 font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95 shadow-lg"
-                title="Firma & AI Ayarları"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800"
               >
-                <Settings className="w-4 h-4 text-amber-400 animate-spin-slow" /> Firma & AI Ayarları
+                <Settings className="h-4 w-4" /> Firma & AI ayarları
               </button>
-
-              <button 
+              <button
+                type="button"
                 onClick={() => setAddModalOpen(true)}
-                className="px-5 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-2xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
               >
-                <Plus className="w-4 h-4 stroke-[3]" /> Manuel İlan Ekle
+                <Plus className="h-4 w-4" /> Manuel ilan ekle
               </button>
-
-              <button 
+              <button
+                type="button"
                 onClick={handleExportCSV}
-                className="px-4 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-95"
-                title="CSV İndir"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> CSV
+                <FileSpreadsheet className="h-4 w-4 text-emerald-400" /> CSV indir
               </button>
+            </>
+          }
+        />
 
-              <div className="flex gap-2 shrink-0">
-                <div className="text-center bg-slate-950/80 px-4 py-2.5 rounded-2xl border border-slate-800/90">
-                  <div className="text-xl font-black text-white">{allListings.length}</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-black tracking-wider">İlan</div>
-                </div>
-                <div className="text-center bg-amber-500/10 px-4 py-2.5 rounded-2xl border border-amber-500/20">
-                  <div className="text-xl font-black text-amber-400">{yellowListings.length}</div>
-                  <div className="text-[9px] text-amber-400/80 uppercase font-black tracking-wider">Sıcak</div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-3 lg:max-w-xl">
+          <StatCard label="Toplam ilan" value={allListings.length} icon={Layers} status="success" />
+          <StatCard label="Sıcak fırsat" value={yellowListings.length} icon={Zap} status="warning" />
         </div>
 
         {/* Futuristic Tab Bar */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-950/80 p-2 rounded-2xl border border-slate-800/90 shadow-xl backdrop-blur-2xl">
+        <FilterBar
+          label="Avcı görünümü"
+          actions={
+            <button
+              type="button"
+              onClick={fetchListings}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Yenile
+            </button>
+          }
+        >
           <div className="flex flex-wrap gap-1.5 w-full sm:w-auto">
             <button 
               onClick={() => { setActiveTab('pano'); fetchListings(); }}
               className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'pano' 
-                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' 
+                  ? 'bg-emerald-500 text-emerald-950'
                   : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
@@ -378,7 +364,7 @@ export default function AvciPage() {
               onClick={() => { setActiveTab('analiz'); fetchListings(); }}
               className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'analiz' 
-                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' 
+                  ? 'bg-emerald-500 text-emerald-950'
                   : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
@@ -389,7 +375,7 @@ export default function AvciPage() {
               onClick={() => { setActiveTab('mesaj'); fetchListings(); }}
               className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'mesaj' 
-                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' 
+                  ? 'bg-emerald-500 text-emerald-950'
                   : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
@@ -400,7 +386,7 @@ export default function AvciPage() {
               onClick={() => { setActiveTab('eklenti'); fetchListings(); }}
               className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'eklenti' 
-                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' 
+                  ? 'bg-emerald-500 text-emerald-950'
                   : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
@@ -411,7 +397,7 @@ export default function AvciPage() {
               onClick={() => { setActiveTab('whatsapp'); }}
               className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'whatsapp' 
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/20' 
+                  ? 'bg-emerald-500 text-emerald-950'
                   : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
@@ -420,16 +406,10 @@ export default function AvciPage() {
             </button>
           </div>
           
-          <button 
-            onClick={fetchListings}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-xl transition-all border border-slate-800/90 cursor-pointer active:scale-95 ml-auto sm:ml-0"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Yenile
-          </button>
-        </div>
+        </FilterBar>
 
         {/* Tab Content Box */}
-        <div className="bg-slate-950/60 border border-slate-800/80 rounded-3xl p-6 min-h-[600px] shadow-2xl backdrop-blur-2xl relative">
+        <div className="relative min-h-[600px] rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
           
           {/* TAB 1: DURUM PANOSU */}
           {activeTab === 'pano' && (

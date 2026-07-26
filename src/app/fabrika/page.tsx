@@ -1,27 +1,28 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { 
-  Crown,
+import {
   Activity,
-  Send,
+  Aperture,
+  ArrowRight,
   Bell,
+  Clock,
   Code2,
   Crosshair,
+  Crown,
   Megaphone,
   MessageCircle,
-  Aperture,
-  Sparkles,
-  ArrowRight,
-  Cpu,
-  Clock,
-  Layers,
-  AlertTriangle
+  Send,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
+import EmptyState from '@/components/fabrika/EmptyState';
+import NotificationPanel from '@/components/fabrika/NotificationPanel';
+import PageHeader from '@/components/fabrika/PageHeader';
+import StatCard from '@/components/fabrika/StatCard';
 
 type Notification = {
   id: string;
@@ -49,14 +50,22 @@ type OperationalContext = {
 
 const getNotificationStyles = (type: string) => {
   switch (type) {
-    case 'GREEN_LISTING': return { icon: Crosshair, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
-    case 'WEBSITE_GENERATED': return { icon: Code2, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' };
-    case 'AD_COPY_READY': return { icon: Megaphone, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
-    case 'APPOINTMENT_REQUEST': return { icon: MessageCircle, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' };
-    case 'STUDIO_READY': return { icon: Aperture, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' };
-    case 'NEW_CUSTOMER_MESSAGE': return { icon: MessageCircle, color: 'text-amber-300', bg: 'bg-amber-500/10 border-amber-500/30' };
-    case 'SYSTEM': return { icon: AlertTriangle, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' };
-    default: return { icon: Bell, color: 'text-slate-400', bg: 'bg-slate-800 border-slate-700' };
+    case 'GREEN_LISTING':
+      return { icon: Crosshair, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
+    case 'WEBSITE_GENERATED':
+      return { icon: Code2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
+    case 'AD_COPY_READY':
+      return { icon: Megaphone, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
+    case 'APPOINTMENT_REQUEST':
+      return { icon: MessageCircle, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
+    case 'STUDIO_READY':
+      return { icon: Aperture, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
+    case 'NEW_CUSTOMER_MESSAGE':
+      return { icon: MessageCircle, color: 'text-amber-300', bg: 'bg-amber-500/10 border-amber-500/30' };
+    case 'SYSTEM':
+      return { icon: AlertTriangle, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' };
+    default:
+      return { icon: Bell, color: 'text-slate-400', bg: 'bg-slate-800 border-slate-700' };
   }
 };
 
@@ -108,39 +117,45 @@ export default function CommandCenter() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!inputText.trim()) return;
 
     const userMessage = inputText.trim();
     setInputText('');
-    
+
     const tempId = Date.now().toString();
-    setMessages(prev => [...prev, {
-      id: tempId,
-      role: 'patron',
-      content: userMessage,
-      createdAt: new Date().toISOString()
-    }]);
+    setMessages((previous) => [
+      ...previous,
+      {
+        id: tempId,
+        role: 'patron',
+        content: userMessage,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
 
     setIsSending(true);
 
     try {
-      const res = await fetch('/api/fabrika/general-manager/chat', {
+      const response = await fetch('/api/fabrika/general-manager/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({ message: userMessage }),
       });
-      
-      const data = await res.json();
+
+      const data = await response.json();
       if (data.success) {
-        setMessages(prev => [...prev.filter(m => m.id !== tempId), {
-          id: tempId,
-          role: 'patron',
-          content: userMessage,
-          createdAt: new Date().toISOString()
-        }, data.message]);
-        
+        setMessages((previous) => [
+          ...previous.filter((message) => message.id !== tempId),
+          {
+            id: tempId,
+            role: 'patron',
+            content: userMessage,
+            createdAt: new Date().toISOString(),
+          },
+          data.message,
+        ]);
         fetchData();
       } else {
         toast.error(data.error || 'Mesaj gönderilemedi');
@@ -155,247 +170,199 @@ export default function CommandCenter() {
   const modules = [
     {
       title: 'Avcı',
-      subtitle: 'AI Sahibinden İlan Toplama & İkna Motoru',
+      subtitle: 'Sahibinden ilan toplama ve ikna operasyonu',
       icon: Crosshair,
       href: '/fabrika/avci',
-      color: 'from-amber-500 to-emerald-500',
       badge: `${context.huntedListings} kayıt`,
-      badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
     },
     {
-      title: 'Asistan (CRM)',
-      subtitle: 'Efe AI WhatsApp Temsilcisi & Müşteri Takibi',
+      title: 'Asistan',
+      subtitle: 'WhatsApp temsilcisi ve müşteri takibi',
       icon: MessageCircle,
       href: '/fabrika/asistan',
-      color: 'from-rose-500 to-pink-600',
-      badge: `${context.activeConversations} aktif sohbet`,
-      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+      badge: `${context.activeConversations} sohbet`,
     },
     {
       title: 'Pazarlamacı',
-      subtitle: 'AI Reklam Metinleri, Instagram & Google Ads',
+      subtitle: 'Reklam metni ve kampanya üretimi',
       icon: Megaphone,
       href: '/fabrika/pazarlamaci',
-      color: 'from-amber-400 to-amber-600',
-      badge: 'AI taslak üretimi',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+      badge: 'AI taslak',
     },
     {
       title: 'Stüdyo',
-      subtitle: 'Işık, renk, keskinlik & filigran motoru',
+      subtitle: 'Portföy görseli iyileştirme ve indirme',
       icon: Aperture,
       href: '/fabrika/studyo',
-      color: 'from-purple-500 to-indigo-600',
-      badge: 'Sharp işleme',
-      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+      badge: 'Görsel AI',
     },
     {
       title: 'Yazılımcı',
-      subtitle: 'Emlak Acentesi Web Sitesi Üretim & Export',
+      subtitle: 'Web sitesi üretimi ve teknik destek',
       icon: Code2,
       href: '/fabrika/yazilimci',
-      color: 'from-cyan-400 to-blue-600',
-      badge: 'ZIP Exporter',
-      badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
-    }
+      badge: 'ZIP export',
+    },
   ];
 
   return (
-    <div className="space-y-8 max-w-[1650px] mx-auto pb-12">
-      
-      {/* TOP BANNER & METRICS */}
-      <div className="relative rounded-3xl overflow-hidden glass-card p-8 border border-slate-800 shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-[140px] pointer-events-none" />
+    <div className="space-y-6 pb-8">
+      <PageHeader
+        eyebrow="Operasyon görünümü"
+        title="Jasmine Group Komuta Merkezi"
+        description="Portföy, müşteri iletişimi, pazarlama ve üretim operasyonlarını tek bir çalışma alanından yönetin."
+        icon={Crown}
+        actions={
+          <>
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
+              Pilot sürüm
+            </span>
+            <span className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300">
+              İnsan onaylı
+            </span>
+          </>
+        }
+      />
 
-        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Jasmine Group Pilot Sürümü
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
-                <Cpu className="w-3.5 h-3.5" /> İnsan Onaylı Operasyon
-              </span>
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-extrabold text-white tracking-tight font-heading">
-              Jasmine Group Komuta Merkezi
-            </h1>
-            <p className="text-slate-400 text-sm mt-1 max-w-2xl font-sans">
-              Tüm yapay zeka operasyonlarını, WhatsApp görüşmelerini, ilan avlama süreçlerini ve görsel stüdyoyu tek ekrandan yönetin.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-emerald-400">{context.activeProjects}</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-0.5">Aktif Portföy</div>
-            </div>
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-amber-400">{context.huntedListings}</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-0.5">Avcı Kaydı</div>
-            </div>
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-cyan-400">{context.activeConversations}</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-0.5">Aktif Sohbet</div>
-            </div>
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-center">
-              <div className="text-2xl font-black text-purple-400">{context.pendingAppointments}</div>
-              <div className="text-[11px] text-slate-400 font-medium mt-0.5">Bekleyen Randevu</div>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Aktif portföy" value={context.activeProjects} icon={Activity} status="success" />
+        <StatCard label="Avcı kaydı" value={context.huntedListings} icon={Crosshair} />
+        <StatCard label="Aktif sohbet" value={context.activeConversations} icon={MessageCircle} status="success" />
+        <StatCard label="Bekleyen randevu" value={context.pendingAppointments} icon={Clock} status="warning" />
       </div>
 
-      {/* MODULE LAUNCHER CARDS GRID */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white tracking-tight font-heading flex items-center gap-2">
-            <Layers className="w-5 h-5 text-emerald-400" /> Operasyonel YZ Modülleri
-          </h2>
-          <span className="text-xs text-slate-400">5 Aktif Modül Hazır</span>
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-white">Operasyon modülleri</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Günlük iş akışınız için aktif çalışma alanları</p>
+          </div>
+          <span className="text-xs text-slate-500">5 modül</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          {modules.map((mod) => {
-            const Icon = mod.icon;
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {modules.map((module) => {
+            const Icon = module.icon;
             return (
-              <Link 
-                key={mod.title}
-                href={mod.href}
-                className="group relative rounded-2xl bg-slate-900/80 border border-slate-800/90 p-5 hover:border-slate-700 transition-all duration-300 shadow-lg hover:shadow-2xl flex flex-col justify-between overflow-hidden"
+              <Link
+                key={module.title}
+                href={module.href}
+                className="group flex min-h-44 flex-col justify-between rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-emerald-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
               >
-                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${mod.color} opacity-5 group-hover:opacity-15 blur-2xl transition-opacity pointer-events-none`} />
-                
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${mod.color} flex items-center justify-center shadow-md text-slate-950`}>
-                      <Icon className="w-6 h-6 stroke-[2.2]" />
-                    </div>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${mod.badgeColor}`}>
-                      {mod.badge}
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] font-medium text-slate-300">
+                      {module.badge}
                     </span>
                   </div>
-
-                  <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors font-heading mb-1">
-                    {mod.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed font-sans line-clamp-2">
-                    {mod.subtitle}
-                  </p>
+                  <h3 className="mt-4 text-sm font-semibold text-white">{module.title}</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{module.subtitle}</p>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs font-semibold text-slate-300 group-hover:text-emerald-400 transition-colors">
-                  <span>Modülü Aç</span>
-                  <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs font-medium text-slate-400 transition-colors group-hover:text-emerald-300">
+                  <span>Modülü aç</span>
+                  <ArrowRight className="h-4 w-4" />
                 </div>
               </Link>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* TWO COLUMN LIVE FEED & GENERAL MANAGER AI CHAT */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* LEFT 6 COLS: LIVE OPERATIONAL FEED */}
-        <div className="lg:col-span-6 glass-card rounded-3xl border border-slate-800 overflow-hidden flex flex-col h-[600px] shadow-2xl">
-          <div className="p-5 border-b border-slate-800/80 bg-slate-900/60 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl text-slate-950 shadow-md">
-                <Activity className="w-5 h-5 stroke-[2.5]" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white font-heading">Kritik Operasyon Akışı</h3>
-                <p className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> Müdahale veya karar gerektiren olaylar
-                </p>
-              </div>
-            </div>
-            <span className="text-xs text-slate-500 font-mono">{notifications.length} Kritik Kayıt</span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <NotificationPanel
+          title="Kritik operasyon akışı"
+          description="Müdahale veya karar gerektiren olaylar"
+          count={notifications.length}
+        >
+          <div className="custom-scrollbar max-h-[32rem] space-y-2 overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="text-center py-20 text-slate-500">
-                <Bell className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                <p className="text-xs font-medium">Şu anda müdahale gerektiren olay yok.</p>
-              </div>
+              <EmptyState
+                icon={Bell}
+                title="Kritik olay yok"
+                description="Şu anda müdahale gerektiren bir operasyon bulunmuyor."
+              />
             ) : (
-              notifications.map((notif) => {
-                const { icon: Icon, color, bg } = getNotificationStyles(notif.type);
+              notifications.map((notification) => {
+                const { icon: Icon, color, bg } = getNotificationStyles(notification.type);
                 return (
-                  <div key={notif.id} className="flex gap-3.5 p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 transition-all shadow-sm">
-                    <div className={`mt-0.5 flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center border ${bg}`}>
-                      <Icon className={`w-4 h-4 ${color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <h4 className="text-xs font-bold text-white">{notif.title}</h4>
-                        <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: tr })}
-                        </span>
+                  <article
+                    key={notification.id}
+                    className="flex gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3 transition-colors hover:border-slate-700"
+                  >
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${bg}`}>
+                      <Icon className={`h-4 w-4 ${color}`} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <h3 className="text-xs font-semibold text-white">{notification.title}</h3>
+                        <time className="flex shrink-0 items-center gap-1 text-[10px] text-slate-500">
+                          <Clock className="h-3 w-3" />
+                          {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: tr })}
+                        </time>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed font-sans">{notif.message}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">{notification.message}</p>
                     </div>
-                  </div>
+                  </article>
                 );
               })
             )}
           </div>
-        </div>
+        </NotificationPanel>
 
-        {/* RIGHT 6 COLS: GENERAL MANAGER AI ASSISTANT CHAT */}
-        <div className="lg:col-span-6 glass-card rounded-3xl border border-slate-800 overflow-hidden flex flex-col h-[600px] shadow-2xl">
-          <div className="p-5 border-b border-slate-800/80 bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/30 flex items-center justify-between">
+        <section className="flex min-h-[36rem] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center text-slate-950 shadow-md">
-                <Crown className="w-5 h-5 stroke-[2.5]" />
-              </div>
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                <Crown className="h-4 w-4" />
+              </span>
               <div>
-                <h3 className="text-base font-bold text-white font-heading">Genel Müdür Yardımcısı (Efe)</h3>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[11px] text-emerald-400 font-semibold">Komuta Merkezi Canlı</span>
-                </div>
+                <h2 className="text-sm font-semibold text-white">Genel Müdür Yardımcısı</h2>
+                <p className="mt-0.5 text-xs text-emerald-400">Efe çevrimiçi</p>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+          <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto bg-slate-950/30 p-4 sm:p-5">
             {messages.length === 0 && (
-              <div className="text-center py-16">
-                <Crown className="w-8 h-8 text-amber-400 mx-auto mb-2 opacity-80" />
-                <h4 className="text-sm font-bold text-white mb-1">Selam Patron!</h4>
-                <p className="text-slate-400 text-xs max-w-xs mx-auto leading-relaxed">
-                  Bana buradan tüm fabrika operasyonu hakkında talimat verebilirsiniz.
-                </p>
-              </div>
+              <EmptyState
+                icon={Crown}
+                title="Komuta bekleniyor"
+                description="Fabrika operasyonları hakkında talimatınızı buradan iletebilirsiniz."
+              />
             )}
-
-            {messages.map((msg, index) => {
-              const isPatron = msg.role === 'patron';
+            {messages.map((message, index) => {
+              const isPatron = message.role === 'patron';
               return (
-                <div key={`${msg.id}-${index}`} className={`flex gap-3 max-w-[88%] ${isPatron ? 'ml-auto flex-row-reverse' : ''}`}>
-                  <div className={`
-                    flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shadow-sm
-                    ${isPatron ? 'bg-gradient-to-br from-cyan-400 to-teal-500 text-slate-950' : 'bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950'}
-                  `}>
-                    {isPatron ? 'P' : <Crown className="w-4 h-4" />}
-                  </div>
-                  
-                  <div className={`
-                    p-3.5 rounded-2xl shadow-sm text-xs leading-relaxed font-sans
-                    ${isPatron 
-                      ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 rounded-tr-sm' 
-                      : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-sm'
-                    }
-                  `}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                    <span className={`text-[10px] mt-1.5 block font-mono ${isPatron ? 'text-cyan-400 text-right' : 'text-slate-500'}`}>
-                      {new Date(msg.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                <div
+                  key={`${message.id}-${index}`}
+                  className={`flex max-w-[90%] gap-2.5 ${isPatron ? 'ml-auto flex-row-reverse' : ''}`}
+                >
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold ${
+                      isPatron
+                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                        : 'border-slate-700 bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    {isPatron ? 'P' : <Crown className="h-4 w-4" />}
+                  </span>
+                  <div
+                    className={`rounded-xl border px-3.5 py-3 text-xs leading-5 ${
+                      isPatron
+                        ? 'rounded-tr-sm border-emerald-500/20 bg-emerald-500/10 text-emerald-100'
+                        : 'rounded-tl-sm border-slate-800 bg-slate-900 text-slate-200'
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <time className={`mt-1.5 block text-[10px] ${isPatron ? 'text-right text-emerald-400' : 'text-slate-500'}`}>
+                      {new Date(message.createdAt).toLocaleTimeString('tr-TR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </time>
                   </div>
                 </div>
               );
@@ -403,26 +370,27 @@ export default function CommandCenter() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={handleSendMessage} className="p-3.5 bg-slate-950 border-t border-slate-800/80 flex items-center gap-2">
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2 border-t border-slate-800 bg-slate-950 p-3">
+            <label htmlFor="manager-command" className="sr-only">Genel müdür yardımcısına mesaj</label>
             <input
+              id="manager-command"
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Patron emrini yazın... (Örn: Sahnede durumlar nasıl?)"
-              className="flex-1 bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500/50 transition-colors"
+              onChange={(event) => setInputText(event.target.value)}
+              placeholder="Operasyon talimatınızı yazın..."
+              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
             />
             <button
               type="submit"
               disabled={!inputText.trim() || isSending}
-              className="p-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 disabled:opacity-50 text-slate-950 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-emerald-950 transition-colors hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Mesajı gönder"
             >
-              <Send className="w-4 h-4" />
+              <Send className="h-4 w-4" />
             </button>
           </form>
-        </div>
-
+        </section>
       </div>
-
     </div>
   );
 }
