@@ -20,6 +20,8 @@ type ConfigInput = {
   websiteUrl?: string;
   instagramUrl?: string;
   languages?: string;
+  fallbackTemplateName?: string;
+  templateLanguage?: string;
 };
 
 function cleanOptional(value: unknown): string | undefined {
@@ -71,6 +73,8 @@ export async function GET() {
       websiteUrl: config?.websiteUrl || '',
       instagramUrl: config?.instagramUrl || '',
       languages: config?.languages || 'Türkçe',
+      fallbackTemplateName: config?.fallbackTemplateName || '',
+      templateLanguage: config?.templateLanguage || 'tr',
     });
   } catch (error) {
     console.error('[WhatsApp Config GET Error]:', error);
@@ -152,6 +156,8 @@ export async function POST(request: Request) {
         websiteUrl: cleanOptional(body.websiteUrl),
         instagramUrl: cleanOptional(body.instagramUrl),
         languages: cleanOptional(body.languages),
+        fallbackTemplateName: cleanOptional(body.fallbackTemplateName),
+        templateLanguage: cleanOptional(body.templateLanguage),
       },
       create: {
         id: 'default',
@@ -171,6 +177,8 @@ export async function POST(request: Request) {
         websiteUrl: cleanOptional(body.websiteUrl),
         instagramUrl: cleanOptional(body.instagramUrl),
         languages: cleanOptional(body.languages) || 'Türkçe',
+        fallbackTemplateName: cleanOptional(body.fallbackTemplateName),
+        templateLanguage: cleanOptional(body.templateLanguage) || 'tr',
       },
     });
 

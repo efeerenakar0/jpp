@@ -71,6 +71,80 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const body = (await request.json()) as {
+      id?: string;
+      notes?: string;
+      tags?: string[];
+      aiEnabled?: boolean;
+    };
+    const id = body.id?.trim();
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Sohbet ID’si gerekli.' },
+        { status: 400 }
+      );
+    }
+
+    const tags = Array.isArray(body.tags)
+      ? Array.from(
+          new Set(
+            body.tags
+              .map((tag) => tag.trim().slice(0, 32))
+              .filter(Boolean)
+              .slice(0, 12)
+          )
+        )
+      : undefined;
+    const conversation = await prisma.customerConversation.update({
+      where: { id },
+      data: {
+        ...(typeof body.notes === 'string'
+          ? { notes: body.notes.trim().slice(0, 5000) || null }
+          : {}),
+        ...(tags ? { tags } : {}),
+        ...(typeof body.aiEnabled === 'boolean'
+          ? { aiEnabled: body.aiEnabled }
+          : {}),
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+    });
+
+    if (typeof body.aiEnabled === 'boolean') {
+      await prisma.notification.create({
+        data: {
+          type: 'SYSTEM',
+          title: body.aiEnabled
+            ? 'Yapay Zeka Yeniden Devrede'
+            : 'Sohbet İnsana Devredildi',
+          message: `${conversation.customerName} sohbeti ${
+            body.aiEnabled ? 'otomatik yanıta açıldı' : 'manuel yanıta alındı'
+          }.`,
+          link: '/fabrika/asistan',
+          metadata: JSON.stringify({ conversationId: id }),
+        },
+      });
+    }
+
+    return NextResponse.json(conversation);
+  } catch (error) {
+    console.error('[Conversations PATCH Error]:', error);
+    return NextResponse.json(
+      { error: 'Müşteri bilgileri güncellenemedi.' },
+      { status: 503 }
+    );
+  }
+}
+
 export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get('id');
 

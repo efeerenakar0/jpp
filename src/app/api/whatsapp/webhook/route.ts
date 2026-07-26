@@ -1,7 +1,12 @@
 import { after, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
 import { callAI, PROMPTS } from '@/lib/ai';
+import {
+  mapMetaDeliveryStatus,
+  parseMetaTimestamp,
+  saveOutgoingConversationMessage,
+  sendAssistantWhatsAppMessage,
+} from '@/lib/assistant-messaging';
 import {
   extractAppointmentSignal,
   needsCustomerReplyRepair,
@@ -158,9 +163,18 @@ export async function POST(request: Request) {
     const value = body.entry?.[0]?.changes?.[0]?.value;
     const message = value?.messages?.[0];
     const contact = value?.contacts?.[0];
+    const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
+
+    if (statuses.length > 0) {
+      after(async () => {
+        await processDeliveryStatuses(statuses);
+      });
+    }
 
     if (!message) {
-      return NextResponse.json({ status: 'no_messages' });
+      return NextResponse.json({
+        status: statuses.length > 0 ? 'status_updates_accepted' : 'no_messages',
+      });
     }
 
     const messageId = String(message.id || '');
@@ -236,18 +250,33 @@ async function processIncomingMessage(input: {
       });
     }
 
-    await prisma.conversationMessage.create({
-      data: {
-        conversationId: conversation.id,
-        role: 'customer',
-        content: input.text,
-        metadata: JSON.stringify({
-          provider: 'meta',
+    const receivedAt = new Date();
+    await prisma.$transaction([
+      prisma.conversationMessage.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'customer',
+          content: input.text,
+          metadata: JSON.stringify({
+            provider: 'meta',
+            providerMessageId: input.messageId || null,
+            messageType: input.messageType,
+            status: 'RECEIVED',
+          }),
           providerMessageId: input.messageId || null,
-          messageType: input.messageType,
-        }),
-      },
-    });
+          deliveryStatus: 'RECEIVED',
+          messageType: input.messageType.toUpperCase(),
+        },
+      }),
+      prisma.customerConversation.update({
+        where: { id: conversation.id },
+        data: {
+          customerName: input.contactName || conversation.customerName,
+          summary: input.text,
+          lastCustomerMessageAt: receivedAt,
+        },
+      }),
+    ]);
 
     const appointmentSignal = extractAppointmentSignal(input.text);
     const appointment = await saveAppointmentRequest(
@@ -258,6 +287,22 @@ async function processIncomingMessage(input: {
       },
       appointmentSignal
     );
+
+    if (!conversation.aiEnabled) {
+      await prisma.notification.create({
+        data: {
+          type: 'NEW_CUSTOMER_MESSAGE',
+          title: 'İnsan Yanıtı Bekleyen WhatsApp Mesajı',
+          message: `${conversation.customerName}: ${input.text.slice(0, 160)}`,
+          link: '/fabrika/asistan',
+          metadata: JSON.stringify({
+            conversationId: conversation.id,
+            handoff: true,
+          }),
+        },
+      });
+      return;
+    }
 
     const [config, projects] = await Promise.all([
       prisma.whatsAppConfig.findUnique({ where: { id: 'default' } }),
@@ -320,22 +365,16 @@ async function processIncomingMessage(input: {
       aiResponse.content,
       Boolean(appointment)
     );
-    const metaResponse = await sendMetaWhatsAppMessage({
+    const delivery = await sendAssistantWhatsAppMessage({
       to: input.fromPhone,
       text: customerReply,
+      lastCustomerMessageAt: receivedAt,
     });
 
-    await prisma.conversationMessage.create({
-      data: {
-        conversationId: conversation.id,
-        role: 'assistant',
-        content: customerReply,
-        metadata: JSON.stringify({
-          provider: 'meta',
-          providerMessageId: metaResponse.messages?.[0]?.id || null,
-          deliveryRequested: true,
-        }),
-      },
+    await saveOutgoingConversationMessage({
+      conversationId: conversation.id,
+      content: customerReply,
+      delivery,
     });
   } catch (error) {
     console.error('[WhatsApp Webhook Worker Error]:', error);
@@ -351,5 +390,69 @@ async function processIncomingMessage(input: {
       .catch((notificationError) => {
         console.error('[WhatsApp Error Notification Failed]:', notificationError);
       });
+  }
+}
+
+async function processDeliveryStatuses(statuses: unknown[]) {
+  for (const rawStatus of statuses) {
+    try {
+      const status = rawStatus as {
+        id?: string;
+        status?: string;
+        timestamp?: string;
+        errors?: Array<{ title?: string; message?: string; details?: string }>;
+      };
+      const providerMessageId = String(status.id || '');
+      const deliveryStatus = mapMetaDeliveryStatus(String(status.status || ''));
+
+      if (!providerMessageId || !deliveryStatus) {
+        continue;
+      }
+
+      const statusAt = parseMetaTimestamp(status.timestamp);
+      const errorMessage =
+        status.errors
+          ?.map((error) => error.message || error.title || error.details)
+          .filter(Boolean)
+          .join(' · ') || null;
+      const data = {
+        deliveryStatus,
+        ...(deliveryStatus === 'DELIVERED'
+          ? { deliveredAt: statusAt }
+          : {}),
+        ...(deliveryStatus === 'READ'
+          ? { deliveredAt: statusAt, readAt: statusAt }
+          : {}),
+        ...(deliveryStatus === 'FAILED'
+          ? { failedAt: statusAt, errorMessage }
+          : {}),
+      };
+
+      const updated = await prisma.conversationMessage.updateMany({
+        where: { providerMessageId },
+        data,
+      });
+
+      if (updated.count === 0) {
+        const legacyMessage = await prisma.conversationMessage.findFirst({
+          where: {
+            metadata: { contains: providerMessageId },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (legacyMessage) {
+          await prisma.conversationMessage.update({
+            where: { id: legacyMessage.id },
+            data: {
+              providerMessageId,
+              ...data,
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[WhatsApp Delivery Status Error]:', error);
+    }
   }
 }
