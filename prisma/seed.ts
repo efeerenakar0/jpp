@@ -4,10 +4,19 @@ import { hash } from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
-  const adminPassword = await hash('admin123', 10)
-  const agentPassword = await hash('agent123', 10)
-  
-  const admin = await prisma.user.upsert({
+  const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD?.trim()
+  const seedAgentPassword = process.env.SEED_AGENT_PASSWORD?.trim()
+
+  if (!seedAdminPassword || !seedAgentPassword) {
+    throw new Error(
+      'SEED_ADMIN_PASSWORD and SEED_AGENT_PASSWORD must be configured before seeding users.'
+    )
+  }
+
+  const adminPassword = await hash(seedAdminPassword, 12)
+  const agentPassword = await hash(seedAgentPassword, 12)
+
+  await prisma.user.upsert({
     where: { email: 'admin@jasmine.com' },
     update: {},
     create: {
@@ -18,7 +27,7 @@ async function main() {
     },
   })
 
-  const agent = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'agent@example.com' },
     update: {},
     create: {
@@ -30,7 +39,7 @@ async function main() {
   })
 
   // Projects
-  const p1 = await prisma.project.upsert({
+  await prisma.project.upsert({
     where: { slug: 'state-of-art-residence' },
     update: {},
     create: {

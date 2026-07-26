@@ -15,6 +15,13 @@ declare module "next-auth" {
   }
 }
 
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    role?: string;
+  }
+}
+
 function getPrisma() {
   if (!process.env.DATABASE_URL) return null;
   return new PrismaClient();
@@ -30,7 +37,16 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        
+
+        // Public demo credentials shipped in the original seed must never
+        // authenticate an account that still carries those known passwords.
+        if (
+          credentials.password === "admin123" ||
+          credentials.password === "agent123"
+        ) {
+          return null;
+        }
+
         const prisma = getPrisma();
         if (!prisma) return null;
 
@@ -62,8 +78,8 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
+        session.user.role = token.role;
+        session.user.id = token.id || "";
       }
       return session;
     }

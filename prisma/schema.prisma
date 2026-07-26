@@ -226,6 +226,77 @@ enum NotificationType {
   SYSTEM
 }
 
+enum CompanyAccountStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum AiProvider {
+  OPENAI
+  GEMINI
+}
+
+model CompanyAccount {
+  id                   String               @id @default(cuid())
+  companyName          String
+  slug                 String               @unique
+  ownerName            String
+  ownerEmail           String?
+  accessKeyLookup      String?              @unique
+  accessKeyHash        String?
+  accessKeyHint        String?
+  verificationCodeHash String?
+  verificationCodeHint String?
+  status               CompanyAccountStatus @default(ACTIVE)
+  subscriptionStatus   SubscriptionStatus   @default(TRIAL)
+  subscriptionPlan     String               @default("standard")
+  subscriptionEndsAt   DateTime?
+  workspaceEnabled     Boolean              @default(false)
+  sessionVersion       Int                  @default(1)
+  lastLoginAt          DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  aiCredentials CompanyAiCredential[]
+
+  @@index([status, subscriptionStatus])
+  @@index([createdAt])
+}
+
+model CompanyAiCredential {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  provider         AiProvider
+  encryptedApiKey  String         @db.Text
+  keyHint          String
+  model            String?
+  active           Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([companyAccountId, provider])
+}
+
+model PlatformAdminLoginAttempt {
+  id        String   @id @default(cuid())
+  keyHash   String
+  succeeded Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([keyHash, createdAt])
+  @@index([createdAt])
+}
+
 // --- Modül 2: Avcı / Portföy Toplayıcı ---
 
 model CompanyProfile {
