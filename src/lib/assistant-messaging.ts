@@ -44,7 +44,8 @@ export function mapMetaDeliveryStatus(
     case 'delivered':
       return 'DELIVERED';
     case 'read':
-      return 'READ';
+      // Okundu olaylarını işlemiyoruz; yalnızca teslim ve hata durumları tutulur.
+      return null;
     case 'failed':
       return 'FAILED';
     default:

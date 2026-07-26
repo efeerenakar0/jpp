@@ -18,7 +18,6 @@ interface Message {
   deliveryStatus?: string;
   messageType?: string;
   deliveredAt?: string | null;
-  readAt?: string | null;
   failedAt?: string | null;
   errorMessage?: string | null;
 }
@@ -60,9 +59,7 @@ interface AssistantMetrics {
   incomingMessages: number;
   outgoingMessages: number;
   deliveredMessages: number;
-  readMessages: number;
   failedMessages: number;
-  readRate: number;
   pendingAppointments: number;
   approvedToday: number;
 }
@@ -1057,12 +1054,12 @@ export default function AsistanPage() {
                 <CheckCircle2 className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400 font-medium">Okunma Oranı</div>
+                <div className="text-[11px] text-slate-400 font-medium">Teslim Durumu</div>
                 <div className="text-base font-extrabold text-purple-300">
-                  %{metrics?.readRate ?? 0}
+                  {metrics?.deliveredMessages ?? 0} teslim
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  {metrics?.deliveredMessages ?? 0} teslim · {metrics?.failedMessages ?? 0} hata
+                  {metrics?.failedMessages ?? 0} hata
                 </div>
               </div>
             </div>

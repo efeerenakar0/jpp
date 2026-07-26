@@ -22,7 +22,6 @@ export async function GET() {
       incomingMessages,
       outgoingMessages,
       deliveredMessages,
-      readMessages,
       failedMessages,
       pendingAppointments,
       approvedToday,
@@ -50,9 +49,6 @@ export async function GET() {
         },
       }),
       prisma.conversationMessage.count({
-        where: { deliveryStatus: 'READ', createdAt: { gte: today } },
-      }),
-      prisma.conversationMessage.count({
         where: { deliveryStatus: 'FAILED', createdAt: { gte: today } },
       }),
       prisma.appointmentRequest.count({ where: { status: 'PENDING' } }),
@@ -60,11 +56,6 @@ export async function GET() {
         where: { status: 'APPROVED', updatedAt: { gte: today } },
       }),
     ]);
-    const readRate =
-      deliveredMessages > 0
-        ? Math.round((readMessages / deliveredMessages) * 100)
-        : 0;
-
     return NextResponse.json({
       activeConversations,
       handoffConversations,
@@ -72,9 +63,7 @@ export async function GET() {
       incomingMessages,
       outgoingMessages,
       deliveredMessages,
-      readMessages,
       failedMessages,
-      readRate,
       pendingAppointments,
       approvedToday,
     });
