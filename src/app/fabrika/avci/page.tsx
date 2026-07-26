@@ -6,6 +6,7 @@ import WhatsAppButton from '@/components/fabrika/WhatsAppButton';
 import WhatsAppCRM from '@/components/fabrika/WhatsAppCRM';
 import FilterBar from '@/components/fabrika/FilterBar';
 import PageHeader from '@/components/fabrika/PageHeader';
+import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import StatCard from '@/components/fabrika/StatCard';
 import { 
   Crosshair, 
@@ -329,6 +330,8 @@ export default function AvciPage() {
             </>
           }
         />
+
+        <WorkspacePulse />
 
         <div className="grid grid-cols-2 gap-3 lg:max-w-xl">
           <StatCard label="Toplam ilan" value={allListings.length} icon={Layers} status="success" />

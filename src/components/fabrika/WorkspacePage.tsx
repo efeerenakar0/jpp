@@ -334,7 +334,11 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
 
   useEffect(() => {
     const initialLoad = window.setTimeout(loadWorkspace, 0);
-    return () => window.clearTimeout(initialLoad);
+    const refreshInterval = window.setInterval(loadWorkspace, 15000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(refreshInterval);
+    };
   }, []);
 
   async function postAction(payload: Record<string, unknown>, successMessage: string) {

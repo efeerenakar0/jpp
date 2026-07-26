@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Download,
   ExternalLink,
+  Home,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -17,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import PageHeader from '@/components/fabrika/PageHeader';
+import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,13 @@ type StudioResult = {
 };
 
 type StudioProvider = 'OPENAI' | 'GEMINI';
+
+type WorkspaceProperty = {
+  id: string;
+  title: string;
+  location: string | null;
+  status: string;
+};
 
 type ProviderStatus = {
   provider: StudioProvider;
@@ -107,6 +116,8 @@ export default function StudioPage() {
   const [model, setModel] = useState(PROVIDER_DETAILS.OPENAI.defaultModel);
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filePreviews = useMemo(
@@ -117,6 +128,25 @@ export default function StudioPage() {
   useEffect(() => {
     return () => filePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
   }, [filePreviews]);
+
+  useEffect(() => {
+    async function loadProperties() {
+      try {
+        const response = await fetch('/api/fabrika/workspace', { cache: 'no-store' });
+        const data = await response.json();
+        if (response.ok && data.success) {
+          setWorkspaceProperties(
+            (data.workspace.properties || []).filter((property: WorkspaceProperty) =>
+              ['ACTIVE', 'RESERVED', 'DRAFT'].includes(property.status)
+            )
+          );
+        }
+      } catch {
+        // Studio remains available when no workspace record exists yet.
+      }
+    }
+    void loadProperties();
+  }, []);
 
   const addFiles = (newFiles: File[]) => {
     const images = newFiles.filter((file) => file.type.startsWith('image/'));
@@ -240,6 +270,20 @@ export default function StudioPage() {
       setZipUrl(processData.zipUrl ?? '');
       setActiveResult(0);
       setScreen('results');
+      if (selectedPropertyId) {
+        const linkResponse = await fetch('/api/fabrika/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'record-studio-output',
+            propertyId: selectedPropertyId,
+            resultCount: processData.processedCount,
+          }),
+        });
+        if (!linkResponse.ok) {
+          toast.error('Görseller hazırlandı ancak portföy aktivitesine eklenemedi.');
+        }
+      }
       toast.success(`${processData.processedCount} fotoğrafınız iyileştirildi.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
@@ -297,6 +341,8 @@ export default function StudioPage() {
         }
       />
 
+      <WorkspacePulse />
+
       <main>
         {screen === 'upload' ? (
           <section className="mx-auto max-w-4xl">
@@ -312,6 +358,25 @@ export default function StudioPage() {
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 sm:p-5">
+              <label className="mb-4 flex flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-950/50 p-3 sm:flex-row sm:items-center sm:justify-between" htmlFor="studio-property">
+                <span className="flex items-center gap-2 text-xs text-slate-300">
+                  <Home className="h-4 w-4 text-emerald-400" />
+                  Bu görseller bir portföye mi ait?
+                </span>
+                <select
+                  id="studio-property"
+                  value={selectedPropertyId}
+                  onChange={(event) => setSelectedPropertyId(event.target.value)}
+                  className="min-w-0 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                >
+                  <option value="">Portföye bağlama (isteğe bağlı)</option>
+                  {workspaceProperties.map((property) => (
+                    <option key={property.id} value={property.id}>
+                      {property.title}{property.location ? ` · ${property.location}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div
                 role="button"
                 tabIndex={0}

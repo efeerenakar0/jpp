@@ -16,6 +16,7 @@ import EmptyState from '@/components/fabrika/EmptyState';
 import FilterBar from '@/components/fabrika/FilterBar';
 import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
 import PageHeader from '@/components/fabrika/PageHeader';
+import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import StatCard from '@/components/fabrika/StatCard';
 
 interface Listing {
@@ -151,6 +152,8 @@ export default function MarketingPage() {
           </span>
         }
       />
+
+      <WorkspacePulse />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Toplam kampanya" value={campaigns.length} icon={Megaphone} />

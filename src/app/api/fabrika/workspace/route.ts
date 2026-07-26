@@ -15,6 +15,7 @@ import {
   FabrikaSessionError,
   requireFabrikaAccount,
 } from '@/lib/fabrika-session';
+import { syncLegacyModulesToWorkspace } from '@/lib/fabrika-workspace-sync';
 
 const optionalText = z.string().trim().max(500).optional().nullable();
 const optionalId = z.string().trim().min(1).optional().nullable();
@@ -96,6 +97,11 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('sync-modules'),
   }),
+  z.object({
+    action: z.literal('record-studio-output'),
+    propertyId: z.string().trim().min(1),
+    resultCount: z.coerce.number().int().min(1).max(100),
+  }),
 ]);
 
 function unauthorized() {
@@ -107,16 +113,6 @@ function unauthorized() {
 
 function asNullable(value: string | null | undefined) {
   return value?.trim() || null;
-}
-
-function parseListingNumber(value?: string | null) {
-  if (!value) return null;
-  const normalized = value
-    .replace(/[^\d,.]/g, '')
-    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
-    .replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function scoreMatch(
@@ -194,6 +190,39 @@ async function ensureOwnedResource(
     throw new Error('Seçilen kayıt bu şirkete ait değil.');
   }
   return resource.id;
+}
+
+async function recomputeMatches(companyAccountId: string) {
+  const [contacts, properties] = await Promise.all([
+    prisma.crmContact.findMany({
+      where: {
+        companyAccountId,
+        type: { in: ['BUYER', 'INVESTOR', 'TENANT'] },
+        stage: { notIn: ['WON', 'LOST'] },
+      },
+    }),
+    prisma.crmProperty.findMany({
+      where: {
+        companyAccountId,
+        status: { in: ['ACTIVE', 'RESERVED'] },
+      },
+    }),
+  ]);
+  await prisma.crmMatch.deleteMany({ where: { companyAccountId } });
+  const candidates = contacts.flatMap((contact) =>
+    properties
+      .map((property) => ({
+        contactId: contact.id,
+        propertyId: property.id,
+        ...scoreMatch(contact, property),
+      }))
+      .filter((candidate) => candidate.score >= 45)
+  );
+  if (candidates.length > 0) {
+    await prisma.crmMatch.createMany({
+      data: candidates.map((candidate) => ({ companyAccountId, ...candidate })),
+    });
+  }
 }
 
 async function getWorkspace(companyAccountId: string) {
@@ -341,6 +370,8 @@ async function getWorkspace(companyAccountId: string) {
 export async function GET() {
   try {
     const account = await requireFabrikaAccount();
+    await syncLegacyModulesToWorkspace(account);
+    await recomputeMatches(account.id);
     return NextResponse.json({
       success: true,
       workspace: await getWorkspace(account.id),
@@ -571,141 +602,35 @@ export async function POST(request: Request) {
     }
 
     if (input.action === 'recompute-matches') {
-      const [contacts, properties] = await Promise.all([
-        prisma.crmContact.findMany({
-          where: {
-            companyAccountId: account.id,
-            type: { in: ['BUYER', 'INVESTOR', 'TENANT'] },
-            stage: { notIn: ['WON', 'LOST'] },
-          },
-        }),
-        prisma.crmProperty.findMany({
-          where: {
-            companyAccountId: account.id,
-            status: { in: ['ACTIVE', 'RESERVED'] },
-          },
-        }),
-      ]);
-      await prisma.crmMatch.deleteMany({ where: { companyAccountId: account.id } });
-      const candidates = contacts.flatMap((contact) =>
-        properties
-          .map((property) => ({
-            contactId: contact.id,
-            propertyId: property.id,
-            ...scoreMatch(contact, property),
-          }))
-          .filter((candidate) => candidate.score >= 45)
-      );
-      if (candidates.length > 0) {
-        await prisma.crmMatch.createMany({
-          data: candidates.map((candidate) => ({
-            companyAccountId: account.id,
-            ...candidate,
-          })),
-        });
-      }
+      await recomputeMatches(account.id);
     }
 
     if (input.action === 'sync-modules') {
-      if (account.slug !== 'jasmine-group') {
-        return NextResponse.json({
-          success: true,
-          workspace: await getWorkspace(account.id),
-          message: 'Bu şirket için henüz aktarılacak eski modül verisi yok.',
-        });
-      }
-
-      const [conversations, listings] = await Promise.all([
-        prisma.customerConversation.findMany({ orderBy: { updatedAt: 'desc' } }),
-        prisma.huntedListing.findMany({ orderBy: { updatedAt: 'desc' } }),
-      ]);
-
-      for (const conversation of conversations) {
-        await prisma.crmContact.upsert({
-          where: {
-            companyAccountId_sourceConversationId: {
-              companyAccountId: account.id,
-              sourceConversationId: conversation.id,
-            },
-          },
-          update: {
-            name: conversation.customerName,
-            phone: conversation.customerPhone,
-            email: conversation.customerEmail,
-            notes: conversation.notes || conversation.summary,
-            tags: conversation.tags,
-          },
-          create: {
-            companyAccountId: account.id,
-            sourceConversationId: conversation.id,
-            name: conversation.customerName,
-            phone: conversation.customerPhone,
-            email: conversation.customerEmail,
-            type:
-              conversation.intent === 'INVESTMENT'
-                ? CrmContactType.INVESTOR
-                : CrmContactType.BUYER,
-            source: `Asistan · ${conversation.channel}`,
-            notes: conversation.notes || conversation.summary,
-            tags: conversation.tags,
-            score: conversation.isActive ? 70 : 45,
-            stage: conversation.isActive
-              ? CrmContactStage.CONTACTED
-              : CrmContactStage.LOST,
-            consentStatus:
-              conversation.channel === 'WHATSAPP'
-                ? ConsentStatus.GRANTED
-                : ConsentStatus.UNKNOWN,
-            consentUpdatedAt:
-              conversation.channel === 'WHATSAPP'
-                ? conversation.lastCustomerMessageAt || conversation.updatedAt
-                : null,
-          },
-        });
-      }
-
-      for (const listing of listings) {
-        await prisma.crmProperty.upsert({
-          where: {
-            companyAccountId_sourceListingId: {
-              companyAccountId: account.id,
-              sourceListingId: listing.id,
-            },
-          },
-          update: {
-            title: listing.title,
-            location: listing.location,
-            roomCount: listing.roomCount,
-            price: parseListingNumber(listing.price),
-            imageUrl: listing.imageUrl,
-          },
-          create: {
-            companyAccountId: account.id,
-            sourceListingId: listing.id,
-            title: listing.title,
-            location: listing.location,
-            roomCount: listing.roomCount,
-            price: parseListingNumber(listing.price),
-            area: parseListingNumber(listing.area),
-            imageUrl: listing.imageUrl,
-            description: listing.notes,
-            status:
-              listing.status === 'GREEN'
-                ? CrmPropertyStatus.ACTIVE
-                : listing.status === 'RED'
-                  ? CrmPropertyStatus.ARCHIVED
-                  : CrmPropertyStatus.DRAFT,
-            referenceCode: `AV-${listing.id.slice(-6).toUpperCase()}`,
-          },
-        });
-      }
-
+      const summary = await syncLegacyModulesToWorkspace(account);
+      await recomputeMatches(account.id);
       await prisma.crmActivity.create({
         data: {
           companyAccountId: account.id,
           type: 'MODULE_SYNC',
-          title: 'AI modülleri CRM ile eşitlendi',
-          description: `${conversations.length} konuşma ve ${listings.length} Avcı kaydı işlendi.`,
+          title: 'Fabrika modülleri eşitlendi',
+          description: `${summary.conversations} konuşma, ${summary.listings} portföy, ${summary.appointments} randevu ve ${summary.campaigns} kampanya işlendi.`,
+        },
+      });
+    }
+
+    if (input.action === 'record-studio-output') {
+      const propertyId = await ensureOwnedResource('property', input.propertyId, account.id);
+      const property = await prisma.crmProperty.findUniqueOrThrow({
+        where: { id: propertyId! },
+        select: { title: true },
+      });
+      await prisma.crmActivity.create({
+        data: {
+          companyAccountId: account.id,
+          propertyId,
+          type: 'STUDIO_OUTPUT_READY',
+          title: 'Stüdyo görselleri hazırlandı',
+          description: `${property.title} için ${input.resultCount} görsel iyileştirildi.`,
         },
       });
     }

@@ -132,9 +132,11 @@ export default function CommandCenter() {
   useEffect(() => {
     const initialTimeout = setTimeout(() => fetchData(true), 0);
     const interval = setInterval(fetchData, 5000);
+    const workspaceInterval = setInterval(() => fetchData(true), 15000);
     return () => {
       clearTimeout(initialTimeout);
       clearInterval(interval);
+      clearInterval(workspaceInterval);
     };
   }, []);
 
