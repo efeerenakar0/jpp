@@ -25,7 +25,6 @@ interface Message {
   deliveryStatus?: string;
   messageType?: string;
   deliveredAt?: string | null;
-  readAt?: string | null;
   failedAt?: string | null;
   errorMessage?: string | null;
 }
@@ -64,11 +63,10 @@ const intentLabels: Record<string, string> = {
 
 function DeliveryIndicator({ message }: { message: Message }) {
   const status = message.deliveryStatus || 'NOT_APPLICABLE';
+  const isDelivered = status === 'DELIVERED' || status === 'READ';
   const label =
-    status === 'READ'
-      ? 'Okundu'
-      : status === 'DELIVERED'
-        ? 'Teslim edildi'
+    isDelivered
+      ? 'Teslim edildi'
         : status === 'SENT'
           ? 'Gönderildi'
           : status === 'FAILED'
@@ -86,18 +84,7 @@ function DeliveryIndicator({ message }: { message: Message }) {
       </span>
     );
   }
-  if (status === 'READ') {
-    return (
-      <span
-        className="inline-flex items-center gap-1 text-sky-300"
-        title={label}
-      >
-        <CheckCheck className="w-3.5 h-3.5" />
-        Okundu
-      </span>
-    );
-  }
-  if (status === 'DELIVERED') {
+  if (isDelivered) {
     return (
       <span className="inline-flex items-center gap-1" title={label}>
         <CheckCheck className="w-3.5 h-3.5" />

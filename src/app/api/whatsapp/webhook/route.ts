@@ -420,9 +420,6 @@ async function processDeliveryStatuses(statuses: unknown[]) {
         ...(deliveryStatus === 'DELIVERED'
           ? { deliveredAt: statusAt }
           : {}),
-        ...(deliveryStatus === 'READ'
-          ? { deliveredAt: statusAt, readAt: statusAt }
-          : {}),
         ...(deliveryStatus === 'FAILED'
           ? { failedAt: statusAt, errorMessage }
           : {}),
