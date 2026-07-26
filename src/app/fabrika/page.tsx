@@ -437,7 +437,7 @@ export default function CommandCenter() {
               </span>
               <div>
                 <h2 className="text-sm font-semibold text-white">Genel Müdür Yardımcısı</h2>
-                <p className="mt-0.5 text-xs text-emerald-400">Efe çevrimiçi</p>
+                <p className="mt-0.5 text-xs text-emerald-400">Asistan ile aynı AI · tüm Fabrika bağlamı</p>
               </div>
             </div>
           </div>
