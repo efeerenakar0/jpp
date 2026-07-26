@@ -81,7 +81,7 @@ export default function CommandCenter() {
     activeConversations: 0,
     unreadNotifications: 0,
   });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   async function fetchData() {
     try {
@@ -114,7 +114,17 @@ export default function CommandCenter() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Keep new messages visible without moving the whole command-center page.
+    // scrollIntoView() selected <main> as its scrollable ancestor, which could
+    // leave the user on an apparently empty section of the page.
+    const animationFrame = requestAnimationFrame(() => {
+      const chat = chatScrollRef.current;
+      if (chat) {
+        chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+      }
+    });
+
+    return () => cancelAnimationFrame(animationFrame);
   }, [messages]);
 
   const handleSendMessage = async (event: React.FormEvent) => {
@@ -325,7 +335,7 @@ export default function CommandCenter() {
             </div>
           </div>
 
-          <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto bg-slate-950/30 p-4 sm:p-5">
+          <div ref={chatScrollRef} className="custom-scrollbar flex-1 space-y-4 overflow-y-auto bg-slate-950/30 p-4 sm:p-5">
             {messages.length === 0 && (
               <EmptyState
                 icon={Crown}
@@ -367,7 +377,6 @@ export default function CommandCenter() {
                 </div>
               );
             })}
-            <div ref={messagesEndRef} />
           </div>
 
           <form onSubmit={handleSendMessage} className="flex items-center gap-2 border-t border-slate-800 bg-slate-950 p-3">
