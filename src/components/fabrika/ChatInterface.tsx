@@ -157,6 +157,9 @@ export default function ChatInterface({
     setIsProcessing(true);
     try {
       await onSendMessage(currentInput);
+    } catch {
+      // The parent presents the server error; keep the operator's draft ready to retry.
+      setInput(currentInput);
     } finally {
       setIsProcessing(false);
     }

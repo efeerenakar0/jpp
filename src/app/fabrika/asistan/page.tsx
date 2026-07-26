@@ -453,7 +453,9 @@ export default function AsistanPage() {
       );
     } catch (error) {
       console.error('Failed to send message', error);
-      toast.error(error instanceof Error ? error.message : 'Mesaj gönderilemedi.');
+      const message = error instanceof Error ? error.message : 'Mesaj gönderilemedi.';
+      toast.error(message);
+      throw new Error(message);
     }
   };
 
