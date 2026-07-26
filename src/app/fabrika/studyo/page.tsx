@@ -51,6 +51,8 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
   keyUrl: string;
   keyUrlLabel: string;
   defaultModel: string;
+  steps: string[];
+  note: string;
 }> = {
   OPENAI: {
     label: 'OpenAI GPT Image',
@@ -58,6 +60,15 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
     keyUrl: 'https://platform.openai.com/api-keys',
     keyUrlLabel: 'OpenAI API anahtarı al',
     defaultModel: 'gpt-image-1',
+    steps: [
+      'OpenAI Platform hesabınıza giriş yapın.',
+      'Sol menüden ilgili proje alanını seçin ve API Keys sayfasını açın.',
+      '+ Create new secret key düğmesine basın.',
+      'Anahtara Jasmine Studio gibi anlaşılır bir ad verin.',
+      'Oluşan anahtarı hemen kopyalayın; OpenAI bu anahtarı daha sonra tekrar tam olarak göstermez.',
+      'Bu ekrandaki API anahtarı alanına yapıştırıp ayarları kaydedin.',
+    ],
+    note: 'Görsel düzenleme için hesabınızda API kullanımı ve yeterli bakiye/limit bulunmalıdır.',
   },
   GEMINI: {
     label: 'Google Gemini',
@@ -65,11 +76,17 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
     keyUrl: 'https://aistudio.google.com/app/apikey',
     keyUrlLabel: 'Gemini API anahtarı al',
     defaultModel: 'gemini-2.5-flash-image',
+    steps: [
+      'Google hesabınızla Google AI Studio sayfasına giriş yapın.',
+      'API keys sayfasını açın.',
+      'Create API key düğmesine basın.',
+      'Yeni bir proje seçin veya AI Studio tarafından oluşturulan projeyi kullanın.',
+      'Oluşan Gemini API anahtarını kopyalayın.',
+      'Bu ekrandaki API anahtarı alanına yapıştırıp ayarları kaydedin.',
+    ],
+    note: 'Gemini anahtarınız seçtiğiniz Google projesinin kullanım limitleri ve faturalandırma durumuyla çalışır.',
   },
 };
-
-const AUTO_PROMPT =
-  'Bu resimler portföyümün sitesinde yayınlanacak. Her birini yapay zeka ile muhteşem hale getir; ışıklandırmayı, renkleri, netliği ve genel kaliteyi profesyonel emlak fotoğrafçılığı standardında iyileştir. Mimariyi, mobilyaları, perspektifi ve mülkün gerçek özelliklerini koru; yeni nesneler, kişiler, yazılar veya logolar ekleme.';
 
 export default function StudioPage() {
   const [screen, setScreen] = useState<StudioScreen>('upload');
@@ -326,18 +343,8 @@ export default function StudioPage() {
               )}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300"><Sparkles className="h-4 w-4" /></div>
-                <div>
-                  <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">Otomatik AI talimatı</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">“{AUTO_PROMPT}”</p>
-                </div>
-              </div>
-            </div>
-
             <div className="mt-7 flex flex-col items-center justify-between gap-4 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] p-4 sm:flex-row sm:px-5">
-              <div className="flex items-center gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> Görseller yalnızca işlem için kullanılır; API anahtarı tarayıcıya gönderilmez.</div>
+              <div className="flex items-center gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> API anahtarınız sadece tek seferlik görselinizi oluşturmak için sunucuda kullanılır. Tarayıcıya gönderilmez.</div>
               <button type="button" onClick={startProcessing} disabled={!files.length || isProcessing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 px-5 py-3.5 text-sm font-extrabold text-emerald-950 shadow-lg shadow-emerald-500/15 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto">
                 {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 AI ile iyileştir <ArrowRight className="h-4 w-4" />
@@ -381,7 +388,7 @@ export default function StudioPage() {
           <DialogHeader className="border-b border-slate-800 p-6 pr-12">
             <DialogTitle className="flex items-center gap-2 text-lg font-bold text-white"><KeyRound className="h-5 w-5 text-emerald-300" /> Stüdyo API ayarları</DialogTitle>
             <DialogDescription className="mt-2 text-sm leading-6 text-slate-400">
-              Her şirket kendi anahtarını ekler. Anahtar sadece şifreli olarak sunucuda saklanır ve tekrar görüntülenmez.
+              Her şirket kendi sağlayıcısını ve anahtarını ekler. Anahtar şifreli olarak sunucuda saklanır, tarayıcıya gönderilmez ve kayıt sonrası tekrar açık şekilde gösterilmez.
             </DialogDescription>
           </DialogHeader>
 
@@ -418,6 +425,20 @@ export default function StudioPage() {
                 <a href={PROVIDER_DETAILS[provider].keyUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
                   {PROVIDER_DETAILS[provider].keyUrlLabel} <ExternalLink className="h-3.5 w-3.5" />
                 </a>
+              </div>
+              <div className="mt-4 rounded-lg border border-emerald-400/15 bg-emerald-400/[0.06] p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-200">Anahtarı nasıl alırsınız?</p>
+                <ol className="mt-3 space-y-2 text-xs leading-5 text-slate-300">
+                  {PROVIDER_DETAILS[provider].steps.map((step, index) => (
+                    <li key={step} className="flex gap-2">
+                      <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-300 text-[10px] font-black text-emerald-950">{index + 1}</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-3 rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs leading-5 text-slate-400">
+                  {PROVIDER_DETAILS[provider].note}
+                </p>
               </div>
               <label htmlFor="studio-api-key" className="mt-4 block text-xs font-bold text-slate-300">API anahtarı</label>
               <Input
