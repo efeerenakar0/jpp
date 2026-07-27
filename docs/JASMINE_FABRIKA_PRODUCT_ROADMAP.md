@@ -22,14 +22,14 @@ oluşturma/sıfırlama anında bir kez gösterilir.
 
 ## Uygulama aşamaları
 
-1. **Patron ve Çalışan hesapları**
+1. **Patron ve Çalışan hesapları — Tamamlandı (27 Temmuz 2026)**
    - Ayrı Patron Girişi ve Çalışan Girişi ekranları.
    - Şirket patronunun ve platform yöneticisinin çalışan oluşturabilmesi.
    - Çalışanı açma/kapatma ve geçici giriş kodunu sıfırlama.
    - Oturum belirtecinde şirket ve kullanıcı kimliği; sunucu tarafı rol
      denetimi; abonelik ve gizli anahtarların çalışandan saklanması.
 
-2. **Bildirim kapsamı ve menü sadeleştirmesi**
+2. **Bildirim kapsamı ve menü sadeleştirmesi — Tamamlandı (27 Temmuz 2026)**
    - Bildirimlerin şirket ve kullanıcı kapsamında ayrılması.
    - “Çok önemli” ve “Tümü” sekmeleri.
    - Randevu, yeni portföy/onay, sıcak müşteri, kritik entegrasyon hatası ve
@@ -37,6 +37,17 @@ oluşturma/sıfırlama anında bir kez gösterilir.
    - Satış Hunisi ayrı sayfasının CRM içine alınması.
    - Satıcı Portalı ayrı menüsünün kaldırılması; portföy içinde
      **Malik Raporu** olarak sürdürülmesi.
+
+   Uygulanan kararlar:
+   - Her bildirim şirket ve alıcı kimliğiyle saklanır; okundu bilgisi
+     patron ve her çalışan için birbirinden bağımsızdır.
+   - Önemli kapsamı randevu/gösterim, sıcak müşteri, yeni aktif/onaylı
+     portföy, kritik entegrasyon hatası ve geciken 3/3 öncelikli görevlerle
+     sınırlıdır. Reklam, web sitesi ve diğer rutin üretim logları yalnızca
+     **Tümü** sekmesinde görünür.
+   - Eski `/fabrika/satis` bağlantısı CRM içindeki Satış sürecine; eski
+     `/fabrika/satici-portali` bağlantısı Portföyler içindeki Malik
+     raporlarına güvenli biçimde yönlendirilir.
 
 3. **Profesyonel Merkezi CRM ve eşleştirme**
    - Tek müşteri profili, notlar, konuşma/aktivite zaman çizgisi, sorumlu

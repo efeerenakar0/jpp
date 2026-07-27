@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npx prisma generate && next build",
-    "vercel-build": "npx prisma db execute --file prisma/deploy/assistant-v3.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/platform-admin.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/workspace-crm.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/member-auth.sql --schema prisma/schema.prisma && npm run build",
+    "vercel-build": "npx prisma db execute --file prisma/deploy/assistant-v3.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/platform-admin.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/workspace-crm.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/member-auth.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/notification-scope.sql --schema prisma/schema.prisma && npm run build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",

@@ -20,7 +20,6 @@ import {
   Kanban,
   Sparkles,
   CalendarDays,
-  Share2,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -245,24 +244,17 @@ export default function CommandCenter() {
   const operatingCore = [
     {
       title: 'Merkezi CRM',
-      subtitle: 'Müşteri profilleri ve şirket hafızası',
+      subtitle: 'Müşteri profilleri, satış süreci ve şirket hafızası',
       icon: Users,
       href: '/fabrika/crm',
-      badge: `${workspaceMetrics?.contacts || 0} müşteri`,
+      badge: `${workspaceMetrics?.contacts || 0} müşteri · ${workspaceMetrics?.openDeals || 0} fırsat`,
     },
     {
       title: 'Portföyler',
-      subtitle: 'Portföy, malik ve performans yönetimi',
+      subtitle: 'Portföy, performans ve paylaşılabilir malik raporları',
       icon: Home,
       href: '/fabrika/portfoyler',
       badge: `${workspaceMetrics?.activeProperties || 0} aktif`,
-    },
-    {
-      title: 'Satış Hunisi',
-      subtitle: 'Fırsatlar, aşamalar ve komisyon görünümü',
-      icon: Kanban,
-      href: '/fabrika/satis',
-      badge: `${workspaceMetrics?.openDeals || 0} fırsat`,
     },
     {
       title: 'Eşleştirme',
@@ -277,13 +269,6 @@ export default function CommandCenter() {
       icon: CalendarDays,
       href: '/fabrika/takvim',
       badge: `${workspaceMetrics?.overdueTasks || 0} geciken`,
-    },
-    {
-      title: 'Satıcı Portalı',
-      subtitle: 'Mülk sahibine şeffaf performans raporu',
-      icon: Share2,
-      href: '/fabrika/satici-portali',
-      badge: 'Paylaşılabilir',
     },
   ];
 
@@ -319,7 +304,7 @@ export default function CommandCenter() {
             <h2 className="text-base font-semibold text-white">Emlak işletim sistemi</h2>
             <p className="mt-0.5 text-xs text-slate-500">Müşteriden satış kapanışına kadar merkezi çalışma alanı</p>
           </div>
-          <span className="text-xs text-slate-500">6 çalışma alanı</span>
+          <span className="text-xs text-slate-500">4 çalışma alanı</span>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {operatingCore.map((item) => {

@@ -1,7 +1,9 @@
-import { AdPlatform } from '@prisma/client';
+import { AdPlatform, NotificationType } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { callAI, parseJSONResponse } from '@/lib/ai';
+import { createCompanyNotification } from '@/lib/fabrika-notifications';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 type GeneratedAd = {
   platform?: string;
@@ -17,6 +19,7 @@ function isAdPlatform(value?: string): value is AdPlatform {
 
 export async function POST(request: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const body = (await request.json()) as {
       listingId?: string;
       type?: 'listing' | 'brand';
@@ -95,13 +98,14 @@ Gerçek olmayan fiyat, kampanya avantajı veya teslim tarihi uydurma.
       include: { adCopies: true },
     });
 
-    await prisma.notification.create({
-      data: {
-        type: 'AD_COPY_READY',
-        title: 'Reklam Taslakları Hazır',
-        message: `${campaign.name} için ${campaign.adCopies.length} reklam taslağı üretildi.`,
-        link: '/fabrika/pazarlamaci',
-      },
+    await createCompanyNotification({
+      companyAccountId: principal.account.id,
+      type: NotificationType.AD_COPY_READY,
+      title: 'Reklam Taslakları Hazır',
+      message: `${campaign.name} için ${campaign.adCopies.length} reklam taslağı üretildi.`,
+      link: '/fabrika/pazarlamaci',
+      important: false,
+      dedupeKey: `ad-campaign-ready:${campaign.id}`,
     });
 
     return NextResponse.json(campaign, { status: 201 });

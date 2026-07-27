@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { callAI, PROMPTS, parseJSONResponse } from '@/lib/ai';
+import { NotificationType } from '@prisma/client';
+import { createCompanyNotification } from '@/lib/fabrika-notifications';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 // GET: Dönüştürülmeyi bekleyen GREEN durumundaki ilanları getirir
 export async function GET() {
@@ -13,7 +16,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(listings);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch listings' }, { status: 500 });
   }
 }
@@ -21,6 +24,7 @@ export async function GET() {
 // POST: İlanı projeye dönüştürür
 export async function POST(request: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const { listingId } = await request.json();
     
     const listing = await prisma.huntedListing.findUnique({
@@ -84,13 +88,15 @@ export async function POST(request: Request) {
     });
     
     // Bildirim oluştur
-    await prisma.notification.create({
-      data: {
-        type: 'WEBSITE_GENERATED',
-        title: 'Yeni Portföy Eklendi',
-        message: `${listing.title} adlı ilan başarıyla web sitesine proje olarak eklendi.`,
-        link: `/projeler/${slug}`
-      }
+    await createCompanyNotification({
+      companyAccountId: principal.account.id,
+      type: NotificationType.GREEN_LISTING,
+      title: 'Yeni Portföy Onaylandı',
+      message: `${listing.title} web sitesine portföy olarak eklendi.`,
+      link: '/fabrika/portfoyler',
+      important: true,
+      dedupeKey: `portfolio-published:${project.id}`,
+      metadata: { projectId: project.id, listingId: listing.id },
     });
     
     return NextResponse.json(project);

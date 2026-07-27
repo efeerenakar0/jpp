@@ -1,5 +1,5 @@
-import WorkspacePage from '@/components/fabrika/WorkspacePage';
+import { redirect } from 'next/navigation';
 
 export default function SaticiPortaliPage() {
-  return <WorkspacePage mode="satici-portali" />;
+  redirect('/fabrika/portfoyler?view=malik-raporlari');
 }

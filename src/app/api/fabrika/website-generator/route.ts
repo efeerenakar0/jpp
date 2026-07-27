@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { NotificationType } from '@prisma/client';
+import { createCompanyNotification } from '@/lib/fabrika-notifications';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 export async function POST(request: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const { companyName, logoUrl, primaryColor, accentColor, phone, email, address, templateId } = await request.json();
     
     const website = await prisma.generatedWebsite.create({
@@ -138,12 +142,14 @@ export async function POST(request: Request) {
       data: { status: 'ready' }
     });
 
-    await prisma.notification.create({
-      data: {
-        type: 'WEBSITE_GENERATED',
-        title: 'Web Sitesi Hazır',
-        message: `${companyName} için oluşturduğunuz web sitesi yayınlanmaya hazır.`,
-      }
+    await createCompanyNotification({
+      companyAccountId: principal.account.id,
+      type: NotificationType.WEBSITE_GENERATED,
+      title: 'Web Sitesi Hazır',
+      message: `${companyName} için oluşturduğunuz web sitesi yayınlanmaya hazır.`,
+      link: '/fabrika/yazilimci',
+      important: false,
+      dedupeKey: `website-ready:${website.id}`,
     });
 
     return NextResponse.json({ websiteId: website.id, html, status: 'ready' });

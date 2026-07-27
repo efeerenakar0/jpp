@@ -44,6 +44,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 
 export type WorkspaceMode =
   | 'crm'
@@ -207,6 +212,12 @@ type OneTimeMemberCredentials = {
   temporaryCode: string;
 };
 
+export type WorkspaceInitialView =
+  | 'customers'
+  | 'pipeline'
+  | 'properties'
+  | 'owner-reports';
+
 const pageMeta: Record<
   WorkspaceMode,
   { title: string; description: string; eyebrow: string; icon: typeof Users }
@@ -323,7 +334,13 @@ function SelectField({
   );
 }
 
-export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
+export default function WorkspacePage({
+  mode,
+  initialView,
+}: {
+  mode: WorkspaceMode;
+  initialView?: WorkspaceInitialView;
+}) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -333,6 +350,12 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
   const [query, setQuery] = useState('');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [renderedAt] = useState(Date.now);
+  const [crmView, setCrmView] = useState<'customers' | 'pipeline'>(
+    initialView === 'pipeline' ? 'pipeline' : 'customers'
+  );
+  const [portfolioView, setPortfolioView] = useState<
+    'properties' | 'owner-reports'
+  >(initialView === 'owner-reports' ? 'owner-reports' : 'properties');
   const meta = pageMeta[mode];
 
   async function loadWorkspace() {
@@ -434,9 +457,13 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
 
   const headerAction =
     mode === 'crm'
-      ? () => setDialog('contact')
+      ? crmView === 'pipeline'
+        ? () => setDialog('deal')
+        : () => setDialog('contact')
       : mode === 'portfoyler'
-        ? () => setDialog('property')
+        ? portfolioView === 'properties'
+          ? () => setDialog('property')
+          : null
         : mode === 'satis'
           ? () => setDialog('deal')
           : mode === 'takvim'
@@ -446,8 +473,9 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
               : null;
 
   const actionLabels: Partial<Record<WorkspaceMode, string>> = {
-    crm: 'Müşteri ekle',
-    portfoyler: 'Portföy ekle',
+    crm: crmView === 'pipeline' ? 'Fırsat ekle' : 'Müşteri ekle',
+    portfoyler:
+      portfolioView === 'properties' ? 'Portföy ekle' : undefined,
     satis: 'Fırsat ekle',
     takvim: 'Görev ekle',
     sirket: 'Ekip üyesi ekle',
@@ -536,7 +564,53 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
         />
       </div>
 
-      {mode === 'crm' && (
+      {mode === 'crm' ? (
+        <Tabs
+          onValueChange={(value) =>
+            setCrmView(value as 'customers' | 'pipeline')
+          }
+          value={crmView}
+        >
+          <TabsList
+            aria-label="CRM çalışma alanı"
+            className="grid h-11 w-full max-w-md grid-cols-2 border border-slate-800 bg-slate-900"
+          >
+            <TabsTrigger value="customers">
+              <Users aria-hidden="true" className="h-4 w-4" />
+              Müşteriler
+            </TabsTrigger>
+            <TabsTrigger value="pipeline">
+              <Kanban aria-hidden="true" className="h-4 w-4" />
+              Satış süreci
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      ) : null}
+
+      {mode === 'portfoyler' ? (
+        <Tabs
+          onValueChange={(value) =>
+            setPortfolioView(value as 'properties' | 'owner-reports')
+          }
+          value={portfolioView}
+        >
+          <TabsList
+            aria-label="Portföy çalışma alanı"
+            className="grid h-11 w-full max-w-md grid-cols-2 border border-slate-800 bg-slate-900"
+          >
+            <TabsTrigger value="properties">
+              <Home aria-hidden="true" className="h-4 w-4" />
+              Portföyler
+            </TabsTrigger>
+            <TabsTrigger value="owner-reports">
+              <Share2 aria-hidden="true" className="h-4 w-4" />
+              Malik raporları
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      ) : null}
+
+      {mode === 'crm' && crmView === 'customers' && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,.75fr)]">
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             <div className="flex flex-col gap-3 border-b border-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -689,7 +763,7 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
         </div>
       )}
 
-      {mode === 'portfoyler' && (
+      {mode === 'portfoyler' && portfolioView === 'properties' && (
         workspace.properties.length === 0 ? (
           <EmptyState
             icon={Home}
@@ -752,7 +826,7 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
                       href={`/portfoy-takip/${property.sellerPortalToken}`}
                       target="_blank"
                     >
-                      Portal <ExternalLink className="h-3 w-3" />
+                      Malik raporu <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>
                 </div>
@@ -762,7 +836,7 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
         )
       )}
 
-      {mode === 'satis' && (
+      {(mode === 'satis' || (mode === 'crm' && crmView === 'pipeline')) && (
         <section className="custom-scrollbar overflow-x-auto pb-3">
           <div className="grid min-w-[1480px] grid-cols-8 gap-3">
             {visibleStages.map((stage) => {
@@ -965,13 +1039,14 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
         )
       )}
 
-      {mode === 'satici-portali' && (
+      {(mode === 'satici-portali' ||
+        (mode === 'portfoyler' && portfolioView === 'owner-reports')) && (
         <div className="space-y-4">
           <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
             <div className="flex items-start gap-3">
               <BadgeCheck className="mt-0.5 h-5 w-5 text-sky-400" />
               <div>
-                <h2 className="text-sm font-semibold text-white">Paylaşılabilir müşteri raporu</h2>
+                <h2 className="text-sm font-semibold text-white">Paylaşılabilir malik raporu</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-400">
                   Her bağlantı yalnızca ilgili portföyün performansını gösterir; şirket paneline erişim vermez.
                 </p>
@@ -981,7 +1056,7 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
           {workspace.properties.length === 0 ? (
             <EmptyState
               icon={Share2}
-              title="Portal oluşturulacak portföy yok"
+              title="Malik raporu oluşturulacak portföy yok"
               description="Önce Portföy Yönetimi sayfasından bir portföy ekleyin."
             />
           ) : (
@@ -993,7 +1068,7 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
                       <th className="px-4 py-3">Portföy</th>
                       <th className="px-4 py-3">Mülk sahibi</th>
                       <th className="px-4 py-3">Toplam etkileşim</th>
-                      <th className="px-4 py-3">Portal</th>
+                      <th className="px-4 py-3">Malik raporu</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
@@ -1022,7 +1097,7 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
                                   await navigator.clipboard.writeText(
                                     `${window.location.origin}${portalPath}`
                                   );
-                                  toast.success('Portal bağlantısı kopyalandı.');
+                                  toast.success('Malik raporu bağlantısı kopyalandı.');
                                 }}
                                 size="sm"
                                 variant="outline"

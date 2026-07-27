@@ -1,5 +1,5 @@
-import WorkspacePage from '@/components/fabrika/WorkspacePage';
+import { redirect } from 'next/navigation';
 
 export default function SatisPage() {
-  return <WorkspacePage mode="satis" />;
+  redirect('/fabrika/crm?view=pipeline');
 }

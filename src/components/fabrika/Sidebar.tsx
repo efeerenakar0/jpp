@@ -16,10 +16,8 @@ import {
   X,
   Users,
   Home,
-  Kanban,
   Sparkles,
   CalendarDays,
-  Share2,
   Settings2,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -90,13 +88,6 @@ const realEstatePackages = [
     description: 'Portföy Yönetimi',
   },
   {
-    name: 'Satış Hunisi',
-    href: '/fabrika/satis',
-    icon: Kanban,
-    color: 'from-emerald-400 to-teal-500',
-    description: 'Fırsat & Komisyon',
-  },
-  {
     name: 'Eşleştirme',
     href: '/fabrika/eslestirme',
     icon: Sparkles,
@@ -109,13 +100,6 @@ const realEstatePackages = [
     icon: CalendarDays,
     color: 'from-emerald-400 to-teal-500',
     description: 'Görev & Randevu',
-  },
-  {
-    name: 'Satıcı Portalı',
-    href: '/fabrika/satici-portali',
-    icon: Share2,
-    color: 'from-emerald-400 to-teal-500',
-    description: 'Müşteri Raporu',
   },
   {
     name: 'Şirket & Ekip',

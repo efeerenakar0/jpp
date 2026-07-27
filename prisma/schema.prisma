@@ -342,6 +342,7 @@ model CompanyAccount {
   crmTasks      CrmTask[]
   crmMatches    CrmMatch[]
   crmActivities CrmActivity[]
+  notifications Notification[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -386,6 +387,7 @@ model CompanyMember {
   deals      CrmDeal[]
   tasks      CrmTask[]
   activities CrmActivity[]
+  notifications Notification[]
 
   @@unique([companyAccountId, email])
   @@index([companyAccountId, active])
@@ -761,14 +763,24 @@ model AppointmentRequest {
 // --- Ortak: Bildirim Sistemi ---
 
 model Notification {
-  id        String           @id @default(cuid())
-  type      NotificationType
-  title     String
-  message   String           @db.Text
-  link      String? // İlgili sayfaya yönlendirme linki
-  read      Boolean          @default(false)
-  metadata  String?          @db.Text // JSON: ek bilgiler
-  createdAt DateTime         @default(now())
+  id                String            @id @default(cuid())
+  companyAccountId  String?
+  companyAccount    CompanyAccount?   @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  recipientMemberId String?
+  recipientMember   CompanyMember?    @relation(fields: [recipientMemberId], references: [id], onDelete: Cascade)
+  recipientKey      String?
+  type              NotificationType
+  title             String
+  message           String            @db.Text
+  link              String? // İlgili sayfaya yönlendirme linki
+  important         Boolean           @default(false)
+  read              Boolean           @default(false)
+  dedupeKey         String?
+  metadata          String?           @db.Text // JSON: ek bilgiler
+  createdAt         DateTime          @default(now())
+
+  @@unique([companyAccountId, recipientKey, dedupeKey])
+  @@index([companyAccountId, recipientKey, important, read, createdAt])
 }
 
 // --- Modül 5: Dijital Fotoğraf Stüdyosu ---
