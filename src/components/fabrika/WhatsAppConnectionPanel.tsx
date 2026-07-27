@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 type Status = {
-  provider: 'EVOLUTION' | 'META';
+  provider: 'WAHA' | 'EVOLUTION' | 'META';
   configured: boolean;
   connectionStatus: string;
   connectedPhone: string | null;
@@ -38,7 +38,7 @@ type Status = {
 };
 
 const emptyStatus: Status = {
-  provider: 'EVOLUTION',
+  provider: 'WAHA',
   configured: false,
   connectionStatus: 'DISCONNECTED',
   connectedPhone: null,
@@ -59,6 +59,10 @@ function statusLabel(status: string) {
       return 'QR bekleniyor';
     case 'CONNECTING':
       return 'Bağlanıyor';
+    case 'PASSKEY_REQUIRED':
+      return 'Telefonda güvenlik onayı bekleniyor';
+    case 'PASSKEY_CONFIRMATION_REQUIRED':
+      return 'Güvenlik kodu onayı bekleniyor';
     case 'ERROR':
       return 'Hata';
     default:
@@ -101,7 +105,16 @@ export default function WhatsAppConnectionPanel() {
   }, [loadStatus]);
 
   useEffect(() => {
-    if (!['WAITING_QR', 'CONNECTING'].includes(status.connectionStatus)) return;
+    if (
+      ![
+        'WAITING_QR',
+        'CONNECTING',
+        'PASSKEY_REQUIRED',
+        'PASSKEY_CONFIRMATION_REQUIRED',
+      ].includes(status.connectionStatus)
+    ) {
+      return;
+    }
     const timer = window.setInterval(() => {
       loadStatus(true).catch(() => null);
     }, 7000);
@@ -117,6 +130,7 @@ export default function WhatsAppConnectionPanel() {
         body: JSON.stringify({ action: 'prepare' }),
       });
       const data = (await response.json()) as {
+        provider?: Status['provider'];
         connectionStatus?: string;
         qrCode?: string | null;
         pairingCode?: string | null;
@@ -127,6 +141,7 @@ export default function WhatsAppConnectionPanel() {
       setPairingCode(data.pairingCode || null);
       setStatus((current) => ({
         ...current,
+        provider: data.provider || current.provider,
         connectionStatus: data.connectionStatus || 'WAITING_QR',
         lastError: null,
       }));
@@ -414,7 +429,7 @@ export default function WhatsAppConnectionPanel() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
           <p>
-            Bu bağlantı WhatsApp Web protokolünü kullanan, resmi olmayan Evolution/Baileys altyapısıdır.
+            Bu bağlantı WhatsApp Web protokolünü kullanan, resmi olmayan WAHA/GOWS altyapısıdır.
             Toplu veya izinsiz mesaj hesabın kısıtlanmasına yol açabilir. İlk temas iznini yalnızca hukuka
             uygun müşteri listeleriyle açın. Resmi Meta Cloud API seçeneği Asistan ayarlarında korunur.{' '}
             <a

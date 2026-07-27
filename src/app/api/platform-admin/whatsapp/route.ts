@@ -3,7 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
   dispatchWhatsAppOutboxMessage,
-  refreshEvolutionConnection,
+  refreshCompanyWhatsAppConnection,
 } from '@/lib/company-whatsapp';
 import { requirePlatformAdmin } from '@/lib/require-platform-admin';
 
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
   try {
     if (parsed.data.action === 'refresh') {
       return NextResponse.json(
-        await refreshEvolutionConnection(parsed.data.companyAccountId)
+        await refreshCompanyWhatsAppConnection(parsed.data.companyAccountId)
       );
     }
     const outbox = await prisma.whatsAppOutboxMessage.findUnique({

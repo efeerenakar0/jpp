@@ -1,0 +1,76 @@
+name: jasmine-waha
+
+services:
+  waha:
+    image: devlikeapro/waha@sha256:8f3a7b11310594b973a588b2f7de061864c83532ae2cdff43280db0402bead29
+    restart: unless-stopped
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY:?WAHA_API_KEY gerekli}
+      WAHA_DASHBOARD_ENABLED: "false"
+      WAHA_PRINT_QR: "false"
+      WHATSAPP_DEFAULT_ENGINE: GOWS
+      WHATSAPP_RESTART_ALL_SESSIONS: "true"
+      WHATSAPP_SWAGGER_ENABLED: "false"
+    expose:
+      - "3000"
+    volumes:
+      - waha_sessions:/app/.sessions
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "fetch('http://127.0.0.1:3000/api/sessions',
+          {headers:{'X-Api-Key':process.env.WAHA_API_KEY}})
+          .then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 8s
+      retries: 20
+      start_period: 30s
+    networks: [private, edge]
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    depends_on:
+      waha:
+        condition: service_healthy
+    environment:
+      WAHA_DOMAIN: ${WAHA_DOMAIN:?WAHA_DOMAIN gerekli}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+
+  outbox-worker:
+    image: curlimages/curl:8.12.1
+    restart: unless-stopped
+    environment:
+      JASMINE_OUTBOX_URL: ${JASMINE_OUTBOX_URL:?JASMINE_OUTBOX_URL gerekli}
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET gerekli}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          curl --fail --silent --show-error \
+            --max-time 55 \
+            -H "Authorization: Bearer $${CRON_SECRET}" \
+            "$${JASMINE_OUTBOX_URL}" || true
+          sleep 60
+        done
+    networks: [edge]
+
+volumes:
+  waha_sessions:
+  caddy_data:
+  caddy_config:
+
+networks:
+  private:
+    internal: true
+  edge:

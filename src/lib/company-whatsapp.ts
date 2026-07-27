@@ -15,12 +15,30 @@ import {
 import {
   generateWebhookSecret,
   hashWebhookSecret,
+  verifyWebhookSecret,
 } from '@/lib/whatsapp-crypto';
+import {
+  checkWahaHealth,
+  createWahaSession,
+  getWahaQrCode,
+  getWahaSession,
+  isWahaConfigured,
+  logoutWahaSession,
+  sendWahaText,
+  startWahaSession,
+  updateWahaSession,
+  type WahaSession,
+  type WahaSessionStatus,
+  type WahaWebhook,
+} from '@/lib/waha-client';
 
-export type WhatsAppProvider = 'EVOLUTION' | 'META';
+export type WhatsAppProvider = 'WAHA' | 'EVOLUTION' | 'META';
 
-function normalizeProvider(value: string | null | undefined): WhatsAppProvider {
-  return value === 'META' ? 'META' : 'EVOLUTION';
+export function normalizeWhatsAppProvider(
+  value: string | null | undefined
+): WhatsAppProvider {
+  if (value === 'META' || value === 'WAHA') return value;
+  return 'EVOLUTION';
 }
 
 function safeInstanceName(slug: string, accountId: string) {
@@ -59,7 +77,7 @@ export async function ensureCompanyWhatsAppConfig(companyAccountId: string) {
     update: {},
     create: {
       companyAccountId,
-      provider: 'EVOLUTION',
+      provider: isWahaConfigured() ? 'WAHA' : 'EVOLUTION',
       companyName: account.companyName,
       evolutionInstanceName: safeInstanceName(account.slug, account.id),
       connectionStatus: 'DISCONNECTED',
@@ -82,11 +100,11 @@ export function serializeCompanyWhatsAppStatus(config: {
   token: string | null;
   phoneNumberId: string | null;
 }) {
-  const provider = normalizeProvider(config.provider);
+  const provider = normalizeWhatsAppProvider(config.provider);
   return {
     provider,
     configured:
-      provider === 'EVOLUTION'
+      provider === 'EVOLUTION' || provider === 'WAHA'
         ? Boolean(config.evolutionInstanceName)
         : Boolean(config.token && config.phoneNumberId),
     connectionStatus: config.connectionStatus,
@@ -101,6 +119,230 @@ export function serializeCompanyWhatsAppStatus(config: {
     allowFirstContact: config.allowFirstContact,
     dailyMessageLimit: config.dailyMessageLimit,
   };
+}
+
+function wahaConnectionStatus(status: WahaSessionStatus) {
+  switch (status) {
+    case 'WORKING':
+      return 'CONNECTED';
+    case 'SCAN_QR_CODE':
+      return 'WAITING_QR';
+    case 'PASSKEY_REQUIRED':
+      return 'PASSKEY_REQUIRED';
+    case 'PASSKEY_CONFIRMATION_REQUIRED':
+      return 'PASSKEY_CONFIRMATION_REQUIRED';
+    case 'STARTING':
+      return 'CONNECTING';
+    case 'FAILED':
+      return 'ERROR';
+    default:
+      return 'DISCONNECTED';
+  }
+}
+
+function connectedPhone(session: WahaSession) {
+  return String(session.me?.id || session.me?.jid || '')
+    .replace(/@.+$/, '')
+    .replace(/:\d+$/, '')
+    .replace(/\D/g, '');
+}
+
+function createWahaWebhook(url: string): WahaWebhook {
+  return {
+    url,
+    events: ['message', 'message.ack', 'session.status'],
+    retries: {
+      policy: 'exponential',
+      delaySeconds: 2,
+      attempts: 8,
+    },
+  };
+}
+
+function existingWahaWebhook(
+  session: WahaSession,
+  companyAccountId: string,
+  webhookSecretHash: string | null
+) {
+  const webhooks = Array.isArray(session.config?.webhooks)
+    ? session.config.webhooks
+    : [];
+  return webhooks.find((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const url = String((item as { url?: unknown }).url || '');
+    try {
+      const parsed = new URL(url);
+      const token = parsed.searchParams.get('token');
+      return (
+        parsed.pathname.endsWith(
+          `/api/whatsapp/waha/webhook/${encodeURIComponent(companyAccountId)}`
+        ) && verifyWebhookSecret(token, webhookSecretHash)
+      );
+    } catch {
+      return false;
+    }
+  });
+}
+
+export async function prepareWahaConnection(companyAccountId: string) {
+  const config = await ensureCompanyWhatsAppConfig(companyAccountId);
+  const bootstrapSession =
+    normalizeWhatsAppProvider(config.provider) === 'WAHA'
+      ? ''
+      : process.env.WAHA_BOOTSTRAP_SESSION?.trim() || '';
+  const sessionName =
+    bootstrapSession ||
+    config.evolutionInstanceName ||
+    safeInstanceName('company', companyAccountId);
+
+  await checkWahaHealth();
+  let session = await getWahaSession(sessionName);
+  let webhookSecret: string | null = null;
+
+  if (!session) {
+    webhookSecret = generateWebhookSecret();
+    const webhookUrl = `${publicAppUrl()}/api/whatsapp/waha/webhook/${encodeURIComponent(
+      companyAccountId
+    )}?token=${encodeURIComponent(webhookSecret)}`;
+    session = await createWahaSession({
+      sessionName,
+      webhook: createWahaWebhook(webhookUrl),
+    });
+  } else if (
+    !existingWahaWebhook(
+      session,
+      companyAccountId,
+      config.evolutionWebhookSecretHash
+    )
+  ) {
+    webhookSecret = generateWebhookSecret();
+    const webhookUrl = `${publicAppUrl()}/api/whatsapp/waha/webhook/${encodeURIComponent(
+      companyAccountId
+    )}?token=${encodeURIComponent(webhookSecret)}`;
+    session = await updateWahaSession({
+      session,
+      webhook: createWahaWebhook(webhookUrl),
+    });
+  }
+
+  if (session.status === 'STOPPED' || session.status === 'FAILED') {
+    session = await startWahaSession(sessionName);
+  }
+  if (session.status === 'STARTING') {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    session = (await getWahaSession(sessionName)) || session;
+  }
+
+  const connectionStatus = wahaConnectionStatus(session.status);
+  const phone = connectedPhone(session);
+  const updated = await prisma.whatsAppConfig.update({
+    where: { companyAccountId },
+    data: {
+      provider: 'WAHA',
+      evolutionInstanceName: sessionName,
+      evolutionInstanceId: session.me?.jid || session.me?.lid || null,
+      ...(webhookSecret
+        ? { evolutionWebhookSecretHash: hashWebhookSecret(webhookSecret) }
+        : {}),
+      connectionStatus,
+      connectedPhone: phone || config.connectedPhone,
+      connectedProfileName:
+        session.me?.pushName || config.connectedProfileName,
+      lastHealthCheckAt: new Date(),
+      lastError: null,
+      ...(connectionStatus === 'CONNECTED'
+        ? { lastConnectedAt: new Date() }
+        : {}),
+    },
+  });
+  const qrCode =
+    connectionStatus === 'WAITING_QR'
+      ? await getWahaQrCode(sessionName).catch(() => null)
+      : null;
+
+  return {
+    ...serializeCompanyWhatsAppStatus(updated),
+    qrCode,
+    pairingCode: null,
+  };
+}
+
+export async function refreshWahaConnection(companyAccountId: string) {
+  const config = await ensureCompanyWhatsAppConfig(companyAccountId);
+  if (!config.evolutionInstanceName) {
+    return {
+      ...serializeCompanyWhatsAppStatus(config),
+      qrCode: null,
+      pairingCode: null,
+    };
+  }
+
+  try {
+    const session = await getWahaSession(config.evolutionInstanceName);
+    if (!session) {
+      throw new Error('WAHA şirket oturumu bulunamadı.');
+    }
+    const connectionStatus = wahaConnectionStatus(session.status);
+    const phone = connectedPhone(session);
+    const updated = await prisma.whatsAppConfig.update({
+      where: { companyAccountId },
+      data: {
+        provider: 'WAHA',
+        connectionStatus,
+        connectedPhone: phone || config.connectedPhone,
+        connectedProfileName:
+          session.me?.pushName || config.connectedProfileName,
+        evolutionInstanceId:
+          session.me?.jid || session.me?.lid || config.evolutionInstanceId,
+        lastHealthCheckAt: new Date(),
+        lastError: null,
+        ...(connectionStatus === 'CONNECTED' && !config.lastConnectedAt
+          ? { lastConnectedAt: new Date() }
+          : {}),
+      },
+    });
+    const qrCode =
+      connectionStatus === 'WAITING_QR'
+        ? await getWahaQrCode(config.evolutionInstanceName).catch(() => null)
+        : null;
+    return {
+      ...serializeCompanyWhatsAppStatus(updated),
+      qrCode,
+      pairingCode: null,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'WAHA bağlantısı kontrol edilemedi.';
+    const updated = await prisma.whatsAppConfig.update({
+      where: { companyAccountId },
+      data: {
+        connectionStatus: 'ERROR',
+        lastHealthCheckAt: new Date(),
+        lastError: message.slice(0, 500),
+      },
+    });
+    return {
+      ...serializeCompanyWhatsAppStatus(updated),
+      qrCode: null,
+      pairingCode: null,
+    };
+  }
+}
+
+export async function disconnectWahaConnection(companyAccountId: string) {
+  const config = await ensureCompanyWhatsAppConfig(companyAccountId);
+  if (config.evolutionInstanceName) {
+    await logoutWahaSession(config.evolutionInstanceName).catch(() => null);
+  }
+  return prisma.whatsAppConfig.update({
+    where: { companyAccountId },
+    data: {
+      connectionStatus: 'DISCONNECTED',
+      connectedPhone: null,
+      connectedProfileName: null,
+      lastError: null,
+    },
+  });
 }
 
 export async function prepareEvolutionConnection(companyAccountId: string) {
@@ -162,7 +404,7 @@ export async function prepareEvolutionConnection(companyAccountId: string) {
 
 export async function refreshEvolutionConnection(companyAccountId: string) {
   const config = await ensureCompanyWhatsAppConfig(companyAccountId);
-  if (normalizeProvider(config.provider) === 'META') {
+  if (normalizeWhatsAppProvider(config.provider) === 'META') {
     return {
       ...serializeCompanyWhatsAppStatus(config),
       qrCode: null,
@@ -240,6 +482,41 @@ export async function disconnectEvolutionConnection(
   });
 }
 
+export async function prepareCompanyWhatsAppConnection(
+  companyAccountId: string
+) {
+  return isWahaConfigured()
+    ? prepareWahaConnection(companyAccountId)
+    : prepareEvolutionConnection(companyAccountId);
+}
+
+export async function refreshCompanyWhatsAppConnection(
+  companyAccountId: string
+) {
+  const config = await ensureCompanyWhatsAppConfig(companyAccountId);
+  const provider = normalizeWhatsAppProvider(config.provider);
+  if (provider === 'WAHA') {
+    return refreshWahaConnection(companyAccountId);
+  }
+  if (provider === 'META') {
+    return {
+      ...serializeCompanyWhatsAppStatus(config),
+      qrCode: null,
+      pairingCode: null,
+    };
+  }
+  return refreshEvolutionConnection(companyAccountId);
+}
+
+export async function disconnectCompanyWhatsAppConnection(
+  companyAccountId: string
+) {
+  const config = await ensureCompanyWhatsAppConfig(companyAccountId);
+  return normalizeWhatsAppProvider(config.provider) === 'WAHA'
+    ? disconnectWahaConnection(companyAccountId)
+    : disconnectEvolutionConnection(companyAccountId);
+}
+
 function retryAt(attemptCount: number) {
   const minutes = Math.min(60, 2 ** Math.max(0, attemptCount));
   return new Date(Date.now() + minutes * 60_000);
@@ -307,8 +584,9 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
       outbox.companyAccountId,
       config.dailyMessageLimit
     );
-    if (normalizeProvider(config.provider) !== 'EVOLUTION') {
-      throw new Error('Bu kuyruk kaydı Evolution sağlayıcısına ait değil.');
+    const provider = normalizeWhatsAppProvider(config.provider);
+    if (provider !== 'EVOLUTION' && provider !== 'WAHA') {
+      throw new Error('Bu kuyruk kaydı bağlı cihaz sağlayıcısına ait değil.');
     }
     if (
       config.connectionStatus !== 'CONNECTED' ||
@@ -317,11 +595,18 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
       throw new Error('WhatsApp telefonu bağlı değil.');
     }
 
-    const sent = await sendEvolutionText({
-      instanceName: config.evolutionInstanceName,
-      to: outbox.toPhone,
-      text: outbox.content,
-    });
+    const sent =
+      provider === 'WAHA'
+        ? await sendWahaText({
+            sessionName: config.evolutionInstanceName,
+            to: outbox.toPhone,
+            text: outbox.content,
+          })
+        : await sendEvolutionText({
+            instanceName: config.evolutionInstanceName,
+            to: outbox.toPhone,
+            text: outbox.content,
+          });
     const updated = await prisma.whatsAppOutboxMessage.update({
       where: { id },
       data: {
@@ -379,8 +664,9 @@ export async function queueCompanyWhatsAppMessage(input: {
   firstContact?: boolean;
 }) {
   const config = await ensureCompanyWhatsAppConfig(input.companyAccountId);
-  if (normalizeProvider(config.provider) !== 'EVOLUTION') {
-    throw new Error('Şirket Evolution WhatsApp sağlayıcısını kullanmıyor.');
+  const provider = normalizeWhatsAppProvider(config.provider);
+  if (provider !== 'EVOLUTION' && provider !== 'WAHA') {
+    throw new Error('Şirket bağlı cihaz WhatsApp sağlayıcısını kullanmıyor.');
   }
   if (input.firstContact && !config.allowFirstContact) {
     throw new Error(
@@ -401,7 +687,7 @@ export async function queueCompanyWhatsAppMessage(input: {
       listingId: input.listingId,
       toPhone: phone,
       content: input.text,
-      provider: 'EVOLUTION',
+      provider,
       idempotencyKey,
       createdByType: input.createdByType,
       createdById: input.createdById,

@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
-  disconnectEvolutionConnection,
+  disconnectCompanyWhatsAppConnection,
   ensureCompanyWhatsAppConfig,
-  prepareEvolutionConnection,
-  refreshEvolutionConnection,
+  prepareCompanyWhatsAppConnection,
+  refreshCompanyWhatsAppConnection,
   serializeCompanyWhatsAppStatus,
 } from '@/lib/company-whatsapp';
 import {
@@ -74,12 +74,12 @@ export async function POST(request: Request) {
     }
     if (parsed.data.action === 'prepare') {
       return NextResponse.json(
-        await prepareEvolutionConnection(principal.account.id)
+        await prepareCompanyWhatsAppConnection(principal.account.id)
       );
     }
     if (parsed.data.action === 'refresh') {
       return NextResponse.json(
-        await refreshEvolutionConnection(principal.account.id)
+        await refreshCompanyWhatsAppConnection(principal.account.id)
       );
     }
     const config = await ensureCompanyWhatsAppConfig(principal.account.id);
@@ -100,7 +100,9 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     const principal = await requireFabrikaOwner();
-    const config = await disconnectEvolutionConnection(principal.account.id);
+    const config = await disconnectCompanyWhatsAppConnection(
+      principal.account.id
+    );
     return NextResponse.json(serializeCompanyWhatsAppStatus(config));
   } catch (error) {
     return handleError(error);

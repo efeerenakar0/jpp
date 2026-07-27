@@ -1,5 +1,9 @@
 # Jasmine WhatsApp Gateway
 
+> Bu Evolution/Baileys paketi yalnızca geriye dönük uyumluluk için tutulur.
+> Temmuz 2026 Passkey hesapları için üretim seçeneği `infra/waha` altındaki
+> WAHA/GOWS paketidir.
+
 Bu paket, Evolution API `v2.3.7`, PostgreSQL, Redis, otomatik TLS sağlayan
 Caddy ve Jasmine mesaj kuyruğu işçisini ayrı bir sürekli çalışan sunucuda
 başlatır. Vercel üzerinde uzun ömürlü WhatsApp bağlantısı çalıştırılmaz.

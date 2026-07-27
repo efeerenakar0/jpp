@@ -4,7 +4,10 @@ import {
   sendMetaWhatsAppMessage,
   sendMetaWhatsAppTemplate,
 } from '@/lib/whatsapp';
-import { queueCompanyWhatsAppMessage } from '@/lib/company-whatsapp';
+import {
+  normalizeWhatsAppProvider,
+  queueCompanyWhatsAppMessage,
+} from '@/lib/company-whatsapp';
 
 export const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -78,9 +81,9 @@ export async function sendAssistantWhatsAppMessage(input: {
       templateLanguage: true,
     },
   });
-  const provider = config?.provider === 'META' ? 'META' : 'EVOLUTION';
+  const provider = normalizeWhatsAppProvider(config?.provider);
 
-  if (provider === 'EVOLUTION') {
+  if (provider === 'EVOLUTION' || provider === 'WAHA') {
     const result = await queueCompanyWhatsAppMessage({
       companyAccountId: input.companyAccountId,
       to: input.to,
@@ -94,7 +97,7 @@ export async function sendAssistantWhatsAppMessage(input: {
       deliveryStatus: result.deliveryStatus,
       messageType: 'TEXT',
       metadata: JSON.stringify({
-        provider: 'evolution',
+        provider: provider.toLowerCase(),
         providerMessageId: result.providerMessageId,
         outboxId: result.outboxId,
         channel: 'whatsapp',

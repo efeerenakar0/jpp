@@ -11,7 +11,7 @@ import { extractAppointmentSignal } from '@/lib/customer-message';
 
 export type IncomingWhatsAppMessage = {
   companyAccountId: string;
-  provider: 'EVOLUTION' | 'META';
+  provider: 'WAHA' | 'EVOLUTION' | 'META';
   fromPhone: string;
   contactName: string;
   text: string;

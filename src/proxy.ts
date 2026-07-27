@@ -16,11 +16,13 @@ const PUBLIC_WHATSAPP_WEBHOOKS = new Set([
   '/api/webhook/whatsapp',
 ]);
 const EVOLUTION_WEBHOOK_PREFIX = '/api/whatsapp/evolution/webhook/';
+const WAHA_WEBHOOK_PREFIX = '/api/whatsapp/waha/webhook/';
 
 function isPublicWhatsAppWebhook(pathname: string): boolean {
   return (
     PUBLIC_WHATSAPP_WEBHOOKS.has(pathname) ||
-    pathname.startsWith(EVOLUTION_WEBHOOK_PREFIX)
+    pathname.startsWith(EVOLUTION_WEBHOOK_PREFIX) ||
+    pathname.startsWith(WAHA_WEBHOOK_PREFIX)
   );
 }
 
