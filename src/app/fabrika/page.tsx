@@ -209,14 +209,14 @@ export default function CommandCenter() {
       subtitle: 'Sahibinden ilan toplama ve ikna operasyonu',
       icon: Crosshair,
       href: '/fabrika/avci',
-      badge: `${context.huntedListings} kayıt`,
+      badge: `${context.huntedListings ?? 0} kayıt`,
     },
     {
       title: 'Asistan',
       subtitle: 'WhatsApp temsilcisi ve müşteri takibi',
       icon: MessageCircle,
       href: '/fabrika/asistan',
-      badge: `${context.activeConversations} sohbet`,
+      badge: `${context.activeConversations ?? 0} sohbet`,
     },
     {
       title: 'Pazarlamacı',
