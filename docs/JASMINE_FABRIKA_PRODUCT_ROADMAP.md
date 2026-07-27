@@ -167,6 +167,19 @@ oluşturma/sıfırlama anında bir kez gösterilir.
      bazlı oturum izolasyonu, kuyruk, hız sınırı ve hata geri kazanımı
      tamamlanmadan üretime açılmaz.
 
+   Uygulanan kararlar:
+   - Her şirket için ayrı Evolution oturumu, doğrulanmış webhook ve QR bağlantı
+     ekranı oluşturuldu. Çalışanlar gizli bağlantı ayarlarına erişemez.
+   - Evolution API `v2.3.7`, PostgreSQL, Redis, TLS ters vekil ve bağımsız
+     kuyruk işçisiyle ayrı bir sürekli çalışan sunucu paketi hazırlandı.
+   - Gönderimler idempotent outbox kuyruğuna alınır; geçici kesintilerde
+     kademeli yeniden deneme, günlük şirket limiti ve platform admin görünümü
+     uygulanır.
+   - Asistan, randevu ve Avcı gönderimleri şirket hesabına göre izole edildi;
+     gelen WhatsApp kişilerinin Merkezi CRM kaydı otomatik oluşturulur.
+   - Canlı aktivasyon, harici gateway sunucusunun kurulması ve Vercel üretim
+     değişkenlerinin girilmesinden sonra yapılır.
+
 ## AI ve entegrasyon ilkeleri
 
 - Sağlayıcı ve model seçimleri şirket bazlıdır; anahtarları yalnızca Patron

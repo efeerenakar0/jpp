@@ -4,6 +4,7 @@ import {
   sendMetaWhatsAppMessage,
   sendMetaWhatsAppTemplate,
 } from '@/lib/whatsapp';
+import { queueCompanyWhatsAppMessage } from '@/lib/company-whatsapp';
 
 export const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -61,27 +62,61 @@ export function parseMetaTimestamp(value: unknown): Date {
 }
 
 export async function sendAssistantWhatsAppMessage(input: {
+  companyAccountId: string;
   to: string;
   text: string;
   lastCustomerMessageAt: Date | null;
+  conversationId?: string;
+  createdByType?: string;
+  createdById?: string;
 }): Promise<AssistantDelivery> {
   const config = await prisma.whatsAppConfig.findUnique({
-    where: { id: 'default' },
+    where: { companyAccountId: input.companyAccountId },
     select: {
+      provider: true,
       fallbackTemplateName: true,
       templateLanguage: true,
     },
   });
+  const provider = config?.provider === 'META' ? 'META' : 'EVOLUTION';
+
+  if (provider === 'EVOLUTION') {
+    const result = await queueCompanyWhatsAppMessage({
+      companyAccountId: input.companyAccountId,
+      to: input.to,
+      text: input.text,
+      conversationId: input.conversationId,
+      createdByType: input.createdByType,
+      createdById: input.createdById,
+    });
+    return {
+      providerMessageId: result.providerMessageId,
+      deliveryStatus: result.deliveryStatus,
+      messageType: 'TEXT',
+      metadata: JSON.stringify({
+        provider: 'evolution',
+        providerMessageId: result.providerMessageId,
+        outboxId: result.outboxId,
+        channel: 'whatsapp',
+        status: result.deliveryStatus,
+        queued: result.queued,
+        sentAt: result.queued ? null : new Date().toISOString(),
+      }),
+    };
+  }
+
   const useFreeform = hasOpenCustomerServiceWindow(
     input.lastCustomerMessageAt
   );
   const metaResponse = useFreeform
     ? await sendMetaWhatsAppMessage({
+        companyAccountId: input.companyAccountId,
         to: input.to,
         text: input.text,
       })
     : config?.fallbackTemplateName
       ? await sendMetaWhatsAppTemplate({
+          companyAccountId: input.companyAccountId,
           to: input.to,
           templateName: config.fallbackTemplateName,
           languageCode: config.templateLanguage || 'tr',

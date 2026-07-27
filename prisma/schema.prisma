@@ -353,6 +353,10 @@ model CompanyAccount {
   adCampaigns              AdCampaign[]
   websiteMarketingAnalyses MarketingWebsiteAnalysis[]
   generalManagerMessages   GeneralManagerMessage[]
+  whatsAppConfig           WhatsAppConfig?
+  customerConversations    CustomerConversation[]
+  whatsAppMessages         WhatsAppMessage[]
+  whatsAppOutboxMessages   WhatsAppOutboxMessage[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -745,12 +749,17 @@ model PortfolioImportItem {
 }
 
 model WhatsAppMessage {
-  id        String   @id @default(cuid())
-  phone     String
-  fromMe    Boolean
-  content   String   @db.Text
-  status    String   @default("SENT") // SENT, DRAFT
-  createdAt DateTime @default(now())
+  id                String          @id @default(cuid())
+  companyAccountId  String?
+  companyAccount    CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  phone             String
+  fromMe            Boolean
+  content           String          @db.Text
+  status            String          @default("SENT") // QUEUED, SENT, DELIVERED, FAILED, DRAFT
+  providerMessageId String?         @unique
+  createdAt         DateTime        @default(now())
+
+  @@index([companyAccountId, phone, createdAt])
 }
 
 model HuntingMessage {
@@ -866,6 +875,8 @@ model MarketingWebsiteAnalysis {
 
 model CustomerConversation {
   id                    String              @id @default(cuid())
+  companyAccountId      String?
+  companyAccount        CompanyAccount?     @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   customerName          String
   customerPhone         String?
   customerEmail         String?
@@ -882,6 +893,9 @@ model CustomerConversation {
 
   messages            ConversationMessage[]
   appointmentRequests AppointmentRequest[]
+
+  @@index([companyAccountId, isActive, updatedAt])
+  @@index([companyAccountId, customerPhone, channel])
 }
 
 model ConversationMessage {
@@ -992,21 +1006,69 @@ model GeneralManagerMessage {
 }
 
 model WhatsAppConfig {
-  id                   String   @id @default("default")
-  token                String?  @db.Text
-  phoneNumberId        String?
-  businessAccountId    String?
-  verifyToken          String   @default("configure-in-environment")
-  geminiApiKey         String?  @db.Text
-  companyName          String?  @default("Jasmine Group")
-  assistantName        String?  @default("Efe")
-  serviceCity          String?  @default("Alanya")
-  companyAddress       String?  @db.Text
-  companyDetails       String?  @db.Text
-  websiteUrl           String?  @db.Text
-  instagramUrl         String?  @db.Text
-  languages            String?  @db.Text
-  fallbackTemplateName String?
-  templateLanguage     String?  @default("tr")
-  updatedAt            DateTime @updatedAt
+  id                         String          @id @default(cuid())
+  companyAccountId           String?         @unique
+  companyAccount             CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  provider                   String          @default("EVOLUTION")
+  token                      String?         @db.Text
+  phoneNumberId              String?
+  businessAccountId          String?
+  verifyToken                String          @default("configure-in-environment")
+  geminiApiKey               String?         @db.Text
+  companyName                String?         @default("Jasmine Group")
+  assistantName              String?         @default("Efe")
+  serviceCity                String?         @default("Alanya")
+  companyAddress             String?         @db.Text
+  companyDetails             String?         @db.Text
+  websiteUrl                 String?         @db.Text
+  instagramUrl               String?         @db.Text
+  languages                  String?         @db.Text
+  fallbackTemplateName       String?
+  templateLanguage           String?         @default("tr")
+  evolutionInstanceName      String?         @unique
+  evolutionInstanceId        String?
+  evolutionWebhookSecretHash String?         @db.Text
+  connectionStatus           String          @default("DISCONNECTED")
+  connectedPhone             String?
+  connectedProfileName       String?
+  lastConnectedAt            DateTime?
+  lastHealthCheckAt          DateTime?
+  lastError                  String?         @db.Text
+  autoReplyEnabled           Boolean         @default(true)
+  allowFirstContact          Boolean         @default(false)
+  dailyMessageLimit          Int             @default(80)
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+
+  @@index([connectionStatus, updatedAt])
+}
+
+model WhatsAppOutboxMessage {
+  id                String         @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  conversationId    String?
+  listingId         String?
+  toPhone           String
+  content           String         @db.Text
+  provider          String
+  status            String         @default("QUEUED")
+  idempotencyKey    String         @unique
+  providerMessageId String?        @unique
+  createdByType     String?
+  createdById       String?
+  attemptCount      Int            @default(0)
+  maxAttempts       Int            @default(5)
+  nextAttemptAt     DateTime       @default(now())
+  lockedAt          DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  lastError         String?        @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([companyAccountId, createdAt])
+  @@index([companyAccountId, toPhone, createdAt])
 }

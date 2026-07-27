@@ -1,77 +1,69 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
   testMetaWhatsAppConnection,
-  updateCredentialsCache,
 } from '@/lib/whatsapp';
+import {
+  decryptSecret,
+  encryptSecret,
+  maskSecret,
+} from '@/lib/whatsapp-crypto';
 import {
   FabrikaForbiddenError,
   FabrikaSessionError,
   requireFabrikaOwner,
 } from '@/lib/fabrika-session';
 
-type ConfigInput = {
-  action?: string;
-  token?: string;
-  phoneNumberId?: string;
-  businessAccountId?: string;
-  verifyToken?: string;
-  geminiApiKey?: string;
-  companyName?: string;
-  assistantName?: string;
-  serviceCity?: string;
-  companyAddress?: string;
-  companyDetails?: string;
-  websiteUrl?: string;
-  instagramUrl?: string;
-  languages?: string;
-  fallbackTemplateName?: string;
-  templateLanguage?: string;
-};
+const configSchema = z.object({
+  action: z.enum(['save', 'test']).optional(),
+  token: z.string().trim().max(4096).optional(),
+  phoneNumberId: z.string().trim().max(128).optional(),
+  businessAccountId: z.string().trim().max(128).optional(),
+  verifyToken: z.string().trim().max(256).optional(),
+  geminiApiKey: z.string().trim().max(4096).optional(),
+  companyName: z.string().trim().max(160).optional(),
+  assistantName: z.string().trim().max(80).optional(),
+  serviceCity: z.string().trim().max(120).optional(),
+  companyAddress: z.string().trim().max(2000).optional(),
+  companyDetails: z.string().trim().max(5000).optional(),
+  websiteUrl: z.string().trim().max(1000).optional(),
+  instagramUrl: z.string().trim().max(1000).optional(),
+  languages: z.string().trim().max(500).optional(),
+  fallbackTemplateName: z.string().trim().max(160).optional(),
+  templateLanguage: z.string().trim().max(20).optional(),
+});
 
-function cleanOptional(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const cleaned = value.trim();
-  return cleaned || undefined;
+function optional(value: string | undefined) {
+  return value || undefined;
 }
 
-function maskSecret(value?: string | null): string {
-  if (!value) {
-    return '';
+function authError(error: unknown) {
+  if (
+    error instanceof FabrikaForbiddenError ||
+    error instanceof FabrikaSessionError
+  ) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: error instanceof FabrikaForbiddenError ? 403 : 401 }
+    );
   }
-
-  return value.length > 12
-    ? `${value.slice(0, 6)}…${value.slice(-4)}`
-    : '••••••••';
+  return null;
 }
 
 export async function GET() {
   try {
-    await requireFabrikaOwner();
+    const principal = await requireFabrikaOwner();
     const config = await prisma.whatsAppConfig.findUnique({
-      where: { id: 'default' },
+      where: { companyAccountId: principal.account.id },
     });
-
-    const token = config?.token || process.env.WHATSAPP_TOKEN || '';
-    const geminiApiKey = config?.geminiApiKey || process.env.GEMINI_API_KEY || '';
-
     return NextResponse.json({
-      configured: Boolean(
-        token &&
-        (config?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID)
-      ),
-      tokenMasked: maskSecret(token),
-      aiKeyMasked: maskSecret(geminiApiKey),
-      phoneNumberId:
-        config?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-      businessAccountId:
-        config?.businessAccountId ||
-        process.env.WHATSAPP_BUSINESS_ACCOUNT_ID ||
-        '',
-      companyName: config?.companyName || 'Jasmine Group',
+      configured: Boolean(config?.token && config.phoneNumberId),
+      tokenMasked: maskSecret(config?.token),
+      aiKeyMasked: maskSecret(config?.geminiApiKey),
+      phoneNumberId: config?.phoneNumberId || '',
+      businessAccountId: config?.businessAccountId || '',
+      companyName: config?.companyName || principal.account.companyName,
       assistantName: config?.assistantName || 'Efe',
       serviceCity: config?.serviceCity || 'Alanya',
       companyAddress: config?.companyAddress || '',
@@ -83,18 +75,11 @@ export async function GET() {
       templateLanguage: config?.templateLanguage || 'tr',
     });
   } catch (error) {
-    if (
-      error instanceof FabrikaForbiddenError ||
-      error instanceof FabrikaSessionError
-    ) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error instanceof FabrikaForbiddenError ? 403 : 401 }
-      );
-    }
+    const response = authError(error);
+    if (response) return response;
     console.error('[WhatsApp Config GET Error]:', error);
     return NextResponse.json(
-      { error: 'WhatsApp ayarları veritabanından okunamadı.' },
+      { error: 'WhatsApp ayarları okunamadı.' },
       { status: 503 }
     );
   }
@@ -102,133 +87,102 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireFabrikaOwner();
-  } catch (error) {
-    if (
-      error instanceof FabrikaForbiddenError ||
-      error instanceof FabrikaSessionError
-    ) {
+    const principal = await requireFabrikaOwner();
+    const parsed = configSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: error.message },
-        { status: error instanceof FabrikaForbiddenError ? 403 : 401 }
-      );
-    }
-    throw error;
-  }
-
-  let body: ConfigInput;
-
-  try {
-    body = (await request.json()) as ConfigInput;
-  } catch {
-    return NextResponse.json(
-      { error: 'Geçersiz ayar isteği.' },
-      { status: 400 }
-    );
-  }
-
-  const token = cleanOptional(body.token);
-  const phoneNumberId = cleanOptional(body.phoneNumberId);
-  const businessAccountId = cleanOptional(body.businessAccountId);
-
-  if (body.action === 'test') {
-    let activeToken = token;
-    let activePhoneNumberId = phoneNumberId;
-
-    if (!activeToken || !activePhoneNumberId) {
-      const saved = await prisma.whatsAppConfig.findUnique({
-        where: { id: 'default' },
-      });
-      activeToken = activeToken || saved?.token || process.env.WHATSAPP_TOKEN;
-      activePhoneNumberId =
-        activePhoneNumberId ||
-        saved?.phoneNumberId ||
-        process.env.WHATSAPP_PHONE_NUMBER_ID;
-    }
-
-    if (!activeToken || !activePhoneNumberId) {
-      return NextResponse.json(
-        { error: 'Meta Access Token veya Phone Number ID yapılandırılmamış.' },
+        { error: 'Ayar alanlarından biri geçersiz.' },
         { status: 400 }
       );
     }
-
-    const connected = await testMetaWhatsAppConnection({
-      token: activeToken,
-      phoneNumberId: activePhoneNumberId,
+    const body = parsed.data;
+    const saved = await prisma.whatsAppConfig.findUnique({
+      where: { companyAccountId: principal.account.id },
     });
 
-    return connected
-      ? NextResponse.json({
-          success: true,
-          message: 'Meta WhatsApp Cloud API kimlik bilgileri doğrulandı.',
-        })
-      : NextResponse.json(
-          { error: 'Meta API kimlik bilgileri doğrulanamadı.' },
-          { status: 502 }
+    if (body.action === 'test') {
+      let token = optional(body.token);
+      let phoneNumberId = optional(body.phoneNumberId);
+      if (!token && saved?.token) token = decryptSecret(saved.token);
+      if (!phoneNumberId) phoneNumberId = saved?.phoneNumberId || undefined;
+      if (!token || !phoneNumberId) {
+        return NextResponse.json(
+          { error: 'Meta Access Token ve Phone Number ID gerekli.' },
+          { status: 400 }
         );
-  }
-
-  try {
-    const config = await prisma.whatsAppConfig.upsert({
-      where: { id: 'default' },
-      update: {
+      }
+      const connected = await testMetaWhatsAppConnection({
         token,
         phoneNumberId,
-        businessAccountId,
-        verifyToken: cleanOptional(body.verifyToken),
-        geminiApiKey: cleanOptional(body.geminiApiKey),
-        companyName: cleanOptional(body.companyName),
-        assistantName: cleanOptional(body.assistantName),
-        serviceCity: cleanOptional(body.serviceCity),
-        companyAddress: cleanOptional(body.companyAddress),
-        companyDetails: cleanOptional(body.companyDetails),
-        websiteUrl: cleanOptional(body.websiteUrl),
-        instagramUrl: cleanOptional(body.instagramUrl),
-        languages: cleanOptional(body.languages),
-        fallbackTemplateName: cleanOptional(body.fallbackTemplateName),
-        templateLanguage: cleanOptional(body.templateLanguage),
-      },
-      create: {
-        id: 'default',
-        token,
-        phoneNumberId,
-        businessAccountId,
-        verifyToken:
-          cleanOptional(body.verifyToken) ||
-          process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
-          'configure-in-environment',
-        geminiApiKey: cleanOptional(body.geminiApiKey),
-        companyName: cleanOptional(body.companyName) || 'Jasmine Group',
-        assistantName: cleanOptional(body.assistantName) || 'Efe',
-        serviceCity: cleanOptional(body.serviceCity) || 'Alanya',
-        companyAddress: cleanOptional(body.companyAddress),
-        companyDetails: cleanOptional(body.companyDetails),
-        websiteUrl: cleanOptional(body.websiteUrl),
-        instagramUrl: cleanOptional(body.instagramUrl),
-        languages: cleanOptional(body.languages) || 'Türkçe',
-        fallbackTemplateName: cleanOptional(body.fallbackTemplateName),
-        templateLanguage: cleanOptional(body.templateLanguage) || 'tr',
-      },
-    });
-
-    if (config.token && config.phoneNumberId) {
-      updateCredentialsCache({
-        token: config.token,
-        phoneNumberId: config.phoneNumberId,
-        businessAccountId: config.businessAccountId || '',
-        geminiApiKey: config.geminiApiKey || undefined,
       });
+      return connected
+        ? NextResponse.json({
+            success: true,
+            message: 'Meta WhatsApp kimlik bilgileri doğrulandı.',
+          })
+        : NextResponse.json(
+            { error: 'Meta API kimlik bilgileri doğrulanamadı.' },
+            { status: 502 }
+          );
     }
 
+    const token = optional(body.token);
+    const geminiApiKey = optional(body.geminiApiKey);
+    await prisma.whatsAppConfig.upsert({
+      where: { companyAccountId: principal.account.id },
+      update: {
+        ...(token && body.phoneNumberId ? { provider: 'META' } : {}),
+        ...(token ? { token: encryptSecret(token) } : {}),
+        ...(geminiApiKey
+          ? { geminiApiKey: encryptSecret(geminiApiKey) }
+          : {}),
+        phoneNumberId: optional(body.phoneNumberId),
+        businessAccountId: optional(body.businessAccountId),
+        verifyToken: optional(body.verifyToken),
+        companyName: optional(body.companyName),
+        assistantName: optional(body.assistantName),
+        serviceCity: optional(body.serviceCity),
+        companyAddress: optional(body.companyAddress),
+        companyDetails: optional(body.companyDetails),
+        websiteUrl: optional(body.websiteUrl),
+        instagramUrl: optional(body.instagramUrl),
+        languages: optional(body.languages),
+        fallbackTemplateName: optional(body.fallbackTemplateName),
+        templateLanguage: optional(body.templateLanguage),
+      },
+      create: {
+        companyAccountId: principal.account.id,
+        provider: 'META',
+        token: token ? encryptSecret(token) : null,
+        geminiApiKey: geminiApiKey ? encryptSecret(geminiApiKey) : null,
+        phoneNumberId: optional(body.phoneNumberId),
+        businessAccountId: optional(body.businessAccountId),
+        verifyToken:
+          optional(body.verifyToken) ||
+          process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
+          'configure-in-environment',
+        companyName: optional(body.companyName) || principal.account.companyName,
+        assistantName: optional(body.assistantName) || 'Efe',
+        serviceCity: optional(body.serviceCity) || 'Alanya',
+        companyAddress: optional(body.companyAddress),
+        companyDetails: optional(body.companyDetails),
+        websiteUrl: optional(body.websiteUrl),
+        instagramUrl: optional(body.instagramUrl),
+        languages: optional(body.languages) || 'Türkçe',
+        fallbackTemplateName: optional(body.fallbackTemplateName),
+        templateLanguage: optional(body.templateLanguage) || 'tr',
+      },
+    });
     return NextResponse.json({
       success: true,
-      message: 'Ayarlar güvenli biçimde kaydedildi.',
+      message: 'Ayarlar şirkete özel ve şifreli biçimde kaydedildi.',
     });
   } catch (error) {
+    const response = authError(error);
+    if (response) return response;
     console.error('[WhatsApp Config POST Error]:', error);
     return NextResponse.json(
-      { error: 'Ayarlar veritabanına kaydedilemedi.' },
+      { error: 'Ayarlar kaydedilemedi.' },
       { status: 503 }
     );
   }

@@ -1,0 +1,133 @@
+name: jasmine-evolution
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD gerekli}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - evolution_postgres:/var/lib/postgresql/data
+    networks: [private]
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD gerekli}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - evolution_redis:/data
+    networks: [private]
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SERVER_NAME: jasmine-evolution
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: https://${EVOLUTION_DOMAIN:?EVOLUTION_DOMAIN gerekli}
+      TELEMETRY_ENABLED: "false"
+      LOG_LEVEL: ERROR,WARN,INFO
+      DEL_INSTANCE: "false"
+      LANGUAGE: tr
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${POSTGRES_PASSWORD}@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: jasmine_evolution
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_LABELS: "true"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://default:${REDIS_PASSWORD}@redis:6379/0
+      CACHE_REDIS_PREFIX_KEY: jasmine
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?EVOLUTION_API_KEY gerekli}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "false"
+      CONFIG_SESSION_PHONE_CLIENT: Jasmine AI
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: 30
+      QRCODE_COLOR: "#10b981"
+      WEBHOOK_GLOBAL_ENABLED: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+    expose:
+      - "8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks: [private, edge]
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    depends_on:
+      evolution:
+        condition: service_healthy
+    environment:
+      EVOLUTION_DOMAIN: ${EVOLUTION_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+
+  outbox-worker:
+    image: curlimages/curl:8.12.1
+    restart: unless-stopped
+    environment:
+      JASMINE_OUTBOX_URL: ${JASMINE_OUTBOX_URL:?JASMINE_OUTBOX_URL gerekli}
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET gerekli}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          curl --fail --silent --show-error \
+            --max-time 55 \
+            -H "Authorization: Bearer $${CRON_SECRET}" \
+            "$${JASMINE_OUTBOX_URL}" || true
+          sleep 60
+        done
+    networks: [edge]
+
+volumes:
+  evolution_postgres:
+  evolution_redis:
+  evolution_instances:
+  caddy_data:
+  caddy_config:
+
+networks:
+  private:
+    internal: true
+  edge:

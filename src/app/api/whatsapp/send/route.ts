@@ -1,51 +1,92 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { sendMetaWhatsAppMessage } from '@/lib/whatsapp';
+import { z } from 'zod';
+import prisma from '@/lib/prisma';
+import { queueCompanyWhatsAppMessage } from '@/lib/company-whatsapp';
+import {
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
 
-const prisma = new PrismaClient();
+const requestSchema = z.object({
+  phone: z.string().trim().min(10).max(32),
+  message: z.string().trim().min(1).max(4000),
+  messageId: z.string().trim().optional(),
+  listingId: z.string().trim().optional(),
+});
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const { phone, message, messageId } = await req.json();
-
-    if (!phone || !message) {
-      return NextResponse.json({ error: 'Phone and message are required' }, { status: 400 });
+    const principal = await requireFabrikaPrincipal();
+    const parsed = requestSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Telefon ve mesaj alanlarını kontrol edin.' },
+        { status: 400 }
+      );
     }
-
-    // Clean up phone number
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-
-    // Send via Meta WhatsApp Cloud API
-    const metaResponse = await sendMetaWhatsAppMessage({
-      to: cleanPhone,
-      text: message
-    });
-
-    // If approving an existing DRAFT message, update its status
-    if (messageId) {
-      const updatedDraft = await prisma.whatsAppMessage.update({
-        where: { id: messageId },
-        data: {
-          status: 'SENT',
-          content: message
-        }
-      });
-      return NextResponse.json({ success: true, message: updatedDraft, metaResponse });
+    const phone = parsed.data.phone.replace(/\D/g, '');
+    const draft = parsed.data.messageId
+      ? await prisma.whatsAppMessage.findFirst({
+          where: {
+            id: parsed.data.messageId,
+            companyAccountId: principal.account.id,
+            status: 'DRAFT',
+          },
+        })
+      : null;
+    if (parsed.data.messageId && !draft) {
+      return NextResponse.json({ error: 'Taslak bulunamadı.' }, { status: 404 });
     }
-
-    // Otherwise, create a new SENT message record in DB
-    const newMessage = await prisma.whatsAppMessage.create({
-      data: {
-        phone: cleanPhone,
-        fromMe: true,
-        content: message,
-        status: 'SENT'
-      }
+    const previousIncoming = await prisma.whatsAppMessage.findFirst({
+      where: {
+        companyAccountId: principal.account.id,
+        phone,
+        fromMe: false,
+      },
+      select: { id: true },
     });
-
-    return NextResponse.json({ success: true, message: newMessage, metaResponse });
-  } catch (error: any) {
-    console.error('[WhatsApp Send Route Error]:', error);
-    return NextResponse.json({ error: error.message || 'Failed to send message' }, { status: 500 });
+    const delivery = await queueCompanyWhatsAppMessage({
+      companyAccountId: principal.account.id,
+      to: phone,
+      text: parsed.data.message,
+      listingId: parsed.data.listingId,
+      idempotencyKey: draft ? `hunter-draft:${draft.id}` : undefined,
+      createdByType: principal.type,
+      createdById:
+        principal.type === 'EMPLOYEE' ? principal.member.id : principal.account.id,
+      firstContact: !previousIncoming,
+    });
+    const message = draft
+      ? await prisma.whatsAppMessage.update({
+          where: { id: draft.id },
+          data: {
+            status: delivery.deliveryStatus,
+            content: parsed.data.message,
+            providerMessageId: delivery.providerMessageId,
+          },
+        })
+      : await prisma.whatsAppMessage.create({
+          data: {
+            companyAccountId: principal.account.id,
+            phone,
+            fromMe: true,
+            content: parsed.data.message,
+            status: delivery.deliveryStatus,
+            providerMessageId: delivery.providerMessageId,
+          },
+        });
+    return NextResponse.json({
+      success: true,
+      queued: delivery.queued,
+      warning: delivery.lastError,
+      message,
+    });
+  } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    const message =
+      error instanceof Error ? error.message : 'Mesaj gönderilemedi.';
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }

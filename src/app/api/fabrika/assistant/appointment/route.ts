@@ -5,6 +5,7 @@ import {
   sendAssistantWhatsAppMessage,
   WhatsAppTemplateRequiredError,
 } from '@/lib/assistant-messaging';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 type AppointmentAction =
   | 'approve'
@@ -64,7 +65,11 @@ function parseProposedDate(value: unknown): Date | null {
 
 export async function GET() {
   try {
+    const principal = await requireFabrikaPrincipal();
     const appointments = await prisma.appointmentRequest.findMany({
+      where: {
+        conversation: { companyAccountId: principal.account.id },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         conversation: {
@@ -77,6 +82,7 @@ export async function GET() {
     });
     const sentMessages = await prisma.conversationMessage.findMany({
       where: {
+        conversation: { companyAccountId: principal.account.id },
         role: { in: ['assistant', 'patron'] },
         providerMessageId: { not: null },
         deliveryStatus: { not: 'FAILED' },
@@ -117,6 +123,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const body = (await request.json()) as {
       id?: string;
       action?: AppointmentAction;
@@ -134,8 +141,11 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const appointment = await prisma.appointmentRequest.findUnique({
-      where: { id },
+    const appointment = await prisma.appointmentRequest.findFirst({
+      where: {
+        id,
+        conversation: { companyAccountId: principal.account.id },
+      },
       include: { conversation: true },
     });
 
@@ -245,9 +255,14 @@ export async function PATCH(request: Request) {
     };
     const content = buildAppointmentMessage(action, messageAppointment);
     const delivery = await sendAssistantWhatsAppMessage({
+      companyAccountId: principal.account.id,
       to: appointment.customerPhone,
       text: content,
       lastCustomerMessageAt: appointment.conversation.lastCustomerMessageAt,
+      conversationId: appointment.conversationId,
+      createdByType: principal.type,
+      createdById:
+        principal.type === 'EMPLOYEE' ? principal.member.id : principal.account.id,
     });
     const messageRecord = await saveOutgoingConversationMessage({
       conversationId: appointment.conversationId,

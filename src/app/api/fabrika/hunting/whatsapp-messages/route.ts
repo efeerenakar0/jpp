@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 export async function POST(req: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const { phone } = await req.json();
     if (!phone) return NextResponse.json({ error: 'Eksik parametre' }, { status: 400 });
 
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     // Fetch all messages for this phone number from Prisma DB
     const messages = await prisma.whatsAppMessage.findMany({
       where: {
+        companyAccountId: principal.account.id,
         phone: cleanPhone
       },
       orderBy: { createdAt: 'asc' }

@@ -452,7 +452,9 @@ export default function AsistanPage() {
         });
       }
       toast.success(
-        data.sentToWhatsApp
+        data.queued
+          ? 'Bağlantı bekleniyor; mesaj güvenli kuyruğa alındı.'
+          : data.sentToWhatsApp
           ? 'Mesaj WhatsApp’a gönderildi.'
           : 'Mesaj konuşmaya kaydedildi.'
       );

@@ -7,6 +7,7 @@ export async function GET() {
     const principal = await requireFabrikaPrincipal();
     // 1. Fetch all messages from Prisma DB
     const allMessages = await prisma.whatsAppMessage.findMany({
+      where: { companyAccountId: principal.account.id },
       orderBy: { createdAt: 'desc' }
     });
 

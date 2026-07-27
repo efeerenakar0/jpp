@@ -4,6 +4,7 @@ import {
   saveOutgoingConversationMessage,
   sendAssistantWhatsAppMessage,
 } from '@/lib/assistant-messaging';
+import { createCompanyNotification } from '@/lib/fabrika-notifications';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -59,6 +60,9 @@ export async function GET(request: Request) {
 
   for (const appointment of dueAppointments) {
     try {
+      if (!appointment.conversation.companyAccountId) {
+        throw new Error('Randevu şirket hesabına bağlanmamış.');
+      }
       if (!appointment.customerPhone) {
         throw new Error('Müşteri telefon numarası eksik.');
       }
@@ -66,9 +70,12 @@ export async function GET(request: Request) {
         appointment.proposedDate!
       )} saat ${appointment.proposedTime} için Jasmine Group randevunuzu hatırlatmak isteriz. Görüşmek üzere.`;
       const delivery = await sendAssistantWhatsAppMessage({
+        companyAccountId: appointment.conversation.companyAccountId,
         to: appointment.customerPhone,
         text: content,
         lastCustomerMessageAt: appointment.conversation.lastCustomerMessageAt,
+        conversationId: appointment.conversationId,
+        createdByType: 'SYSTEM',
       });
       await saveOutgoingConversationMessage({
         conversationId: appointment.conversationId,
@@ -90,15 +97,18 @@ export async function GET(request: Request) {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Bilinmeyen hata';
-      await prisma.notification.create({
-        data: {
+      if (appointment.conversation.companyAccountId) {
+        await createCompanyNotification({
+          companyAccountId: appointment.conversation.companyAccountId,
           type: 'SYSTEM',
           title: 'Randevu Hatırlatması Gönderilemedi',
           message: `${appointment.customerName}: ${errorMessage}`,
           link: '/fabrika/asistan',
-          metadata: JSON.stringify({ appointmentRequestId: appointment.id }),
-        },
-      });
+          important: true,
+          dedupeKey: `appointment-reminder-failed:${appointment.id}`,
+          metadata: { appointmentRequestId: appointment.id },
+        });
+      }
       results.push({
         appointmentId: appointment.id,
         status: 'failed',

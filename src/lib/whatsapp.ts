@@ -1,11 +1,20 @@
+import 'server-only';
+
 import prisma from '@/lib/prisma';
+import {
+  decryptSecret,
+  encryptSecret,
+  isEncryptedSecret,
+} from '@/lib/whatsapp-crypto';
 
 export interface SendTextMessageParams {
-  to: string; // Recipient phone number with country code (e.g. 905321234567)
+  companyAccountId: string;
+  to: string;
   text: string;
 }
 
 export interface SendTemplateMessageParams {
+  companyAccountId: string;
   to: string;
   templateName: string;
   languageCode: string;
@@ -24,187 +33,171 @@ export interface MetaWhatsAppResponse {
   };
 }
 
-const globalWhatsAppStore = globalThis as unknown as {
-  globalCredentials: { token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string } | null;
-};
-
-export function updateCredentialsCache(creds: Partial<{ token: string; phoneNumberId: string; businessAccountId: string; geminiApiKey?: string }>) {
-  if (creds.token || creds.phoneNumberId) {
-    const existing = globalWhatsAppStore.globalCredentials || { token: '', phoneNumberId: '', businessAccountId: '' };
-    const merged = { ...existing, ...creds };
-    globalWhatsAppStore.globalCredentials = merged;
-  }
-}
-
-/**
- * Get active Meta WhatsApp API Credentials
- */
-export async function getActiveWhatsAppCredentials(): Promise<{
+export async function getActiveWhatsAppCredentials(
+  companyAccountId: string
+): Promise<{
   token: string;
   phoneNumberId: string;
   businessAccountId: string;
   geminiApiKey?: string;
 }> {
-  // 1. Check the process cache first
-  if (globalWhatsAppStore.globalCredentials?.token && globalWhatsAppStore.globalCredentials?.phoneNumberId) {
-    return globalWhatsAppStore.globalCredentials;
-  }
+  const [config, account] = await Promise.all([
+    prisma.whatsAppConfig.findUnique({ where: { companyAccountId } }),
+    prisma.companyAccount.findUnique({
+      where: { id: companyAccountId },
+      select: { slug: true },
+    }),
+  ]);
 
-  // 2. Check the database
-  try {
-    if (process.env.DATABASE_URL) {
-      const config = await prisma.whatsAppConfig.findUnique({
-        where: { id: 'default' }
-      });
-
-      if (config && config.token && config.phoneNumberId) {
-        const creds = {
-          token: config.token,
-          phoneNumberId: config.phoneNumberId,
-          businessAccountId: config.businessAccountId || '',
-          geminiApiKey: config.geminiApiKey || undefined
-        };
-        globalWhatsAppStore.globalCredentials = creds;
-        return creds;
+  if (config?.token && config.phoneNumberId) {
+    const token = decryptSecret(config.token);
+    const geminiApiKey = config.geminiApiKey
+      ? decryptSecret(config.geminiApiKey)
+      : undefined;
+    if (
+      !isEncryptedSecret(config.token) ||
+      (config.geminiApiKey && !isEncryptedSecret(config.geminiApiKey))
+    ) {
+      try {
+        await prisma.whatsAppConfig.update({
+          where: { id: config.id },
+          data: {
+            ...(!isEncryptedSecret(config.token)
+              ? { token: encryptSecret(token) }
+              : {}),
+            ...(config.geminiApiKey &&
+            geminiApiKey &&
+            !isEncryptedSecret(config.geminiApiKey)
+              ? { geminiApiKey: encryptSecret(geminiApiKey) }
+              : {}),
+          },
+        });
+      } catch (error) {
+        console.warn(
+          '[WhatsApp Config] Eski kimlik bilgisi şifrelenemedi:',
+          error instanceof Error ? error.message : 'bilinmeyen hata'
+        );
       }
     }
-  } catch (dbErr) {
-    console.warn('[WhatsApp Config DB Warning]:', dbErr);
-  }
-
-  // 3. Environment Variables
-  const envToken = process.env.WHATSAPP_TOKEN;
-  const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const envBusinessId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-  const envGeminiKey = process.env.GEMINI_API_KEY;
-
-  if (envToken && envPhoneId) {
-    const creds = {
-      token: envToken,
-      phoneNumberId: envPhoneId,
-      businessAccountId: envBusinessId || '',
-      geminiApiKey: envGeminiKey
+    return {
+      token,
+      phoneNumberId: config.phoneNumberId,
+      businessAccountId: config.businessAccountId || '',
+      geminiApiKey,
     };
-    globalWhatsAppStore.globalCredentials = creds;
-    return creds;
   }
 
-  throw new Error('Meta WhatsApp credentials are not configured');
+  // Eski Jasmine kurulumunu kesintisiz taşımak için yalnızca ana şirket env
+  // değişkenlerini kullanabilir. Diğer şirketler kendi kimlik bilgilerini girer.
+  if (account?.slug === 'jasmine-group') {
+    const token = process.env.WHATSAPP_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (token && phoneNumberId) {
+      return {
+        token,
+        phoneNumberId,
+        businessAccountId:
+          process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+        geminiApiKey: process.env.GEMINI_API_KEY,
+      };
+    }
+  }
+
+  throw new Error('Meta WhatsApp kimlik bilgileri yapılandırılmamış.');
 }
 
 export const getWhatsAppCredentials = getActiveWhatsAppCredentials;
 
-export async function testMetaWhatsAppConnection(
-  phoneOrCreds?: { token?: string; phoneNumberId?: string },
-  token?: string,
-  phoneId?: string
-): Promise<boolean> {
+export async function testMetaWhatsAppConnection(input: {
+  companyAccountId?: string;
+  token?: string;
+  phoneNumberId?: string;
+}): Promise<boolean> {
   try {
-    let activeToken = token;
-    let activePhoneId = phoneId;
-    if (typeof phoneOrCreds === 'object' && phoneOrCreds !== null) {
-      activeToken = phoneOrCreds.token;
-      activePhoneId = phoneOrCreds.phoneNumberId;
+    let token = input.token;
+    let phoneNumberId = input.phoneNumberId;
+    if ((!token || !phoneNumberId) && input.companyAccountId) {
+      const active = await getActiveWhatsAppCredentials(input.companyAccountId);
+      token ||= active.token;
+      phoneNumberId ||= active.phoneNumberId;
     }
-    if (!activeToken || !activePhoneId) {
-      const active = await getActiveWhatsAppCredentials();
-      activeToken = activeToken || active.token;
-      activePhoneId = activePhoneId || active.phoneNumberId;
-    }
-    if (!activeToken || !activePhoneId) return false;
-    const res = await fetch(`https://graph.facebook.com/v21.0/${activePhoneId}`, {
-      headers: { 'Authorization': `Bearer ${activeToken}` }
-    });
-    return res.ok;
+    if (!token || !phoneNumberId) return false;
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${encodeURIComponent(phoneNumberId)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      }
+    );
+    return response.ok;
   } catch {
     return false;
   }
 }
 
-/**
- * Send Text Message via Meta WhatsApp Cloud API (Graph API v21.0)
- */
-export async function sendMetaWhatsAppMessage(params: SendTextMessageParams): Promise<MetaWhatsAppResponse> {
-  const creds = await getActiveWhatsAppCredentials();
-
-  if (!creds.token || !creds.phoneNumberId) {
-    throw new Error('Meta WhatsApp Cloud API credentials missing (Token or Phone Number ID not configured)');
-  }
-
-  const cleanPhone = params.to.replace(/[^0-9]/g, '');
-  if (!cleanPhone) {
-    throw new Error('Invalid recipient phone number');
-  }
-
-  const endpoint = `https://graph.facebook.com/v21.0/${creds.phoneNumberId}/messages`;
-
-  console.log(`[Meta WhatsApp Cloud API] Sending message to ${cleanPhone} via Phone ID: ${creds.phoneNumberId}...`);
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${creds.token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to: cleanPhone,
-      type: 'text',
-      text: {
-        preview_url: false,
-        body: params.text
-      }
-    })
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error('[Meta WhatsApp API HTTP Error]:', response.status, data);
-    const errorMsg = data?.error?.message || `Meta API Error (${response.status})`;
-    throw new Error(errorMsg);
-  }
-
-  console.log('[Meta WhatsApp API Success]:', data);
-  return data as MetaWhatsAppResponse;
-}
-
-/**
- * Send an approved Meta template outside the 24-hour customer service window.
- * The configured template must contain one text variable in its body.
- */
-export async function sendMetaWhatsAppTemplate(
-  params: SendTemplateMessageParams
+export async function sendMetaWhatsAppMessage(
+  params: SendTextMessageParams
 ): Promise<MetaWhatsAppResponse> {
-  const creds = await getActiveWhatsAppCredentials();
-  const cleanPhone = params.to.replace(/[^0-9]/g, '');
-  const templateName = params.templateName.trim();
-  const languageCode = params.languageCode.trim() || 'tr';
-
-  if (!cleanPhone) {
-    throw new Error('Geçersiz alıcı telefon numarası.');
-  }
-  if (!templateName) {
-    throw new Error('Meta WhatsApp şablon adı yapılandırılmamış.');
-  }
+  const credentials = await getActiveWhatsAppCredentials(
+    params.companyAccountId
+  );
+  const phone = params.to.replace(/\D/g, '');
+  if (!phone) throw new Error('Geçersiz alıcı telefon numarası.');
 
   const response = await fetch(
-    `https://graph.facebook.com/v21.0/${creds.phoneNumberId}/messages`,
+    `https://graph.facebook.com/v21.0/${credentials.phoneNumberId}/messages`,
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${creds.token}`,
+        Authorization: `Bearer ${credentials.token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
-        to: cleanPhone,
+        to: phone,
+        type: 'text',
+        text: { preview_url: false, body: params.text },
+      }),
+    }
+  );
+  const data = (await response.json()) as MetaWhatsAppResponse;
+  if (!response.ok) {
+    throw new Error(
+      data.error?.message || `Meta API hatası (${response.status}).`
+    );
+  }
+  return data;
+}
+
+export async function sendMetaWhatsAppTemplate(
+  params: SendTemplateMessageParams
+): Promise<MetaWhatsAppResponse> {
+  const credentials = await getActiveWhatsAppCredentials(
+    params.companyAccountId
+  );
+  const phone = params.to.replace(/\D/g, '');
+  if (!phone) throw new Error('Geçersiz alıcı telefon numarası.');
+  if (!params.templateName.trim()) {
+    throw new Error('Meta WhatsApp şablon adı yapılandırılmamış.');
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/v21.0/${credentials.phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${credentials.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: phone,
         type: 'template',
         template: {
-          name: templateName,
-          language: { code: languageCode },
+          name: params.templateName.trim(),
+          language: { code: params.languageCode.trim() || 'tr' },
           components: [
             {
               type: 'body',
@@ -215,14 +208,11 @@ export async function sendMetaWhatsAppTemplate(
       }),
     }
   );
-  const data = await response.json();
-
+  const data = (await response.json()) as MetaWhatsAppResponse;
   if (!response.ok) {
-    console.error('[Meta WhatsApp Template Error]:', response.status, data);
     throw new Error(
-      data?.error?.message || `Meta şablon API hatası (${response.status})`
+      data.error?.message || `Meta şablon API hatası (${response.status}).`
     );
   }
-
-  return data as MetaWhatsAppResponse;
+  return data;
 }

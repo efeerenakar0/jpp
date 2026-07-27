@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 function getIstanbulDayStart(referenceDate = new Date()) {
   const date = new Intl.DateTimeFormat('en-CA', {
@@ -14,6 +15,11 @@ function getIstanbulDayStart(referenceDate = new Date()) {
 
 export async function GET() {
   try {
+    const principal = await requireFabrikaPrincipal();
+    const accountId = principal.account.id;
+    const conversationFilter = {
+      conversation: { companyAccountId: accountId },
+    };
     const today = getIstanbulDayStart();
     const [
       activeConversations,
@@ -26,34 +32,59 @@ export async function GET() {
       pendingAppointments,
       approvedToday,
     ] = await Promise.all([
-      prisma.customerConversation.count({ where: { isActive: true } }),
       prisma.customerConversation.count({
-        where: { isActive: true, aiEnabled: false },
+        where: { companyAccountId: accountId, isActive: true },
+      }),
+      prisma.customerConversation.count({
+        where: {
+          companyAccountId: accountId,
+          isActive: true,
+          aiEnabled: false,
+        },
       }),
       prisma.conversationMessage.count({
-        where: { createdAt: { gte: today } },
-      }),
-      prisma.conversationMessage.count({
-        where: { role: 'customer', createdAt: { gte: today } },
+        where: { ...conversationFilter, createdAt: { gte: today } },
       }),
       prisma.conversationMessage.count({
         where: {
+          ...conversationFilter,
+          role: 'customer',
+          createdAt: { gte: today },
+        },
+      }),
+      prisma.conversationMessage.count({
+        where: {
+          ...conversationFilter,
           role: { in: ['assistant', 'patron'] },
           createdAt: { gte: today },
         },
       }),
       prisma.conversationMessage.count({
         where: {
+          ...conversationFilter,
           deliveryStatus: { in: ['DELIVERED', 'READ'] },
           createdAt: { gte: today },
         },
       }),
       prisma.conversationMessage.count({
-        where: { deliveryStatus: 'FAILED', createdAt: { gte: today } },
+        where: {
+          ...conversationFilter,
+          deliveryStatus: 'FAILED',
+          createdAt: { gte: today },
+        },
       }),
-      prisma.appointmentRequest.count({ where: { status: 'PENDING' } }),
       prisma.appointmentRequest.count({
-        where: { status: 'APPROVED', updatedAt: { gte: today } },
+        where: {
+          conversation: { companyAccountId: accountId },
+          status: 'PENDING',
+        },
+      }),
+      prisma.appointmentRequest.count({
+        where: {
+          conversation: { companyAccountId: accountId },
+          status: 'APPROVED',
+          updatedAt: { gte: today },
+        },
       }),
     ]);
     return NextResponse.json({

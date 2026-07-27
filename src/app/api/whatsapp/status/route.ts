@@ -1,20 +1,25 @@
 import { NextResponse } from 'next/server';
-import { getWhatsAppCredentials } from '@/lib/whatsapp';
+import {
+  ensureCompanyWhatsAppConfig,
+  serializeCompanyWhatsAppStatus,
+} from '@/lib/company-whatsapp';
+import {
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
 
 export async function GET() {
   try {
-    const { token, phoneNumberId } = await getWhatsAppCredentials();
-
-    return NextResponse.json({
-      configured: Boolean(token && phoneNumberId),
-      provider: 'Meta WhatsApp Cloud API',
-      phoneNumberId: phoneNumberId ? `***${phoneNumberId.slice(-4)}` : null,
-    });
-  } catch {
-    return NextResponse.json({
-      configured: false,
-      provider: 'Meta WhatsApp Cloud API',
-      phoneNumberId: null,
-    });
+    const principal = await requireFabrikaPrincipal();
+    const config = await ensureCompanyWhatsAppConfig(principal.account.id);
+    return NextResponse.json(serializeCompanyWhatsAppStatus(config));
+  } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    return NextResponse.json(
+      { error: 'WhatsApp durumu alınamadı.' },
+      { status: 503 }
+    );
   }
 }

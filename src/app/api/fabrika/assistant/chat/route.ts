@@ -5,6 +5,10 @@ import {
   sendAssistantWhatsAppMessage,
   WhatsAppTemplateRequiredError,
 } from '@/lib/assistant-messaging';
+import {
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -12,6 +16,7 @@ export const fetchCache = 'force-no-store';
 
 export async function POST(request: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const body = (await request.json()) as {
       conversationId?: string;
       message?: string;
@@ -26,8 +31,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const conversation = await prisma.customerConversation.findUnique({
-      where: { id: conversationId },
+    const conversation = await prisma.customerConversation.findFirst({
+      where: {
+        id: conversationId,
+        companyAccountId: principal.account.id,
+      },
       include: {
         messages: {
           orderBy: { createdAt: 'asc' },
@@ -48,9 +56,14 @@ export async function POST(request: Request) {
     if (customerPhone.length >= 10) {
       try {
         const delivery = await sendAssistantWhatsAppMessage({
+          companyAccountId: principal.account.id,
           to: customerPhone,
           text: message,
           lastCustomerMessageAt: conversation.lastCustomerMessageAt,
+          conversationId,
+          createdByType: principal.type,
+          createdById:
+            principal.type === 'EMPLOYEE' ? principal.member.id : principal.account.id,
         });
         const savedMessage = await saveOutgoingConversationMessage({
           conversationId,
@@ -66,7 +79,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
           success: true,
-          sentToWhatsApp: true,
+          sentToWhatsApp: delivery.deliveryStatus === 'SENT',
+          queued: delivery.deliveryStatus === 'QUEUED',
           messageRecord: savedMessage,
         });
       } catch (error) {
@@ -105,6 +119,9 @@ export async function POST(request: Request) {
       messageRecord: savedMessage,
     });
   } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
     console.error('[Assistant Chat Error]:', error);
     return NextResponse.json(
       { error: 'Asistan mesajı işleyemedi.' },

@@ -19,6 +19,7 @@ import {
   Sparkles,
   CalendarDays,
   Settings2,
+  Smartphone,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -107,6 +108,14 @@ const realEstatePackages = [
     icon: Settings2,
     color: 'from-emerald-400 to-teal-500',
     description: 'Ekip & Erişim',
+  },
+  {
+    name: 'WhatsApp',
+    href: '/fabrika/whatsapp',
+    icon: Smartphone,
+    color: 'from-emerald-400 to-teal-500',
+    description: 'Telefon & Otomasyon',
+    ownerOnly: true,
   },
 ];
 
@@ -255,7 +264,9 @@ export default function FabrikaSidebar({
             </div>
           )}
           <div className="space-y-1" role="group" aria-label="Emlak operasyon paketi">
-          {realEstatePackages.map((item) => {
+          {realEstatePackages
+            .filter((item) => !item.ownerOnly || principalType === 'OWNER')
+            .map((item) => {
           const isActive = pathname === item.href ||
             (item.href !== '/fabrika' && pathname.startsWith(item.href));
           const Icon = item.icon;

@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { needsCustomerReplyRepair } from '@/lib/customer-message';
+import { requireFabrikaOwner } from '@/lib/fabrika-session';
 
-async function findCleanupCandidates() {
+async function findCleanupCandidates(companyAccountId: string) {
   const [testConversations, legacyAssistantMessages] = await Promise.all([
     prisma.customerConversation.findMany({
       where: {
+        companyAccountId,
         OR: [
           { customerName: { contains: 'test', mode: 'insensitive' } },
           { customerName: { contains: 'demo', mode: 'insensitive' } },
@@ -16,6 +18,7 @@ async function findCleanupCandidates() {
     }),
     prisma.conversationMessage.findMany({
       where: {
+        conversation: { companyAccountId },
         role: 'assistant',
         providerMessageId: null,
       },
@@ -33,7 +36,8 @@ async function findCleanupCandidates() {
 
 export async function GET() {
   try {
-    const candidates = await findCleanupCandidates();
+    const principal = await requireFabrikaOwner();
+    const candidates = await findCleanupCandidates(principal.account.id);
     return NextResponse.json({
       testConversationCount: candidates.testConversations.length,
       invalidMessageCount: candidates.invalidMessages.length,
@@ -52,7 +56,8 @@ export async function GET() {
 
 export async function DELETE() {
   try {
-    const candidates = await findCleanupCandidates();
+    const principal = await requireFabrikaOwner();
+    const candidates = await findCleanupCandidates(principal.account.id);
     const [deletedMessages, deletedConversations] = await prisma.$transaction([
       prisma.conversationMessage.deleteMany({
         where: {

@@ -1,6 +1,7 @@
 import { ConversationChannel } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 function isConversationChannel(value: unknown): value is ConversationChannel {
   return value === 'WHATSAPP' || value === 'EMAIL' || value === 'WEB_CHAT';
@@ -8,8 +9,12 @@ function isConversationChannel(value: unknown): value is ConversationChannel {
 
 export async function GET() {
   try {
+    const principal = await requireFabrikaPrincipal();
     const conversations = await prisma.customerConversation.findMany({
-      where: { isActive: true },
+      where: {
+        companyAccountId: principal.account.id,
+        isActive: true,
+      },
       orderBy: { updatedAt: 'desc' },
       include: {
         messages: {
@@ -33,6 +38,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const body = (await request.json()) as {
       customerName?: string;
       customerPhone?: string;
@@ -50,6 +56,7 @@ export async function POST(request: Request) {
 
     const conversation = await prisma.customerConversation.create({
       data: {
+        companyAccountId: principal.account.id,
         customerName,
         customerPhone: body.customerPhone?.trim() || null,
         customerEmail: body.customerEmail?.trim() || null,
@@ -73,6 +80,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const body = (await request.json()) as {
       id?: string;
       notes?: string;
@@ -98,8 +106,15 @@ export async function PATCH(request: Request) {
           )
         )
       : undefined;
+    const existing = await prisma.customerConversation.findFirst({
+      where: { id, companyAccountId: principal.account.id },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Sohbet bulunamadı.' }, { status: 404 });
+    }
     const conversation = await prisma.customerConversation.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(typeof body.notes === 'string'
           ? { notes: body.notes.trim().slice(0, 5000) || null }
@@ -140,10 +155,14 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    await prisma.customerConversation.update({
-      where: { id },
+    const principal = await requireFabrikaPrincipal();
+    const updated = await prisma.customerConversation.updateMany({
+      where: { id, companyAccountId: principal.account.id },
       data: { isActive: false },
     });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: 'Sohbet bulunamadı.' }, { status: 404 });
+    }
 
     return NextResponse.json({
       success: true,

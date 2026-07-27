@@ -169,11 +169,17 @@ export default function WhatsAppCRM({
         body: JSON.stringify({ phone: waSelectedChat.phone, message: msg })
       });
       if (res.ok) {
-        toast.success('Mesaj gönderildi!');
+        const data = await res.json();
+        toast.success(
+          data.queued
+            ? 'Mesaj güvenli kuyruğa alındı.'
+            : 'Mesaj gönderildi!'
+        );
         fetchWaMessages(waSelectedChat.phone);
         fetchWaChats();
       } else {
-        toast.error('Mesaj gönderilemedi');
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Mesaj gönderilemedi');
       }
     } catch {
       toast.error('Bağlantı hatası');
@@ -210,11 +216,18 @@ export default function WhatsAppCRM({
         body: JSON.stringify({ phone: waSelectedChat.phone, message: content, messageId })
       });
       if (res.ok) {
-        toast.success('Mesaj onaylandı ve gönderildi!', { id: 'approve' });
+        const data = await res.json();
+        toast.success(
+          data.queued
+            ? 'Mesaj onaylandı ve kuyruğa alındı.'
+            : 'Mesaj onaylandı ve gönderildi!',
+          { id: 'approve' }
+        );
         if (waSelectedChat) fetchWaMessages(waSelectedChat.phone);
         fetchWaChats();
       } else {
-        toast.error('Gönderim hatası', { id: 'approve' });
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Gönderim hatası', { id: 'approve' });
       }
     } catch {
       toast.error('Onaylanırken hata oluştu.', { id: 'approve' });
