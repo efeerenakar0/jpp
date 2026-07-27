@@ -24,6 +24,7 @@ import {
   getWahaSession,
   isWahaConfigured,
   logoutWahaSession,
+  restartWahaSession,
   sendWahaText,
   startWahaSession,
   updateWahaSession,
@@ -225,7 +226,9 @@ export async function prepareWahaConnection(companyAccountId: string) {
     });
   }
 
-  if (session.status === 'STOPPED' || session.status === 'FAILED') {
+  if (session.status === 'FAILED') {
+    session = await restartWahaSession(sessionName);
+  } else if (session.status === 'STOPPED') {
     session = await startWahaSession(sessionName);
   }
   if (session.status === 'STARTING') {

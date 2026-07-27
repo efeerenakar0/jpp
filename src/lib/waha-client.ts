@@ -254,6 +254,18 @@ export async function startWahaSession(sessionName: string) {
   return normalizeSession(session);
 }
 
+export async function restartWahaSession(sessionName: string) {
+  const session = await wahaRequest<WahaSession>(
+    `/api/sessions/${encodeURIComponent(sessionName)}/restart`,
+    {
+      method: 'POST',
+      body: {},
+      timeoutMs: 30_000,
+    }
+  );
+  return normalizeSession(session);
+}
+
 export async function getWahaQrCode(sessionName: string) {
   try {
     return await wahaRequest<string>(

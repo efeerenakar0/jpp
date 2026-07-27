@@ -5,6 +5,7 @@ vi.mock('server-only', () => ({}));
 import {
   createWahaSession,
   getWahaQrCode,
+  restartWahaSession,
   sendWahaText,
 } from './waha-client';
 
@@ -97,15 +98,38 @@ describe('WAHA API client', () => {
   });
 
   it('converts QR image bytes into a browser-safe data URL', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
+    const fetchMock = vi.fn().mockResolvedValue(
       new Response(Uint8Array.from([137, 80, 78, 71]), {
         status: 200,
         headers: { 'Content-Type': 'image/png' },
       })
     );
+    global.fetch = fetchMock;
 
     await expect(getWahaQrCode('jasmine-acme')).resolves.toBe(
       'data:image/png;base64,iVBORw=='
     );
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:3000/api/jasmine-acme/auth/qr');
+    expect(options.method).toBe('GET');
+  });
+
+  it('restarts a failed session before requesting another QR code', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ name: 'jasmine-acme', status: 'STARTING' }),
+        { status: 200 }
+      )
+    );
+    global.fetch = fetchMock;
+
+    await expect(restartWahaSession('jasmine-acme')).resolves.toMatchObject({
+      name: 'jasmine-acme',
+      status: 'STARTING',
+    });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:3000/api/sessions/jasmine-acme/restart');
+    expect(options.method).toBe('POST');
   });
 });
