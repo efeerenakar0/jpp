@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import {
   isStudioProvider,
@@ -7,39 +6,37 @@ import {
   saveCompanyStudioCredential,
 } from '@/lib/company-ai-credentials';
 import {
-  FABRIKA_SESSION_COOKIE,
-  readFabrikaSessionToken,
-} from '@/lib/fabrika-auth';
-
-async function currentAccountId() {
-  const cookieStore = await cookies();
-  const session = readFabrikaSessionToken(
-    cookieStore.get(FABRIKA_SESSION_COOKIE)?.value
-  );
-  return session?.accountId || null;
-}
+  FabrikaForbiddenError,
+  FabrikaSessionError,
+  requireFabrikaOwner,
+} from '@/lib/fabrika-session';
 
 export async function GET() {
-  const accountId = await currentAccountId();
-  if (!accountId) {
-    return NextResponse.json({ error: 'Fabrika oturumu gerekli.' }, { status: 401 });
+  try {
+    const principal = await requireFabrikaOwner();
+    const credentials = await prisma.companyAiCredential.findMany({
+      where: { companyAccountId: principal.account.id },
+      select: { provider: true, keyHint: true, model: true, active: true },
+    });
+
+    return NextResponse.json({
+      providers: publicStudioCredentialStatus(credentials),
+    });
+  } catch (error) {
+    const status = error instanceof FabrikaForbiddenError ? 403 : 401;
+    if (
+      error instanceof FabrikaForbiddenError ||
+      error instanceof FabrikaSessionError
+    ) {
+      return NextResponse.json({ error: error.message }, { status });
+    }
+    throw error;
   }
-
-  const credentials = await prisma.companyAiCredential.findMany({
-    where: { companyAccountId: accountId },
-    select: { provider: true, keyHint: true, model: true, active: true },
-  });
-
-  return NextResponse.json({ providers: publicStudioCredentialStatus(credentials) });
 }
 
 export async function PUT(request: Request) {
-  const accountId = await currentAccountId();
-  if (!accountId) {
-    return NextResponse.json({ error: 'Fabrika oturumu gerekli.' }, { status: 401 });
-  }
-
   try {
+    const principal = await requireFabrikaOwner();
     const body = (await request.json()) as Record<string, unknown>;
     if (!isStudioProvider(body.provider)) {
       return NextResponse.json({ error: 'Geçerli bir AI sağlayıcısı seçin.' }, { status: 400 });
@@ -49,7 +46,7 @@ export async function PUT(request: Request) {
     const model = typeof body.model === 'string' ? body.model : undefined;
     const active = body.active !== false;
     const credential = await saveCompanyStudioCredential({
-      accountId,
+      accountId: principal.account.id,
       provider: body.provider,
       apiKey,
       model,
@@ -64,6 +61,15 @@ export async function PUT(request: Request) {
       active: credential.active,
     });
   } catch (error) {
+    if (
+      error instanceof FabrikaForbiddenError ||
+      error instanceof FabrikaSessionError
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error instanceof FabrikaForbiddenError ? 403 : 401 }
+      );
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'AI ayarları kaydedilemedi.' },
       { status: 400 }

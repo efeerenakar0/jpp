@@ -122,7 +122,7 @@ const realEstatePackages = [
     href: '/fabrika/sirket',
     icon: Settings2,
     color: 'from-emerald-400 to-teal-500',
-    description: 'Roller & Abonelik',
+    description: 'Ekip & Erişim',
   },
 ];
 
@@ -130,14 +130,16 @@ interface FabrikaSidebarProps {
   mobileOpen?: boolean;
   onMobileClose?: () => void;
   companyName?: string;
-  ownerName?: string;
+  profileName?: string;
+  principalType?: 'OWNER' | 'EMPLOYEE';
 }
 
 export default function FabrikaSidebar({
   mobileOpen = false,
   onMobileClose,
   companyName = 'Jasmine AI',
-  ownerName = 'Patron',
+  profileName = 'Patron',
+  principalType = 'OWNER',
 }: FabrikaSidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -334,11 +336,13 @@ export default function FabrikaSidebar({
           <div className="flex items-center justify-between gap-3 px-2">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200">
-                {ownerName.slice(0, 1).toUpperCase()}
+                {profileName.slice(0, 1).toUpperCase()}
               </div>
               <div>
-                <p className="max-w-32 truncate text-xs font-semibold text-white">{ownerName}</p>
-                <p className="text-[10px] font-medium text-slate-500">Şirket sahibi</p>
+                <p className="max-w-32 truncate text-xs font-semibold text-white">{profileName}</p>
+                <p className="text-[10px] font-medium text-slate-500">
+                  {principalType === 'OWNER' ? 'Patron' : 'Çalışan'}
+                </p>
               </div>
             </div>
             <button

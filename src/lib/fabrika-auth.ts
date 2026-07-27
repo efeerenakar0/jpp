@@ -3,11 +3,17 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 export const FABRIKA_SESSION_COOKIE = 'jasmine_fabrika_session';
 export const FABRIKA_SESSION_MAX_AGE = 60 * 60 * 12;
 
+export type FabrikaPrincipalType = 'OWNER' | 'EMPLOYEE';
+
 export type FabrikaSessionPayload = {
   scope: 'fabrika';
   accountId: string;
   companyName: string;
-  sessionVersion: number;
+  accountSessionVersion: number;
+  principalType: FabrikaPrincipalType;
+  principalId: string;
+  principalName: string;
+  principalSessionVersion: number;
   issuedAt: number;
   expiresAt: number;
   nonce: string;
@@ -37,10 +43,18 @@ export function isFabrikaAuthConfigured(): boolean {
   return Boolean(getRequiredEnv('FABRIKA_SESSION_SECRET'));
 }
 
-export function createFabrikaSessionToken(account: {
-  id: string;
-  companyName: string;
-  sessionVersion: number;
+export function createFabrikaSessionToken(input: {
+  account: {
+    id: string;
+    companyName: string;
+    sessionVersion: number;
+  };
+  principal: {
+    type: FabrikaPrincipalType;
+    id: string;
+    name: string;
+    sessionVersion: number;
+  };
 }): string {
   const secret = getRequiredEnv('FABRIKA_SESSION_SECRET');
 
@@ -51,9 +65,13 @@ export function createFabrikaSessionToken(account: {
   const now = Math.floor(Date.now() / 1000);
   const payload: FabrikaSessionPayload = {
     scope: 'fabrika',
-    accountId: account.id,
-    companyName: account.companyName,
-    sessionVersion: account.sessionVersion,
+    accountId: input.account.id,
+    companyName: input.account.companyName,
+    accountSessionVersion: input.account.sessionVersion,
+    principalType: input.principal.type,
+    principalId: input.principal.id,
+    principalName: input.principal.name,
+    principalSessionVersion: input.principal.sessionVersion,
     issuedAt: now,
     expiresAt: now + FABRIKA_SESSION_MAX_AGE,
     nonce: randomUUID(),
@@ -94,7 +112,11 @@ export function readFabrikaSessionToken(
       payload.scope !== 'fabrika' ||
       !payload.accountId ||
       !payload.companyName ||
-      !Number.isInteger(payload.sessionVersion) ||
+      !Number.isInteger(payload.accountSessionVersion) ||
+      !['OWNER', 'EMPLOYEE'].includes(payload.principalType) ||
+      !payload.principalId ||
+      !payload.principalName ||
+      !Number.isInteger(payload.principalSessionVersion) ||
       payload.expiresAt <= now
     ) {
       return null;

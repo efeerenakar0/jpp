@@ -12,6 +12,7 @@ import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
 import PageHeader from '@/components/fabrika/PageHeader';
 import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import StatCard from '@/components/fabrika/StatCard';
+import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import toast from 'react-hot-toast';
 
 interface Message {
@@ -77,6 +78,7 @@ type AppointmentAction =
   | 'remind';
 
 export default function AsistanPage() {
+  const { permissions } = useFabrikaSession();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -253,7 +255,9 @@ export default function AsistanPage() {
 
   useEffect(() => {
     fetchData(true);
-    fetchMetaConfig();
+    if (permissions.canManageSecrets) {
+      fetchMetaConfig();
+    }
 
     const interval = setInterval(() => {
       fetchData(false);
@@ -595,7 +599,7 @@ export default function AsistanPage() {
       <div className="absolute top-1/3 right-10 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Settings Modal */}
-      {isSettingsOpen && (
+      {permissions.canManageSecrets && isSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4">
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
             <div className="flex justify-between items-center mb-6 border-b border-slate-800/80 pb-4">
@@ -962,13 +966,15 @@ export default function AsistanPage() {
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   Webhook aktif
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800"
-                >
-                  <Settings className="h-4 w-4" /> Meta & AI ayarları
-                </button>
+                {permissions.canManageSecrets && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  >
+                    <Settings className="h-4 w-4" /> Meta & AI ayarları
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleCleanupData}

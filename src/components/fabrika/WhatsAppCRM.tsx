@@ -3,8 +3,30 @@
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, Sparkles, CheckCircle2, AlertCircle, Search, Send, Bot, RefreshCw, XCircle, ShieldCheck, Key, Phone, Settings, Save, ExternalLink, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 
-export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
+type WhatsAppChat = {
+  phone: string;
+  name: string;
+  hasDraft: boolean;
+  lastMessageTime: string;
+  lastMessage?: string;
+};
+
+type WhatsAppMessage = {
+  id: string;
+  status?: string;
+  fromMe?: boolean;
+  content: string;
+  createdAt: string;
+};
+
+export default function WhatsAppCRM({
+  allListings,
+}: {
+  allListings: unknown[];
+}) {
+  const { permissions } = useFabrikaSession();
   const [metaStatus, setMetaStatus] = useState<{ configured: boolean; phoneNumberId?: string; verifyToken?: string } | null>(null);
   const [isBulkSending, setIsBulkSending] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -18,9 +40,10 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
     verifyToken: ''
   });
 
-  const [waChats, setWaChats] = useState<any[]>([]);
-  const [waSelectedChat, setWaSelectedChat] = useState<any>(null);
-  const [waActiveMessages, setWaActiveMessages] = useState<any[]>([]);
+  const [waChats, setWaChats] = useState<WhatsAppChat[]>([]);
+  const [waSelectedChat, setWaSelectedChat] =
+    useState<WhatsAppChat | null>(null);
+  const [waActiveMessages, setWaActiveMessages] = useState<WhatsAppMessage[]>([]);
   const [waMessageInput, setWaMessageInput] = useState('');
   const [isGeneratingReply, setIsGeneratingReply] = useState(false);
 
@@ -30,22 +53,24 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
   // Fetch Meta API Status & Config
   useEffect(() => {
     fetchMetaStatus();
-    fetchMetaConfig();
-  }, []);
+    if (permissions.canManageSecrets) {
+      fetchMetaConfig();
+    }
+  }, [permissions.canManageSecrets]);
 
-  const fetchMetaStatus = async () => {
+  async function fetchMetaStatus() {
     try {
       const res = await fetch('/api/whatsapp/status', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setMetaStatus(data);
       }
-    } catch (e) {
+    } catch {
       setMetaStatus({ configured: false });
     }
-  };
+  }
 
-  const fetchMetaConfig = async () => {
+  async function fetchMetaConfig() {
     try {
       const res = await fetch('/api/whatsapp/config', { cache: 'no-store' });
       if (res.ok) {
@@ -57,10 +82,10 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
           verifyToken: ''
         });
       }
-    } catch (e) {
+    } catch {
       console.error('Config fetch error');
     }
-  };
+  }
 
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +105,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
       } else {
         toast.error(data.error || 'Kaydetme hatası', { id: toastId });
       }
-    } catch (error) {
+    } catch {
       toast.error('Bağlantı hatası', { id: toastId });
     } finally {
       setIsSavingConfig(false);
@@ -104,19 +129,19 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [waActiveMessages]);
 
-  const fetchWaChats = async (silent = false) => {
+  async function fetchWaChats(silent = false) {
     try {
       const res = await fetch(`/api/fabrika/hunting/whatsapp-chats?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const chats = await res.json();
         setWaChats(chats);
       }
-    } catch (e) {
+    } catch {
       if (!silent) console.error('Sohbetler alınamadı');
     }
-  };
+  }
 
-  const fetchWaMessages = async (phone: string, silent = false) => {
+  async function fetchWaMessages(phone: string, silent = false) {
     try {
       const res = await fetch(`/api/fabrika/hunting/whatsapp-messages`, {
         method: 'POST',
@@ -127,10 +152,10 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
         const msgs = await res.json();
         setWaActiveMessages(msgs);
       }
-    } catch (e) {
+    } catch {
       if (!silent) console.error('Mesajlar alınamadı');
     }
-  };
+  }
 
   const sendWaMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +175,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
       } else {
         toast.error('Mesaj gönderilemedi');
       }
-    } catch (e) {
+    } catch {
       toast.error('Bağlantı hatası');
     }
   };
@@ -168,7 +193,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
       toast.success('Taslak hazır!', { id: loadingToast });
       fetchWaChats();
       fetchWaMessages(waSelectedChat.phone);
-    } catch (error) {
+    } catch {
       toast.error('AI yanıtı üretilemedi.', { id: loadingToast });
     } finally {
       setIsGeneratingReply(false);
@@ -176,6 +201,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
   };
 
   const handleApproveDraft = async (messageId: string, content: string) => {
+    if (!waSelectedChat) return;
     toast.loading('Mesaj gönderiliyor...', { id: 'approve' });
     try {
       const res = await fetch('/api/whatsapp/send', {
@@ -190,7 +216,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
       } else {
         toast.error('Gönderim hatası', { id: 'approve' });
       }
-    } catch (error) {
+    } catch {
       toast.error('Onaylanırken hata oluştu.', { id: 'approve' });
     }
   };
@@ -205,7 +231,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
       toast.success('Taslak iptal edildi.');
       if (waSelectedChat) fetchWaMessages(waSelectedChat.phone);
       fetchWaChats();
-    } catch (error) {
+    } catch {
       toast.error('İptal edilirken hata oluştu.');
     }
   };
@@ -221,7 +247,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
   return (
     <div className="flex flex-col h-[85vh] animate-in fade-in zoom-in-95 duration-500 relative">
       {/* Settings Modal */}
-      {isSettingsOpen && (
+      {permissions.canManageSecrets && isSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-700/60 rounded-3xl w-full max-w-xl p-6 shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
@@ -325,9 +351,15 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
               </p>
             </div>
           </div>
-          <button onClick={() => setIsSettingsOpen(true)} className="text-xs font-bold text-amber-950 bg-amber-400 hover:bg-amber-300 px-4 py-2 rounded-xl transition-all shadow-md">
-            Ayarları Yapılandır
-          </button>
+          {permissions.canManageSecrets ? (
+            <button onClick={() => setIsSettingsOpen(true)} className="text-xs font-bold text-amber-950 bg-amber-400 hover:bg-amber-300 px-4 py-2 rounded-xl transition-all shadow-md">
+              Ayarları Yapılandır
+            </button>
+          ) : (
+            <span className="text-xs font-semibold text-amber-200">
+              Patron ayarı gerekli
+            </span>
+          )}
         </div>
       )}
 
@@ -343,9 +375,11 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
               <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${metaStatus?.configured ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'}`}>
                 {metaStatus?.configured ? 'Resmi API Aktif' : 'Test / Simulation Modu'}
               </span>
-              <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1.5 text-xs font-bold bg-gray-800 hover:bg-gray-700 text-emerald-400 px-3 py-1.5 rounded-full border border-gray-700 transition-all hover:scale-105">
-                <Settings className="w-3.5 h-3.5" /> Meta API Ayarları
-              </button>
+              {permissions.canManageSecrets && (
+                <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1.5 text-xs font-bold bg-gray-800 hover:bg-gray-700 text-emerald-400 px-3 py-1.5 rounded-full border border-gray-700 transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+                  <Settings className="w-3.5 h-3.5" /> Meta API Ayarları
+                </button>
+              )}
             </div>
             <p className="text-sm text-gray-400 mt-0.5">Sıfır çökme, sıfır QR kod. Doğrudan Meta altyapısına bağlı.</p>
           </div>
@@ -363,6 +397,7 @@ export default function WhatsAppCRM({ allListings }: { allListings: any[] }) {
           ) : (
             <button onClick={handleBulkSend} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 flex items-center justify-center gap-2">
               <Bot className="w-4 h-4" /> Portföylere Otonom Mesaj At
+              {allListings.length > 0 ? ` (${allListings.length})` : ''}
             </button>
           )}
         </div>

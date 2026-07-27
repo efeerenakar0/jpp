@@ -8,11 +8,13 @@ import {
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
+  Copy,
   Clock3,
   ContactRound,
   ExternalLink,
   Home,
   Kanban,
+  KeyRound,
   Link2,
   Loader2,
   Plus,
@@ -22,6 +24,8 @@ import {
   Share2,
   Sparkles,
   Target,
+  UserCheck,
+  UserX,
   Users,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
@@ -57,6 +61,9 @@ type Member = {
   phone: string | null;
   role: 'OWNER' | 'MANAGER' | 'AGENT' | 'VIEWER';
   active: boolean;
+  username: string | null;
+  lastLoginAt: string | null;
+  credentialsUpdatedAt: string | null;
 };
 
 type Contact = {
@@ -163,11 +170,17 @@ type Workspace = {
     ownerName: string;
     ownerEmail: string | null;
     slug: string;
-    subscriptionPlan: string;
-    subscriptionStatus: string;
+    subscriptionPlan: string | null;
+    subscriptionStatus: string | null;
     subscriptionEndsAt: string | null;
     workspaceEnabled: boolean;
     createdAt: string;
+  };
+  permissions: {
+    canManageTeam: boolean;
+    canManageSecrets: boolean;
+    canViewSubscription: boolean;
+    canEditReports: boolean;
   };
   members: Member[];
   contacts: Contact[];
@@ -188,6 +201,11 @@ type Workspace = {
 };
 
 type DialogKind = 'contact' | 'property' | 'deal' | 'task' | 'member' | null;
+
+type OneTimeMemberCredentials = {
+  username: string;
+  temporaryCode: string;
+};
 
 const pageMeta: Record<
   WorkspaceMode,
@@ -310,6 +328,8 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
+  const [memberCredentials, setMemberCredentials] =
+    useState<OneTimeMemberCredentials | null>(null);
   const [query, setQuery] = useState('');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [renderedAt] = useState(Date.now);
@@ -325,6 +345,9 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
         throw new Error(data.error || 'Çalışma alanı yüklenemedi.');
       }
       setWorkspace(data.workspace);
+      if (data.oneTimeCredentials) {
+        setMemberCredentials(data.oneTimeCredentials);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Veriler yüklenemedi.');
     } finally {
@@ -418,7 +441,7 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
           ? () => setDialog('deal')
           : mode === 'takvim'
             ? () => setDialog('task')
-            : mode === 'sirket'
+            : mode === 'sirket' && workspace.permissions.canManageTeam
               ? () => setDialog('member')
               : null;
 
@@ -1030,29 +1053,48 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
             <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">Şirket hesabı</p>
             <h2 className="mt-2 text-xl font-semibold text-white">{workspace.account.companyName}</h2>
             <p className="mt-1 text-sm text-slate-400">{workspace.account.ownerName}</p>
-            <dl className="mt-6 space-y-3">
-              {[
-                ['Abonelik', workspace.account.subscriptionStatus],
-                ['Paket', workspace.account.subscriptionPlan],
-                [
-                  'Bitiş tarihi',
-                  workspace.account.subscriptionEndsAt
-                    ? dateTime(workspace.account.subscriptionEndsAt)
-                    : 'Süresiz',
-                ],
-                ['Çalışma alanı', workspace.account.workspaceEnabled ? 'Aktif' : 'Beklemede'],
-              ].map(([label, value]) => (
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3 text-sm" key={label}>
-                  <dt className="text-slate-500">{label}</dt>
-                  <dd className="font-medium text-slate-200">{value}</dd>
-                </div>
-              ))}
-            </dl>
+            {workspace.permissions.canViewSubscription ? (
+              <dl className="mt-6 space-y-3">
+                {[
+                  ['Abonelik', workspace.account.subscriptionStatus],
+                  ['Paket', workspace.account.subscriptionPlan],
+                  [
+                    'Bitiş tarihi',
+                    workspace.account.subscriptionEndsAt
+                      ? dateTime(workspace.account.subscriptionEndsAt)
+                      : 'Süresiz',
+                  ],
+                  ['Çalışma alanı', workspace.account.workspaceEnabled ? 'Aktif' : 'Beklemede'],
+                ].map(([label, value]) => (
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 text-sm" key={label}>
+                    <dt className="text-slate-500">{label}</dt>
+                    <dd className="font-medium text-slate-200">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <div className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <p className="text-sm font-semibold text-emerald-200">
+                  Çalışan erişimi
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Operasyon kayıtları ve ekip listesi görünür. Abonelik,
+                  entegrasyon anahtarları ve hesap yönetimi patrona özeldir.
+                </p>
+              </div>
+            )}
           </section>
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-            <div className="border-b border-slate-800 p-4">
-              <h2 className="text-sm font-semibold text-white">Ekip üyeleri</h2>
-              <p className="mt-1 text-xs text-slate-500">{workspace.members.length} kullanıcı</p>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-800 p-4">
+              <div>
+                <h2 className="text-sm font-semibold text-white">Çalışan hesapları</h2>
+                <p className="mt-1 text-xs text-slate-500">{workspace.members.length} çalışan</p>
+              </div>
+              {!workspace.permissions.canManageTeam && (
+                <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[10px] font-medium text-slate-400">
+                  Salt okunur
+                </span>
+              )}
             </div>
             {workspace.members.length === 0 ? (
               <div className="p-4">
@@ -1074,10 +1116,64 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
                       <p className="mt-0.5 truncate text-xs text-slate-500">
                         {member.email || member.phone || 'İletişim bilgisi yok'}
                       </p>
+                      <p className="mt-1 truncate font-mono text-[11px] text-emerald-300">
+                        {member.username || 'Giriş bilgisi henüz oluşturulmadı'}
+                      </p>
                     </div>
-                    <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[10px] text-slate-300">
-                      {member.role}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className={`rounded-md border px-2 py-1 text-[10px] ${
+                        member.active
+                          ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                          : 'border-rose-500/25 bg-rose-500/10 text-rose-300'
+                      }`}>
+                        {member.active ? 'Aktif' : 'Kapalı'}
+                      </span>
+                      {workspace.permissions.canManageTeam && (
+                        <>
+                          <Button
+                            aria-label={`${member.name} giriş kodunu yenile`}
+                            disabled={saving}
+                            onClick={() =>
+                              postAction(
+                                {
+                                  action: 'reset-member-credentials',
+                                  id: member.id,
+                                },
+                                'Çalışan giriş kodu yenilendi.'
+                              )
+                            }
+                            size="icon"
+                            title="Giriş kodunu yenile"
+                            variant="outline"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            aria-label={`${member.name} hesabını ${member.active ? 'kapat' : 'aç'}`}
+                            disabled={saving}
+                            onClick={() =>
+                              postAction(
+                                {
+                                  action: 'set-member-active',
+                                  id: member.id,
+                                  active: !member.active,
+                                },
+                                `Çalışan hesabı ${member.active ? 'kapatıldı' : 'açıldı'}.`
+                              )
+                            }
+                            size="icon"
+                            title={member.active ? 'Hesabı kapat' : 'Hesabı aç'}
+                            variant="outline"
+                          >
+                            {member.active ? (
+                              <UserX className="h-4 w-4" />
+                            ) : (
+                              <UserCheck className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1096,6 +1192,62 @@ export default function WorkspacePage({ mode }: { mode: WorkspaceMode }) {
         onClose={() => setDialog(null)}
         onSubmit={postAction}
       />
+      <Dialog
+        open={Boolean(memberCredentials)}
+        onOpenChange={(open) => !open && setMemberCredentials(null)}
+      >
+        <DialogContent className="border border-slate-700 bg-slate-900 text-slate-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Çalışan giriş bilgileri hazır</DialogTitle>
+            <DialogDescription>
+              Bu kod yalnızca şimdi gösterilir. Çalışana güvenli bir kanaldan
+              iletin.
+            </DialogDescription>
+          </DialogHeader>
+          {memberCredentials && (
+            <div className="space-y-3">
+              {[
+                ['Kullanıcı adı', memberCredentials.username],
+                ['Geçici giriş kodu', memberCredentials.temporaryCode],
+              ].map(([label, value]) => (
+                <div
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-950 p-3"
+                  key={label}
+                >
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      {label}
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-semibold text-white">
+                      {value}
+                    </p>
+                  </div>
+                  <Button
+                    aria-label={`${label} bilgisini kopyala`}
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(value);
+                      toast.success(`${label} kopyalandı.`);
+                    }}
+                    size="icon"
+                    variant="outline"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+              onClick={() => setMemberCredentials(null)}
+              type="button"
+            >
+              Bilgileri kaydettim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1471,13 +1623,17 @@ function WorkspaceDialog({
                 <Input className={fieldClass} name="phone" />
               </label>
               <label className={`${labelClass} sm:col-span-2`}>
-                Rol
-                <SelectField defaultValue="AGENT" name="role">
-                  <option value="OWNER">Şirket sahibi</option>
-                  <option value="MANAGER">Yönetici</option>
-                  <option value="AGENT">Danışman</option>
-                  <option value="VIEWER">Görüntüleyici</option>
-                </SelectField>
+                Kullanıcı adı için kısa ad (isteğe bağlı)
+                <Input
+                  autoCapitalize="none"
+                  className={fieldClass}
+                  name="username"
+                  placeholder="ayse-yilmaz"
+                  spellCheck={false}
+                />
+                <span className="block text-[11px] font-normal leading-5 text-slate-500">
+                  Tam kullanıcı adı şirket koduyla birlikte otomatik oluşturulur.
+                </span>
               </label>
             </>
           )}

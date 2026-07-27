@@ -4,6 +4,11 @@ import {
   testMetaWhatsAppConnection,
   updateCredentialsCache,
 } from '@/lib/whatsapp';
+import {
+  FabrikaForbiddenError,
+  FabrikaSessionError,
+  requireFabrikaOwner,
+} from '@/lib/fabrika-session';
 
 type ConfigInput = {
   action?: string;
@@ -45,6 +50,7 @@ function maskSecret(value?: string | null): string {
 
 export async function GET() {
   try {
+    await requireFabrikaOwner();
     const config = await prisma.whatsAppConfig.findUnique({
       where: { id: 'default' },
     });
@@ -77,6 +83,15 @@ export async function GET() {
       templateLanguage: config?.templateLanguage || 'tr',
     });
   } catch (error) {
+    if (
+      error instanceof FabrikaForbiddenError ||
+      error instanceof FabrikaSessionError
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error instanceof FabrikaForbiddenError ? 403 : 401 }
+      );
+    }
     console.error('[WhatsApp Config GET Error]:', error);
     return NextResponse.json(
       { error: 'WhatsApp ayarları veritabanından okunamadı.' },
@@ -86,6 +101,21 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  try {
+    await requireFabrikaOwner();
+  } catch (error) {
+    if (
+      error instanceof FabrikaForbiddenError ||
+      error instanceof FabrikaSessionError
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error instanceof FabrikaForbiddenError ? 403 : 401 }
+      );
+    }
+    throw error;
+  }
+
   let body: ConfigInput;
 
   try {

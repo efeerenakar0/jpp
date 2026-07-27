@@ -1,7 +1,7 @@
 import FabrikaAppShell from '@/components/fabrika/FabrikaAppShell';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { requireFabrikaAccount } from '@/lib/fabrika-session';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 import styles from './fabrika-ui.module.css';
 
 export const metadata = {
@@ -10,15 +10,19 @@ export const metadata = {
 };
 
 export default async function FabrikaLayout({ children }: { children: React.ReactNode }) {
-  const account = await requireFabrikaAccount();
+  const principal = await requireFabrikaPrincipal();
 
   return (
     <TooltipProvider delayDuration={250}>
       <div className={`${styles.root} dark`}>
         <FabrikaAppShell
           account={{
-            companyName: account.companyName,
-            ownerName: account.ownerName,
+            companyName: principal.account.companyName,
+          }}
+          session={{
+            principalType: principal.type,
+            displayName: principal.displayName,
+            permissions: principal.permissions,
           }}
         >
           {children}

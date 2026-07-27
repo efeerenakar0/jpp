@@ -49,11 +49,35 @@ export default async function proxy(request: NextRequest) {
         },
       })
     : null;
+  const companyMember =
+    sessionPayload?.principalType === 'EMPLOYEE'
+      ? await prisma.companyMember.findFirst({
+          where: {
+            id: sessionPayload.principalId,
+            companyAccountId: sessionPayload.accountId,
+          },
+          select: {
+            active: true,
+            sessionVersion: true,
+          },
+        })
+      : null;
+  const hasValidPrincipal =
+    sessionPayload?.principalType === 'OWNER'
+      ? sessionPayload.principalId === sessionPayload.accountId &&
+        sessionPayload.principalSessionVersion ===
+          companyAccount?.sessionVersion
+      : Boolean(
+          companyMember?.active &&
+            companyMember.sessionVersion ===
+              sessionPayload?.principalSessionVersion
+        );
   const hasFabrikaSession = Boolean(
     sessionPayload &&
       companyAccount?.status === 'ACTIVE' &&
       companyAccount.workspaceEnabled &&
-      companyAccount.sessionVersion === sessionPayload.sessionVersion &&
+      companyAccount.sessionVersion === sessionPayload.accountSessionVersion &&
+      hasValidPrincipal &&
       (!companyAccount.subscriptionEndsAt ||
         companyAccount.subscriptionEndsAt.getTime() > Date.now()) &&
       (companyAccount.subscriptionStatus === 'ACTIVE' ||
@@ -92,7 +116,10 @@ export default async function proxy(request: NextRequest) {
     );
   }
 
-  if (pathname === FABRIKA_LOGIN_PATH) {
+  if (
+    pathname === FABRIKA_LOGIN_PATH ||
+    pathname.startsWith(`${FABRIKA_LOGIN_PATH}/`)
+  ) {
     return hasFabrikaSession
       ? NextResponse.redirect(new URL('/fabrika', request.url))
       : NextResponse.next();

@@ -363,16 +363,23 @@ model CompanyAiCredential {
 }
 
 model CompanyMember {
-  id               String            @id @default(cuid())
-  companyAccountId String
-  companyAccount   CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  name             String
-  email            String?
-  phone            String?
-  role             CompanyMemberRole @default(AGENT)
-  active           Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                   String            @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  name                 String
+  email                String?
+  phone                String?
+  role                 CompanyMemberRole @default(AGENT)
+  active               Boolean           @default(true)
+  username             String?           @unique
+  passwordHash         String?
+  sessionVersion       Int               @default(1)
+  failedLoginAttempts  Int               @default(0)
+  lockedUntil          DateTime?
+  lastLoginAt          DateTime?
+  credentialsUpdatedAt DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   contacts   CrmContact[]
   properties CrmProperty[]

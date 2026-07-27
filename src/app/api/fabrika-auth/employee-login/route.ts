@@ -5,7 +5,7 @@ import {
   FABRIKA_SESSION_MAX_AGE,
   isFabrikaAuthConfigured,
 } from '@/lib/fabrika-auth';
-import { authenticateCompanyAccount } from '@/lib/company-accounts';
+import { authenticateCompanyMember } from '@/lib/company-members';
 
 export async function POST(request: Request) {
   if (!isFabrikaAuthConfigured()) {
@@ -17,31 +17,41 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as {
-      accessKey?: unknown;
-      verificationCode?: unknown;
+      username?: unknown;
+      temporaryCode?: unknown;
     };
-    const accessKey = typeof body.accessKey === 'string' ? body.accessKey : '';
-    const verificationCode =
-      typeof body.verificationCode === 'string' ? body.verificationCode : '';
-
-    const authentication = await authenticateCompanyAccount(
-      accessKey,
-      verificationCode
+    const username = typeof body.username === 'string' ? body.username : '';
+    const temporaryCode =
+      typeof body.temporaryCode === 'string' ? body.temporaryCode : '';
+    const authentication = await authenticateCompanyMember(
+      username,
+      temporaryCode
     );
 
     if (!authentication.ok) {
       const messages = {
-        invalid: 'Giriş anahtarı veya doğrulama kodu hatalı.',
+        invalid: 'Kullanıcı adı veya giriş kodu hatalı.',
+        locked:
+          'Çok fazla başarısız deneme yapıldı. 15 dakika sonra yeniden deneyin.',
+        member_disabled:
+          'Çalışan hesabınız patronunuz veya yönetici tarafından kapatılmış.',
         account_disabled:
           'Şirket hesabınız yönetici tarafından askıya alınmış veya kapatılmış.',
         subscription_inactive:
-          'Aboneliğiniz durdurulmuş ya da sona ermiş. Yöneticinizle iletişime geçin.',
+          'Şirket aboneliği durdurulmuş ya da sona ermiş.',
         workspace_pending:
-          'Şirket çalışma alanınız hazırlanıyor. Etkinleştirildiğinde giriş yapabilirsiniz.',
+          'Şirket çalışma alanı henüz etkinleştirilmemiş.',
       } as const;
+
       return NextResponse.json(
         { error: messages[authentication.reason] },
-        { status: authentication.reason === 'invalid' ? 401 : 403 }
+        {
+          status:
+            authentication.reason === 'invalid' ||
+            authentication.reason === 'locked'
+              ? 401
+              : 403,
+        }
       );
     }
 
@@ -51,10 +61,10 @@ export async function POST(request: Request) {
       value: createFabrikaSessionToken({
         account: authentication.account,
         principal: {
-          type: 'OWNER',
-          id: authentication.account.id,
-          name: authentication.account.ownerName,
-          sessionVersion: authentication.account.sessionVersion,
+          type: 'EMPLOYEE',
+          id: authentication.member.id,
+          name: authentication.member.name,
+          sessionVersion: authentication.member.sessionVersion,
         },
       }),
       httpOnly: true,

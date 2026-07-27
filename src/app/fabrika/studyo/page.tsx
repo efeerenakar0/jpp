@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import PageHeader from '@/components/fabrika/PageHeader';
 import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
+import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import {
   Dialog,
   DialogContent,
@@ -100,6 +101,7 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
 };
 
 export default function StudioPage() {
+  const { permissions } = useFabrikaSession();
   const [screen, setScreen] = useState<StudioScreen>('upload');
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -318,15 +320,22 @@ export default function StudioPage() {
         icon={Aperture}
         actions={
           <>
-            <button
-              type="button"
-              onClick={openSettings}
-              className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-            >
-              <KeyRound className="h-3.5 w-3.5" /> API ayarları
-            </button>
+            {permissions.canManageSecrets && (
+              <button
+                type="button"
+                onClick={openSettings}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+              >
+                <KeyRound className="h-3.5 w-3.5" /> API ayarları
+              </button>
+            )}
             <span className="hidden items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-300 sm:inline-flex">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-300" /> {activeProviderStatus ? PROVIDER_DETAILS[activeProviderStatus.provider].label : 'AI sağlayıcısı seçin'}
+              <Sparkles className="h-3.5 w-3.5 text-emerald-300" />{' '}
+              {permissions.canManageSecrets
+                ? activeProviderStatus
+                  ? PROVIDER_DETAILS[activeProviderStatus.provider].label
+                  : 'AI sağlayıcısı seçin'
+                : 'Şirket AI sağlayıcısı'}
             </span>
             {screen === 'results' && (
               <button
@@ -429,13 +438,19 @@ export default function StudioPage() {
                     <p className="mt-1 text-xs leading-5 text-rose-100/80">{errorMessage}</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={openSettings}
-                  className="shrink-0 rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                >
-                  API ayarlarını aç
-                </button>
+                {permissions.canManageSecrets ? (
+                  <button
+                    type="button"
+                    onClick={openSettings}
+                    className="shrink-0 rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                  >
+                    API ayarlarını aç
+                  </button>
+                ) : (
+                  <p className="text-xs text-rose-100">
+                    AI bağlantısını şirket patronunuz kontrol edebilir.
+                  </p>
+                )}
               </div>
             )}
 
@@ -479,6 +494,7 @@ export default function StudioPage() {
         )}
       </main>
 
+      {permissions.canManageSecrets && (
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto border-slate-700 bg-slate-950 p-0 text-slate-100 shadow-2xl">
           <DialogHeader className="border-b border-slate-800 p-6 pr-12">
@@ -566,6 +582,7 @@ export default function StudioPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
 
       {isProcessing && <div className="fixed inset-0 z-50 grid place-items-center bg-[#07120f]/80 px-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-3xl border border-emerald-300/20 bg-slate-950 p-7 text-center shadow-2xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-300/15 text-emerald-300"><Loader2 className="h-8 w-8 animate-spin" /></div><h2 className="mt-5 text-xl font-extrabold text-white">Görselleriniz işleniyor</h2><p className="mt-2 text-sm leading-6 text-slate-400">{status}</p><div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-teal-400 transition-all duration-500" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs font-bold text-emerald-300">%{progress}</p></div></div>}
     </div>

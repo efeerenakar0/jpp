@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import {
-  CompanyMemberRole,
   ConsentStatus,
   CrmContactStage,
   CrmContactType,
@@ -12,10 +11,17 @@ import {
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
+  FabrikaForbiddenError,
   FabrikaSessionError,
-  requireFabrikaAccount,
+  requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
 import { syncLegacyModulesToWorkspace } from '@/lib/fabrika-workspace-sync';
+import {
+  createCompanyMemberAccount,
+  resetCompanyMemberCredentials,
+  setCompanyMemberActive,
+  type OneTimeMemberCredentials,
+} from '@/lib/company-members';
 
 const optionalText = z.string().trim().max(500).optional().nullable();
 const optionalId = z.string().trim().min(1).optional().nullable();
@@ -89,7 +95,16 @@ const actionSchema = z.discriminatedUnion('action', [
     name: z.string().trim().min(2).max(120),
     email: z.string().trim().email().optional().or(z.literal('')),
     phone: optionalText,
-    role: z.nativeEnum(CompanyMemberRole).default(CompanyMemberRole.AGENT),
+    username: z.string().trim().min(2).max(40).optional().or(z.literal('')),
+  }),
+  z.object({
+    action: z.literal('reset-member-credentials'),
+    id: z.string().trim().min(1),
+  }),
+  z.object({
+    action: z.literal('set-member-active'),
+    id: z.string().trim().min(1),
+    active: z.boolean(),
   }),
   z.object({
     action: z.literal('recompute-matches'),
@@ -108,6 +123,13 @@ function unauthorized() {
   return NextResponse.json(
     { success: false, error: 'Fabrika oturumu gerekli.' },
     { status: 401 }
+  );
+}
+
+function forbidden(message = 'Bu işlem yalnızca şirket patronuna açıktır.') {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status: 403 }
   );
 }
 
@@ -225,7 +247,15 @@ async function recomputeMatches(companyAccountId: string) {
   }
 }
 
-async function getWorkspace(companyAccountId: string) {
+async function getWorkspace(
+  companyAccountId: string,
+  permissions: {
+    canManageTeam: boolean;
+    canManageSecrets: boolean;
+    canViewSubscription: boolean;
+    canEditReports: boolean;
+  }
+) {
   const [
     account,
     members,
@@ -253,6 +283,21 @@ async function getWorkspace(companyAccountId: string) {
     }),
     prisma.companyMember.findMany({
       where: { companyAccountId },
+      select: {
+        id: true,
+        companyAccountId: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        active: true,
+        username: true,
+        sessionVersion: true,
+        lastLoginAt: true,
+        credentialsUpdatedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
     }),
     prisma.crmContact.findMany({
@@ -339,7 +384,25 @@ async function getWorkspace(companyAccountId: string) {
     );
 
   return {
-    account,
+    account: {
+      id: account.id,
+      companyName: account.companyName,
+      ownerName: account.ownerName,
+      ownerEmail: account.ownerEmail,
+      slug: account.slug,
+      subscriptionPlan: permissions.canViewSubscription
+        ? account.subscriptionPlan
+        : null,
+      subscriptionStatus: permissions.canViewSubscription
+        ? account.subscriptionStatus
+        : null,
+      subscriptionEndsAt: permissions.canViewSubscription
+        ? account.subscriptionEndsAt
+        : null,
+      workspaceEnabled: account.workspaceEnabled,
+      createdAt: account.createdAt,
+    },
+    permissions,
     members,
     contacts,
     properties,
@@ -369,12 +432,15 @@ async function getWorkspace(companyAccountId: string) {
 
 export async function GET() {
   try {
-    const account = await requireFabrikaAccount();
-    await syncLegacyModulesToWorkspace(account);
-    await recomputeMatches(account.id);
+    const principal = await requireFabrikaPrincipal();
+    await syncLegacyModulesToWorkspace(principal.account);
+    await recomputeMatches(principal.account.id);
     return NextResponse.json({
       success: true,
-      workspace: await getWorkspace(account.id),
+      workspace: await getWorkspace(
+        principal.account.id,
+        principal.permissions
+      ),
     });
   } catch (error) {
     if (error instanceof FabrikaSessionError) return unauthorized();
@@ -388,7 +454,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const account = await requireFabrikaAccount();
+    const principal = await requireFabrikaPrincipal();
+    const account = principal.account;
     const parsed = actionSchema.safeParse(await request.json());
 
     if (!parsed.success) {
@@ -402,6 +469,7 @@ export async function POST(request: Request) {
     }
 
     const input = parsed.data;
+    let oneTimeCredentials: OneTimeMemberCredentials | undefined;
 
     if (input.action === 'create-contact') {
       const assignedMemberId = await ensureOwnedResource(
@@ -590,14 +658,38 @@ export async function POST(request: Request) {
     }
 
     if (input.action === 'create-member') {
-      await prisma.companyMember.create({
-        data: {
-          companyAccountId: account.id,
-          name: input.name,
-          email: asNullable(input.email),
-          phone: asNullable(input.phone),
-          role: input.role,
-        },
+      if (!principal.permissions.canManageTeam) {
+        throw new FabrikaForbiddenError();
+      }
+      const result = await createCompanyMemberAccount({
+        companyAccountId: account.id,
+        name: input.name,
+        email: asNullable(input.email),
+        phone: asNullable(input.phone),
+        username: asNullable(input.username),
+      });
+      oneTimeCredentials = result.credentials;
+    }
+
+    if (input.action === 'reset-member-credentials') {
+      if (!principal.permissions.canManageTeam) {
+        throw new FabrikaForbiddenError();
+      }
+      const result = await resetCompanyMemberCredentials({
+        companyAccountId: account.id,
+        memberId: input.id,
+      });
+      oneTimeCredentials = result.credentials;
+    }
+
+    if (input.action === 'set-member-active') {
+      if (!principal.permissions.canManageTeam) {
+        throw new FabrikaForbiddenError();
+      }
+      await setCompanyMemberActive({
+        companyAccountId: account.id,
+        memberId: input.id,
+        active: input.active,
       });
     }
 
@@ -637,10 +729,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      workspace: await getWorkspace(account.id),
+      workspace: await getWorkspace(account.id, principal.permissions),
+      oneTimeCredentials,
     });
   } catch (error) {
     if (error instanceof FabrikaSessionError) return unauthorized();
+    if (error instanceof FabrikaForbiddenError) return forbidden(error.message);
     console.error('Workspace POST error:', error);
     return NextResponse.json(
       {

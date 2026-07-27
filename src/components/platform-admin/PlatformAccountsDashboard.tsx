@@ -19,6 +19,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import PlatformAccountMembers from './PlatformAccountMembers';
 
 type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
 type SubscriptionStatus =
@@ -756,6 +757,10 @@ export default function PlatformAccountsDashboard() {
                       Giriş bilgilerini yenile
                     </button>
                   </div>
+                  <PlatformAccountMembers
+                    accountId={account.id}
+                    companyName={account.companyName}
+                  />
                 </article>
               ))}
             </div>
