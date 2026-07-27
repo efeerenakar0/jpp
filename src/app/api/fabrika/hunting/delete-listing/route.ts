@@ -1,22 +1,38 @@
 import { NextResponse } from 'next/server';
+import {
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
 import prisma from '@/lib/prisma';
 
-export async function DELETE(req: Request) {
+export async function DELETE(request: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
+    const principal = await requireFabrikaPrincipal();
+    const id = new URL(request.url).searchParams.get('id');
     if (!id) {
-      return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
+      return NextResponse.json({ error: 'ID gerekli.' }, { status: 400 });
     }
-
-    await prisma.huntedListing.delete({
-      where: { id }
+    const deleted = await prisma.huntedListing.deleteMany({
+      where: { id, companyAccountId: principal.account.id },
     });
-
+    if (deleted.count === 0) {
+      return NextResponse.json(
+        { error: 'Avcı ilanı bulunamadı.' },
+        { status: 404 }
+      );
+    }
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json(
+        { error: 'Fabrika oturumu gerekli.' },
+        { status: 401 }
+      );
+    }
     console.error('Error deleting listing:', error);
-    return NextResponse.json({ error: 'Silme işlemi başarısız' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Silme işlemi başarısız.' },
+      { status: 500 }
+    );
   }
 }

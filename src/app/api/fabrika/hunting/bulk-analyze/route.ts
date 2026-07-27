@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { parseSearchUrlBulk } from '@/lib/sahibinden-parser';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 export async function POST(req: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const { url } = await req.json();
 
     if (!url) {
@@ -21,19 +23,19 @@ export async function POST(req: Request) {
 
     // 2. İlanları veritabanına kaydet
     for (const data of parsedListings) {
-      const listingData = data as any; // Cast to access ownerName and ownerPhone
       const listing = await prisma.huntedListing.create({
         data: {
-          sourceUrl: listingData.url,
-          title: listingData.title,
-          price: listingData.price,
-          location: listingData.location,
-          roomCount: listingData.roomCount,
-          area: listingData.area,
-          ownerName: listingData.ownerName,
-          ownerPhone: listingData.ownerPhone,
+          companyAccountId: principal.account.id,
+          sourceUrl: data.url,
+          title: data.title,
+          price: data.price,
+          location: data.location,
+          roomCount: data.roomCount,
+          area: data.area,
+          ownerName: data.ownerName,
+          ownerPhone: data.ownerPhone,
           status: 'YELLOW',
-          rawData: JSON.stringify(listingData),
+          rawData: JSON.stringify(data),
         },
       });
       createdListings.push(listing);

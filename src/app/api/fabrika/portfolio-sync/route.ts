@@ -1,107 +1,149 @@
+import { createHash } from 'node:crypto';
+import { HuntingStatus, NotificationType } from '@prisma/client';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { callAI, PROMPTS, parseJSONResponse } from '@/lib/ai';
-import { NotificationType } from '@prisma/client';
+import { z } from 'zod';
+import {
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
-import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import prisma from '@/lib/prisma';
 
-// GET: Dönüştürülmeyi bekleyen GREEN durumundaki ilanları getirir
+const requestSchema = z.object({
+  listingId: z.string().trim().min(1),
+  authorizationNote: z.string().trim().max(2000).optional().nullable(),
+});
+
+function numericListingValue(value: string | null) {
+  if (!value) return null;
+  const parsed = Number(value.replace(/[^\d]/g, ''));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function fingerprint(companyAccountId: string, listingId: string) {
+  return createHash('sha256')
+    .update(`${companyAccountId}:hunter:${listingId}`)
+    .digest('hex');
+}
+
 export async function GET() {
   try {
+    const principal = await requireFabrikaPrincipal();
     const listings = await prisma.huntedListing.findMany({
       where: {
-        status: 'GREEN',
+        companyAccountId: principal.account.id,
+        status: HuntingStatus.AUTHORIZED,
         syncedToSite: false,
       },
-      orderBy: { createdAt: 'desc' },
+      include: {
+        portfolioImport: {
+          select: { id: true, status: true, reviewNote: true },
+        },
+      },
+      orderBy: { authorizedAt: 'desc' },
     });
     return NextResponse.json(listings);
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch listings' }, { status: 500 });
+  } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json(
+        { error: 'Fabrika oturumu gerekli.' },
+        { status: 401 }
+      );
+    }
+    return NextResponse.json(
+      { error: 'Onay bekleyen Avcı portföyleri yüklenemedi.' },
+      { status: 500 }
+    );
   }
 }
 
-// POST: İlanı projeye dönüştürür
 export async function POST(request: Request) {
   try {
     const principal = await requireFabrikaPrincipal();
-    const { listingId } = await request.json();
-    
-    const listing = await prisma.huntedListing.findUnique({
-      where: { id: listingId },
-    });
-    
-    if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
-    
-    // Slug üretimi
-    const baseSlug = listing.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    const slug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
-    
-    // SEO İçeriği Üret
-    const prompt = PROMPTS.seoGenerator({
-      title: listing.title,
-      location: listing.location || '',
-      price: listing.price || '',
-      roomCount: listing.roomCount || '',
-      area: listing.area || ''
-    });
-    
-    const aiResponse = await callAI([{ role: 'user', content: prompt }], 'seo');
-    const seoData = parseJSONResponse(aiResponse.content) as { seoTitle?: string, metaDescription?: string, htmlDescription?: string } | null;
-    
-    // Proje oluştur
-    const project = await prisma.project.create({
-      data: {
-        name: listing.title,
-        slug,
-        location: listing.location || 'Belirtilmedi',
-        status: 'Satışta',
-        image: listing.imageUrl || 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
-        shortDescription: seoData?.metaDescription || listing.notes || 'Yeni proje',
-        description: seoData?.htmlDescription || 'Detaylı açıklama hazırlanıyor.',
-        features: [],
-        deliveryDate: 'Hemen Teslim',
-        price: listing.price || 'Fiyat Sorunuz',
-        published: true,
-      }
-    });
-    
-    // Unit ekleyelim
-    if (listing.roomCount || listing.area) {
-      await prisma.unit.create({
-        data: {
-          projectId: project.id,
-          type: listing.roomCount || 'Bilinmiyor',
-          area: listing.area || 'Bilinmiyor',
-          price: listing.price,
-        }
-      });
+    const parsed = requestSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Geçerli bir Avcı ilanı seçin.' },
+        { status: 400 }
+      );
     }
-    
-    // İlanı güncelle
-    await prisma.huntedListing.update({
-      where: { id: listingId },
-      data: {
-        syncedToSite: true,
-        syncedProjectId: project.id
-      }
+    const input = parsed.data;
+    const listing = await prisma.huntedListing.findFirst({
+      where: {
+        id: input.listingId,
+        companyAccountId: principal.account.id,
+      },
     });
-    
-    // Bildirim oluştur
+    if (!listing) {
+      return NextResponse.json(
+        { error: 'Avcı ilanı bulunamadı.' },
+        { status: 404 }
+      );
+    }
+    const item = await prisma.portfolioImportItem.upsert({
+      where: {
+        companyAccountId_fingerprint: {
+          companyAccountId: principal.account.id,
+          fingerprint: fingerprint(principal.account.id, listing.id),
+        },
+      },
+      create: {
+        companyAccountId: principal.account.id,
+        huntedListingId: listing.id,
+        fingerprint: fingerprint(principal.account.id, listing.id),
+        externalId: listing.id,
+        sourceUrl: listing.sourceUrl,
+        title: listing.title,
+        location: listing.location,
+        price: numericListingValue(listing.price),
+        roomCount: listing.roomCount,
+        area: numericListingValue(listing.area),
+        description: listing.notes,
+        imageUrl: listing.imageUrl,
+        rawPayload: listing.rawData,
+      },
+      update: {
+        status: 'PENDING',
+        reviewNote: null,
+        reviewedAt: null,
+        reviewedBy: null,
+      },
+    });
+    await prisma.huntedListing.update({
+      where: { id: listing.id },
+      data: {
+        status: HuntingStatus.AUTHORIZED,
+        authorizationNote: input.authorizationNote?.trim() || null,
+        authorizedAt: listing.authorizedAt || new Date(),
+      },
+    });
     await createCompanyNotification({
       companyAccountId: principal.account.id,
       type: NotificationType.GREEN_LISTING,
-      title: 'Yeni Portföy Onaylandı',
-      message: `${listing.title} web sitesine portföy olarak eklendi.`,
-      link: '/fabrika/portfoyler',
+      title: 'Satış Yetkisi Alındı',
+      message: `${listing.title} portföy onay kuyruğuna eklendi.`,
+      link: '/fabrika/portfoyler?view=kaynaklar',
       important: true,
-      dedupeKey: `portfolio-published:${project.id}`,
-      metadata: { projectId: project.id, listingId: listing.id },
+      dedupeKey: `portfolio-review:${item.id}`,
+      metadata: { listingId: listing.id, importId: item.id },
     });
-    
-    return NextResponse.json(project);
+    return NextResponse.json({
+      success: true,
+      message:
+        'İlan canlı yayınlanmadı; Portföyler onay kuyruğuna gönderildi.',
+      importId: item.id,
+    });
   } catch (error) {
-    console.error('Portfolio sync error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json(
+        { error: 'Fabrika oturumu gerekli.' },
+        { status: 401 }
+      );
+    }
+    console.error('Portfolio review queue error:', error);
+    return NextResponse.json(
+      { error: 'İlan portföy onayına gönderilemedi.' },
+      { status: 500 }
+    );
   }
 }

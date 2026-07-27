@@ -193,6 +193,7 @@ model AgentApplication {
 
 enum HuntingStatus {
   YELLOW // Pazarlıkta
+  AUTHORIZED // Satış yetkisi alındı, portföy onayı bekliyor
   RED // Elendi
   GREEN // Avlandı - siteye eklenmek üzere
 }
@@ -345,6 +346,9 @@ model CompanyAccount {
   notifications            Notification[]
   googleCalendarConnection GoogleCalendarConnection?
   calendarSyncLogs         CalendarSyncLog[]
+  huntedListings           HuntedListing[]
+  portfolioSources         PortfolioSource[]
+  portfolioImports         PortfolioImportItem[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -460,10 +464,11 @@ model CrmProperty {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  deals      CrmDeal[]
-  tasks      CrmTask[]
-  matches    CrmMatch[]
-  activities CrmActivity[]
+  deals           CrmDeal[]
+  tasks           CrmTask[]
+  matches         CrmMatch[]
+  activities      CrmActivity[]
+  portfolioImport PortfolioImportItem?
 
   @@unique([companyAccountId, sourceListingId])
   @@index([companyAccountId, status])
@@ -643,27 +648,95 @@ model CompanyProfile {
 }
 
 model HuntedListing {
-  id              String        @id @default(cuid())
-  sourceUrl       String // Sahibinden.com link
-  title           String
-  price           String?
-  location        String?
-  roomCount       String? // e.g. "3+1"
-  area            String? // e.g. "120 m²"
-  ownerName       String?
-  ownerPhone      String?
-  imageUrl        String?
-  rawData         String?       @db.Text // JSON olarak ham veri
-  status          HuntingStatus @default(YELLOW)
-  whatsappStatus  String        @default("BEKLIYOR") // BEKLIYOR, GONDERILDI, CEVAPLANDI
-  notes           String?       @db.Text
-  syncedToSite    Boolean       @default(false) // Modül 1'e gönderildi mi?
-  syncedProjectId String? // Bağlanan Project id
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                 String          @id @default(cuid())
+  companyAccountId   String?
+  companyAccount     CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  sourceUrl          String // Sahibinden.com link
+  title              String
+  price              String?
+  location           String?
+  roomCount          String? // e.g. "3+1"
+  area               String? // e.g. "120 m²"
+  ownerName          String?
+  ownerPhone         String?
+  imageUrl           String?
+  rawData            String?         @db.Text // JSON olarak ham veri
+  status             HuntingStatus   @default(YELLOW)
+  whatsappStatus     String          @default("BEKLIYOR") // BEKLIYOR, GONDERILDI, CEVAPLANDI
+  notes              String?         @db.Text
+  syncedToSite       Boolean         @default(false) // Modül 1'e gönderildi mi?
+  syncedProjectId    String? // Bağlanan Project id
+  authorizationNote  String?         @db.Text
+  authorizedAt       DateTime?
+  eliminationReason  String?
+  eliminationNote    String?         @db.Text
+  eliminationSummary String?         @db.Text
+  eliminatedAt       DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
-  messages HuntingMessage[]
-  adCopies AdCopy[]
+  messages        HuntingMessage[]
+  adCopies        AdCopy[]
+  portfolioImport PortfolioImportItem?
+
+  @@unique([companyAccountId, sourceUrl])
+  @@index([companyAccountId, status, updatedAt])
+}
+
+model PortfolioSource {
+  id                  String         @id @default(cuid())
+  companyAccountId    String
+  companyAccount      CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  name                String
+  type                String
+  baseUrl             String?
+  feedPath            String?
+  encryptedCredential String?        @db.Text
+  credentialHint      String?
+  active              Boolean        @default(true)
+  lastSyncStatus      String         @default("READY")
+  lastSyncError       String?        @db.Text
+  lastSyncedAt        DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  imports PortfolioImportItem[]
+
+  @@index([companyAccountId, active])
+  @@index([companyAccountId, lastSyncStatus])
+}
+
+model PortfolioImportItem {
+  id               String           @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount   @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  sourceId         String?
+  source           PortfolioSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  huntedListingId  String?          @unique
+  huntedListing    HuntedListing?   @relation(fields: [huntedListingId], references: [id], onDelete: SetNull)
+  propertyId       String?          @unique
+  property         CrmProperty?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  externalId       String?
+  fingerprint      String
+  sourceUrl        String?
+  title            String
+  location         String?
+  price            Float?
+  roomCount        String?
+  area             Float?
+  description      String?          @db.Text
+  imageUrl         String?
+  rawPayload       String?          @db.Text
+  status           String           @default("PENDING")
+  reviewNote       String?          @db.Text
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([companyAccountId, fingerprint])
+  @@index([companyAccountId, status, createdAt])
+  @@index([sourceId, status])
 }
 
 model WhatsAppMessage {

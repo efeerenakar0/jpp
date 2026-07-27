@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import prisma from '@/lib/prisma';
 
 export async function GET() {
   try {
+    const principal = await requireFabrikaPrincipal();
     // 1. Fetch all messages from Prisma DB
     const allMessages = await prisma.whatsAppMessage.findMany({
       orderBy: { createdAt: 'desc' }
@@ -12,6 +12,7 @@ export async function GET() {
 
     // 2. Also fetch HuntedListings to map owner names/phones
     const listings = await prisma.huntedListing.findMany({
+      where: { companyAccountId: principal.account.id },
       select: { ownerPhone: true, ownerName: true, title: true }
     });
 

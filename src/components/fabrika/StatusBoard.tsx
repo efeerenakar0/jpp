@@ -1,12 +1,32 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trash2, ExternalLink, Clock, CheckCircle2, XCircle, Search, Sparkles, type LucideIcon } from 'lucide-react';
+import {
+  BadgeCheck,
+  Trash2,
+  ExternalLink,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Search,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 import EmptyState from './EmptyState';
 import FilterBar from './FilterBar';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
-type HuntingStatus = 'YELLOW' | 'RED' | 'GREEN';
+type HuntingStatus = 'YELLOW' | 'AUTHORIZED' | 'RED' | 'GREEN';
 
 interface Listing {
   id: string;
@@ -17,16 +37,34 @@ interface Listing {
   status: HuntingStatus;
   ownerName?: string | null;
   ownerPhone?: string | null;
+  authorizationNote?: string | null;
+  eliminationReason?: string | null;
+  eliminationSummary?: string | null;
+  portfolioImport?: {
+    id: string;
+    status: string;
+    propertyId: string | null;
+    reviewNote: string | null;
+  } | null;
 }
 
 interface StatusBoardProps {
   listings: Listing[];
-  onStatusChange: (id: string, newStatus: HuntingStatus) => void;
+  onStatusChange: (
+    id: string,
+    newStatus: HuntingStatus,
+    details?: {
+      eliminationReason?: string;
+      eliminationNote?: string;
+      authorizationNote?: string;
+    }
+  ) => void | Promise<void>;
   onDeleteListing?: (id: string) => void;
 }
 
 export default function StatusBoard({ listings, onStatusChange, onDeleteListing }: StatusBoardProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [eliminating, setEliminating] = useState<Listing | null>(null);
 
   const filtered = listings.filter((l) => {
     if (!searchTerm) return true;
@@ -40,6 +78,9 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
   });
 
   const yellowListings = filtered.filter((l) => l.status === 'YELLOW');
+  const authorizedListings = filtered.filter(
+    (l) => l.status === 'AUTHORIZED'
+  );
   const redListings = filtered.filter((l) => l.status === 'RED');
   const greenListings = filtered.filter((l) => l.status === 'GREEN');
 
@@ -138,6 +179,30 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
                     )}
                   </div>
                 )}
+
+                {listing.status === 'AUTHORIZED' && (
+                  <div className="mb-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-2.5 text-[11px] leading-5 text-sky-200">
+                    <p className="font-semibold">
+                      {listing.portfolioImport?.status === 'APPROVED'
+                        ? 'Portföye onaylandı'
+                        : 'Portföy onayı bekleniyor'}
+                    </p>
+                    {listing.authorizationNote && (
+                      <p className="mt-1 text-sky-300/80">
+                        {listing.authorizationNote}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {listing.status === 'RED' && listing.eliminationSummary && (
+                  <div className="mb-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-2.5 text-[11px] leading-5 text-rose-200">
+                    <p className="font-semibold">Eleme özeti</p>
+                    <p className="mt-1 text-rose-300/80">
+                      {listing.eliminationSummary}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between gap-2 mt-2">
@@ -154,7 +219,13 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
                   {targetStatuses.map((ts) => (
                     <button
                       key={ts.status}
-                      onClick={() => onStatusChange(listing.id, ts.status)}
+                      onClick={() => {
+                        if (ts.status === 'RED') {
+                          setEliminating(listing);
+                          return;
+                        }
+                        void onStatusChange(listing.id, ts.status);
+                      }}
                       className={`px-2.5 py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer border active:scale-95 ${ts.btnClass}`}
                     >
                       {ts.label}
@@ -186,13 +257,14 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
 
         <div className="flex items-center gap-3 text-xs text-slate-400 font-semibold">
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Sıcak İlanlar</span>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Portföyümüze Katıldı</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-400" /> Satış Yetkisi</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Portföye Katıldı</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-400" /> Pasif</span>
         </div>
       </FilterBar>
 
       {/* Grid Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-4">
         {renderColumn({
           title: 'Sıcak Pazarlıkta',
           badgeText: 'Aday',
@@ -202,7 +274,19 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
           icon: Sparkles,
           targetStatuses: [
             { label: 'Elendi', status: 'RED', btnClass: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' },
-            { label: ' Portföye Katıldı', status: 'GREEN', btnClass: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30' }
+            { label: 'Satış Yetkisi Alındı', status: 'AUTHORIZED', btnClass: 'bg-sky-500/20 border-sky-500/30 text-sky-300 hover:bg-sky-500/30' }
+          ],
+        })}
+        {renderColumn({
+          title: 'Satış Yetkisi Alındı',
+          badgeText: 'Onay',
+          badgeBg: 'bg-sky-500/20 text-sky-300 border border-sky-500/30',
+          borderColor: 'border-sky-500/20',
+          items: authorizedListings,
+          icon: BadgeCheck,
+          targetStatuses: [
+            { label: 'Pazarlığa Döndür', status: 'YELLOW', btnClass: 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20' },
+            { label: 'Elendi', status: 'RED', btnClass: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' },
           ],
         })}
         {renderColumn({
@@ -229,6 +313,82 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
           ],
         })}
       </div>
+
+      <Dialog
+        onOpenChange={(open) => !open && setEliminating(null)}
+        open={Boolean(eliminating)}
+      >
+        <DialogContent className="max-w-md border-slate-700 bg-slate-900 text-slate-100">
+          <DialogHeader>
+            <DialogTitle>İlan neden elendi?</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Yapılandırılmış neden raporlarda kullanılacak; AI yalnızca
+              verdiğiniz bilgileri kısa bir özete dönüştürecek.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (!eliminating) return;
+              const form = new FormData(event.currentTarget);
+              await onStatusChange(eliminating.id, 'RED', {
+                eliminationReason: String(form.get('reason') || ''),
+                eliminationNote: String(form.get('note') || ''),
+              });
+              setEliminating(null);
+            }}
+          >
+            <label className="block space-y-1.5 text-xs text-slate-300">
+              <span>Eleme nedeni</span>
+              <select
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                defaultValue=""
+                name="reason"
+                required
+              >
+                <option disabled value="">
+                  Neden seçin
+                </option>
+                <option value="OTHER_AGENT">Başka emlakçıyla anlaştı</option>
+                <option value="AUTHORITY_GIVEN">
+                  Yetkiyi başka firmaya verdi
+                </option>
+                <option value="OWNER_WITHDREW">Satıştan vazgeçti</option>
+                <option value="PRICE_DISAGREEMENT">
+                  Fiyat veya koşullarda anlaşılamadı
+                </option>
+                <option value="UNREACHABLE">Tekrar ulaşılamadı</option>
+                <option value="DUPLICATE">Mükerrer kayıt</option>
+                <option value="OTHER">Diğer</option>
+              </select>
+            </label>
+            <label className="block space-y-1.5 text-xs text-slate-300">
+              <span>Danışman notu — isteğe bağlı</span>
+              <Textarea
+                className="min-h-24 border-slate-700 bg-slate-950 text-slate-100"
+                name="note"
+                placeholder="Görüşmede geçen doğrulanmış ayrıntıyı yazın..."
+              />
+            </label>
+            <DialogFooter className="border-slate-700 bg-slate-950/60">
+              <Button
+                onClick={() => setEliminating(null)}
+                type="button"
+                variant="outline"
+              >
+                Vazgeç
+              </Button>
+              <Button
+                className="bg-rose-500 text-white hover:bg-rose-400"
+                type="submit"
+              >
+                Elendi olarak kaydet
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

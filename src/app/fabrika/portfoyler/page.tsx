@@ -9,7 +9,11 @@ export default async function PortfoylerPage({
   return (
     <WorkspacePage
       initialView={
-        view === 'malik-raporlari' ? 'owner-reports' : 'properties'
+        view === 'malik-raporlari'
+          ? 'owner-reports'
+          : view === 'kaynaklar'
+            ? 'sources'
+            : 'properties'
       }
       mode="portfoyler"
     />

@@ -22,6 +22,7 @@ import {
   ListChecks,
   Loader2,
   MessageSquareText,
+  Network,
   Plus,
   RefreshCw,
   Search,
@@ -38,6 +39,7 @@ import { toast } from 'sonner';
 import EmptyState from '@/components/fabrika/EmptyState';
 import PageHeader from '@/components/fabrika/PageHeader';
 import StatCard from '@/components/fabrika/StatCard';
+import PortfolioSourcesPanel from '@/components/fabrika/PortfolioSourcesPanel';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -238,7 +240,8 @@ export type WorkspaceInitialView =
   | 'customers'
   | 'pipeline'
   | 'properties'
-  | 'owner-reports';
+  | 'owner-reports'
+  | 'sources';
 
 const pageMeta: Record<
   WorkspaceMode,
@@ -423,8 +426,14 @@ export default function WorkspacePage({
     initialView === 'pipeline' ? 'pipeline' : 'customers'
   );
   const [portfolioView, setPortfolioView] = useState<
-    'properties' | 'owner-reports'
-  >(initialView === 'owner-reports' ? 'owner-reports' : 'properties');
+    'properties' | 'owner-reports' | 'sources'
+  >(
+    initialView === 'owner-reports'
+      ? 'owner-reports'
+      : initialView === 'sources'
+        ? 'sources'
+        : 'properties'
+  );
   const meta = pageMeta[mode];
 
   async function loadWorkspace() {
@@ -697,13 +706,15 @@ export default function WorkspacePage({
       {mode === 'portfoyler' ? (
         <Tabs
           onValueChange={(value) =>
-            setPortfolioView(value as 'properties' | 'owner-reports')
+            setPortfolioView(
+              value as 'properties' | 'owner-reports' | 'sources'
+            )
           }
           value={portfolioView}
         >
           <TabsList
             aria-label="Portföy çalışma alanı"
-            className="grid h-11 w-full max-w-md grid-cols-2 border border-slate-800 bg-slate-900"
+            className="grid h-11 w-full max-w-2xl grid-cols-3 border border-slate-800 bg-slate-900"
           >
             <TabsTrigger value="properties">
               <Home aria-hidden="true" className="h-4 w-4" />
@@ -712,6 +723,10 @@ export default function WorkspacePage({
             <TabsTrigger value="owner-reports">
               <Share2 aria-hidden="true" className="h-4 w-4" />
               Malik raporları
+            </TabsTrigger>
+            <TabsTrigger value="sources">
+              <Network aria-hidden="true" className="h-4 w-4" />
+              Kaynaklar ve onay
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -1294,6 +1309,10 @@ export default function WorkspacePage({
             ))}
           </div>
         )
+      )}
+
+      {mode === 'portfoyler' && portfolioView === 'sources' && (
+        <PortfolioSourcesPanel onPortfolioChanged={loadWorkspace} />
       )}
 
       {(mode === 'satis' || (mode === 'crm' && crmView === 'pipeline')) && (

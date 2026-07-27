@@ -16,6 +16,8 @@ export interface ParsedListing {
   area: string | null;
   category: string | null;
   isValid: boolean;
+  ownerName?: string;
+  ownerPhone?: string;
   error?: string;
 }
 
@@ -210,9 +212,9 @@ export function parseSearchUrlBulk(searchUrl: string, count: number = 12): Parse
       area,
       category: 'Satılık',
       isValid: true,
-      ownerName, // TS will allow this if we cast or we can just return it. The interface doesn't have ownerName/ownerPhone, so let's use any or update interface.
+      ownerName,
       ownerPhone: phone
-    } as ParsedListing & { ownerName: string, ownerPhone: string });
+    });
   }
 
   return results;

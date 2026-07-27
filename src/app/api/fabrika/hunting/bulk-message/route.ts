@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { callAI, PROMPTS } from '@/lib/ai';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 export async function POST(req: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const { listingIds, tone = 'samimi' } = await req.json();
 
     if (!listingIds || !Array.isArray(listingIds) || listingIds.length === 0) {
@@ -19,7 +21,9 @@ export async function POST(req: Request) {
 
     // İlanları sırayla işle (Gerçekte Promise.all ile paralel yapılabilir ama API rate limitleri için sıralı daha güvenli)
     for (const listingId of listingIds) {
-      const listing = await prisma.huntedListing.findUnique({ where: { id: listingId } });
+      const listing = await prisma.huntedListing.findFirst({
+        where: { id: listingId, companyAccountId: principal.account.id },
+      });
       if (!listing) continue;
 
       const prompt = PROMPTS.huntingMessage(

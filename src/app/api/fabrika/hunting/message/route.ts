@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { callAI, PROMPTS } from '@/lib/ai';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 export async function POST(req: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const { listingId, tone } = await req.json();
 
     if (!listingId || !tone) {
       return NextResponse.json({ error: 'Missing listingId or tone' }, { status: 400 });
     }
 
-    const listing = await prisma.huntedListing.findUnique({
-      where: { id: listingId },
+    const listing = await prisma.huntedListing.findFirst({
+      where: { id: listingId, companyAccountId: principal.account.id },
     });
 
     if (!listing) {

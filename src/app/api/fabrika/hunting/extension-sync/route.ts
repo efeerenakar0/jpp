@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 // CORS Middleware (Extension'dan gelen istekleri engellememek için)
-export async function OPTIONS(req: Request) {
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
@@ -16,6 +16,19 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   try {
     const data = await req.json();
+    const legacyAccount = await prisma.companyAccount.findUnique({
+      where: { slug: 'jasmine-group' },
+      select: { id: true },
+    });
+    if (!legacyAccount) {
+      return NextResponse.json(
+        { error: 'Jasmine şirket çalışma alanı hazır değil.' },
+        {
+          status: 503,
+          headers: { 'Access-Control-Allow-Origin': '*' },
+        }
+      );
+    }
 
     if (!data.url || !data.title) {
       return NextResponse.json({ error: 'Eksik veri (url veya title)' }, { 
@@ -26,8 +39,18 @@ export async function POST(req: Request) {
 
     // İlan zaten var mı kontrol et
     const existing = data.listingId 
-      ? await prisma.huntedListing.findFirst({ where: { sourceUrl: { contains: data.listingId } } })
-      : await prisma.huntedListing.findFirst({ where: { sourceUrl: data.url } });
+      ? await prisma.huntedListing.findFirst({
+          where: {
+            companyAccountId: legacyAccount.id,
+            sourceUrl: { contains: data.listingId },
+          },
+        })
+      : await prisma.huntedListing.findFirst({
+          where: {
+            companyAccountId: legacyAccount.id,
+            sourceUrl: data.url,
+          },
+        });
 
     if (existing) {
       return NextResponse.json({ success: true, message: 'Bu ilan zaten avlanmış', listing: existing }, { 
@@ -38,6 +61,7 @@ export async function POST(req: Request) {
     // Yeni ilanı kaydet
     const listing = await prisma.huntedListing.create({
       data: {
+        companyAccountId: legacyAccount.id,
         sourceUrl: data.url,
         title: data.title,
         price: data.price || null,

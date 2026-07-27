@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npx prisma generate && next build",
-    "vercel-build": "npx prisma db execute --file prisma/deploy/assistant-v3.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/platform-admin.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/workspace-crm.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/member-auth.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/notification-scope.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/calendar-sync.sql --schema prisma/schema.prisma && npm run build",
+    "vercel-build": "npx prisma db execute --file prisma/deploy/assistant-v3.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/platform-admin.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/workspace-crm.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/member-auth.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/notification-scope.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/calendar-sync.sql --schema prisma/schema.prisma && npx prisma db execute --file prisma/deploy/portfolio-sources.sql --schema prisma/schema.prisma && npm run build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
@@ -47,6 +47,7 @@
     "react-hook-form": "^7.81.0",
     "react-hot-toast": "^2.6.0",
     "recharts": "^3.9.2",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "use-debounce": "^10.1.1",

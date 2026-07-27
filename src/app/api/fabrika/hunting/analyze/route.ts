@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { parseListingUrl, mergeWithManualData } from '@/lib/sahibinden-parser';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
 export async function POST(req: Request) {
   try {
+    const principal = await requireFabrikaPrincipal();
     const body = await req.json();
     const { url, ...manualData } = body;
 
@@ -20,6 +22,7 @@ export async function POST(req: Request) {
 
     const listing = await prisma.huntedListing.create({
       data: {
+        companyAccountId: principal.account.id,
         sourceUrl: finalData.url,
         title: finalData.title,
         price: finalData.price,

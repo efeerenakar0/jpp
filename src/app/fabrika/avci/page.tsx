@@ -29,13 +29,43 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
+type HuntingMessage = {
+  content: string;
+};
+
+type HuntingListing = {
+  id: string;
+  title: string;
+  price?: string | null;
+  location?: string | null;
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  sourceUrl: string;
+  status: 'YELLOW' | 'AUTHORIZED' | 'GREEN' | 'RED';
+  messages?: HuntingMessage[];
+};
+
+type ValuationResult = {
+  marketPrice: string;
+  discount: string;
+  estRent: string;
+  roiYears: string;
+  verdict: string;
+};
+
+type ChatMessage = {
+  fromMe: boolean;
+  content: string;
+  createdAt: string;
+};
+
 export default function AvciPage() {
   const [activeTab, setActiveTab] = useState<'pano' | 'eklenti' | 'mesaj' | 'analiz' | 'whatsapp'>('pano');
   const [isGeneratingMessages, setIsGeneratingMessages] = useState(false);
   const [tone, setTone] = useState<'resmi' | 'samimi' | 'acil'>('samimi');
   
   // All Scraped Listings
-  const [allListings, setAllListings] = useState<any[]>([]);
+  const [allListings, setAllListings] = useState<HuntingListing[]>([]);
 
   // Manual Add Modal State
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -57,17 +87,12 @@ export default function AvciPage() {
 
   // AI Valuation State
   const [analyzingListingId, setAnalyzingListingId] = useState<string | null>(null);
-  const [aiAnalysisResult, setAiAnalysisResult] = useState<Record<string, any>>({});
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<Record<string, ValuationResult>>({});
 
   // Chat Modal State
   const [chatModalOpen, setChatModalOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [chattingWith, setChattingWith] = useState<string>('');
-
-  useEffect(() => {
-    fetchProfile();
-    fetchListings();
-  }, []);
 
   const fetchAndShowChat = async (phone: string, name: string) => {
     setChattingWith(`${name} (${phone})`);
@@ -115,15 +140,18 @@ export default function AvciPage() {
         extraNotes
       };
 
-      const res = await fetch('/api/fabrika/onboarding', {
+      const response = await fetch('/api/fabrika/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (!response.ok) {
+        throw new Error('Ayarlar güncellenemedi.');
+      }
 
       toast.success('Firma & AI Ayarları Güncellendi!');
       setSettingsModalOpen(false);
-    } catch (err) {
+    } catch {
       toast.error('Ayarlar güncellenirken hata oluştu.');
     } finally {
       setIsSavingSettings(false);
@@ -142,16 +170,35 @@ export default function AvciPage() {
     }
   };
 
-  const handleStatusChange = async (id: string, status: string) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchProfile();
+      void fetchListings();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handleStatusChange = async (
+    id: string,
+    status: string,
+    details?: {
+      eliminationReason?: string;
+      eliminationNote?: string;
+      authorizationNote?: string;
+    }
+  ) => {
     try {
       const res = await fetch('/api/fabrika/hunting/status', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify({ id, status, ...details }),
       });
+      const data = await res.json();
       if (res.ok) {
-        toast.success('İlan durumu güncellendi');
-        fetchListings();
+        toast.success(data.message || 'İlan durumu güncellendi');
+        await fetchListings();
+      } else {
+        toast.error(data.error || 'Güncelleme başarısız oldu');
       }
     } catch (error) {
       console.error(error);
@@ -208,7 +255,7 @@ export default function AvciPage() {
       } else {
         toast.error(result.error || 'İlan eklenemedi.');
       }
-    } catch (err) {
+    } catch {
       toast.error('Eklenirken hata oluştu.');
     }
   };
@@ -267,7 +314,7 @@ export default function AvciPage() {
     toast.success('CSV dosyası başarıyla indirildi!');
   };
 
-  const handleAIValuation = (listing: any) => {
+  const handleAIValuation = (listing: HuntingListing) => {
     setAnalyzingListingId(listing.id);
     setTimeout(() => {
       const priceNum = parseInt((listing.price || '85000').replace(/[^0-9]/g, '')) || 85000;
@@ -291,7 +338,11 @@ export default function AvciPage() {
   };
 
   const yellowListings = allListings.filter(l => l.status === 'YELLOW');
+  const authorizedListings = allListings.filter(
+    l => l.status === 'AUTHORIZED'
+  );
   const greenListings = allListings.filter(l => l.status === 'GREEN');
+  const redListings = allListings.filter(l => l.status === 'RED');
 
   return (
     <div className="space-y-6 pb-8 text-slate-100">
@@ -333,9 +384,12 @@ export default function AvciPage() {
 
         <WorkspacePulse />
 
-        <div className="grid grid-cols-2 gap-3 lg:max-w-xl">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
           <StatCard label="Toplam ilan" value={allListings.length} icon={Layers} status="success" />
           <StatCard label="Sıcak fırsat" value={yellowListings.length} icon={Zap} status="warning" />
+          <StatCard label="Satış yetkisi" value={authorizedListings.length} icon={CheckCircle2} status="success" />
+          <StatCard label="Portföye katıldı" value={greenListings.length} icon={Building2} status="success" />
+          <StatCard label="Pasif / elendi" value={redListings.length} icon={Trash2} />
         </div>
 
         {/* Futuristic Tab Bar */}
@@ -452,7 +506,7 @@ export default function AvciPage() {
                           } else {
                             toast.error(result.error || 'Yükleme başarısız oldu.');
                           }
-                        } catch (err) {
+                        } catch {
                           toast.error('Dosya okunurken bir hata oluştu. Geçerli bir JSON olduğundan emin olun.');
                         }
                         e.target.value = '';
@@ -614,7 +668,9 @@ export default function AvciPage() {
                 <div className="flex items-center gap-3 w-full md:w-auto">
                   <select 
                     value={tone}
-                    onChange={(e) => setTone(e.target.value as any)}
+                    onChange={(e) =>
+                      setTone(e.target.value as 'resmi' | 'samimi' | 'acil')
+                    }
                     className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-4 py-3 outline-none font-bold cursor-pointer"
                   >
                     <option value="samimi">🔥 Samimi Ton</option>
@@ -669,12 +725,17 @@ export default function AvciPage() {
                           </div>
                           <div className="flex gap-2">
                             <WhatsAppButton 
-                              phone={listing.ownerPhone} 
+                              phone={listing.ownerPhone || ''}
                               message={listing.messages[0].content} 
                               className="flex-1 justify-center text-xs py-2.5 font-black"
                             />
                             <button 
-                              onClick={() => fetchAndShowChat(listing.ownerPhone, listing.ownerName || 'Bilinmiyor')}
+                              onClick={() =>
+                                fetchAndShowChat(
+                                  listing.ownerPhone || '',
+                                  listing.ownerName || 'Bilinmiyor'
+                                )
+                              }
                               className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-white transition-colors cursor-pointer text-xs font-bold"
                               title="WhatsApp Sohbetini Gör"
                             >

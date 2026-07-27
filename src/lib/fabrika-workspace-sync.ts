@@ -79,7 +79,10 @@ export async function syncLegacyModulesToWorkspace(account: WorkspaceAccount) {
 
   const [conversations, listings, appointments, campaigns] = await Promise.all([
     prisma.customerConversation.findMany({ orderBy: { updatedAt: 'desc' } }),
-    prisma.huntedListing.findMany({ orderBy: { updatedAt: 'desc' } }),
+    prisma.huntedListing.findMany({
+      where: { companyAccountId: account.id },
+      orderBy: { updatedAt: 'desc' },
+    }),
     prisma.appointmentRequest.findMany({
       include: { conversation: { select: { id: true } } },
       orderBy: { updatedAt: 'desc' },

@@ -92,13 +92,29 @@ oluşturma/sıfırlama anında bir kez gösterilir.
      müşteriler yalnızca Google hesabını seçip izin verir. Üretim aktivasyonu
      platform anahtarları eklendiğinde tamamlanacaktır.
 
-5. **Portföy kaynakları ve Avcı**
+5. **Portföy kaynakları ve Avcı — Tamamlandı (27 Temmuz 2026)**
    - Jasmine tarafından üretilen siteler için doğrudan şirket API bağlantısı.
    - Diğer siteler için WordPress REST, sitemap, JSON-LD/HTML bağlayıcıları,
      önizleme ve onay akışı.
    - Bağlantı kurulumunu anlatan AI yardımcısı.
    - Avcı’da “Satış yetkisi alındı” aşaması ve onay sonrası portföye aktarım.
    - Elenen ilanlarda yapılandırılmış neden ve AI destekli özet.
+
+   Uygulanan kararlar:
+   - Portföy kaynakları şirket bazında saklanır. Jasmine API, WordPress,
+     sitemap ve HTML/JSON-LD bağlantıları aynı önizleme kuyruğuna veri taşır.
+   - Harici kaynaklar yerel ağlara erişemez; yönlendirme, yanıt boyutu ve
+     zaman aşımı sınırları uygulanır. İsteğe bağlı API anahtarları şifreli
+     tutulur ve tarayıcıya geri gönderilmez.
+   - Senkronizasyon hiçbir kaydı doğrudan yayınlamaz. Patron ve çalışanlar
+     önizlemeyi onayladığında kayıt şirket CRM portföyüne eklenir; yalnızca
+     patron kaynakları ve gizli anahtarları yönetebilir.
+   - Avcı panosuna **Satış yetkisi alındı** sütunu eklendi. Bu aşama otomatik
+     olarak bekleyen portföy önizlemesi ve önemli bildirim oluşturur; onay
+     sonrasında ilan **Portföyümüze katıldı** durumuna geçer.
+   - Pasif/elendi işlemi yapılandırılmış neden ister. Mevcut AI sağlayıcısı
+     gerekçeyi özetler; sağlayıcı yoksa görünür, deterministik kural özeti
+     kullanılır.
 
 6. **Profesyonel Pazarlamacı**
    - Aktif portföy seçerek açıklama, emlakçı grubu mesajı ve kanal

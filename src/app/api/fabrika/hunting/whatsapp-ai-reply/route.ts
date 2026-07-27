@@ -1,20 +1,31 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+type ChatMessage = {
+  fromMe: boolean;
+  content: string;
+};
 
 export async function POST(req: Request) {
   try {
-    const { phone, chatHistory } = await req.json();
+    const principal = await requireFabrikaPrincipal();
+    const { phone, chatHistory } = (await req.json()) as {
+      phone?: string;
+      chatHistory?: ChatMessage[];
+    };
 
-    if (!phone || !chatHistory) {
+    if (!phone || !Array.isArray(chatHistory)) {
       return NextResponse.json({ error: 'Eksik veri' }, { status: 400 });
     }
 
     // Telefon numarasından ilgili ilanı bul (Bağlam kurabilmek için)
-    const listings = await prisma.huntedListing.findMany();
+    const listings = await prisma.huntedListing.findMany({
+      where: { companyAccountId: principal.account.id },
+    });
     const matchingListing = listings.find(l => {
         if (!l.ownerPhone) return false;
         const cleanListingPhone = l.ownerPhone.replace(/\\D/g, '');
@@ -45,7 +56,7 @@ Cevabın kesinlikle:
 ${listingContext}
 
 İşte o ana kadarki konuşma geçmişi (Sırasıyla eskiden yeniye):
-${chatHistory.map((msg: any) => `[${msg.fromMe ? 'Sen' : 'Müşteri'}]: ${msg.content}`).join('\\n')}
+${chatHistory.map((msg) => `[${msg.fromMe ? 'Sen' : 'Müşteri'}]: ${msg.content}`).join('\\n')}
 
 Sadece müşteriye göndereceğim metni yaz. Ekstra hiçbir yorum yapma.`;
 
@@ -54,8 +65,11 @@ Sadece müşteriye göndereceğim metni yaz. Ekstra hiçbir yorum yapma.`;
     const aiReply = result.response.text().trim();
 
     return NextResponse.json({ reply: aiReply });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('WhatsApp AI Reply Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'AI yanıtı üretilemedi.' },
+      { status: 500 }
+    );
   }
 }
