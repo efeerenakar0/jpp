@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   Activity,
   BadgeCheck,
+  BrainCircuit,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -11,12 +12,16 @@ import {
   Copy,
   Clock3,
   ContactRound,
+  Edit3,
   ExternalLink,
+  Flame,
   Home,
   Kanban,
   KeyRound,
   Link2,
+  ListChecks,
   Loader2,
+  MessageSquareText,
   Plus,
   RefreshCw,
   Search,
@@ -86,6 +91,9 @@ type Contact = {
   notes: string | null;
   tags: string[];
   score: number;
+  scoreReasons: string[];
+  scoreSource: 'AI' | 'RULES' | null;
+  scoreUpdatedAt: string | null;
   consentStatus: 'UNKNOWN' | 'GRANTED' | 'REVOKED';
   nextActionAt: string | null;
   assignedMember: Pick<Member, 'id' | 'name'> | null;
@@ -165,6 +173,11 @@ type ActivityItem = {
   title: string;
   description: string | null;
   type: string;
+  metadata: string | null;
+  contact: Pick<Contact, 'id' | 'name'> | null;
+  property: Pick<Property, 'id' | 'title'> | null;
+  deal: Pick<Deal, 'id' | 'title'> | null;
+  actorMember: Pick<Member, 'id' | 'name'> | null;
   createdAt: string;
 };
 
@@ -205,7 +218,15 @@ type Workspace = {
   };
 };
 
-type DialogKind = 'contact' | 'property' | 'deal' | 'task' | 'member' | null;
+type DialogKind =
+  | 'contact'
+  | 'contact-edit'
+  | 'property'
+  | 'deal'
+  | 'task'
+  | 'member'
+  | 'match'
+  | null;
 
 type OneTimeMemberCredentials = {
   username: string;
@@ -289,6 +310,43 @@ const visibleStages: DealStage[] = [
   'WON',
 ];
 
+const contactStageLabels: Record<Contact['stage'], string> = {
+  NEW: 'Yeni',
+  CONTACTED: 'İletişimde',
+  QUALIFIED: 'Nitelikli',
+  VIEWING: 'Gösterim',
+  OFFER: 'Teklif',
+  WON: 'Kazanıldı',
+  LOST: 'Kaybedildi',
+};
+
+const contactTypeLabels: Record<Contact['type'], string> = {
+  BUYER: 'Alıcı',
+  SELLER: 'Satıcı',
+  INVESTOR: 'Yatırımcı',
+  TENANT: 'Kiracı',
+  OTHER: 'Diğer',
+};
+
+function customerHeat(score: number) {
+  if (score >= 80) {
+    return {
+      label: 'Çok sıcak',
+      className: 'border-rose-500/25 bg-rose-500/10 text-rose-300',
+    };
+  }
+  if (score >= 60) {
+    return {
+      label: 'Sıcak',
+      className: 'border-amber-500/25 bg-amber-500/10 text-amber-300',
+    };
+  }
+  return {
+    label: 'Takipte',
+    className: 'border-sky-500/25 bg-sky-500/10 text-sky-300',
+  };
+}
+
 const fieldClass =
   'h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20';
 
@@ -309,6 +367,13 @@ function dateTime(value: string | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
+}
+
+function dateTimeLocal(value: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
 function SelectField({
@@ -349,6 +414,9 @@ export default function WorkspacePage({
     useState<OneTimeMemberCredentials | null>(null);
   const [query, setQuery] = useState('');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [profileView, setProfileView] = useState<
+    'overview' | 'activity' | 'matches'
+  >('overview');
   const [renderedAt] = useState(Date.now);
   const [crmView, setCrmView] = useState<'customers' | 'pipeline'>(
     initialView === 'pipeline' ? 'pipeline' : 'customers'
@@ -425,6 +493,20 @@ export default function WorkspacePage({
     workspace?.contacts.find((contact) => contact.id === selectedContactId) ||
     filteredContacts[0] ||
     null;
+  const selectedContactActivities = selectedContact
+    ? workspace?.activities.filter(
+        (activity) => activity.contact?.id === selectedContact.id
+      ) || []
+    : [];
+  const selectedContactDeals = selectedContact
+    ? workspace?.deals.filter((deal) => deal.contact.id === selectedContact.id) || []
+    : [];
+  const selectedContactTasks = selectedContact
+    ? workspace?.tasks.filter((task) => task.contact?.id === selectedContact.id) || []
+    : [];
+  const selectedContactMatches = selectedContact
+    ? workspace?.matches.filter((match) => match.contact.id === selectedContact.id) || []
+    : [];
 
   if (loading) {
     return (
@@ -491,8 +573,32 @@ export default function WorkspacePage({
         icon={meta.icon}
         actions={
           <>
+            {mode === 'crm' && crmView === 'customers' && (
+              <Button
+                className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
+                disabled={saving}
+                onClick={() =>
+                  postAction(
+                    { action: 'sync-modules' },
+                    'Asistan görüşmeleri CRM ile eşitlendi.'
+                  )
+                }
+                variant="outline"
+              >
+                <RefreshCw className={saving ? 'animate-spin' : ''} />
+                Asistan&apos;dan aktar
+              </Button>
+            )}
             {mode === 'eslestirme' && (
               <>
+                <Button
+                  className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
+                  onClick={() => setDialog('match')}
+                  variant="outline"
+                >
+                  <Link2 />
+                  Manuel eşleştir
+                </Button>
                 <Button
                   className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
                   disabled={saving}
@@ -611,7 +717,7 @@ export default function WorkspacePage({
       ) : null}
 
       {mode === 'crm' && crmView === 'customers' && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,.75fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(22rem,.78fr)_minmax(0,1.35fr)]">
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             <div className="flex flex-col gap-3 border-b border-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -640,124 +746,477 @@ export default function WorkspacePage({
                 />
               </div>
             ) : (
-              <div className="custom-scrollbar overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm">
+              <div className="custom-scrollbar max-h-[760px] overflow-auto">
+                <table className="w-full min-w-[640px] text-left text-sm">
                   <thead className="bg-slate-950/60 text-[11px] uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-medium">Müşteri</th>
-                      <th className="px-4 py-3 font-medium">Tür</th>
-                      <th className="px-4 py-3 font-medium">Tercih</th>
                       <th className="px-4 py-3 font-medium">Aşama</th>
-                      <th className="px-4 py-3 font-medium">Puan</th>
-                      <th className="px-4 py-3 font-medium">İzin</th>
+                      <th className="px-4 py-3 font-medium">Sıcaklık</th>
+                      <th className="px-4 py-3 font-medium">Danışman</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {filteredContacts.map((contact) => (
-                      <tr
-                        className={`cursor-pointer transition hover:bg-slate-800/60 ${
-                          selectedContact?.id === contact.id ? 'bg-emerald-500/5' : ''
-                        }`}
-                        key={contact.id}
-                        onClick={() => setSelectedContactId(contact.id)}
-                      >
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-100">{contact.name}</p>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {contact.phone || contact.email || 'İletişim bilgisi yok'}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 text-slate-300">{contact.type}</td>
-                        <td className="px-4 py-3 text-slate-400">
-                          {[contact.desiredLocation, contact.desiredRoomCount]
-                            .filter(Boolean)
-                            .join(' · ') || 'Belirtilmedi'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300">
-                            {contact.stage}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-emerald-300">
-                          {contact.score}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={
-                              contact.consentStatus === 'GRANTED'
-                                ? 'text-emerald-400'
-                                : contact.consentStatus === 'REVOKED'
-                                  ? 'text-rose-400'
-                                  : 'text-amber-300'
+                    {filteredContacts.map((contact) => {
+                      const heat = customerHeat(contact.score);
+                      return (
+                        <tr
+                          className={`cursor-pointer transition hover:bg-slate-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
+                            selectedContact?.id === contact.id
+                              ? 'bg-emerald-500/5'
+                              : ''
+                          }`}
+                          key={contact.id}
+                          onClick={() => {
+                            setSelectedContactId(contact.id);
+                            setProfileView('overview');
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setSelectedContactId(contact.id);
+                              setProfileView('overview');
                             }
-                          >
-                            {contact.consentStatus === 'GRANTED'
-                              ? 'Onaylı'
-                              : contact.consentStatus === 'REVOKED'
-                                ? 'Geri çekildi'
-                                : 'Bilinmiyor'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          }}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-slate-100">
+                              {contact.name}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {contact.phone ||
+                                contact.email ||
+                                'İletişim bilgisi yok'}
+                            </p>
+                            <p className="mt-1 text-[10px] text-slate-600">
+                              {contactTypeLabels[contact.type]} ·{' '}
+                              {contact.desiredLocation || 'Bölge yok'}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
+                              {contactStageLabels[contact.stage]}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium ${heat.className}`}
+                            >
+                              <Flame className="h-3 w-3" />
+                              {heat.label} · {contact.score}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-400">
+                            {contact.assignedMember?.name || 'Atanmadı'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </section>
 
-          <aside className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <aside className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             {selectedContact ? (
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
-                      Müşteri profili
-                    </p>
-                    <h2 className="mt-1 text-xl font-semibold text-white">
-                      {selectedContact.name}
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-400">
-                      {selectedContact.phone || selectedContact.email || 'İletişim bilgisi yok'}
+              <div className="min-h-[680px]">
+                <div className="border-b border-slate-800 p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
+                          360° müşteri profili
+                        </p>
+                        <span
+                          className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${customerHeat(selectedContact.score).className}`}
+                        >
+                          {customerHeat(selectedContact.score).label}
+                        </span>
+                      </div>
+                      <h2 className="mt-2 text-2xl font-semibold text-white">
+                        {selectedContact.name}
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        {selectedContact.phone ||
+                          selectedContact.email ||
+                          'İletişim bilgisi yok'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        aria-label="Müşteri profilini düzenle"
+                        onClick={() => setDialog('contact-edit')}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                        Düzenle
+                      </Button>
+                      <Button
+                        className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                        disabled={saving}
+                        onClick={() =>
+                          postAction(
+                            {
+                              action: 'score-contact',
+                              id: selectedContact.id,
+                            },
+                            'Müşteri öncelik puanı yenilendi.'
+                          )
+                        }
+                        size="sm"
+                      >
+                        {saving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <BrainCircuit className="h-4 w-4" />
+                        )}
+                        AI puanla
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-end justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <div>
+                      <p className="text-xs text-emerald-300">
+                        Satış öncelik puanı
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {selectedContact.scoreSource === 'AI'
+                          ? 'Yapay zekâ değerlendirmesi'
+                          : selectedContact.scoreSource === 'RULES'
+                            ? 'Akıllı kural yedeği'
+                            : 'Başlangıç puanı'}
+                        {selectedContact.scoreUpdatedAt
+                          ? ` · ${dateTime(selectedContact.scoreUpdatedAt)}`
+                          : ''}
+                      </p>
+                    </div>
+                    <p className="text-3xl font-semibold text-emerald-300">
+                      {selectedContact.score}
+                      <span className="text-sm text-emerald-500">/100</span>
                     </p>
                   </div>
-                  <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300">
-                    {selectedContact.score}/100
-                  </span>
                 </div>
-                <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
-                  {[
-                    ['Müşteri türü', selectedContact.type],
-                    ['Satış aşaması', selectedContact.stage],
-                    ['İstenen bölge', selectedContact.desiredLocation || '—'],
-                    ['Oda tercihi', selectedContact.desiredRoomCount || '—'],
-                    [
-                      'Bütçe',
-                      selectedContact.budgetMin || selectedContact.budgetMax
-                        ? `${money(selectedContact.budgetMin)} – ${money(selectedContact.budgetMax)}`
-                        : '—',
-                    ],
-                    ['Danışman', selectedContact.assignedMember?.name || 'Atanmadı'],
-                  ].map(([label, value]) => (
-                    <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3" key={label}>
-                      <dt className="text-xs text-slate-500">{label}</dt>
-                      <dd className="mt-1 font-medium text-slate-200">{value}</dd>
+
+                <Tabs
+                  className="border-b border-slate-800 px-5 pt-4"
+                  onValueChange={(value) =>
+                    setProfileView(
+                      value as 'overview' | 'activity' | 'matches'
+                    )
+                  }
+                  value={profileView}
+                >
+                  <TabsList
+                    aria-label="Müşteri profil bölümleri"
+                    className="grid h-10 w-full max-w-lg grid-cols-3 bg-slate-950"
+                  >
+                    <TabsTrigger value="overview">Genel bakış</TabsTrigger>
+                    <TabsTrigger value="activity">
+                      Zaman çizelgesi
+                    </TabsTrigger>
+                    <TabsTrigger value="matches">Eşleşmeler</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {profileView === 'overview' && (
+                  <div className="custom-scrollbar max-h-[620px] space-y-4 overflow-y-auto p-5">
+                    <dl className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-3">
+                      {[
+                        ['Müşteri türü', contactTypeLabels[selectedContact.type]],
+                        [
+                          'Satış aşaması',
+                          contactStageLabels[selectedContact.stage],
+                        ],
+                        [
+                          'İstenen bölge',
+                          selectedContact.desiredLocation || '—',
+                        ],
+                        ['Oda tercihi', selectedContact.desiredRoomCount || '—'],
+                        [
+                          'Bütçe',
+                          selectedContact.budgetMin ||
+                          selectedContact.budgetMax
+                            ? `${money(selectedContact.budgetMin)} – ${money(selectedContact.budgetMax)}`
+                            : '—',
+                        ],
+                        [
+                          'Danışman',
+                          selectedContact.assignedMember?.name || 'Atanmadı',
+                        ],
+                      ].map(([label, value]) => (
+                        <div
+                          className="rounded-lg border border-slate-800 bg-slate-950/50 p-3"
+                          key={label}
+                        >
+                          <dt className="text-xs text-slate-500">{label}</dt>
+                          <dd className="mt-1 font-medium text-slate-200">
+                            {value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+
+                    <section
+                      aria-labelledby="score-reasons-title"
+                      className="rounded-lg border border-slate-800 bg-slate-950/50 p-4"
+                    >
+                      <div className="flex items-center gap-2">
+                        <BrainCircuit className="h-4 w-4 text-emerald-400" />
+                        <h3
+                          className="text-sm font-semibold text-slate-100"
+                          id="score-reasons-title"
+                        >
+                          Puanın nedenleri
+                        </h3>
+                      </div>
+                      {selectedContact.scoreReasons.length > 0 ? (
+                        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {selectedContact.scoreReasons.map((reason) => (
+                            <li
+                              className="flex gap-2 text-xs leading-5 text-slate-300"
+                              key={reason}
+                            >
+                              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                          Açıklamalı değerlendirme için “AI puanla” düğmesini
+                          kullanın.
+                        </p>
+                      )}
+                    </section>
+
+                    <section
+                      aria-labelledby="customer-notes-title"
+                      className="rounded-lg border border-slate-800 bg-slate-950/50 p-4"
+                    >
+                      <h3
+                        className="text-sm font-semibold text-slate-100"
+                        id="customer-notes-title"
+                      >
+                        Danışman notları
+                      </h3>
+                      <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                        {selectedContact.notes ||
+                          'Bu müşteri için henüz not bulunmuyor.'}
+                      </p>
+                      <form
+                        className="mt-3 flex flex-col gap-2 sm:flex-row"
+                        key={selectedContact.id}
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          const form = event.currentTarget;
+                          const note = String(
+                            new FormData(form).get('note') || ''
+                          );
+                          const saved = await postAction(
+                            {
+                              action: 'add-contact-note',
+                              id: selectedContact.id,
+                              note,
+                            },
+                            'Müşteri notu kaydedildi.'
+                          );
+                          if (saved) form.reset();
+                        }}
+                      >
+                        <Input
+                          aria-label="Yeni müşteri notu"
+                          className="border-slate-700 bg-slate-950 text-slate-100"
+                          name="note"
+                          placeholder="Görüşmeden kısa bir not ekleyin..."
+                          required
+                        />
+                        <Button disabled={saving} type="submit" variant="outline">
+                          <MessageSquareText className="h-4 w-4" />
+                          Not ekle
+                        </Button>
+                      </form>
+                    </section>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <section className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                            <Target className="h-4 w-4 text-emerald-400" />
+                            Satış süreci
+                          </h3>
+                          <span className="text-xs text-slate-500">
+                            {selectedContactDeals.length} fırsat
+                          </span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {selectedContactDeals.length > 0 ? (
+                            selectedContactDeals.slice(0, 4).map((deal) => (
+                              <div
+                                className="rounded-md border border-slate-800 bg-slate-900 p-3"
+                                key={deal.id}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="truncate text-xs font-medium text-slate-200">
+                                    {deal.title}
+                                  </p>
+                                  <span className="text-[10px] text-emerald-300">
+                                    %{deal.probability}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-[10px] text-slate-500">
+                                  {stageLabels[deal.stage]} ·{' '}
+                                  {money(deal.estimatedValue)}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs leading-5 text-slate-500">
+                              Bu müşteri için henüz satış fırsatı açılmadı.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                            <ListChecks className="h-4 w-4 text-sky-400" />
+                            Görevler
+                          </h3>
+                          <span className="text-xs text-slate-500">
+                            {
+                              selectedContactTasks.filter(
+                                (task) => task.status === 'OPEN'
+                              ).length
+                            }{' '}
+                            açık
+                          </span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {selectedContactTasks.length > 0 ? (
+                            selectedContactTasks.slice(0, 4).map((task) => (
+                              <div
+                                className="rounded-md border border-slate-800 bg-slate-900 p-3"
+                                key={task.id}
+                              >
+                                <p className="text-xs font-medium text-slate-200">
+                                  {task.title}
+                                </p>
+                                <p className="mt-1 text-[10px] text-slate-500">
+                                  {dateTime(task.dueAt)} · Öncelik{' '}
+                                  {task.priority}/3
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs leading-5 text-slate-500">
+                              Bu müşteriye bağlı görev bulunmuyor.
+                            </p>
+                          )}
+                        </div>
+                      </section>
                     </div>
-                  ))}
-                </dl>
-                <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-                  <p className="text-xs font-medium text-slate-500">Notlar ve AI özeti</p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
-                    {selectedContact.notes || 'Bu müşteri için henüz not bulunmuyor.'}
-                  </p>
-                </div>
+                  </div>
+                )}
+
+                {profileView === 'activity' && (
+                  <div className="custom-scrollbar max-h-[620px] overflow-y-auto p-5">
+                    {selectedContactActivities.length > 0 ? (
+                      <ol className="relative ml-2 border-l border-slate-800">
+                        {selectedContactActivities.map((activity) => (
+                          <li className="relative mb-5 ml-6" key={activity.id}>
+                            <span className="absolute -left-[31px] top-1 flex h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" />
+                            <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <h3 className="text-sm font-semibold text-slate-100">
+                                  {activity.title}
+                                </h3>
+                                <time className="text-[10px] text-slate-500">
+                                  {dateTime(activity.createdAt)}
+                                </time>
+                              </div>
+                              {activity.description && (
+                                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-400">
+                                  {activity.description}
+                                </p>
+                              )}
+                              <p className="mt-2 text-[10px] text-slate-600">
+                                {activity.actorMember?.name ||
+                                  (activity.type === 'AI_SCORE_UPDATED'
+                                    ? 'Jasmine AI'
+                                    : 'Sistem')}
+                              </p>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <EmptyState
+                        icon={Activity}
+                        title="Henüz aktivite yok"
+                        description="Notlar, profil güncellemeleri, eşleşmeler ve satış hareketleri burada kronolojik olarak görünür."
+                      />
+                    )}
+                  </div>
+                )}
+
+                {profileView === 'matches' && (
+                  <div className="custom-scrollbar max-h-[620px] space-y-3 overflow-y-auto p-5">
+                    {selectedContactMatches.length > 0 ? (
+                      selectedContactMatches.map((match) => (
+                        <article
+                          className="rounded-lg border border-slate-800 bg-slate-950/50 p-4"
+                          key={match.id}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-100">
+                                {match.property.title}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {match.property.location || 'Konum yok'} ·{' '}
+                                {match.property.roomCount || 'Oda yok'} ·{' '}
+                                {money(match.property.price)}
+                              </p>
+                            </div>
+                            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300">
+                              %{match.score}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {match.reasons.map((reason) => (
+                              <span
+                                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-300"
+                                key={reason}
+                              >
+                                {reason}
+                              </span>
+                            ))}
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <EmptyState
+                        icon={Link2}
+                        title="Bu müşteri için eşleşme yok"
+                        description="Akıllı Eşleştirme ekranında otomatik hesaplama yapın veya müşteriyi bir portföyle manuel eşleştirin."
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
-              <EmptyState
-                icon={ContactRound}
-                title="Profil seçin"
-                description="Detaylarını görmek için müşteri listesinden bir kayıt seçin."
-              />
+              <div className="p-5">
+                <EmptyState
+                  icon={ContactRound}
+                  title="Profil seçin"
+                  description="Detaylarını görmek için müşteri listesinden bir kayıt seçin."
+                />
+              </div>
             )}
           </aside>
         </div>
@@ -1263,6 +1722,7 @@ export default function WorkspacePage({
         contacts={workspace.contacts}
         properties={workspace.properties}
         deals={workspace.deals}
+        selectedContact={selectedContact}
         saving={saving}
         onClose={() => setDialog(null)}
         onSubmit={postAction}
@@ -1333,6 +1793,7 @@ function WorkspaceDialog({
   contacts,
   properties,
   deals,
+  selectedContact,
   saving,
   onClose,
   onSubmit,
@@ -1342,6 +1803,7 @@ function WorkspaceDialog({
   contacts: Contact[];
   properties: Property[];
   deals: Deal[];
+  selectedContact: Contact | null;
   saving: boolean;
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>, message: string) => Promise<boolean>;
@@ -1361,6 +1823,27 @@ function WorkspaceDialog({
           assignedMemberId: values.assignedMemberId || null,
         },
         'Müşteri CRM’e eklendi.'
+      );
+    }
+    if (dialog === 'contact-edit' && selectedContact) {
+      const nextActionAt = values.nextActionAt
+        ? new Date(String(values.nextActionAt)).toISOString()
+        : null;
+      await onSubmit(
+        {
+          action: 'update-contact',
+          id: selectedContact.id,
+          ...values,
+          budgetMin: values.budgetMin || null,
+          budgetMax: values.budgetMax || null,
+          assignedMemberId: values.assignedMemberId || null,
+          nextActionAt,
+          tags: String(values.tags || '')
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+        },
+        'Müşteri profili güncellendi.'
       );
     }
     if (dialog === 'property') {
@@ -1412,14 +1895,26 @@ function WorkspaceDialog({
         'Ekip üyesi eklendi.'
       );
     }
+    if (dialog === 'match') {
+      await onSubmit(
+        {
+          action: 'create-manual-match',
+          contactId: values.contactId,
+          propertyId: values.propertyId,
+        },
+        'Müşteri ve portföy manuel olarak eşleştirildi.'
+      );
+    }
   }
 
   const dialogTitle = {
     contact: 'Yeni müşteri',
+    'contact-edit': 'Müşteri profilini düzenle',
     property: 'Yeni portföy',
     deal: 'Yeni satış fırsatı',
     task: 'Yeni görev veya randevu',
     member: 'Yeni ekip üyesi',
+    match: 'Manuel müşteri-portföy eşleştirmesi',
   }[dialog || 'contact'];
 
   return (
@@ -1431,7 +1926,12 @@ function WorkspaceDialog({
             Bilgileri daha sonra müşteri veya portföy profilinden geliştirebilirsiniz.
           </DialogDescription>
         </DialogHeader>
-        <form className="grid gap-4 sm:grid-cols-2" id="workspace-form" onSubmit={submit}>
+        <form
+          className="grid gap-4 sm:grid-cols-2"
+          id="workspace-form"
+          key={`${dialog}-${selectedContact?.id || 'new'}`}
+          onSubmit={submit}
+        >
           {dialog === 'contact' && (
             <>
               <label className={labelClass}>
@@ -1492,6 +1992,160 @@ function WorkspaceDialog({
               <label className={`${labelClass} sm:col-span-2`}>
                 Notlar
                 <textarea className={`${fieldClass} min-h-24 py-3`} name="notes" />
+              </label>
+            </>
+          )}
+
+          {dialog === 'contact-edit' && selectedContact && (
+            <>
+              <label className={labelClass}>
+                Ad soyad
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.name}
+                  name="name"
+                  required
+                />
+              </label>
+              <label className={labelClass}>
+                Telefon
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.phone || ''}
+                  name="phone"
+                />
+              </label>
+              <label className={labelClass}>
+                E-posta
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.email || ''}
+                  name="email"
+                  type="email"
+                />
+              </label>
+              <label className={labelClass}>
+                Müşteri türü
+                <SelectField
+                  defaultValue={selectedContact.type}
+                  name="type"
+                >
+                  <option value="BUYER">Alıcı</option>
+                  <option value="SELLER">Satıcı</option>
+                  <option value="INVESTOR">Yatırımcı</option>
+                  <option value="TENANT">Kiracı</option>
+                  <option value="OTHER">Diğer</option>
+                </SelectField>
+              </label>
+              <label className={labelClass}>
+                Satış aşaması
+                <SelectField
+                  defaultValue={selectedContact.stage}
+                  name="stage"
+                >
+                  {Object.entries(contactStageLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </SelectField>
+              </label>
+              <label className={labelClass}>
+                Kaynak
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.source || ''}
+                  name="source"
+                  placeholder="Asistan, web sitesi, referans..."
+                />
+              </label>
+              <label className={labelClass}>
+                İstenen bölge
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.desiredLocation || ''}
+                  name="desiredLocation"
+                />
+              </label>
+              <label className={labelClass}>
+                Oda tercihi
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.desiredRoomCount || ''}
+                  name="desiredRoomCount"
+                  placeholder="2+1"
+                />
+              </label>
+              <label className={labelClass}>
+                Minimum bütçe
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.budgetMin ?? ''}
+                  min="0"
+                  name="budgetMin"
+                  type="number"
+                />
+              </label>
+              <label className={labelClass}>
+                Maksimum bütçe
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.budgetMax ?? ''}
+                  min="0"
+                  name="budgetMax"
+                  type="number"
+                />
+              </label>
+              <label className={labelClass}>
+                İletişim izni
+                <SelectField
+                  defaultValue={selectedContact.consentStatus}
+                  name="consentStatus"
+                >
+                  <option value="UNKNOWN">Bilinmiyor</option>
+                  <option value="GRANTED">Onaylı</option>
+                  <option value="REVOKED">Geri çekildi</option>
+                </SelectField>
+              </label>
+              <label className={labelClass}>
+                Sorumlu danışman
+                <SelectField
+                  defaultValue={selectedContact.assignedMember?.id || ''}
+                  name="assignedMemberId"
+                >
+                  <option value="">Atanmadı</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </SelectField>
+              </label>
+              <label className={labelClass}>
+                Sonraki takip zamanı
+                <Input
+                  className={fieldClass}
+                  defaultValue={dateTimeLocal(selectedContact.nextActionAt)}
+                  name="nextActionAt"
+                  type="datetime-local"
+                />
+              </label>
+              <label className={labelClass}>
+                Etiketler
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedContact.tags.join(', ')}
+                  name="tags"
+                  placeholder="yatırımcı, deniz manzarası"
+                />
+              </label>
+              <label className={`${labelClass} sm:col-span-2`}>
+                Profil notları
+                <textarea
+                  className={`${fieldClass} min-h-28 py-3`}
+                  defaultValue={selectedContact.notes || ''}
+                  name="notes"
+                />
               </label>
             </>
           )}
@@ -1710,6 +2364,45 @@ function WorkspaceDialog({
                   Tam kullanıcı adı şirket koduyla birlikte otomatik oluşturulur.
                 </span>
               </label>
+            </>
+          )}
+
+          {dialog === 'match' && (
+            <>
+              <label className={labelClass}>
+                Müşteri
+                <SelectField name="contactId" required>
+                  <option value="">Müşteri seçin</option>
+                  {contacts
+                    .filter((contact) =>
+                      ['BUYER', 'INVESTOR', 'TENANT'].includes(contact.type)
+                    )
+                    .map((contact) => (
+                      <option key={contact.id} value={contact.id}>
+                        {contact.name} · {contact.desiredLocation || 'Bölge yok'}
+                      </option>
+                    ))}
+                </SelectField>
+              </label>
+              <label className={labelClass}>
+                Portföy
+                <SelectField name="propertyId" required>
+                  <option value="">Portföy seçin</option>
+                  {properties
+                    .filter((property) =>
+                      ['ACTIVE', 'RESERVED'].includes(property.status)
+                    )
+                    .map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.title} · {money(property.price)}
+                      </option>
+                    ))}
+                </SelectField>
+              </label>
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs leading-5 text-slate-400 sm:col-span-2">
+                Manuel eşleşme kalıcı tutulur. Otomatik hesaplama daha sonra
+                yenilense bile bu danışman seçimi silinmez.
+              </div>
             </>
           )}
         </form>

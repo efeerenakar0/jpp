@@ -49,13 +49,26 @@ oluşturma/sıfırlama anında bir kez gösterilir.
      `/fabrika/satici-portali` bağlantısı Portföyler içindeki Malik
      raporlarına güvenli biçimde yönlendirilir.
 
-3. **Profesyonel Merkezi CRM ve eşleştirme**
+3. **Profesyonel Merkezi CRM ve eşleştirme — Tamamlandı (27 Temmuz 2026)**
    - Tek müşteri profili, notlar, konuşma/aktivite zaman çizgisi, sorumlu
      çalışan, sıcaklık ve AI puanı.
    - AI puanının gerekçelerini görünür ve denetlenebilir sunma.
    - Müşteriyi manuel veya Asistan konuşmasından ekleme.
    - Manuel ve otomatik müşteri-portföy eşleştirmeleri.
    - Satış aşamalarını müşteri profilinde kompakt biçimde yönetme.
+
+   Uygulanan kararlar:
+   - Müşteri profili; iletişim bilgileri, arama kriterleri, sorumlu
+     danışman, satış aşaması, görevler, fırsatlar, notlar ve kronolojik
+     aktiviteyi tek ekranda birleştirir.
+   - Müşteri puanı mevcut AI sağlayıcısıyla gerekçeli hesaplanır. Sağlayıcı
+     kullanılamadığında sonuç uydurulmaz; görünür biçimde akıllı kural
+     yedeğine geçilir.
+   - Asistan konuşmaları mevcut Jasmine şirket senkronuyla içe alınabilir;
+     manuel müşteri oluşturma korunur.
+   - Otomatik eşleşmeler bölge, oda ve bütçeden hesaplanır. Danışmanın
+     oluşturduğu manuel eşleşmeler ayrıca işaretlenir ve otomatik
+     yenilemede silinmez.
 
 4. **Gerçek takvim ve Google Calendar**
    - Aylık/haftalık/günlük takvim, görev ve randevu ayrımı.

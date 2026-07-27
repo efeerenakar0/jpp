@@ -22,6 +22,7 @@ import {
   setCompanyMemberActive,
   type OneTimeMemberCredentials,
 } from '@/lib/company-members';
+import { calculateCrmScore } from '@/lib/crm-intelligence';
 
 const optionalText = z.string().trim().max(500).optional().nullable();
 const optionalId = z.string().trim().min(1).optional().nullable();
@@ -43,6 +44,34 @@ const actionSchema = z.discriminatedUnion('action', [
     notes: z.string().trim().max(5000).optional().nullable(),
     consentStatus: z.nativeEnum(ConsentStatus).default(ConsentStatus.UNKNOWN),
     assignedMemberId: optionalId,
+  }),
+  z.object({
+    action: z.literal('update-contact'),
+    id: z.string().trim().min(1),
+    name: z.string().trim().min(2).max(120),
+    phone: optionalText,
+    email: z.string().trim().email().optional().or(z.literal('')),
+    type: z.nativeEnum(CrmContactType),
+    stage: z.nativeEnum(CrmContactStage),
+    source: optionalText,
+    desiredLocation: optionalText,
+    desiredRoomCount: optionalText,
+    budgetMin: optionalNumber,
+    budgetMax: optionalNumber,
+    notes: z.string().trim().max(5000).optional().nullable(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+    consentStatus: z.nativeEnum(ConsentStatus),
+    nextActionAt: z.string().datetime().optional().nullable(),
+    assignedMemberId: optionalId,
+  }),
+  z.object({
+    action: z.literal('add-contact-note'),
+    id: z.string().trim().min(1),
+    note: z.string().trim().min(2).max(5000),
+  }),
+  z.object({
+    action: z.literal('score-contact'),
+    id: z.string().trim().min(1),
   }),
   z.object({
     action: z.literal('create-property'),
@@ -108,6 +137,11 @@ const actionSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('recompute-matches'),
+  }),
+  z.object({
+    action: z.literal('create-manual-match'),
+    contactId: z.string().trim().min(1),
+    propertyId: z.string().trim().min(1),
   }),
   z.object({
     action: z.literal('sync-modules'),
@@ -230,7 +264,9 @@ async function recomputeMatches(companyAccountId: string) {
       },
     }),
   ]);
-  await prisma.crmMatch.deleteMany({ where: { companyAccountId } });
+  await prisma.crmMatch.deleteMany({
+    where: { companyAccountId, status: { not: 'MANUAL' } },
+  });
   const candidates = contacts.flatMap((contact) =>
     properties
       .map((property) => ({
@@ -243,7 +279,30 @@ async function recomputeMatches(companyAccountId: string) {
   if (candidates.length > 0) {
     await prisma.crmMatch.createMany({
       data: candidates.map((candidate) => ({ companyAccountId, ...candidate })),
+      skipDuplicates: true,
     });
+  }
+}
+
+function scoreMetadata(
+  metadata: string | null
+): { reasons: string[]; source: 'AI' | 'RULES' } | null {
+  if (!metadata) return null;
+  try {
+    const parsed = JSON.parse(metadata) as {
+      score?: unknown;
+      reasons?: unknown;
+      source?: unknown;
+    };
+    if (!Array.isArray(parsed.reasons)) return null;
+    return {
+      reasons: parsed.reasons.filter(
+        (reason): reason is string => typeof reason === 'string'
+      ),
+      source: parsed.source === 'AI' ? 'AI' : 'RULES',
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -382,6 +441,26 @@ async function getWorkspace(
         (deal.estimatedValue || 0) * ((deal.commissionRate || 0) / 100),
       0
     );
+  const scoreActivities = new Map<
+    string,
+    { reasons: string[]; source: 'AI' | 'RULES'; createdAt: Date }
+  >();
+  for (const activity of activities) {
+    if (
+      activity.type !== 'AI_SCORE_UPDATED' ||
+      !activity.contactId ||
+      scoreActivities.has(activity.contactId)
+    ) {
+      continue;
+    }
+    const parsed = scoreMetadata(activity.metadata);
+    if (parsed) {
+      scoreActivities.set(activity.contactId, {
+        ...parsed,
+        createdAt: activity.createdAt,
+      });
+    }
+  }
 
   return {
     account: {
@@ -404,7 +483,15 @@ async function getWorkspace(
     },
     permissions,
     members,
-    contacts,
+    contacts: contacts.map((contact) => {
+      const scoreActivity = scoreActivities.get(contact.id);
+      return {
+        ...contact,
+        scoreReasons: scoreActivity?.reasons || [],
+        scoreSource: scoreActivity?.source || null,
+        scoreUpdatedAt: scoreActivity?.createdAt || null,
+      };
+    }),
     properties,
     deals,
     tasks,
@@ -506,6 +593,130 @@ export async function POST(request: Request) {
           description: contact.name,
         },
       });
+    }
+
+    if (input.action === 'update-contact') {
+      const contactId = await ensureOwnedResource('contact', input.id, account.id);
+      const assignedMemberId = await ensureOwnedResource(
+        'member',
+        input.assignedMemberId,
+        account.id
+      );
+      const previous = await prisma.crmContact.findUniqueOrThrow({
+        where: { id: contactId! },
+        select: { stage: true, assignedMemberId: true },
+      });
+      const contact = await prisma.crmContact.update({
+        where: { id: contactId! },
+        data: {
+          assignedMemberId,
+          name: input.name,
+          phone: asNullable(input.phone),
+          email: asNullable(input.email),
+          type: input.type,
+          stage: input.stage,
+          source: asNullable(input.source),
+          desiredLocation: asNullable(input.desiredLocation),
+          desiredRoomCount: asNullable(input.desiredRoomCount),
+          budgetMin: input.budgetMin,
+          budgetMax: input.budgetMax,
+          notes: asNullable(input.notes),
+          tags: input.tags,
+          consentStatus: input.consentStatus,
+          consentUpdatedAt:
+            input.consentStatus === ConsentStatus.UNKNOWN ? null : new Date(),
+          nextActionAt: input.nextActionAt ? new Date(input.nextActionAt) : null,
+        },
+      });
+      await prisma.crmActivity.create({
+        data: {
+          companyAccountId: account.id,
+          contactId: contact.id,
+          actorMemberId: principal.member?.id || null,
+          type: 'CONTACT_UPDATED',
+          title: 'Müşteri profili güncellendi',
+          description:
+            previous.stage !== contact.stage
+              ? `Satış aşaması ${previous.stage} → ${contact.stage}`
+              : previous.assignedMemberId !== contact.assignedMemberId
+                ? 'Sorumlu danışman güncellendi'
+                : 'Profil bilgileri yenilendi',
+        },
+      });
+    }
+
+    if (input.action === 'add-contact-note') {
+      const contactId = await ensureOwnedResource('contact', input.id, account.id);
+      const contact = await prisma.crmContact.findUniqueOrThrow({
+        where: { id: contactId! },
+        select: { notes: true },
+      });
+      const stamp = new Intl.DateTimeFormat('tr-TR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        timeZone: 'Europe/Istanbul',
+      }).format(new Date());
+      await prisma.crmContact.update({
+        where: { id: contactId! },
+        data: {
+          notes: [contact.notes, `[${stamp}] ${input.note}`]
+            .filter(Boolean)
+            .join('\n\n'),
+        },
+      });
+      await prisma.crmActivity.create({
+        data: {
+          companyAccountId: account.id,
+          contactId,
+          actorMemberId: principal.member?.id || null,
+          type: 'CONTACT_NOTE',
+          title: 'Müşteri notu eklendi',
+          description: input.note,
+        },
+      });
+    }
+
+    if (input.action === 'score-contact') {
+      const contactId = await ensureOwnedResource('contact', input.id, account.id);
+      const contact = await prisma.crmContact.findUniqueOrThrow({
+        where: { id: contactId! },
+        include: {
+          deals: {
+            select: { stage: true, probability: true, estimatedValue: true },
+          },
+          tasks: {
+            select: { status: true, priority: true, dueAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 30,
+          },
+          activities: {
+            select: { type: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 30,
+          },
+        },
+      });
+      const result = await calculateCrmScore(contact);
+      await prisma.$transaction([
+        prisma.crmContact.update({
+          where: { id: contact.id },
+          data: { score: result.score },
+        }),
+        prisma.crmActivity.create({
+          data: {
+            companyAccountId: account.id,
+            contactId: contact.id,
+            actorMemberId: principal.member?.id || null,
+            type: 'AI_SCORE_UPDATED',
+            title:
+              result.source === 'AI'
+                ? 'AI müşteri puanını yeniledi'
+                : 'Akıllı puan yedek kurallarla yenilendi',
+            description: `${result.score}/100 · ${result.reasons.join(' · ')}`,
+            metadata: JSON.stringify(result),
+          },
+        }),
+      ]);
     }
 
     if (input.action === 'create-property') {
@@ -695,6 +906,57 @@ export async function POST(request: Request) {
 
     if (input.action === 'recompute-matches') {
       await recomputeMatches(account.id);
+    }
+
+    if (input.action === 'create-manual-match') {
+      const contactId = await ensureOwnedResource(
+        'contact',
+        input.contactId,
+        account.id
+      );
+      const propertyId = await ensureOwnedResource(
+        'property',
+        input.propertyId,
+        account.id
+      );
+      const [contact, property] = await Promise.all([
+        prisma.crmContact.findUniqueOrThrow({ where: { id: contactId! } }),
+        prisma.crmProperty.findUniqueOrThrow({ where: { id: propertyId! } }),
+      ]);
+      const calculated = scoreMatch(contact, property);
+      await prisma.crmMatch.upsert({
+        where: {
+          companyAccountId_contactId_propertyId: {
+            companyAccountId: account.id,
+            contactId: contact.id,
+            propertyId: property.id,
+          },
+        },
+        update: {
+          score: calculated.score,
+          reasons: ['Danışman tarafından eşleştirildi', ...calculated.reasons],
+          status: 'MANUAL',
+        },
+        create: {
+          companyAccountId: account.id,
+          contactId: contact.id,
+          propertyId: property.id,
+          score: calculated.score,
+          reasons: ['Danışman tarafından eşleştirildi', ...calculated.reasons],
+          status: 'MANUAL',
+        },
+      });
+      await prisma.crmActivity.create({
+        data: {
+          companyAccountId: account.id,
+          contactId: contact.id,
+          propertyId: property.id,
+          actorMemberId: principal.member?.id || null,
+          type: 'MATCH_CREATED',
+          title: 'Manuel müşteri-portföy eşleşmesi',
+          description: `${contact.name} · ${property.title}`,
+        },
+      });
     }
 
     if (input.action === 'sync-modules') {
