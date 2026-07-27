@@ -15,6 +15,14 @@ const PUBLIC_WHATSAPP_WEBHOOKS = new Set([
   '/api/whatsapp/webhook',
   '/api/webhook/whatsapp',
 ]);
+const EVOLUTION_WEBHOOK_PREFIX = '/api/whatsapp/evolution/webhook/';
+
+function isPublicWhatsAppWebhook(pathname: string): boolean {
+  return (
+    PUBLIC_WHATSAPP_WEBHOOKS.has(pathname) ||
+    pathname.startsWith(EVOLUTION_WEBHOOK_PREFIX)
+  );
+}
 
 function isFabrikaProtectedPath(pathname: string): boolean {
   return (
@@ -127,7 +135,7 @@ export default async function proxy(request: NextRequest) {
 
   if (
     isFabrikaProtectedPath(pathname) &&
-    !PUBLIC_WHATSAPP_WEBHOOKS.has(pathname) &&
+    !isPublicWhatsAppWebhook(pathname) &&
     !hasFabrikaSession
   ) {
     if (pathname.startsWith('/api/')) {
