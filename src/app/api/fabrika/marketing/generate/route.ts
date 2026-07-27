@@ -1,119 +1,162 @@
-import { AdPlatform, NotificationType } from '@prisma/client';
+import { CrmPropertyStatus, NotificationType } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
-import { callAI, parseJSONResponse } from '@/lib/ai';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
-import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import {
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
+import { callCompanyMarketingAI } from '@/lib/marketing-ai';
+import {
+  deterministicCampaign,
+  parseGeneratedCampaign,
+} from '@/lib/marketing-content';
 
-type GeneratedAd = {
-  platform?: string;
-  headline?: string;
-  body?: string;
-  callToAction?: string;
-  targetUrl?: string;
-};
-
-function isAdPlatform(value?: string): value is AdPlatform {
-  return value === 'GOOGLE_ADS' || value === 'INSTAGRAM' || value === 'WHATSAPP';
-}
+const requestSchema = z
+  .object({
+    type: z.enum(['listing', 'brand']).default('listing'),
+    propertyId: z.string().trim().min(1).optional(),
+    listingId: z.string().trim().min(1).optional(),
+    objective: z.string().trim().min(2).max(120).default('Nitelikli talep toplama'),
+    audience: z.string().trim().min(2).max(160).default('Bölgedeki alıcı ve yatırımcılar'),
+    tone: z.enum(['professional', 'warm', 'premium']).default('professional'),
+    posterTemplate: z.enum(['SIGNATURE', 'EDITORIAL', 'BOLD']).default('SIGNATURE'),
+    targetUrl: z.string().url().max(1000).optional().or(z.literal('')),
+  })
+  .superRefine((value, context) => {
+    if (value.type === 'listing' && !value.propertyId && !value.listingId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['propertyId'],
+        message: 'Portföy kampanyası için bir portföy seçin.',
+      });
+    }
+  });
 
 export async function POST(request: Request) {
   try {
     const principal = await requireFabrikaPrincipal();
-    const body = (await request.json()) as {
-      listingId?: string;
-      type?: 'listing' | 'brand';
-      companyName?: string;
-    };
-    const campaignType = body.type || 'brand';
-    const companyName = body.companyName?.trim() || 'Jasmine Group';
-    const listing = body.listingId
-      ? await prisma.huntedListing.findUnique({ where: { id: body.listingId } })
-      : null;
-
-    if (campaignType === 'listing' && !listing) {
+    const parsed = requestSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Reklam üretilecek portföy bulunamadı.' },
+        { error: parsed.error.issues[0]?.message || 'Kampanya bilgileri geçersiz.' },
+        { status: 400 }
+      );
+    }
+    const input = parsed.data;
+    const propertyId = input.propertyId || input.listingId;
+    const property =
+      input.type === 'listing' && propertyId
+        ? await prisma.crmProperty.findFirst({
+            where: {
+              id: propertyId,
+              companyAccountId: principal.account.id,
+              status: { in: [CrmPropertyStatus.ACTIVE, CrmPropertyStatus.RESERVED] },
+            },
+          })
+        : null;
+    if (input.type === 'listing' && !property) {
+      return NextResponse.json(
+        { error: 'Aktif portföy bulunamadı veya bu şirkete ait değil.' },
         { status: 404 }
       );
     }
 
-    const prompt = `
-${companyName} için gayrimenkul reklam kampanyası üret.
-Kampanya tipi: ${campaignType}
-Portföy: ${listing ? JSON.stringify({
-  title: listing.title,
-  price: listing.price,
-  location: listing.location,
-  roomCount: listing.roomCount,
-  area: listing.area,
-  sourceUrl: listing.sourceUrl,
-}) : 'Kurumsal marka kampanyası'}
+    const fallback = deterministicCampaign({
+      companyName: principal.account.companyName,
+      property,
+      objective: input.objective,
+      audience: input.audience,
+      tone: input.tone,
+      targetUrl: input.targetUrl || null,
+    });
+    const prompt = `Sen deneyimli bir gayrimenkul pazarlama direktörüsün.
+Firma: ${principal.account.companyName}
+Kampanya türü: ${input.type}
+Amaç: ${input.objective}
+Hedef kitle: ${input.audience}
+Ton: ${input.tone}
+Portföy: ${JSON.stringify(property ? {
+  title: property.title,
+  referenceCode: property.referenceCode,
+  location: property.location,
+  price: property.price,
+  roomCount: property.roomCount,
+  area: property.area,
+  description: property.description,
+} : null)}
 
-Yalnızca şu JSON yapısını döndür:
-{
-  "name": "kampanya adı",
-  "description": "kısa açıklama",
-  "adCopies": [
-    { "platform": "GOOGLE_ADS", "headline": "...", "body": "...", "callToAction": "...", "targetUrl": "..." },
-    { "platform": "INSTAGRAM", "headline": "...", "body": "...", "callToAction": "...", "targetUrl": "..." },
-    { "platform": "WHATSAPP", "headline": "...", "body": "...", "callToAction": "...", "targetUrl": "..." }
-  ]
-}
-Gerçek olmayan fiyat, kampanya avantajı veya teslim tarihi uydurma.
-`;
-    const aiResponse = await callAI([{ role: 'user', content: prompt }]);
-    const generated = parseJSONResponse(aiResponse.content) as {
-      name?: string;
-      description?: string;
-      adCopies?: GeneratedAd[];
-    } | null;
-    const validAds = generated?.adCopies?.filter(
-      (ad) => isAdPlatform(ad.platform) && ad.headline?.trim() && ad.body?.trim()
-    );
-
-    if (!generated?.name?.trim() || !validAds?.length) {
-      return NextResponse.json(
-        { error: 'AI geçerli bir reklam seti oluşturamadı.' },
-        { status: 502 }
-      );
-    }
+Doğrulanmamış özellik, indirim, getiri, teslim tarihi veya hukuki vaat uydurma.
+Google başlıklarını 30, açıklamalarını 90 karaktere yakın tut. WhatsApp mesajı izinli alıcılara uygun, kısa ve doğal olsun.
+Yalnızca şu JSON'u döndür:
+{"name":"...","description":"...","posterHeadline":"...","posterSubline":"...","posterCta":"...","adCopies":[
+{"platform":"GOOGLE_ADS","headline":"{\\"headline1\\":\\"...\\",\\"headline2\\":\\"...\\",\\"headline3\\":\\"...\\"}","body":"{\\"description1\\":\\"...\\",\\"description2\\":\\"...\\"}","callToAction":"...","targetUrl":"${input.targetUrl || ''}"},
+{"platform":"INSTAGRAM","headline":"...","body":"{\\"caption\\":\\"...\\",\\"hashtags\\":[\\"#...\\"]}","callToAction":"...","targetUrl":"${input.targetUrl || ''}"},
+{"platform":"WHATSAPP","headline":"...","body":"...","callToAction":"...","targetUrl":"${input.targetUrl || ''}"}
+]}`;
+    const aiResult = await callCompanyMarketingAI(principal.account.id, [
+      { role: 'system', content: 'Yanıtın yalnızca geçerli JSON olsun.' },
+      { role: 'user', content: prompt },
+    ]);
+    const generated = parseGeneratedCampaign(aiResult.content, fallback);
 
     const campaign = await prisma.adCampaign.create({
       data: {
-        name: generated.name.trim(),
-        description: generated.description?.trim(),
-        type: campaignType,
+        companyAccountId: principal.account.id,
+        propertyId: property?.id,
+        name: generated.name,
+        description: generated.description,
+        type: input.type,
+        objective: input.objective,
+        audience: input.audience,
+        tone: input.tone,
+        posterTemplate: input.posterTemplate,
+        posterHeadline: generated.posterHeadline,
+        posterSubline: generated.posterSubline,
+        posterCta: generated.posterCta,
+        generatedBy: aiResult.provider,
+        generatedModel: aiResult.model,
         adCopies: {
-          create: validAds.map((ad) => ({
-            platform: ad.platform as AdPlatform,
-            headline: ad.headline!.trim(),
-            body: ad.body!.trim(),
-            callToAction: ad.callToAction?.trim(),
-            targetUrl: ad.targetUrl?.trim(),
-            listingId: listing?.id,
+          create: generated.adCopies.map((copy) => ({
+            platform: copy.platform,
+            headline: copy.headline,
+            body: copy.body,
+            callToAction: copy.callToAction,
+            targetUrl: copy.targetUrl,
           })),
         },
       },
-      include: { adCopies: true },
+      include: {
+        property: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            price: true,
+            imageUrl: true,
+            referenceCode: true,
+          },
+        },
+        adCopies: true,
+      },
     });
 
     await createCompanyNotification({
       companyAccountId: principal.account.id,
       type: NotificationType.AD_COPY_READY,
-      title: 'Reklam Taslakları Hazır',
-      message: `${campaign.name} için ${campaign.adCopies.length} reklam taslağı üretildi.`,
+      title: 'Kampanya seti hazır',
+      message: `${campaign.name} için üç kanal metni ve poster şablonu hazırlandı.`,
       link: '/fabrika/pazarlamaci',
       important: false,
       dedupeKey: `ad-campaign-ready:${campaign.id}`,
     });
-
     return NextResponse.json(campaign, { status: 201 });
   } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
     console.error('[Marketing Generate Error]:', error);
-    return NextResponse.json(
-      { error: 'Reklam kampanyası üretilemedi.' },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: 'Kampanya üretilemedi.' }, { status: 500 });
   }
 }

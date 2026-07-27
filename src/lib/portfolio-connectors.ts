@@ -76,7 +76,7 @@ export function isPrivateNetworkAddress(address: string) {
   );
 }
 
-async function assertPublicUrl(value: string) {
+export async function assertPublicUrl(value: string) {
   const url = new URL(value);
   if (!['https:', 'http:'].includes(url.protocol)) {
     throw new Error('Kaynak adresi yalnızca HTTP veya HTTPS olabilir.');
@@ -105,7 +105,7 @@ async function assertPublicUrl(value: string) {
   return url;
 }
 
-async function safeFetchText(
+export async function safeFetchText(
   value: string,
   headers: Record<string, string> = {},
   redirectCount = 0,

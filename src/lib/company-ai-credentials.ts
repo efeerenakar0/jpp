@@ -38,7 +38,7 @@ function encryptionKey() {
   return createHash('sha256').update(secret).digest();
 }
 
-function encryptApiKey(apiKey: string) {
+export function encryptCompanyApiKey(apiKey: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(apiKey, 'utf8'), cipher.final()]);
@@ -46,7 +46,7 @@ function encryptApiKey(apiKey: string) {
   return `v1.${iv.toString('base64url')}.${tag.toString('base64url')}.${encrypted.toString('base64url')}`;
 }
 
-function decryptApiKey(value: string) {
+export function decryptCompanyApiKey(value: string) {
   const [version, ivValue, tagValue, encryptedValue] = value.split('.');
   if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) {
     throw new Error('Kayıtlı AI anahtarı okunamadı. Anahtarı ayarlardan yeniden kaydedin.');
@@ -60,7 +60,7 @@ function decryptApiKey(value: string) {
   ]).toString('utf8');
 }
 
-function keyHint(apiKey: string) {
+export function companyApiKeyHint(apiKey: string) {
   const normalized = apiKey.trim();
   if (normalized.length < 10) return '••••••';
   return `${normalized.slice(0, 4)}••••${normalized.slice(-4)}`;
@@ -97,7 +97,10 @@ export async function saveCompanyStudioCredential(input: {
 
   if (input.active) {
     await prisma.companyAiCredential.updateMany({
-      where: { companyAccountId: input.accountId },
+      where: {
+        companyAccountId: input.accountId,
+        provider: { in: [...STUDIO_PROVIDERS] },
+      },
       data: { active: false },
     });
   }
@@ -112,16 +115,16 @@ export async function saveCompanyStudioCredential(input: {
     create: {
       companyAccountId: input.accountId,
       provider: input.provider,
-      encryptedApiKey: encryptApiKey(apiKey || ''),
-      keyHint: keyHint(apiKey || ''),
+      encryptedApiKey: encryptCompanyApiKey(apiKey || ''),
+      keyHint: companyApiKeyHint(apiKey || ''),
       model: normalizeStudioModel(input.provider, input.model),
       active: input.active,
     },
     update: {
       ...(apiKey
         ? {
-            encryptedApiKey: encryptApiKey(apiKey),
-            keyHint: keyHint(apiKey),
+            encryptedApiKey: encryptCompanyApiKey(apiKey),
+            keyHint: companyApiKeyHint(apiKey),
           }
         : {}),
       model: normalizeStudioModel(input.provider, input.model),
@@ -140,7 +143,7 @@ export async function getCompanyStudioCredential(accountId: string) {
 
   return {
     provider: credential.provider as StudioProvider,
-    apiKey: decryptApiKey(credential.encryptedApiKey),
+    apiKey: decryptCompanyApiKey(credential.encryptedApiKey),
     model: normalizeStudioModel(
       credential.provider as StudioProvider,
       credential.model

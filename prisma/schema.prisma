@@ -244,6 +244,7 @@ enum SubscriptionStatus {
 enum AiProvider {
   OPENAI
   GEMINI
+  OPENROUTER
 }
 
 enum CompanyMemberRole {
@@ -349,6 +350,8 @@ model CompanyAccount {
   huntedListings           HuntedListing[]
   portfolioSources         PortfolioSource[]
   portfolioImports         PortfolioImportItem[]
+  adCampaigns              AdCampaign[]
+  websiteMarketingAnalyses MarketingWebsiteAnalysis[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -469,6 +472,7 @@ model CrmProperty {
   matches         CrmMatch[]
   activities      CrmActivity[]
   portfolioImport PortfolioImportItem?
+  adCampaigns     AdCampaign[]
 
   @@unique([companyAccountId, sourceListingId])
   @@index([companyAccountId, status])
@@ -792,15 +796,33 @@ model GeneratedWebsite {
 // --- Modül 3: Pazarlamacı / Reklam Ekibi ---
 
 model AdCampaign {
-  id          String   @id @default(cuid())
-  name        String
-  description String?  @db.Text
-  type        String // "listing" veya "brand"
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String          @id @default(cuid())
+  companyAccountId String?
+  companyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyId       String?
+  property         CrmProperty?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  name             String
+  description      String?         @db.Text
+  type             String // "listing" veya "brand"
+  objective        String?
+  audience         String?
+  tone             String?
+  status           String          @default("DRAFT")
+  posterTemplate   String?
+  posterHeadline   String?
+  posterSubline    String?
+  posterCta        String?
+  generatedBy      String?
+  generatedModel   String?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   adCopies AdCopy[]
+
+  @@index([companyAccountId, createdAt])
+  @@index([companyAccountId, type])
+  @@index([propertyId])
 }
 
 model AdCopy {
@@ -817,6 +839,26 @@ model AdCopy {
   approved     Boolean        @default(false)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+}
+
+model MarketingWebsiteAnalysis {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  websiteUrl       String
+  domain           String
+  status           String         @default("READY")
+  summary          String         @db.Text
+  strengths        String         @db.Text
+  opportunities    String         @db.Text
+  channelPlan      String         @db.Text
+  firstActions     String         @db.Text
+  generatedBy      String
+  generatedModel   String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([companyAccountId, createdAt])
 }
 
 // --- Modül 4: Asistan / CRM ---

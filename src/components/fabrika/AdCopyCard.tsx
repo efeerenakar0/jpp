@@ -77,18 +77,19 @@ export default function AdCopyCard({
     }
 
     return (
-      <div className="space-y-4 text-sm text-gray-300">
+      <div className="space-y-4 text-sm text-slate-300">
         <div className="space-y-2">
           {['headline1', 'headline2', 'headline3'].map((key, i) => (
             parsedHeadline[key] && (
-              <div key={key} className="flex justify-between items-start gap-4 p-2 bg-gray-800/50 rounded-lg">
+              <div key={key} className="flex justify-between items-start gap-4 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
                 <div>
-                  <span className="text-xs text-gray-500 block mb-1">Başlık {i + 1}</span>
+                  <span className="mb-1 block text-xs text-slate-500">Başlık {i + 1}</span>
                   <p className="font-medium">{parsedHeadline[key]}</p>
                 </div>
                 <button 
                   onClick={() => handleCopy(parsedHeadline[key], `h${i}`)}
-                  className="p-1.5 hover:bg-gray-700 rounded-md transition-colors text-gray-400 hover:text-white"
+                  aria-label={`Başlık ${i + 1} metnini kopyala`}
+                  className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   {copiedSection === `h${i}` ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -100,14 +101,15 @@ export default function AdCopyCard({
         <div className="space-y-2">
           {['description1', 'description2'].map((key, i) => (
             parsedBody[key] && (
-              <div key={key} className="flex justify-between items-start gap-4 p-2 bg-gray-800/50 rounded-lg">
+              <div key={key} className="flex justify-between items-start gap-4 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
                 <div>
-                  <span className="text-xs text-gray-500 block mb-1">Açıklama {i + 1}</span>
+                  <span className="mb-1 block text-xs text-slate-500">Açıklama {i + 1}</span>
                   <p>{parsedBody[key]}</p>
                 </div>
                 <button 
                   onClick={() => handleCopy(parsedBody[key], `d${i}`)}
-                  className="p-1.5 hover:bg-gray-700 rounded-md transition-colors text-gray-400 hover:text-white"
+                  aria-label={`Açıklama ${i + 1} metnini kopyala`}
+                  className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   {copiedSection === `d${i}` ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -131,14 +133,15 @@ export default function AdCopyCard({
 
     return (
       <div className="space-y-3">
-        <div className="relative group p-3 bg-gray-800/50 rounded-lg">
-          <p className="text-sm text-gray-300 whitespace-pre-wrap">{parsedBody.caption || body}</p>
+        <div className="group relative rounded-lg border border-slate-800 bg-slate-950/70 p-3 pr-11">
+          <p className="whitespace-pre-wrap text-sm text-slate-300">{parsedBody.caption || body}</p>
           {parsedBody.hashtags && parsedBody.hashtags.length > 0 && (
              <p className="text-sm text-blue-400 mt-2">{parsedBody.hashtags.join(' ')}</p>
           )}
           <button 
             onClick={() => handleCopy(content, 'ig')}
-            className="absolute top-2 right-2 p-1.5 bg-gray-900/80 hover:bg-gray-700 rounded-md transition-colors text-gray-400 hover:text-white opacity-0 group-hover:opacity-100"
+            aria-label="Instagram metnini kopyala"
+            className="absolute right-2 top-2 rounded-md bg-slate-900 p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
             {copiedSection === 'ig' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
           </button>
@@ -149,11 +152,12 @@ export default function AdCopyCard({
 
   const renderWhatsApp = () => {
     return (
-      <div className="relative group p-3 bg-emerald-900/10 border border-emerald-500/20 rounded-lg">
-        <p className="text-sm text-gray-300 whitespace-pre-wrap">{body}</p>
+      <div className="group relative rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 pr-11">
+        <p className="whitespace-pre-wrap text-sm text-slate-300">{body}</p>
         <button 
           onClick={() => handleCopy(body, 'wa')}
-          className="absolute top-2 right-2 p-1.5 bg-gray-900/80 hover:bg-gray-700 rounded-md transition-colors text-gray-400 hover:text-white opacity-0 group-hover:opacity-100"
+          aria-label="WhatsApp metnini kopyala"
+          className="absolute right-2 top-2 rounded-md bg-slate-900 p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
         >
           {copiedSection === 'wa' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
         </button>
@@ -162,8 +166,8 @@ export default function AdCopyCard({
   };
 
   return (
-    <div className={`rounded-xl border ${config.border} bg-gray-900/50 overflow-hidden flex flex-col`}>
-      <div className={`p-4 border-b border-gray-800 flex items-center justify-between ${config.bg}`}>
+    <div className={`flex flex-col overflow-hidden rounded-xl border ${config.border} bg-slate-900`}>
+      <div className={`flex items-center justify-between border-b border-slate-800 p-4 ${config.bg}`}>
         <div className="flex items-center gap-2">
           <Icon className={`w-5 h-5 ${config.color}`} />
           <h3 className="font-semibold text-white">{config.title}</h3>
@@ -171,10 +175,10 @@ export default function AdCopyCard({
         {id && onApprove && (
           <button
             onClick={() => onApprove(id, !approved)}
-            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+            className={`rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
               approved 
                 ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'
+                : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white'
             }`}
           >
             {approved ? 'Onaylandı' : 'Onayla'}
@@ -188,11 +192,11 @@ export default function AdCopyCard({
         {platform === 'WHATSAPP' && renderWhatsApp()}
         
         {targetUrl && (
-          <a 
+          <a
             href={targetUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-4"
+            className="mt-4 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
             <ExternalLink className="w-3 h-3" />
             Hedef Link (İlan / Site)
@@ -200,8 +204,8 @@ export default function AdCopyCard({
         )}
       </div>
 
-      <div className="px-4 py-3 bg-gray-950 border-t border-gray-800/50 text-xs text-gray-400 flex gap-2">
-        <span className="font-medium text-gray-300">Rehber:</span>
+      <div className="flex gap-2 border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs leading-5 text-slate-400">
+        <span className="font-medium text-slate-300">Rehber:</span>
         {config.guide}
       </div>
     </div>

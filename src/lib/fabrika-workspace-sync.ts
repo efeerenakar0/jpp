@@ -88,6 +88,7 @@ export async function syncLegacyModulesToWorkspace(account: WorkspaceAccount) {
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.adCampaign.findMany({
+      where: { companyAccountId: account.id },
       include: { adCopies: { select: { listingId: true } } },
       orderBy: { updatedAt: 'desc' },
       take: 100,

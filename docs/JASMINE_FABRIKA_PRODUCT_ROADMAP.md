@@ -116,13 +116,29 @@ oluşturma/sıfırlama anında bir kez gösterilir.
      gerekçeyi özetler; sağlayıcı yoksa görünür, deterministik kural özeti
      kullanılır.
 
-6. **Profesyonel Pazarlamacı**
+6. **Profesyonel Pazarlamacı — Tamamlandı (27 Temmuz 2026)**
    - Aktif portföy seçerek açıklama, emlakçı grubu mesajı ve kanal
      varyasyonları üretme.
    - OpenRouter sağlayıcı arayüzü; ücretsiz metin modeli pilot amaçlı
      seçilir, limit ve yedek model görünür tutulur.
    - Gerçek portföy fotoğraflarını kullanan şablon tabanlı poster motoru.
    - Web sitesi reklam analizi, kanal planı ve uygulanabilir AI rehberi.
+
+   Uygulanan kararlar:
+   - Kampanyalar şirket hesabına bağlandı; aktif CRM portföyü seçilmeden
+     portföy kampanyası oluşturulamaz. Google Ads, Instagram ve izinli
+     WhatsApp kullanımı için kanal bazlı metinler birlikte hazırlanır.
+   - Patron OpenRouter anahtarını şifreli kaydedebilir. Ücretsiz model
+     yönlendiricisi pilot seçenektir; OpenRouter kullanılamazsa sunucudaki
+     Groq sağlayıcısı, o da yoksa açıkça etiketlenen deterministik kural
+     motoru devreye girer.
+   - Posterler yapay görsel üretmez; portföyün gerçek fotoğrafını Signature,
+     Editorial veya Bold şablonunda kare ve hikâye boyutlarında indirilebilir
+     PNG olarak hazırlar.
+   - Web reklam rehberi yalnızca herkese açık ve güvenli site adreslerini
+     analiz eder. Ölçülmemiş trafik veya dönüşüm verisi uydurmadan güçlü
+     taraflar, fırsatlar, kanal planı ve ilk aksiyonları şirket hesabında
+     saklar.
 
 7. **Komuta Merkezi ve genel müdür yardımcısı**
    - Asistan ile ortak şirket AI sağlayıcısı.
