@@ -122,7 +122,11 @@ export async function prepareEvolutionConnection(companyAccountId: string) {
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     if (!/already|exist|duplicate/i.test(message)) {
-      throw error;
+      try {
+        await getEvolutionConnectionState(instanceName);
+      } catch {
+        throw error;
+      }
     }
   }
 
