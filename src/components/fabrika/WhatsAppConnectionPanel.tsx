@@ -37,6 +37,12 @@ type Status = {
   queue?: Record<string, number>;
 };
 
+type ConnectionResponse = Status & {
+  qrCode?: string | null;
+  pairingCode?: string | null;
+  error?: string;
+};
+
 const emptyStatus: Status = {
   provider: 'WAHA',
   configured: false,
@@ -84,13 +90,17 @@ export default function WhatsAppConnectionPanel() {
       body: refresh ? JSON.stringify({ action: 'refresh' }) : undefined,
       cache: 'no-store',
     });
-    const data = (await response.json()) as Status & { error?: string };
+    const data = (await response.json()) as ConnectionResponse;
     if (!response.ok) throw new Error(data.error || 'Durum alınamadı.');
     setStatus((current) => ({ ...current, ...data }));
     if (data.connectionStatus === 'CONNECTED') {
       setQrCode(null);
       setPairingCode(null);
+    } else {
+      if (data.qrCode) setQrCode(data.qrCode);
+      if (data.pairingCode) setPairingCode(data.pairingCode);
     }
+    return data;
   }, []);
 
   useEffect(() => {
@@ -129,13 +139,7 @@ export default function WhatsAppConnectionPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'prepare' }),
       });
-      const data = (await response.json()) as {
-        provider?: Status['provider'];
-        connectionStatus?: string;
-        qrCode?: string | null;
-        pairingCode?: string | null;
-        error?: string;
-      };
+      const data = (await response.json()) as ConnectionResponse;
       if (!response.ok) throw new Error(data.error || 'QR oluşturulamadı.');
       setQrCode(data.qrCode || null);
       setPairingCode(data.pairingCode || null);
@@ -145,6 +149,12 @@ export default function WhatsAppConnectionPanel() {
         connectionStatus: data.connectionStatus || 'WAITING_QR',
         lastError: null,
       }));
+      // WAHA yeni başlatılan bir oturumu önce STARTING olarak döndürür.
+      // QR birkaç an sonra hazır olur; panel onu beklemeden ekrana alır.
+      if (!data.qrCode && data.connectionStatus !== 'CONNECTED') {
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+        await loadStatus(true);
+      }
       toast.success(
         data.connectionStatus === 'CONNECTED'
           ? 'WhatsApp zaten bağlı.'
