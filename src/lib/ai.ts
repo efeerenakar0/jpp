@@ -11,6 +11,15 @@ export interface ChatMessage {
 export interface AIResponse {
   content: string;
   isMock: boolean;
+  provider?: 'GROQ';
+}
+
+export function sharedAssistantAIStatus() {
+  return {
+    configured: Boolean(process.env.GROQ_API_KEY?.trim()),
+    provider: 'Groq',
+    model: 'Llama 3.3 70B',
+  };
 }
 
 export const PROMPTS = {
@@ -170,7 +179,7 @@ export async function callAI(messages: ChatMessage[], _requestType?: string, cus
   for (const apiKey of keysToTry) {
     if (apiKey.startsWith('gsk_')) {
       const groqReply = await callGroqAPI(apiKey, systemInstruction, conversationMessages);
-      if (groqReply) return { content: groqReply, isMock: false };
+      if (groqReply) return { content: groqReply, isMock: false, provider: 'GROQ' };
     }
   }
 

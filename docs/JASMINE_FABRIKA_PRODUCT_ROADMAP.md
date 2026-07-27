@@ -140,11 +140,25 @@ oluşturma/sıfırlama anında bir kez gösterilir.
      taraflar, fırsatlar, kanal planı ve ilk aksiyonları şirket hesabında
      saklar.
 
-7. **Komuta Merkezi ve genel müdür yardımcısı**
+7. **Komuta Merkezi ve genel müdür yardımcısı — Tamamlandı (27 Temmuz 2026)**
    - Asistan ile ortak şirket AI sağlayıcısı.
    - CRM, portföy, görev, randevu ve pazarlama verilerine yetkili araçlarla
      erişim.
    - Sabit yükseklikte, kendi içinde kaydırılan ve erişilebilir sohbet alanı.
+
+   Uygulanan kararlar:
+   - Genel müdür yardımcısı, Asistan ile aynı Groq/Llama sağlayıcısını kullanır;
+     servis geçici olarak kullanılamadığında şirket verilerinden üretilen
+     doğrulanabilir güvenli yanıt devreye girer.
+   - Sohbet geçmişi ve operasyon bağlamı şirket hesabına göre izole edilir.
+     Müşteri telefonu ve özel notlar yalnızca yetkili sunucu bağlamında işlenir,
+     tarayıcıya gönderilmez.
+   - Komuta Merkezi; CRM, portföy, satış, görev, randevu, Avcı ve pazarlama
+     metriklerini tek bağlamda birleştirir ve kritik öncelikleri ilgili modüle
+     bağlantısıyla gösterir.
+   - Sohbet alanı sabit yükseklikte ve kendi içinde kaydırılır. Otomatik
+     yenileme kullanıcının okuma konumunu bozmaz; yalnızca yeni mesaj geldiğinde
+     ve kullanıcı alttayken sona kayar.
 
 8. **WhatsApp altyapısı**
    - Önceki karara göre son aşamada Evolution API/Baileys tabanlı seçenek

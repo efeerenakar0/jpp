@@ -352,6 +352,7 @@ model CompanyAccount {
   portfolioImports         PortfolioImportItem[]
   adCampaigns              AdCampaign[]
   websiteMarketingAnalyses MarketingWebsiteAnalysis[]
+  generalManagerMessages   GeneralManagerMessage[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -976,10 +977,18 @@ model ProcessedPackage {
 // --- Komuta Merkezi (Genel Müdür Asistanı) ---
 
 model GeneralManagerMessage {
-  id        String   @id @default(cuid())
-  role      String // "patron", "asistan", "system"
-  content   String   @db.Text
-  createdAt DateTime @default(now())
+  id               String          @id @default(cuid())
+  companyAccountId String?
+  companyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  authorId         String?
+  authorName       String?
+  authorType       String?
+  role             String // "patron", "asistan", "system"
+  content          String          @db.Text
+  provider         String?
+  createdAt        DateTime        @default(now())
+
+  @@index([companyAccountId, createdAt])
 }
 
 model WhatsAppConfig {

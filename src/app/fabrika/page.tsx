@@ -7,6 +7,8 @@ import {
   Aperture,
   ArrowRight,
   Bell,
+  Bot,
+  ChevronRight,
   Clock,
   Code2,
   Crosshair,
@@ -42,15 +44,62 @@ type ChatMessage = {
   id: string;
   role: 'patron' | 'asistan' | 'system';
   content: string;
+  authorName?: string | null;
+  authorType?: string | null;
+  provider?: string | null;
   createdAt: string;
 };
 
 type OperationalContext = {
-  activeProjects: number;
-  huntedListings: number;
-  pendingAppointments: number;
-  activeConversations: number;
-  unreadNotifications: number;
+  generatedAt: string;
+  company: {
+    name: string;
+    principalName: string;
+    principalType: 'OWNER' | 'EMPLOYEE';
+  };
+  metrics: {
+    activeProjects: number;
+    huntedListings: number;
+    authorizedListings: number;
+    pendingAppointments: number;
+    activeConversations: number;
+    unreadNotifications: number;
+    crmContacts: number;
+    activeCrmProperties: number;
+    openDeals: number;
+    overdueTasks: number;
+    upcomingTasks: number;
+    campaigns: number;
+    approvedCampaignCopies: number;
+  };
+  priorities: Array<{
+    id: string;
+    severity: 'critical' | 'warning' | 'info';
+    title: string;
+    detail: string;
+    href: string;
+  }>;
+  calendar: {
+    google: {
+      connected: boolean;
+      email?: string | null;
+      lastSyncedAt?: string | null;
+      status?: string;
+    };
+  };
+};
+
+type ManagerSuggestion = {
+  label: string;
+  prompt: string;
+};
+
+type ManagerProvider = {
+  configured: boolean;
+  provider: string;
+  model: string;
+  activeProvider: string;
+  sharedWithAssistant: boolean;
 };
 
 type WorkspaceMetrics = {
@@ -85,20 +134,25 @@ const getNotificationStyles = (type: string) => {
   }
 };
 
+const priorityStyles = {
+  critical: 'border-rose-500/25 bg-rose-500/5 text-rose-300',
+  warning: 'border-amber-500/25 bg-amber-500/5 text-amber-300',
+  info: 'border-slate-700 bg-slate-900 text-slate-300',
+};
+
 export default function CommandCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [chatLoading, setChatLoading] = useState(true);
   const [workspaceMetrics, setWorkspaceMetrics] = useState<WorkspaceMetrics | null>(null);
-  const [context, setContext] = useState<OperationalContext>({
-    activeProjects: 0,
-    huntedListings: 0,
-    pendingAppointments: 0,
-    activeConversations: 0,
-    unreadNotifications: 0,
-  });
+  const [context, setContext] = useState<OperationalContext | null>(null);
+  const [suggestions, setSuggestions] = useState<ManagerSuggestion[]>([]);
+  const [provider, setProvider] = useState<ManagerProvider | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const stickToBottomRef = useRef(true);
 
   async function fetchData(includeWorkspace = false) {
     try {
@@ -115,7 +169,14 @@ export default function CommandCenter() {
         if (chatData.context) {
           setContext(chatData.context);
         }
+        if (Array.isArray(chatData.suggestions)) {
+          setSuggestions(chatData.suggestions);
+        }
+        if (chatData.provider) {
+          setProvider(chatData.provider);
+        }
       }
+      setChatLoading(false);
 
       if (includeWorkspace) {
         const workspaceRes = await fetch('/api/fabrika/workspace');
@@ -126,6 +187,7 @@ export default function CommandCenter() {
       }
     } catch (err) {
       console.error('Data fetch error:', err);
+      setChatLoading(false);
     }
   }
 
@@ -141,14 +203,14 @@ export default function CommandCenter() {
   }, []);
 
   useEffect(() => {
-    // Keep new messages visible without moving the whole command-center page.
-    // scrollIntoView() selected <main> as its scrollable ancestor, which could
-    // leave the user on an apparently empty section of the page.
+    const lastMessageId = messages.at(-1)?.id || null;
+    if (lastMessageId === lastMessageIdRef.current) return;
     const animationFrame = requestAnimationFrame(() => {
       const chat = chatScrollRef.current;
-      if (chat) {
+      if (chat && (lastMessageIdRef.current === null || stickToBottomRef.current)) {
         chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
       }
+      lastMessageIdRef.current = lastMessageId;
     });
 
     return () => cancelAnimationFrame(animationFrame);
@@ -160,6 +222,7 @@ export default function CommandCenter() {
 
     const userMessage = inputText.trim();
     setInputText('');
+    stickToBottomRef.current = true;
 
     const tempId = Date.now().toString();
     setMessages((previous) => [
@@ -193,6 +256,8 @@ export default function CommandCenter() {
           },
           data.message,
         ]);
+        if (data.context) setContext(data.context);
+        if (data.provider) setProvider(data.provider);
         fetchData();
       } else {
         toast.error(data.error || 'Mesaj gönderilemedi');
@@ -210,21 +275,21 @@ export default function CommandCenter() {
       subtitle: 'Sahibinden ilan toplama ve ikna operasyonu',
       icon: Crosshair,
       href: '/fabrika/avci',
-      badge: `${context.huntedListings ?? 0} kayıt`,
+      badge: `${context?.metrics.huntedListings ?? 0} kayıt`,
     },
     {
       title: 'Asistan',
       subtitle: 'WhatsApp temsilcisi ve müşteri takibi',
       icon: MessageCircle,
       href: '/fabrika/asistan',
-      badge: `${context.activeConversations ?? 0} sohbet`,
+      badge: `${context?.metrics.activeConversations ?? 0} sohbet`,
     },
     {
       title: 'Pazarlamacı',
       subtitle: 'Reklam metni ve kampanya üretimi',
       icon: Megaphone,
       href: '/fabrika/pazarlamaci',
-      badge: 'AI taslak',
+      badge: `${context?.metrics.campaigns ?? 0} kampanya`,
     },
     {
       title: 'Stüdyo',
@@ -277,13 +342,16 @@ export default function CommandCenter() {
     <div className="space-y-6 pb-8">
       <PageHeader
         eyebrow="Operasyon görünümü"
-        title="Jasmine Group Komuta Merkezi"
+        title={`${context?.company.name || 'Jasmine Group'} Komuta Merkezi`}
         description="Portföy, müşteri iletişimi, pazarlama ve üretim operasyonlarını tek bir çalışma alanından yönetin."
         icon={Crown}
         actions={
           <>
-            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
-              Pilot sürüm
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
+              <Bot className="h-3.5 w-3.5" />
+              {provider?.configured
+                ? `${provider.provider} · ${provider.model}`
+                : 'Doğrulanmış kural motoru'}
             </span>
             <span className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300">
               İnsan onaylı
@@ -299,6 +367,58 @@ export default function CommandCenter() {
         <StatCard label="Geciken görev" value={workspaceMetrics?.overdueTasks || 0} icon={Clock} status="warning" />
         <StatCard label="Yaklaşan randevu" value={workspaceMetrics?.upcomingCriticalTasks || 0} icon={CalendarDays} status="success" />
       </div>
+
+      <section aria-labelledby="manager-priorities-title">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 id="manager-priorities-title" className="text-base font-semibold text-white">
+              Yönetici öncelikleri
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              CRM, Takvim, Avcı ve satış verilerinden anlık olarak derlenir.
+            </p>
+          </div>
+          {context?.generatedAt && (
+            <time className="text-[11px] text-slate-500" dateTime={context.generatedAt}>
+              Son kontrol{' '}
+              {new Date(context.generatedAt).toLocaleTimeString('tr-TR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </time>
+          )}
+        </div>
+        {context?.priorities.length ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {context.priorities.slice(0, 4).map((priority) => (
+              <Link
+                key={priority.id}
+                href={priority.href}
+                className={`group flex min-h-28 flex-col justify-between rounded-xl border p-4 transition-colors hover:border-emerald-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${priorityStyles[priority.severity]}`}
+              >
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-75">
+                    {priority.severity === 'critical'
+                      ? 'Kritik'
+                      : priority.severity === 'warning'
+                        ? 'Takip'
+                        : 'Yaklaşan'}
+                  </span>
+                  <h3 className="mt-2 text-sm font-semibold text-white">{priority.title}</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{priority.detail}</p>
+                </div>
+                <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 group-hover:text-emerald-300">
+                  İlgili kaydı aç <ChevronRight className="h-3.5 w-3.5" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-200">
+            Şu anda geciken, yüksek öncelikli veya yakın tarihli kritik bir operasyon görünmüyor.
+          </div>
+        )}
+      </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -375,7 +495,7 @@ export default function CommandCenter() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         <NotificationPanel
           title="Kritik operasyon akışı"
           description="Müdahale veya karar gerektiren olaylar"
@@ -416,27 +536,80 @@ export default function CommandCenter() {
           </div>
         </NotificationPanel>
 
-        <section className="flex min-h-[36rem] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+        <section
+          aria-labelledby="general-manager-title"
+          className="flex h-[42rem] max-h-[calc(100vh-6rem)] min-h-[34rem] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
+        >
           <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
                 <Crown className="h-4 w-4" />
               </span>
               <div>
-                <h2 className="text-sm font-semibold text-white">Genel Müdür Yardımcısı</h2>
-                <p className="mt-0.5 text-xs text-emerald-400">Asistan ile aynı AI · tüm Fabrika bağlamı</p>
+                <h2 id="general-manager-title" className="text-sm font-semibold text-white">
+                  Genel Müdür Yardımcısı
+                </h2>
+                <p className="mt-0.5 text-xs text-emerald-400">
+                  Asistan ile aynı {provider?.provider || 'AI'} · şirket kapsamlı veri
+                </p>
               </div>
             </div>
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                provider?.configured
+                  ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                  : 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+              }`}
+            >
+              {provider?.configured ? 'Canlı AI' : 'Güvenli yedek'}
+            </span>
           </div>
 
-          <div ref={chatScrollRef} className="custom-scrollbar flex-1 space-y-4 overflow-y-auto bg-slate-950/30 p-4 sm:p-5">
-            {messages.length === 0 && (
+          {suggestions.length > 0 && (
+            <div className="custom-scrollbar flex shrink-0 gap-2 overflow-x-auto border-b border-slate-800 bg-slate-950/60 px-4 py-3">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.label}
+                  type="button"
+                  onClick={() => setInputText(suggestion.prompt)}
+                  className="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[11px] font-medium text-slate-300 transition-colors hover:border-emerald-500/40 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  aria-label={`${suggestion.label} sorusunu hazırla`}
+                >
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div
+            ref={chatScrollRef}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              stickToBottomRef.current =
+                element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+            }}
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions text"
+            aria-label="Genel Müdür Yardımcısı mesajları"
+            className="custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-slate-950/30 p-4 sm:p-5"
+          >
+            {chatLoading ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <span className="mx-auto flex h-10 w-10 animate-pulse items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                    <Bot className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-xs text-slate-500">Şirket bağlamı hazırlanıyor…</p>
+                </div>
+              </div>
+            ) : messages.length === 0 ? (
               <EmptyState
                 icon={Crown}
-                title="Komuta bekleniyor"
-                description="Fabrika operasyonları hakkında talimatınızı buradan iletebilirsiniz."
+                title="Operasyon sorunu hazır"
+                description="Müşteri, portföy, satış, randevu veya kampanyalar hakkında sorun."
               />
-            )}
+            ) : null}
             {messages.map((message, index) => {
               const isPatron = message.role === 'patron';
               return (
@@ -451,7 +624,9 @@ export default function CommandCenter() {
                         : 'border-slate-700 bg-slate-800 text-slate-300'
                     }`}
                   >
-                    {isPatron ? 'P' : <Crown className="h-4 w-4" />}
+                    {isPatron
+                      ? (message.authorName || context?.company.principalName || 'E').slice(0, 1).toUpperCase()
+                      : <Crown className="h-4 w-4" />}
                   </span>
                   <div
                     className={`rounded-xl border px-3.5 py-3 text-xs leading-5 ${
@@ -460,6 +635,14 @@ export default function CommandCenter() {
                         : 'rounded-tl-sm border-slate-800 bg-slate-900 text-slate-200'
                     }`}
                   >
+                    <div className={`mb-1.5 flex items-center gap-2 text-[10px] font-semibold ${isPatron ? 'justify-end text-emerald-300' : 'text-slate-400'}`}>
+                      <span>{isPatron ? message.authorName || 'Ekip üyesi' : 'Genel Müdür Yardımcısı'}</span>
+                      {!isPatron && message.provider && (
+                        <span className="rounded border border-slate-700 px-1.5 py-0.5 font-normal text-slate-500">
+                          {message.provider === 'RULE_ENGINE' ? 'Doğrulanmış yedek' : message.provider}
+                        </span>
+                      )}
+                    </div>
                     <p className="whitespace-pre-wrap">{message.content}</p>
                     <time className={`mt-1.5 block text-[10px] ${isPatron ? 'text-right text-emerald-400' : 'text-slate-500'}`}>
                       {new Date(message.createdAt).toLocaleTimeString('tr-TR', {
@@ -471,26 +654,47 @@ export default function CommandCenter() {
                 </div>
               );
             })}
+            {isSending && (
+              <div className="flex max-w-[90%] gap-2.5" aria-label="Genel Müdür Yardımcısı yanıt hazırlıyor">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300">
+                  <Crown className="h-4 w-4" />
+                </span>
+                <div className="flex items-center gap-1 rounded-xl rounded-tl-sm border border-slate-800 bg-slate-900 px-4 py-3">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:300ms]" />
+                </div>
+              </div>
+            )}
           </div>
 
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2 border-t border-slate-800 bg-slate-950 p-3">
-            <label htmlFor="manager-command" className="sr-only">Genel müdür yardımcısına mesaj</label>
-            <input
-              id="manager-command"
-              type="text"
-              value={inputText}
-              onChange={(event) => setInputText(event.target.value)}
-              placeholder="Operasyon talimatınızı yazın..."
-              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={!inputText.trim() || isSending}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-emerald-950 transition-colors hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Mesajı gönder"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+          <form onSubmit={handleSendMessage} className="border-t border-slate-800 bg-slate-950 p-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="manager-command" className="sr-only">
+                Genel müdür yardımcısına mesaj
+              </label>
+              <input
+                id="manager-command"
+                type="text"
+                value={inputText}
+                maxLength={2000}
+                onChange={(event) => setInputText(event.target.value)}
+                placeholder="Örn. Bu hafta hangi müşterileri takip etmeliyim?"
+                aria-describedby="manager-command-help"
+                className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+              <button
+                type="submit"
+                disabled={!inputText.trim() || isSending}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-emerald-950 transition-colors hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Mesajı gönder"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+            <p id="manager-command-help" className="mt-2 px-1 text-[10px] leading-4 text-slate-600">
+              Yanıtlar şirketinizin doğrulanmış kayıtlarıyla sınırlıdır; değişiklikler ilgili modülde insan onayı gerektirir.
+            </p>
           </form>
         </section>
       </div>
