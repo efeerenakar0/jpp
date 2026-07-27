@@ -259,8 +259,9 @@ export async function getWahaQrCode(sessionName: string) {
     return await wahaRequest<string>(
       `/api/${encodeURIComponent(sessionName)}/auth/qr`,
       {
-        method: 'POST',
-        body: {},
+        // WAHA 2026.x returns the QR image from GET. POST was accepted by
+        // earlier examples but now responds 404 on the GOWS engine.
+        method: 'GET',
         timeoutMs: 30_000,
         responseType: 'data-url',
       }
