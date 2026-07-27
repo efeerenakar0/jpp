@@ -507,6 +507,14 @@ async function getWorkspace(
           task.dueAt &&
           task.dueAt.getTime() < Date.now()
       ).length,
+      upcomingCriticalTasks: tasks.filter(
+        (task) =>
+          task.status === 'OPEN' &&
+          ['MEETING', 'VIEWING'].includes(task.type) &&
+          task.dueAt &&
+          task.dueAt.getTime() >= Date.now() &&
+          task.dueAt.getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000
+      ).length,
       pipelineValue,
       wonCommission,
       averageMatchScore:

@@ -58,6 +58,7 @@ type WorkspaceMetrics = {
   activeProperties: number;
   openDeals: number;
   overdueTasks: number;
+  upcomingCriticalTasks: number;
   pipelineValue: number;
   wonCommission: number;
   averageMatchScore: number;
@@ -268,7 +269,7 @@ export default function CommandCenter() {
       subtitle: 'Randevu, gösterim ve takip görevleri',
       icon: CalendarDays,
       href: '/fabrika/takvim',
-      badge: `${workspaceMetrics?.overdueTasks || 0} geciken`,
+      badge: `${workspaceMetrics?.upcomingCriticalTasks || 0} yaklaşan · ${workspaceMetrics?.overdueTasks || 0} geciken`,
     },
   ];
 
@@ -291,11 +292,12 @@ export default function CommandCenter() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard label="CRM müşterisi" value={workspaceMetrics?.contacts || 0} icon={Users} status="success" />
         <StatCard label="Aktif portföy" value={workspaceMetrics?.activeProperties || 0} icon={Activity} />
         <StatCard label="Açık satış fırsatı" value={workspaceMetrics?.openDeals || 0} icon={Kanban} status="success" />
         <StatCard label="Geciken görev" value={workspaceMetrics?.overdueTasks || 0} icon={Clock} status="warning" />
+        <StatCard label="Yaklaşan randevu" value={workspaceMetrics?.upcomingCriticalTasks || 0} icon={CalendarDays} status="success" />
       </div>
 
       <section>

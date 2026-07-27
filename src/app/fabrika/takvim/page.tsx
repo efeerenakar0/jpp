@@ -1,5 +1,5 @@
-import WorkspacePage from '@/components/fabrika/WorkspacePage';
+import CalendarWorkspace from '@/components/fabrika/CalendarWorkspace';
 
 export default function TakvimPage() {
-  return <WorkspacePage mode="takvim" />;
+  return <CalendarWorkspace />;
 }

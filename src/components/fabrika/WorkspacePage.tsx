@@ -212,6 +212,7 @@ type Workspace = {
     activeProperties: number;
     openDeals: number;
     overdueTasks: number;
+    upcomingCriticalTasks: number;
     pipelineValue: number;
     wonCommission: number;
     averageMatchScore: number;

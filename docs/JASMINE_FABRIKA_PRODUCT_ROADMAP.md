@@ -70,12 +70,27 @@ oluşturma/sıfırlama anında bir kez gösterilir.
      oluşturduğu manuel eşleşmeler ayrıca işaretlenir ve otomatik
      yenilemede silinmez.
 
-4. **Gerçek takvim ve Google Calendar**
+4. **Gerçek takvim ve Google Calendar — Tamamlandı (27 Temmuz 2026; OAuth
+   anahtarları bekleniyor)**
    - Aylık/haftalık/günlük takvim, görev ve randevu ayrımı.
    - Yaklaşan kritik kayıtların Komuta Merkezi ve bildirimlere düşmesi.
    - Kullanıcı onaylı Google OAuth bağlantısı ve iki yönlü senkronizasyon.
    - Çakışma, silme ve tekrar eden etkinlik kurallarının denetlenebilir
      senkronizasyon günlüğü.
+
+   Uygulanan kararlar:
+   - Görev, randevu, portföy gösterimi, takip ve hatırlatma kayıtları tek
+     şirket takviminde aylık, haftalık ve günlük görünümlerle yönetilir.
+   - Yaklaşan randevu ve gösterimler önemli bildirim olarak Komuta Merkezi’ne
+     düşer; geciken görevler ayrı takip edilir.
+   - Google OAuth bağlantısını yalnızca patron kurar veya kaldırır. Çalışanlar
+     operasyonel takvimi ve senkronizasyonu kullanabilir.
+   - Erişim ve yenileme belirteçleri şifreli ve sunucu tarafında tutulur;
+     tarayıcıya gönderilmez. Her senkronizasyon sonucu şirket bazlı günlüğe
+     yazılır.
+   - Jasmine platformu için Google OAuth istemcisi bir kez tanımlanır;
+     müşteriler yalnızca Google hesabını seçip izin verir. Üretim aktivasyonu
+     platform anahtarları eklendiğinde tamamlanacaktır.
 
 5. **Portföy kaynakları ve Avcı**
    - Jasmine tarafından üretilen siteler için doğrudan şirket API bağlantısı.

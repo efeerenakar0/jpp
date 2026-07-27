@@ -334,15 +334,17 @@ model CompanyAccount {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
-  aiCredentials CompanyAiCredential[]
-  members       CompanyMember[]
-  crmContacts   CrmContact[]
-  crmProperties CrmProperty[]
-  crmDeals      CrmDeal[]
-  crmTasks      CrmTask[]
-  crmMatches    CrmMatch[]
-  crmActivities CrmActivity[]
-  notifications Notification[]
+  aiCredentials            CompanyAiCredential[]
+  members                  CompanyMember[]
+  crmContacts              CrmContact[]
+  crmProperties            CrmProperty[]
+  crmDeals                 CrmDeal[]
+  crmTasks                 CrmTask[]
+  crmMatches               CrmMatch[]
+  crmActivities            CrmActivity[]
+  notifications            Notification[]
+  googleCalendarConnection GoogleCalendarConnection?
+  calendarSyncLogs         CalendarSyncLog[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -382,11 +384,11 @@ model CompanyMember {
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
-  contacts   CrmContact[]
-  properties CrmProperty[]
-  deals      CrmDeal[]
-  tasks      CrmTask[]
-  activities CrmActivity[]
+  contacts      CrmContact[]
+  properties    CrmProperty[]
+  deals         CrmDeal[]
+  tasks         CrmTask[]
+  activities    CrmActivity[]
   notifications Notification[]
 
   @@unique([companyAccountId, email])
@@ -501,29 +503,75 @@ model CrmDeal {
 }
 
 model CrmTask {
+  id                 String         @id @default(cuid())
+  companyAccountId   String
+  companyAccount     CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  contactId          String?
+  contact            CrmContact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  propertyId         String?
+  property           CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  dealId             String?
+  deal               CrmDeal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  assignedMemberId   String?
+  assignedMember     CompanyMember? @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  type               CrmTaskType    @default(FOLLOW_UP)
+  title              String
+  description        String?        @db.Text
+  dueAt              DateTime?
+  endAt              DateTime?
+  allDay             Boolean        @default(false)
+  priority           Int            @default(2)
+  status             CrmTaskStatus  @default(OPEN)
+  completedAt        DateTime?
+  calendarSource     String         @default("JASMINE")
+  calendarSyncStatus String         @default("LOCAL")
+  googleCalendarId   String?
+  googleEventId      String?
+  googleUpdatedAt    DateTime?
+  calendarSyncedAt   DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([companyAccountId, googleCalendarId, googleEventId])
+  @@index([companyAccountId, status, dueAt])
+  @@index([assignedMemberId])
+}
+
+model GoogleCalendarConnection {
+  id                    String         @id @default(cuid())
+  companyAccountId      String         @unique
+  companyAccount        CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  connectedByMemberId   String?
+  email                 String?
+  calendarId            String         @default("primary")
+  encryptedAccessToken  String         @db.Text
+  encryptedRefreshToken String         @db.Text
+  accessTokenExpiresAt  DateTime?
+  scope                 String?
+  syncToken             String?        @db.Text
+  lastSyncedAt          DateTime?
+  lastSyncStatus        String         @default("CONNECTED")
+  lastSyncError         String?        @db.Text
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([companyAccountId, lastSyncStatus])
+}
+
+model CalendarSyncLog {
   id               String         @id @default(cuid())
   companyAccountId String
   companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  contactId        String?
-  contact          CrmContact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  propertyId       String?
-  property         CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  dealId           String?
-  deal             CrmDeal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  assignedMemberId String?
-  assignedMember   CompanyMember? @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
-  type             CrmTaskType    @default(FOLLOW_UP)
-  title            String
-  description      String?        @db.Text
-  dueAt            DateTime?
-  priority         Int            @default(2)
-  status           CrmTaskStatus  @default(OPEN)
-  completedAt      DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  direction        String         @default("TWO_WAY")
+  status           String
+  pulledCount      Int            @default(0)
+  pushedCount      Int            @default(0)
+  conflictCount    Int            @default(0)
+  errorMessage     String?        @db.Text
+  startedAt        DateTime       @default(now())
+  finishedAt       DateTime?
 
-  @@index([companyAccountId, status, dueAt])
-  @@index([assignedMemberId])
+  @@index([companyAccountId, startedAt])
 }
 
 model CrmMatch {
@@ -763,21 +811,21 @@ model AppointmentRequest {
 // --- Ortak: Bildirim Sistemi ---
 
 model Notification {
-  id                String            @id @default(cuid())
+  id                String           @id @default(cuid())
   companyAccountId  String?
-  companyAccount    CompanyAccount?   @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  companyAccount    CompanyAccount?  @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   recipientMemberId String?
-  recipientMember   CompanyMember?    @relation(fields: [recipientMemberId], references: [id], onDelete: Cascade)
+  recipientMember   CompanyMember?   @relation(fields: [recipientMemberId], references: [id], onDelete: Cascade)
   recipientKey      String?
   type              NotificationType
   title             String
-  message           String            @db.Text
+  message           String           @db.Text
   link              String? // İlgili sayfaya yönlendirme linki
-  important         Boolean           @default(false)
-  read              Boolean           @default(false)
+  important         Boolean          @default(false)
+  read              Boolean          @default(false)
   dedupeKey         String?
-  metadata          String?           @db.Text // JSON: ek bilgiler
-  createdAt         DateTime          @default(now())
+  metadata          String?          @db.Text // JSON: ek bilgiler
+  createdAt         DateTime         @default(now())
 
   @@unique([companyAccountId, recipientKey, dedupeKey])
   @@index([companyAccountId, recipientKey, important, read, createdAt])
