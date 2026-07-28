@@ -150,15 +150,19 @@ export default function WhatsAppConnectionPanel() {
         lastError: null,
       }));
       // WAHA yeni başlatılan bir oturumu önce STARTING olarak döndürür.
-      // QR birkaç an sonra hazır olur; panel onu beklemeden ekrana alır.
+      // QR bazen birkaç saniye sonra gelir; bildirimi göstermeden önce kısa
+      // aralıklarla kontrol ederek kullanıcıya boş bir panel göstermeyiz.
       if (!data.qrCode && data.connectionStatus !== 'CONNECTED') {
-        await new Promise((resolve) => window.setTimeout(resolve, 1200));
-        await loadStatus(true);
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 750));
+          const refreshed = await loadStatus(true);
+          if (refreshed.qrCode || refreshed.connectionStatus === 'CONNECTED') break;
+        }
       }
       toast.success(
         data.connectionStatus === 'CONNECTED'
           ? 'WhatsApp zaten bağlı.'
-          : 'Güvenli bağlantı oturumu hazırlandı.'
+          : 'QR kod hazır. Telefonda WhatsApp ile hemen taratın.'
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Bağlantı kurulamadı.');
@@ -300,6 +304,14 @@ export default function WhatsAppConnectionPanel() {
                   </li>
                 )}
               </ol>
+            </div>
+          ) : working && !connected ? (
+            <div className="mt-5 flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/5 p-6 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+              <p className="mt-3 font-medium text-slate-100">QR kod hazırlanıyor</p>
+              <p className="mt-1 max-w-md text-sm text-slate-400">
+                Güvenli bağlantı oturumu başlatıldı. Kod birkaç saniye içinde burada görünecek.
+              </p>
             </div>
           ) : (
             <div className="mt-5 flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-6 text-center">
