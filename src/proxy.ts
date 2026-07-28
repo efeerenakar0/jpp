@@ -12,7 +12,6 @@ import prisma from '@/lib/prisma';
 
 const FABRIKA_LOGIN_PATH = '/fabrika-giris';
 const PUBLIC_WHATSAPP_WEBHOOKS = new Set([
-  '/api/whatsapp/webhook',
   '/api/webhook/whatsapp',
 ]);
 const EVOLUTION_WEBHOOK_PREFIX = '/api/whatsapp/evolution/webhook/';

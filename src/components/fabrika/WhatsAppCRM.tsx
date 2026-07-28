@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Sparkles, CheckCircle2, AlertCircle, Search, Send, Bot, RefreshCw, XCircle, ShieldCheck, Key, Phone, Settings, Save, ExternalLink, X } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, AlertCircle, Search, Send, Bot, RefreshCw, XCircle, ShieldCheck, Phone, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 
@@ -27,23 +27,12 @@ export default function WhatsAppCRM({
   allListings: unknown[];
 }) {
   const { permissions } = useFabrikaSession();
-  const [metaStatus, setMetaStatus] = useState<{ configured: boolean; phoneNumberId?: string; verifyToken?: string } | null>(null);
   const [gatewayStatus, setGatewayStatus] = useState<{
-    provider: 'WAHA' | 'EVOLUTION' | 'META';
+    provider: 'WAHA';
     configured: boolean;
     connectionStatus: string;
   } | null>(null);
   const [isBulkSending, setIsBulkSending] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSavingConfig, setIsSavingConfig] = useState(false);
-
-  // Settings Modal State
-  const [configForm, setConfigForm] = useState({
-    token: '',
-    phoneNumberId: '',
-    businessAccountId: '',
-    verifyToken: ''
-  });
 
   const [waChats, setWaChats] = useState<WhatsAppChat[]>([]);
   const [waSelectedChat, setWaSelectedChat] =
@@ -55,26 +44,9 @@ export default function WhatsAppCRM({
   const [searchTerm, setSearchTerm] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch Meta API Status & Config
   useEffect(() => {
-    fetchMetaStatus();
     fetchGatewayStatus();
-    if (permissions.canManageSecrets) {
-      fetchMetaConfig();
-    }
-  }, [permissions.canManageSecrets]);
-
-  async function fetchMetaStatus() {
-    try {
-      const res = await fetch('/api/whatsapp/status', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setMetaStatus(data);
-      }
-    } catch {
-      setMetaStatus({ configured: false });
-    }
-  }
+  }, []);
 
   async function fetchGatewayStatus() {
     try {
@@ -88,48 +60,6 @@ export default function WhatsAppCRM({
       setGatewayStatus(null);
     }
   }
-
-  async function fetchMetaConfig() {
-    try {
-      const res = await fetch('/api/whatsapp/config', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setConfigForm({
-          token: '',
-          phoneNumberId: data.phoneNumberId || '',
-          businessAccountId: data.businessAccountId || '',
-          verifyToken: ''
-        });
-      }
-    } catch {
-      console.error('Config fetch error');
-    }
-  }
-
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingConfig(true);
-    const toastId = toast.loading('Ayarlar veritabanına kaydediliyor...');
-    try {
-      const res = await fetch('/api/whatsapp/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(configForm)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(data.message || 'Ayarlar kaydedildi!', { id: toastId });
-        setIsSettingsOpen(false);
-        fetchMetaStatus();
-      } else {
-        toast.error(data.error || 'Kaydetme hatası', { id: toastId });
-      }
-    } catch {
-      toast.error('Bağlantı hatası', { id: toastId });
-    } finally {
-      setIsSavingConfig(false);
-    }
-  };
 
   // Poll Chats & Active Messages
   useEffect(() => {
@@ -276,103 +206,10 @@ export default function WhatsAppCRM({
 
   const filteredChats = waChats.filter(c => c.phone.includes(searchTerm) || c.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const deviceConnected = gatewayStatus?.connectionStatus === 'CONNECTED';
-  const liveConfigured = deviceConnected || metaStatus?.configured;
+  const liveConfigured = deviceConnected;
 
   return (
     <div className="flex flex-col h-[85vh] animate-in fade-in zoom-in-95 duration-500 relative">
-      {/* Settings Modal */}
-      {permissions.canManageSecrets && isSettingsOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700/60 rounded-3xl w-full max-w-xl p-6 shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
-                  <Settings className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Meta WhatsApp Cloud API Ayarları</h3>
-                  <p className="text-xs text-gray-400">Veritabanında güvenle saklanır, kod düzenlemesi gerektirmez.</p>
-                </div>
-              </div>
-              <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-800 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveConfig} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-emerald-400" /> Meta Access Token (Kalıcı / Geçici Jeton)
-                </label>
-                <textarea
-                  rows={3}
-                  value={configForm.token}
-                  onChange={(e) => setConfigForm({ ...configForm, token: e.target.value })}
-                  placeholder="EAAG... (Meta Developer Portal'dan alınan token)"
-                  className="w-full bg-gray-950 text-white font-mono text-xs p-3 rounded-xl border border-gray-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none placeholder:text-gray-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-emerald-400" /> Phone Number ID
-                  </label>
-                  <input
-                    type="text"
-                    value={configForm.phoneNumberId}
-                    onChange={(e) => setConfigForm({ ...configForm, phoneNumberId: e.target.value })}
-                    placeholder="102938475612345"
-                    className="w-full bg-gray-950 text-white font-mono text-xs p-3 rounded-xl border border-gray-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none placeholder:text-gray-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-300 mb-1.5 flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Business Account ID
-                  </label>
-                  <input
-                    type="text"
-                    value={configForm.businessAccountId}
-                    onChange={(e) => setConfigForm({ ...configForm, businessAccountId: e.target.value })}
-                    placeholder="987654321012345"
-                    className="w-full bg-gray-950 text-white font-mono text-xs p-3 rounded-xl border border-gray-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none placeholder:text-gray-600"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-300 mb-1.5">
-                  Webhook Verify Token (Doğrulama Jetonu)
-                </label>
-                <input
-                  type="text"
-                  value={configForm.verifyToken}
-                  onChange={(e) => setConfigForm({ ...configForm, verifyToken: e.target.value })}
-                  className="w-full bg-gray-950 text-white font-mono text-xs p-3 rounded-xl border border-gray-800 focus:border-emerald-500 outline-none"
-                />
-              </div>
-
-              <div className="bg-gray-950/60 p-3.5 rounded-xl border border-gray-800 text-xs text-gray-400 flex items-center justify-between">
-                <span>Meta Developer Console Paneline gitmek için:</span>
-                <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-emerald-400 font-bold hover:underline flex items-center gap-1">
-                  Meta Developers <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
-                <button type="button" onClick={() => setIsSettingsOpen(false)} className="px-5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-bold transition-colors">
-                  İptal
-                </button>
-                <button type="submit" disabled={isSavingConfig} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-sm font-bold transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center gap-2">
-                  {isSavingConfig ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Ayarları Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Configuration Alert Banner if Credentials Missing */}
       {gatewayStatus && !liveConfigured && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-4 flex items-center justify-between backdrop-blur-xl">
@@ -407,20 +244,11 @@ export default function WhatsAppCRM({
             <div className="flex items-center gap-3">
               <h4 className="text-xl font-bold text-white tracking-tight">WhatsApp CRM</h4>
               <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${liveConfigured ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'}`}>
-                {deviceConnected
-                  ? 'Bağlı Cihaz Aktif'
-                  : metaStatus?.configured
-                    ? 'Meta Cloud API Aktif'
-                    : 'Bağlantı Gerekli'}
+                {deviceConnected ? 'Bağlı Cihaz Aktif' : 'Bağlantı Gerekli'}
               </span>
               <a href="/fabrika/whatsapp" className="flex items-center gap-1.5 text-xs font-bold bg-gray-800 hover:bg-gray-700 text-emerald-400 px-3 py-1.5 rounded-full border border-gray-700 transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
                 <Settings className="w-3.5 h-3.5" /> WhatsApp Bağlantısı
               </a>
-              {permissions.canManageSecrets && (
-                <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1.5 text-xs font-bold bg-gray-800 hover:bg-gray-700 text-emerald-400 px-3 py-1.5 rounded-full border border-gray-700 transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
-                  <Key className="w-3.5 h-3.5" /> Meta API (İleri)
-                </button>
-              )}
             </div>
             <p className="text-sm text-gray-400 mt-0.5">Asistan ve Avcı, şirkete bağlı aynı WhatsApp hattını kullanır.</p>
           </div>

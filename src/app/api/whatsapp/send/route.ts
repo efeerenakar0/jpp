@@ -45,10 +45,31 @@ export async function POST(request: Request) {
       },
       select: { id: true },
     });
+    const conversation =
+      (await prisma.customerConversation.findFirst({
+        where: {
+          companyAccountId: principal.account.id,
+          customerPhone: phone,
+          channel: 'WHATSAPP',
+          isActive: true,
+        },
+        select: { id: true },
+      })) ||
+      (await prisma.customerConversation.create({
+        data: {
+          companyAccountId: principal.account.id,
+          customerName: draft?.phone || phone,
+          customerPhone: phone,
+          channel: 'WHATSAPP',
+          summary: parsed.data.message,
+        },
+        select: { id: true },
+      }));
     const delivery = await queueCompanyWhatsAppMessage({
       companyAccountId: principal.account.id,
       to: phone,
       text: parsed.data.message,
+      conversationId: conversation.id,
       listingId: parsed.data.listingId,
       idempotencyKey: draft ? `hunter-draft:${draft.id}` : undefined,
       createdByType: principal.type,
@@ -75,6 +96,17 @@ export async function POST(request: Request) {
             providerMessageId: delivery.providerMessageId,
           },
         });
+    await prisma.conversationMessage.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'patron',
+        content: parsed.data.message,
+        providerMessageId: delivery.providerMessageId,
+        deliveryStatus: delivery.deliveryStatus,
+        messageType: 'TEXT',
+        metadata: JSON.stringify({ provider: 'waha', channel: 'whatsapp' }),
+      },
+    });
     return NextResponse.json({
       success: true,
       queued: delivery.queued,

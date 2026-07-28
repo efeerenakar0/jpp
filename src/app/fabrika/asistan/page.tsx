@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Bot, Plus, MessageSquare, Calendar, BarChart3, Clock, Loader2,
   X, Settings, Key, Phone, ShieldCheck, ExternalLink, Save, Trash2,
-  Search, Sparkles, CheckCircle2, Smartphone, HelpCircle
+  Search, Sparkles, CheckCircle2, HelpCircle
 } from 'lucide-react';
 import ChatInterface from '@/components/fabrika/ChatInterface';
 import AppointmentApproval from '@/components/fabrika/AppointmentApproval';
@@ -93,7 +93,7 @@ export default function AsistanPage() {
   const [isCleaningData, setIsCleaningData] = useState(false);
   const [metrics, setMetrics] = useState<AssistantMetrics | null>(null);
 
-  // Meta & AI Config State
+  // AI & company profile settings. WhatsApp itself is connected by QR.
   const [configForm, setConfigForm] = useState({
     token: '',
     phoneNumberId: '',
@@ -256,7 +256,7 @@ export default function AsistanPage() {
   useEffect(() => {
     fetchData(true);
     if (permissions.canManageSecrets) {
-      fetchMetaConfig();
+      fetchCompanyConfig();
     }
 
     const interval = setInterval(() => {
@@ -268,53 +268,13 @@ export default function AsistanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [isTestingMeta, setIsTestingMeta] = useState(false);
-
-  const handleTestMetaConnection = async () => {
-    setIsTestingMeta(true);
-    const toastId = toast.loading('Meta WhatsApp Cloud API canlı testi yapılıyor...');
-    try {
-      const res = await fetch('/api/whatsapp/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'test',
-          token: configForm.token,
-          phoneNumberId: configForm.phoneNumberId,
-          businessAccountId: configForm.businessAccountId,
-          testPhone: '905435720769'
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success(data.message, { id: toastId, duration: 8000 });
-      } else {
-        toast.error(data.error || 'Meta API Bağlantı Hatası', { id: toastId, duration: 9000 });
-      }
-    } catch (error: unknown) {
-      toast.error(
-        `Test isteği atılamadı: ${
-          error instanceof Error ? error.message : 'Bilinmeyen hata'
-        }`,
-        { id: toastId }
-      );
-    } finally {
-      setIsTestingMeta(false);
-    }
-  };
-
-  async function fetchMetaConfig() {
+  async function fetchCompanyConfig() {
     try {
       const res = await fetch('/api/whatsapp/config', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setConfigForm(prev => ({
           ...prev,
-          token: '',
-          phoneNumberId: data.phoneNumberId || prev.phoneNumberId,
-          businessAccountId: data.businessAccountId || prev.businessAccountId,
-          verifyToken: '',
-          geminiApiKey: '',
           companyName: data.companyName || prev.companyName,
           assistantName: data.assistantName || prev.assistantName,
           serviceCity: data.serviceCity || prev.serviceCity,
@@ -323,9 +283,6 @@ export default function AsistanPage() {
           websiteUrl: data.websiteUrl || prev.websiteUrl,
           instagramUrl: data.instagramUrl || prev.instagramUrl,
           languages: data.languages || prev.languages,
-          fallbackTemplateName:
-            data.fallbackTemplateName || prev.fallbackTemplateName,
-          templateLanguage: data.templateLanguage || prev.templateLanguage
         }));
       }
     } catch {
@@ -348,7 +305,7 @@ export default function AsistanPage() {
       if (!res.ok) {
         throw new Error(data.error || 'Ayarlar kaydedilemedi.');
       }
-      toast.success('Meta API ve firma ayarları güvenli biçimde kaydedildi.', { id: toastId });
+      toast.success('AI danışman ve şirket ayarları kaydedildi.', { id: toastId });
       setIsSettingsOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ayarlar kaydedilemedi.';
@@ -610,8 +567,8 @@ export default function AsistanPage() {
                   <Settings className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold text-white">Meta WhatsApp & AI Yapılandırması</h3>
-                  <p className="text-xs text-slate-400">Geliştirici anahtarları, canlı webhook ve danışman profili</p>
+                  <h3 className="text-xl font-extrabold text-white">AI danışman ve şirket ayarları</h3>
+                  <p className="text-xs text-slate-400">Danışman profili ve şirket bilgisini yönetin</p>
                 </div>
               </div>
               <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition-colors">
@@ -746,10 +703,12 @@ export default function AsistanPage() {
                 </div>
               </div>
 
-              {/* Meta Developer Portal Direct Link Bar */}
+              {/* Legacy Cloud API controls are deliberately hidden. WhatsApp now
+                  uses the QR-connected company device only. */}
+              <div className="hidden" aria-hidden="true">
               <div className="flex items-center justify-between pt-1">
                 <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-rose-400" /> Meta Access Token & ID Bilgileri
+                  <Key className="w-3.5 h-3.5 text-rose-400" /> Bağlantı yönetimi
                 </label>
                 <a 
                   href="https://developers.facebook.com/apps/" 
@@ -757,7 +716,7 @@ export default function AsistanPage() {
                   rel="noopener noreferrer"
                   className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors hover:underline"
                 >
-                  <span>Meta Developer Portal & Dashboard</span>
+                  <span>WhatsApp Merkezi&apos;ni aç</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
@@ -779,7 +738,7 @@ export default function AsistanPage() {
                       <Phone className="w-3.5 h-3.5 text-rose-400" /> Phone Number ID
                     </label>
                     <a 
-                      href="https://developers.facebook.com/apps/" 
+                  href="/fabrika/whatsapp"
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-0.5"
@@ -890,7 +849,7 @@ export default function AsistanPage() {
                     rel="noopener noreferrer"
                     className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 hover:underline"
                   >
-                    <span>Meta Webhook Ayarlarına Git</span>
+                  <span>WhatsApp Merkezi&apos;ni aç</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
@@ -921,16 +880,9 @@ export default function AsistanPage() {
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-wrap justify-between items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleTestMetaConnection}
-                  disabled={isTestingMeta}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 font-bold text-xs shadow-md transition-all cursor-pointer"
-                >
-                  <Smartphone className="w-4 h-4 text-emerald-400" />
-                  {isTestingMeta ? 'Meta Test Ediliyor...' : '🟢 Meta WhatsApp Bağlantısını Test Et'}
-                </button>
+              </div>
+
+              <div className="pt-2 flex flex-wrap justify-end items-center gap-3">
 
                 <div className="flex gap-2">
                   <button
@@ -974,7 +926,7 @@ export default function AsistanPage() {
                     onClick={() => setIsSettingsOpen(true)}
                     className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                   >
-                    <Settings className="h-4 w-4" /> Meta & AI ayarları
+                    <Settings className="h-4 w-4" /> AI & şirket ayarları
                   </button>
                 )}
                 <button

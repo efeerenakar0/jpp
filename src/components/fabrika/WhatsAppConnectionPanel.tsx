@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 type Status = {
-  provider: 'WAHA' | 'EVOLUTION' | 'META';
+  provider: 'WAHA';
   configured: boolean;
   connectionStatus: string;
   connectedPhone: string | null;
@@ -451,9 +451,9 @@ export default function WhatsAppConnectionPanel() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
           <p>
-            Bu bağlantı WhatsApp Web protokolünü kullanan, resmi olmayan WAHA/GOWS altyapısıdır.
+            Bu bağlantı WhatsApp Web protokolünü kullanan WAHA/GOWS altyapısıdır.
             Toplu veya izinsiz mesaj hesabın kısıtlanmasına yol açabilir. İlk temas iznini yalnızca hukuka
-            uygun müşteri listeleriyle açın. Resmi Meta Cloud API seçeneği Asistan ayarlarında korunur.{' '}
+            uygun müşteri listeleriyle açın.{' '}
             <a
               className="inline-flex items-center gap-1 font-medium text-amber-300 underline underline-offset-4"
               href="https://www.whatsapp.com/legal/business-policy/"

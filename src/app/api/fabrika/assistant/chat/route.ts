@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma';
 import {
   saveOutgoingConversationMessage,
   sendAssistantWhatsAppMessage,
-  WhatsAppTemplateRequiredError,
 } from '@/lib/assistant-messaging';
 import {
   FabrikaSessionError,
@@ -88,12 +87,11 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              error instanceof WhatsAppTemplateRequiredError ||
               error instanceof Error
                 ? error.message
                 : 'Mesaj WhatsApp’a gönderilemedi.',
           },
-          { status: error instanceof WhatsAppTemplateRequiredError ? 409 : 502 }
+          { status: 502 }
         );
       }
     }

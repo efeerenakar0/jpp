@@ -10,7 +10,6 @@ import {
   createEvolutionInstance,
   getEvolutionConnectionState,
   logoutEvolutionInstance,
-  sendEvolutionText,
 } from '@/lib/evolution-client';
 import {
   generateWebhookSecret,
@@ -38,8 +37,10 @@ export type WhatsAppProvider = 'WAHA' | 'EVOLUTION' | 'META';
 export function normalizeWhatsAppProvider(
   value: string | null | undefined
 ): WhatsAppProvider {
-  if (value === 'META' || value === 'WAHA') return value;
-  return 'EVOLUTION';
+  // All company accounts now use the QR-based WAHA gateway. Legacy provider
+  // values are migrated lazily when their owner opens WhatsApp Merkezi.
+  void value;
+  return 'WAHA';
 }
 
 function safeInstanceName(slug: string, accountId: string) {
@@ -75,10 +76,10 @@ export async function ensureCompanyWhatsAppConfig(companyAccountId: string) {
 
   return prisma.whatsAppConfig.upsert({
     where: { companyAccountId },
-    update: {},
+    update: { provider: 'WAHA' },
     create: {
       companyAccountId,
-      provider: isWahaConfigured() ? 'WAHA' : 'EVOLUTION',
+      provider: 'WAHA',
       companyName: account.companyName,
       evolutionInstanceName: safeInstanceName(account.slug, account.id),
       connectionStatus: 'DISCONNECTED',
@@ -104,10 +105,7 @@ export function serializeCompanyWhatsAppStatus(config: {
   const provider = normalizeWhatsAppProvider(config.provider);
   return {
     provider,
-    configured:
-      provider === 'EVOLUTION' || provider === 'WAHA'
-        ? Boolean(config.evolutionInstanceName)
-        : Boolean(config.token && config.phoneNumberId),
+    configured: Boolean(config.evolutionInstanceName),
     connectionStatus: config.connectionStatus,
     connectedPhone: config.connectedPhone
       ? `••••${config.connectedPhone.slice(-4)}`
@@ -488,36 +486,22 @@ export async function disconnectEvolutionConnection(
 export async function prepareCompanyWhatsAppConnection(
   companyAccountId: string
 ) {
-  return isWahaConfigured()
-    ? prepareWahaConnection(companyAccountId)
-    : prepareEvolutionConnection(companyAccountId);
+  if (!isWahaConfigured()) {
+    throw new Error('WhatsApp QR gateway henüz yapılandırılmamış.');
+  }
+  return prepareWahaConnection(companyAccountId);
 }
 
 export async function refreshCompanyWhatsAppConnection(
   companyAccountId: string
 ) {
-  const config = await ensureCompanyWhatsAppConfig(companyAccountId);
-  const provider = normalizeWhatsAppProvider(config.provider);
-  if (provider === 'WAHA') {
-    return refreshWahaConnection(companyAccountId);
-  }
-  if (provider === 'META') {
-    return {
-      ...serializeCompanyWhatsAppStatus(config),
-      qrCode: null,
-      pairingCode: null,
-    };
-  }
-  return refreshEvolutionConnection(companyAccountId);
+  return refreshWahaConnection(companyAccountId);
 }
 
 export async function disconnectCompanyWhatsAppConnection(
   companyAccountId: string
 ) {
-  const config = await ensureCompanyWhatsAppConfig(companyAccountId);
-  return normalizeWhatsAppProvider(config.provider) === 'WAHA'
-    ? disconnectWahaConnection(companyAccountId)
-    : disconnectEvolutionConnection(companyAccountId);
+  return disconnectWahaConnection(companyAccountId);
 }
 
 function retryAt(attemptCount: number) {
@@ -587,10 +571,6 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
       outbox.companyAccountId,
       config.dailyMessageLimit
     );
-    const provider = normalizeWhatsAppProvider(config.provider);
-    if (provider !== 'EVOLUTION' && provider !== 'WAHA') {
-      throw new Error('Bu kuyruk kaydı bağlı cihaz sağlayıcısına ait değil.');
-    }
     if (
       config.connectionStatus !== 'CONNECTED' ||
       !config.evolutionInstanceName
@@ -598,18 +578,11 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
       throw new Error('WhatsApp telefonu bağlı değil.');
     }
 
-    const sent =
-      provider === 'WAHA'
-        ? await sendWahaText({
-            sessionName: config.evolutionInstanceName,
-            to: outbox.toPhone,
-            text: outbox.content,
-          })
-        : await sendEvolutionText({
-            instanceName: config.evolutionInstanceName,
-            to: outbox.toPhone,
-            text: outbox.content,
-          });
+    const sent = await sendWahaText({
+      sessionName: config.evolutionInstanceName,
+      to: outbox.toPhone,
+      text: outbox.content,
+    });
     const updated = await prisma.whatsAppOutboxMessage.update({
       where: { id },
       data: {
@@ -667,10 +640,7 @@ export async function queueCompanyWhatsAppMessage(input: {
   firstContact?: boolean;
 }) {
   const config = await ensureCompanyWhatsAppConfig(input.companyAccountId);
-  const provider = normalizeWhatsAppProvider(config.provider);
-  if (provider !== 'EVOLUTION' && provider !== 'WAHA') {
-    throw new Error('Şirket bağlı cihaz WhatsApp sağlayıcısını kullanmıyor.');
-  }
+  const provider = 'WAHA' as const;
   if (input.firstContact && !config.allowFirstContact) {
     throw new Error(
       'Yeni numaralara ilk temas gönderimi şirket ayarlarında kapalı.'

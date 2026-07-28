@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma';
 import {
   saveOutgoingConversationMessage,
   sendAssistantWhatsAppMessage,
-  WhatsAppTemplateRequiredError,
 } from '@/lib/assistant-messaging';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
@@ -307,7 +306,7 @@ export async function PATCH(request: Request) {
             ? error.message
             : 'Randevu güncellenirken bilinmeyen bir hata oluştu.',
       },
-      { status: error instanceof WhatsAppTemplateRequiredError ? 409 : 500 }
+      { status: 500 }
     );
   }
 }
