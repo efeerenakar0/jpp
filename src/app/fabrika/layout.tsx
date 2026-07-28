@@ -2,6 +2,7 @@ import FabrikaAppShell from '@/components/fabrika/FabrikaAppShell';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import { isHunterEnabled } from '@/lib/company-accounts';
 import styles from './fabrika-ui.module.css';
 
 export const metadata = {
@@ -22,7 +23,7 @@ export default async function FabrikaLayout({ children }: { children: React.Reac
           session={{
             principalType: principal.type,
             displayName: principal.displayName,
-            hunterEnabled: principal.account.hunterEnabled,
+            hunterEnabled: isHunterEnabled(principal.account),
             permissions: principal.permissions,
           }}
         >
