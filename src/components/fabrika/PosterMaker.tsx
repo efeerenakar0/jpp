@@ -35,6 +35,7 @@ type PosterResult = {
   id: string;
   name: string;
   previewUrl: string;
+  fingerprint: string;
   brief: PosterForm;
   whatsapp?: string;
   instagram?: string;
@@ -164,19 +165,30 @@ async function createFinalPoster(input: {
     72,
     2
   );
-  const facts = [input.form.area ? `${input.form.area} m²` : '', input.form.price].filter(Boolean).join('  ·  ');
+  const facts = [
+    input.form.location,
+    input.form.propertyType,
+    input.form.roomCount,
+    input.form.area ? `${input.form.area} m²` : '',
+    input.form.price,
+  ].filter(Boolean).join('  ·  ');
   if (facts) {
     textTop += 20;
     context.fillStyle = '#e2e8f0';
-    context.font = '600 29px Arial';
-    context.fillText(facts, pad, textTop);
-    textTop += 42;
+    context.font = '600 25px Arial';
+    textTop = drawWrappedText(context, facts, pad, textTop, width - pad * 2, 34, 2);
   }
-  if (input.form.details) {
+  const highlights = [input.form.highlight1, input.form.highlight2, input.form.highlight3].filter(Boolean).join('  ·  ');
+  if (highlights) {
+    textTop += 14;
+    context.fillStyle = '#a7f3d0';
+    context.font = '700 21px Arial';
+    textTop = drawWrappedText(context, highlights, pad, textTop, width - pad * 2, 29, 1);
+  } else if (input.form.details) {
     context.fillStyle = '#cbd5e1';
-    context.font = '400 24px Arial';
+    context.font = '400 21px Arial';
     textTop += 10;
-    drawWrappedText(context, input.form.details, pad, textTop, width - pad * 2, 32, 2);
+    drawWrappedText(context, input.form.details, pad, textTop, width - pad * 2, 29, 1);
   }
 
   if (input.form.mode === 'creative') {
@@ -244,6 +256,7 @@ export default function PosterMaker() {
   const [rememberLogo, setRememberLogo] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [results, setResults] = useState<PosterResult[]>([]);
+  const [heroIndex, setHeroIndex] = useState(0);
   const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -252,6 +265,12 @@ export default function PosterMaker() {
     () => photos.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [photos]
   );
+  const orderedPhotoPreviews = useMemo(() => {
+    const hero = photoPreviews[heroIndex];
+    return hero
+      ? [hero, ...photoPreviews.filter((_, index) => index !== heroIndex)]
+      : photoPreviews;
+  }, [heroIndex, photoPreviews]);
   const logoPreview = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : savedLogoUrl), [logoFile, savedLogoUrl]);
 
   useEffect(() => () => photoPreviews.forEach(({ url }) => URL.revokeObjectURL(url)), [photoPreviews]);
@@ -305,6 +324,15 @@ export default function PosterMaker() {
     });
   };
 
+  const removePhoto = (index: number) => {
+    setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setHeroIndex((current) => {
+      if (index < current) return current - 1;
+      if (index === current) return 0;
+      return current;
+    });
+  };
+
   const onPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     addPhotos(Array.from(event.target.files || []));
     event.target.value = '';
@@ -320,10 +348,19 @@ export default function PosterMaker() {
       toast.error('Önce en az bir gayrimenkul görseli yükleyin.');
       return;
     }
+    const fingerprint = JSON.stringify({
+      form,
+      heroIndex,
+      photos: orderedPhotoPreviews.map(({ file }) => `${file.name}-${file.size}-${file.lastModified}`),
+    });
+    if (results.some((result) => result.fingerprint === fingerprint)) {
+      toast.error('Bu ayarlarla bir poster zaten oluşturuldu. Yeni varyasyon için ana görseli veya bilgileri değiştirin.');
+      return;
+    }
     setIsCreating(true);
     try {
       const data = new FormData();
-      photos.forEach((photo) => data.append('photos', photo));
+      orderedPhotoPreviews.forEach(({ file }) => data.append('photos', file));
       if (logoFile) data.append('logo', logoFile);
       data.append('companyName', form.companyName);
       data.append('propertyId', form.propertyId);
@@ -344,12 +381,12 @@ export default function PosterMaker() {
       if (!response.ok) throw new Error(body.error || 'Poster üretilemedi.');
       const previewUrl = await createFinalPoster({
         backgroundUrl: body.backgroundDataUrl,
-        photoUrls: photoPreviews.map((item) => item.url),
+        photoUrls: orderedPhotoPreviews.map((item) => item.url),
         logoUrl: body.logoDataUrl || logoPreview,
         form,
       });
       const name = form.posterName.trim() || `Portföy posteri ${results.length + 1}`;
-      setResults((current) => [{ id: crypto.randomUUID(), name, previewUrl, brief: { ...form } }, ...current]);
+      setResults((current) => [{ id: crypto.randomUUID(), name, previewUrl, fingerprint, brief: { ...form } }, ...current]);
       if (body.logoDataUrl) setSavedLogoUrl(body.logoDataUrl);
       toast.success('Posteriniz hazır. Şimdi buna özel kampanya metinleri üretebilirsiniz.');
     } catch (error) {
@@ -476,8 +513,8 @@ export default function PosterMaker() {
           <div onDragOver={(event) => event.preventDefault()} onDrop={onDrop} role="button" tabIndex={0} onKeyDown={(event) => event.key === 'Enter' && photoInputRef.current?.click()} onClick={() => photoInputRef.current?.click()} className="grid min-h-56 cursor-pointer place-items-center rounded-xl border border-dashed border-emerald-400/40 bg-emerald-400/[0.05] p-6 text-center transition hover:bg-emerald-400/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
             <div><span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-emerald-300 text-emerald-950"><UploadCloud className="h-6 w-6" /></span><p className="mt-4 text-sm font-bold text-white">Gayrimenkul görsellerini yükleyin</p><p className="mt-1 text-xs leading-5 text-slate-400">Bir veya birden çok görsel bırakın ya da seçmek için tıklayın. En fazla 6 görsel.</p></div>
           </div>
-          {photoPreviews.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{photoPreviews.map(({ file, url }, index) => <div key={`${file.name}-${file.lastModified}`} className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-700"><img src={url} alt={file.name} className="h-full w-full object-cover" /><button type="button" onClick={(event) => { event.stopPropagation(); setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index)); }} className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500" aria-label={`${file.name} görselini kaldır`}><X className="h-3.5 w-3.5" /></button></div>)}</div>}
-          <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçeğe sadık modda ilk görsel doğrudan kullanılır; mülke ait olmayan hiçbir mimari ayrıntı üretilmez.' : 'Kreatif modda ilk görsel Stable Image Ultra için ana referanstır; diğerleri posterde seçili detay kareleri olarak kullanılabilir.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
+          {photoPreviews.length > 0 && <><p className="mt-4 text-xs font-semibold text-slate-300">Ana görseli seçin</p><div className="mt-2 grid grid-cols-3 gap-2">{photoPreviews.map(({ file, url }, index) => <div key={`${file.name}-${file.lastModified}`} className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${heroIndex === index ? 'border-amber-300 ring-2 ring-amber-300/40' : 'border-slate-700'}`}><button type="button" onClick={() => setHeroIndex(index)} className="h-full w-full" aria-pressed={heroIndex === index} aria-label={`${file.name} ana görsel olarak seç`}><img src={url} alt={file.name} className="h-full w-full object-cover" />{heroIndex === index && <span className="absolute bottom-1.5 left-1.5 rounded bg-amber-300 px-1.5 py-1 text-[10px] font-bold text-amber-950">ANA GÖRSEL</span>}</button><button type="button" onClick={(event) => { event.stopPropagation(); removePhoto(index); }} className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500" aria-label={`${file.name} görselini kaldır`}><X className="h-3.5 w-3.5" /></button></div>)}</div></>}
+          <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçeğe sadık modda seçtiğiniz ana görsel doğrudan kullanılır; mülke ait olmayan hiçbir mimari ayrıntı üretilmez.' : 'Kreatif modda seçtiğiniz ana görsel Stable Image Ultra için ana referanstır; diğer görseller posterde seçili detay kareleri olarak kullanılır.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
           <button type="button" onClick={createPoster} disabled={isCreating || !photos.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
         </div>
       </div>
