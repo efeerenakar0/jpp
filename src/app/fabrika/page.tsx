@@ -1,14 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   Activity,
   Aperture,
-  ArrowRight,
   Bell,
   Bot,
-  ChevronRight,
   Clock,
   Code2,
   Crosshair,
@@ -18,9 +15,7 @@ import {
   Send,
   AlertTriangle,
   Users,
-  Home,
   Kanban,
-  Sparkles,
   CalendarDays,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -132,12 +127,6 @@ const getNotificationStyles = (type: string) => {
     default:
       return { icon: Bell, color: 'text-slate-400', bg: 'bg-slate-800 border-slate-700' };
   }
-};
-
-const priorityStyles = {
-  critical: 'border-rose-500/25 bg-rose-500/5 text-rose-300',
-  warning: 'border-amber-500/25 bg-amber-500/5 text-amber-300',
-  info: 'border-slate-700 bg-slate-900 text-slate-300',
 };
 
 export default function CommandCenter() {
@@ -269,75 +258,6 @@ export default function CommandCenter() {
     }
   };
 
-  const modules = [
-    {
-      title: 'Avcı',
-      subtitle: 'Sahibinden ilan toplama ve ikna operasyonu',
-      icon: Crosshair,
-      href: '/fabrika/avci',
-      badge: `${context?.metrics.huntedListings ?? 0} kayıt`,
-    },
-    {
-      title: 'Asistan',
-      subtitle: 'WhatsApp temsilcisi ve müşteri takibi',
-      icon: MessageCircle,
-      href: '/fabrika/asistan',
-      badge: `${context?.metrics.activeConversations ?? 0} sohbet`,
-    },
-    {
-      title: 'Pazarlamacı',
-      subtitle: 'Reklam metni ve kampanya üretimi',
-      icon: Megaphone,
-      href: '/fabrika/pazarlamaci',
-      badge: `${context?.metrics.campaigns ?? 0} kampanya`,
-    },
-    {
-      title: 'Stüdyo',
-      subtitle: 'Portföy görseli iyileştirme ve indirme',
-      icon: Aperture,
-      href: '/fabrika/studyo',
-      badge: 'Görsel AI',
-    },
-    {
-      title: 'Yazılımcı',
-      subtitle: 'Web sitesi üretimi ve teknik destek',
-      icon: Code2,
-      href: '/fabrika/yazilimci',
-      badge: 'ZIP export',
-    },
-  ];
-
-  const operatingCore = [
-    {
-      title: 'Merkezi CRM',
-      subtitle: 'Müşteri profilleri, satış süreci ve şirket hafızası',
-      icon: Users,
-      href: '/fabrika/crm',
-      badge: `${workspaceMetrics?.contacts || 0} müşteri · ${workspaceMetrics?.openDeals || 0} fırsat`,
-    },
-    {
-      title: 'Portföyler',
-      subtitle: 'Portföy, performans ve paylaşılabilir malik raporları',
-      icon: Home,
-      href: '/fabrika/portfoyler',
-      badge: `${workspaceMetrics?.activeProperties || 0} aktif`,
-    },
-    {
-      title: 'Eşleştirme',
-      subtitle: 'Müşteri tercihlerini portföylerle eşleştir',
-      icon: Sparkles,
-      href: '/fabrika/eslestirme',
-      badge: `%${workspaceMetrics?.averageMatchScore || 0} ortalama`,
-    },
-    {
-      title: 'Takvim',
-      subtitle: 'Randevu, gösterim ve takip görevleri',
-      icon: CalendarDays,
-      href: '/fabrika/takvim',
-      badge: `${workspaceMetrics?.upcomingCriticalTasks || 0} yaklaşan · ${workspaceMetrics?.overdueTasks || 0} geciken`,
-    },
-  ];
-
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
@@ -367,133 +287,6 @@ export default function CommandCenter() {
         <StatCard label="Geciken görev" value={workspaceMetrics?.overdueTasks || 0} icon={Clock} status="warning" />
         <StatCard label="Yaklaşan randevu" value={workspaceMetrics?.upcomingCriticalTasks || 0} icon={CalendarDays} status="success" />
       </div>
-
-      <section aria-labelledby="manager-priorities-title">
-        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 id="manager-priorities-title" className="text-base font-semibold text-white">
-              Yönetici öncelikleri
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              CRM, Takvim, Avcı ve satış verilerinden anlık olarak derlenir.
-            </p>
-          </div>
-          {context?.generatedAt && (
-            <time className="text-[11px] text-slate-500" dateTime={context.generatedAt}>
-              Son kontrol{' '}
-              {new Date(context.generatedAt).toLocaleTimeString('tr-TR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </time>
-          )}
-        </div>
-        {context?.priorities.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {context.priorities.slice(0, 4).map((priority) => (
-              <Link
-                key={priority.id}
-                href={priority.href}
-                className={`group flex min-h-28 flex-col justify-between rounded-xl border p-4 transition-colors hover:border-emerald-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${priorityStyles[priority.severity]}`}
-              >
-                <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-75">
-                    {priority.severity === 'critical'
-                      ? 'Kritik'
-                      : priority.severity === 'warning'
-                        ? 'Takip'
-                        : 'Yaklaşan'}
-                  </span>
-                  <h3 className="mt-2 text-sm font-semibold text-white">{priority.title}</h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">{priority.detail}</p>
-                </div>
-                <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 group-hover:text-emerald-300">
-                  İlgili kaydı aç <ChevronRight className="h-3.5 w-3.5" />
-                </span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-200">
-            Şu anda geciken, yüksek öncelikli veya yakın tarihli kritik bir operasyon görünmüyor.
-          </div>
-        )}
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-white">Emlak işletim sistemi</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Müşteriden satış kapanışına kadar merkezi çalışma alanı</p>
-          </div>
-          <span className="text-xs text-slate-500">4 çalışma alanı</span>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {operatingCore.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                className="group flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-emerald-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                href={item.href}
-                key={item.title}
-              >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-white">{item.title}</h3>
-                    <span className="shrink-0 rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
-                      {item.badge}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">{item.subtitle}</p>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-white">Operasyon modülleri</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Günlük iş akışınız için aktif çalışma alanları</p>
-          </div>
-          <span className="text-xs text-slate-500">5 modül</span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {modules.map((module) => {
-            const Icon = module.icon;
-            return (
-              <Link
-                key={module.title}
-                href={module.href}
-                className="group flex min-h-44 flex-col justify-between rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-emerald-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] font-medium text-slate-300">
-                      {module.badge}
-                    </span>
-                  </div>
-                  <h3 className="mt-4 text-sm font-semibold text-white">{module.title}</h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">{module.subtitle}</p>
-                </div>
-                <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs font-medium text-slate-400 transition-colors group-hover:text-emerald-300">
-                  <span>Modülü aç</span>
-                  <ArrowRight className="h-4 w-4" />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         <NotificationPanel

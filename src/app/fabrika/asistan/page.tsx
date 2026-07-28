@@ -10,7 +10,6 @@ import ChatInterface from '@/components/fabrika/ChatInterface';
 import AppointmentApproval from '@/components/fabrika/AppointmentApproval';
 import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
 import PageHeader from '@/components/fabrika/PageHeader';
-import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import StatCard from '@/components/fabrika/StatCard';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import toast from 'react-hot-toast';
@@ -950,7 +949,6 @@ export default function AsistanPage() {
             }
           />
 
-          <WorkspacePulse />
 
           {/* Quick Metrics Bar */}
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Monitor, Code, Download, Send, Loader2, Server, Globe } from 'lucide-react';
 import PageHeader from '@/components/fabrika/PageHeader';
-import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function YazilimciPage() {
@@ -106,7 +105,6 @@ export default function YazilimciPage() {
           }
         />
 
-        <WorkspacePulse />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             

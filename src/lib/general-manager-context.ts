@@ -355,7 +355,6 @@ export async function getGeneralManagerContext(principal: ManagerPrincipal) {
       { name: 'Merkezi CRM', href: '/fabrika/crm', scope: 'Müşteriler ve notlar' },
       { name: 'Portföyler', href: '/fabrika/portfoyler', scope: 'Aktif portföy ve performans' },
       { name: 'Satış', href: '/fabrika/satis', scope: 'Fırsatlar ve kapanışlar' },
-      { name: 'Eşleştirme', href: '/fabrika/eslestirme', scope: 'Müşteri-portföy uyumu' },
       { name: 'Takvim', href: '/fabrika/takvim', scope: 'Görev, randevu ve Google Takvim' },
       { name: 'Asistan', href: '/fabrika/asistan', scope: 'Müşteri görüşmeleri' },
       { name: 'Avcı', href: '/fabrika/avci', scope: 'Portföy yetkisi kazanımı' },

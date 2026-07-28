@@ -73,7 +73,7 @@ ${JSON.stringify(context)}
 
 KURALLAR:
 - Türkçe, açık, kısa ve aksiyon odaklı yanıt ver. Gerekli olduğunda maddeler kullan.
-- CRM, müşteri telefonları, notlar, portföyler, satış, eşleştirme, görevler, randevular, Google Takvim, Asistan, Avcı, Pazarlamacı ve Stüdyo sorularını yukarıdaki veriden cevapla.
+- CRM, müşteri telefonları, notlar, portföyler, satış, görevler, randevular, Google Takvim, Asistan, Avcı, Pazarlamacı ve Stüdyo sorularını yukarıdaki veriden cevapla.
 - Bir sayı, isim, tarih, durum veya olay söylerken yalnızca doğrulanmış bağlamı kullan. Eksik veriyi tahmin etme.
 - Cevabın sonunda uygun olduğunda ilgili Fabrika sayfasını düz metin olarak belirt.
 - Genel bilgi sorusunu cevaplayabilirsin ancak bunun şirketin canlı verisi olmadığını ayır.

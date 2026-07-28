@@ -18,7 +18,6 @@ import {
   Home,
   Kanban,
   KeyRound,
-  Link2,
   ListChecks,
   Loader2,
   MessageSquareText,
@@ -28,7 +27,6 @@ import {
   Search,
   Settings2,
   Share2,
-  Sparkles,
   Target,
   UserCheck,
   UserX,
@@ -61,7 +59,6 @@ export type WorkspaceMode =
   | 'crm'
   | 'portfoyler'
   | 'satis'
-  | 'eslestirme'
   | 'takvim'
   | 'satici-portali'
   | 'sirket';
@@ -161,15 +158,6 @@ type Task = {
   assignedMember: Pick<Member, 'id' | 'name'> | null;
 };
 
-type Match = {
-  id: string;
-  score: number;
-  reasons: string[];
-  status: string;
-  contact: Pick<Contact, 'id' | 'name' | 'phone' | 'desiredLocation' | 'desiredRoomCount'>;
-  property: Pick<Property, 'id' | 'title' | 'location' | 'price' | 'roomCount' | 'imageUrl'>;
-};
-
 type ActivityItem = {
   id: string;
   title: string;
@@ -207,7 +195,6 @@ type Workspace = {
   properties: Property[];
   deals: Deal[];
   tasks: Task[];
-  matches: Match[];
   activities: ActivityItem[];
   metrics: {
     contacts: number;
@@ -228,7 +215,6 @@ type DialogKind =
   | 'deal'
   | 'task'
   | 'member'
-  | 'match'
   | null;
 
 type OneTimeMemberCredentials = {
@@ -264,12 +250,6 @@ const pageMeta: Record<
     description: 'Her fırsatın hangi aşamada olduğunu, tahmini değerini ve sonraki işlemini görün.',
     eyebrow: 'Gelir operasyonu',
     icon: Kanban,
-  },
-  eslestirme: {
-    title: 'Akıllı Eşleştirme',
-    description: 'Müşteri tercihlerini aktif portföylerle karşılaştırın ve en güçlü fırsatları öne çıkarın.',
-    eyebrow: 'AI satış desteği',
-    icon: Sparkles,
   },
   takvim: {
     title: 'Randevular ve Görevler',
@@ -417,9 +397,10 @@ export default function WorkspacePage({
   const [memberCredentials, setMemberCredentials] =
     useState<OneTimeMemberCredentials | null>(null);
   const [query, setQuery] = useState('');
+  const [crmFilter, setCrmFilter] = useState<'all' | 'hot' | 'follow-up'>('all');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<
-    'overview' | 'activity' | 'matches'
+    'overview' | 'activity'
   >('overview');
   const [renderedAt] = useState(Date.now);
   const [crmView, setCrmView] = useState<'customers' | 'pipeline'>(
@@ -492,12 +473,22 @@ export default function WorkspacePage({
   const filteredContacts = useMemo(() => {
     if (!workspace) return [];
     const normalized = query.toLocaleLowerCase('tr-TR');
-    return workspace.contacts.filter((contact) =>
-      [contact.name, contact.phone, contact.email, contact.desiredLocation]
+    const now = new Date();
+    return workspace.contacts.filter((contact) => {
+      const matchesQuery = [contact.name, contact.phone, contact.email, contact.desiredLocation]
         .filter(Boolean)
-        .some((value) => value!.toLocaleLowerCase('tr-TR').includes(normalized))
-    );
-  }, [query, workspace]);
+        .some((value) => value!.toLocaleLowerCase('tr-TR').includes(normalized));
+      if (!matchesQuery) return false;
+      if (crmFilter === 'hot') return contact.score >= 60;
+      if (crmFilter === 'follow-up') {
+        return (
+          ['NEW', 'CONTACTED'].includes(contact.stage) ||
+          (contact.nextActionAt !== null && new Date(contact.nextActionAt) <= now)
+        );
+      }
+      return true;
+    });
+  }, [crmFilter, query, workspace]);
 
   const selectedContact =
     workspace?.contacts.find((contact) => contact.id === selectedContactId) ||
@@ -513,9 +504,6 @@ export default function WorkspacePage({
     : [];
   const selectedContactTasks = selectedContact
     ? workspace?.tasks.filter((task) => task.contact?.id === selectedContact.id) || []
-    : [];
-  const selectedContactMatches = selectedContact
-    ? workspace?.matches.filter((match) => match.contact.id === selectedContact.id) || []
     : [];
 
   if (loading) {
@@ -546,6 +534,13 @@ export default function WorkspacePage({
       />
     );
   }
+
+  const hotContactCount = workspace.contacts.filter((contact) => contact.score >= 60).length;
+  const followUpContactCount = workspace.contacts.filter(
+    (contact) =>
+      ['NEW', 'CONTACTED'].includes(contact.stage) ||
+      (contact.nextActionAt !== null && new Date(contact.nextActionAt) <= new Date())
+  ).length;
 
   const headerAction =
     mode === 'crm'
@@ -599,45 +594,6 @@ export default function WorkspacePage({
                 Asistan&apos;dan aktar
               </Button>
             )}
-            {mode === 'eslestirme' && (
-              <>
-                <Button
-                  className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-                  onClick={() => setDialog('match')}
-                  variant="outline"
-                >
-                  <Link2 />
-                  Manuel eşleştir
-                </Button>
-                <Button
-                  className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-                  disabled={saving}
-                  onClick={() =>
-                    postAction(
-                      { action: 'sync-modules' },
-                      'Asistan ve Avcı verileri CRM ile eşitlendi.'
-                    )
-                  }
-                  variant="outline"
-                >
-                  <RefreshCw className={saving ? 'animate-spin' : ''} />
-                  Modülleri eşitle
-                </Button>
-                <Button
-                  className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-                  disabled={saving}
-                  onClick={() =>
-                    postAction(
-                      { action: 'recompute-matches' },
-                      'Müşteri-portföy eşleşmeleri yenilendi.'
-                    )
-                  }
-                >
-                  <Sparkles />
-                  Eşleşmeleri hesapla
-                </Button>
-              </>
-            )}
             {headerAction && actionLabel && (
               <Button
                 className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
@@ -651,34 +607,43 @@ export default function WorkspacePage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          label="Toplam müşteri"
-          value={workspace.metrics.contacts}
-          icon={ContactRound}
-        />
-        <StatCard
-          label="Aktif portföy"
-          value={workspace.metrics.activeProperties}
-          icon={Building2}
-          status="success"
-        />
-        <StatCard
-          label="Açık fırsat"
-          value={workspace.metrics.openDeals}
-          icon={Target}
-        />
-        <StatCard
-          label={mode === 'satis' ? 'Tahmini satış hacmi' : 'Geciken görev'}
-          value={
-            mode === 'satis'
-              ? money(workspace.metrics.pipelineValue)
-              : workspace.metrics.overdueTasks
-          }
-          icon={mode === 'satis' ? CircleDollarSign : Clock3}
-          status={workspace.metrics.overdueTasks > 0 ? 'warning' : 'default'}
-        />
-      </div>
+      {mode === 'crm' ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label="Tüm müşteriler" value={workspace.metrics.contacts} icon={ContactRound} />
+          <StatCard label="Sıcak takip" value={hotContactCount} icon={Flame} status="warning" />
+          <StatCard label="Takip bekliyor" value={followUpContactCount} icon={Clock3} status={followUpContactCount > 0 ? 'warning' : 'default'} />
+          <StatCard label="Açık fırsat" value={workspace.metrics.openDeals} icon={Target} status="success" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard
+            label="Toplam müşteri"
+            value={workspace.metrics.contacts}
+            icon={ContactRound}
+          />
+          <StatCard
+            label="Aktif portföy"
+            value={workspace.metrics.activeProperties}
+            icon={Building2}
+            status="success"
+          />
+          <StatCard
+            label="Açık fırsat"
+            value={workspace.metrics.openDeals}
+            icon={Target}
+          />
+          <StatCard
+            label={mode === 'satis' ? 'Tahmini satış hacmi' : 'Geciken görev'}
+            value={
+              mode === 'satis'
+                ? money(workspace.metrics.pipelineValue)
+                : workspace.metrics.overdueTasks
+            }
+            icon={mode === 'satis' ? CircleDollarSign : Clock3}
+            status={workspace.metrics.overdueTasks > 0 ? 'warning' : 'default'}
+          />
+        </div>
+      )}
 
       {mode === 'crm' ? (
         <Tabs
@@ -737,9 +702,9 @@ export default function WorkspacePage({
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             <div className="flex flex-col gap-3 border-b border-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-white">Müşteri kayıtları</h2>
+                <h2 className="text-sm font-semibold text-white">Müşteri listesi</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  {filteredContacts.length} profil gösteriliyor
+                  {filteredContacts.length} müşteri gösteriliyor
                 </p>
               </div>
               <label className="relative block sm:w-72">
@@ -753,12 +718,32 @@ export default function WorkspacePage({
                 />
               </label>
             </div>
+            <div className="flex gap-2 overflow-x-auto border-b border-slate-800 bg-slate-950/40 px-4 py-3" aria-label="Müşteri filtreleri">
+              {[
+                { value: 'all', label: 'Tümü' },
+                { value: 'hot', label: 'Sıcak takip' },
+                { value: 'follow-up', label: 'Takip bekleyen' },
+              ].map((filter) => (
+                <button
+                  className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                    crmFilter === filter.value
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                      : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                  }`}
+                  key={filter.value}
+                  onClick={() => setCrmFilter(filter.value as 'all' | 'hot' | 'follow-up')}
+                  type="button"
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
             {filteredContacts.length === 0 ? (
               <div className="p-4">
                 <EmptyState
                   icon={Users}
                   title="Henüz müşteri yok"
-                  description="İlk müşteriyi ekleyin veya Akıllı Eşleştirme sayfasından Asistan konuşmalarını CRM’e aktarın."
+                  description="İlk müşteriyi ekleyin veya Asistan görüşmelerini üstteki aktar düğmesinden CRM’e alın."
                 />
               </div>
             ) : (
@@ -769,7 +754,7 @@ export default function WorkspacePage({
                       <th className="px-4 py-3 font-medium">Müşteri</th>
                       <th className="px-4 py-3 font-medium">Aşama</th>
                       <th className="px-4 py-3 font-medium">Sıcaklık</th>
-                      <th className="px-4 py-3 font-medium">Danışman</th>
+                      <th className="px-4 py-3 font-medium">Son hareket</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
@@ -825,7 +810,7 @@ export default function WorkspacePage({
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-400">
-                            {contact.assignedMember?.name || 'Atanmadı'}
+                            {dateTime(contact.updatedAt)}
                           </td>
                         </tr>
                       );
@@ -921,20 +906,19 @@ export default function WorkspacePage({
                   className="border-b border-slate-800 px-5 pt-4"
                   onValueChange={(value) =>
                     setProfileView(
-                      value as 'overview' | 'activity' | 'matches'
+                      value as 'overview' | 'activity'
                     )
                   }
                   value={profileView}
                 >
                   <TabsList
                     aria-label="Müşteri profil bölümleri"
-                    className="grid h-10 w-full max-w-lg grid-cols-3 bg-slate-950"
+                    className="grid h-10 w-full max-w-md grid-cols-2 bg-slate-950"
                   >
                     <TabsTrigger value="overview">Genel bakış</TabsTrigger>
                     <TabsTrigger value="activity">
                       Zaman çizelgesi
                     </TabsTrigger>
-                    <TabsTrigger value="matches">Eşleşmeler</TabsTrigger>
                   </TabsList>
                 </Tabs>
 
@@ -1174,52 +1158,7 @@ export default function WorkspacePage({
                       <EmptyState
                         icon={Activity}
                         title="Henüz aktivite yok"
-                        description="Notlar, profil güncellemeleri, eşleşmeler ve satış hareketleri burada kronolojik olarak görünür."
-                      />
-                    )}
-                  </div>
-                )}
-
-                {profileView === 'matches' && (
-                  <div className="custom-scrollbar max-h-[620px] space-y-3 overflow-y-auto p-5">
-                    {selectedContactMatches.length > 0 ? (
-                      selectedContactMatches.map((match) => (
-                        <article
-                          className="rounded-lg border border-slate-800 bg-slate-950/50 p-4"
-                          key={match.id}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-100">
-                                {match.property.title}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {match.property.location || 'Konum yok'} ·{' '}
-                                {match.property.roomCount || 'Oda yok'} ·{' '}
-                                {money(match.property.price)}
-                              </p>
-                            </div>
-                            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300">
-                              %{match.score}
-                            </span>
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {match.reasons.map((reason) => (
-                              <span
-                                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-300"
-                                key={reason}
-                              >
-                                {reason}
-                              </span>
-                            ))}
-                          </div>
-                        </article>
-                      ))
-                    ) : (
-                      <EmptyState
-                        icon={Link2}
-                        title="Bu müşteri için eşleşme yok"
-                        description="Akıllı Eşleştirme ekranında otomatik hesaplama yapın veya müşteriyi bir portföyle manuel eşleştirin."
+                        description="Notlar, profil güncellemeleri ve satış hareketleri burada kronolojik olarak görünür."
                       />
                     )}
                   </div>
@@ -1243,7 +1182,7 @@ export default function WorkspacePage({
           <EmptyState
             icon={Home}
             title="Henüz portföy yok"
-            description="Manuel portföy ekleyin veya Avcı kayıtlarını Akıllı Eşleştirme ekranından içe aktarın."
+            description="Manuel portföy ekleyin veya Avcı üzerinden satış yetkisi alınan kayıtları içe aktarın."
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1372,72 +1311,6 @@ export default function WorkspacePage({
             })}
           </div>
         </section>
-      )}
-
-      {mode === 'eslestirme' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <div className="flex items-start gap-3">
-              <Sparkles className="mt-0.5 h-5 w-5 text-emerald-400" />
-              <div>
-                <h2 className="text-sm font-semibold text-white">Eşleştirme motoru</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-400">
-                  Bölge, oda sayısı ve bütçeyi karşılaştırır. Son karar ve müşteri iletişimi danışmanın onayındadır.
-                </p>
-              </div>
-            </div>
-          </div>
-          {workspace.matches.length === 0 ? (
-            <EmptyState
-              icon={Sparkles}
-              title="Henüz eşleşme hesaplanmadı"
-              description="Önce Asistan ve Avcı verilerini eşitleyin; ardından eşleşmeleri hesaplayın."
-            />
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {workspace.matches.map((match) => (
-                <article className="rounded-xl border border-slate-800 bg-slate-900 p-4" key={match.id}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-emerald-400">Müşteri</p>
-                      <h2 className="mt-1 font-semibold text-white">{match.contact.name}</h2>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {match.contact.desiredLocation || 'Bölge yok'} ·{' '}
-                        {match.contact.desiredRoomCount || 'Oda tercihi yok'}
-                      </p>
-                    </div>
-                    <span className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xl font-semibold text-emerald-300">
-                      %{match.score}
-                    </span>
-                  </div>
-                  <div className="my-4 flex items-center gap-2 text-slate-600">
-                    <div className="h-px flex-1 bg-slate-800" />
-                    <Link2 className="h-4 w-4" />
-                    <div className="h-px flex-1 bg-slate-800" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-sky-400">Portföy</p>
-                    <h3 className="mt-1 font-semibold text-white">{match.property.title}</h3>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {match.property.location || 'Konum yok'} · {match.property.roomCount || 'Oda yok'} ·{' '}
-                      {money(match.property.price)}
-                    </p>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {match.reasons.map((reason) => (
-                      <span
-                        className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[10px] text-slate-300"
-                        key={reason}
-                      >
-                        {reason}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
       )}
 
       {mode === 'takvim' && (
@@ -1915,16 +1788,6 @@ function WorkspaceDialog({
         'Ekip üyesi eklendi.'
       );
     }
-    if (dialog === 'match') {
-      await onSubmit(
-        {
-          action: 'create-manual-match',
-          contactId: values.contactId,
-          propertyId: values.propertyId,
-        },
-        'Müşteri ve portföy manuel olarak eşleştirildi.'
-      );
-    }
   }
 
   const dialogTitle = {
@@ -1934,7 +1797,6 @@ function WorkspaceDialog({
     deal: 'Yeni satış fırsatı',
     task: 'Yeni görev veya randevu',
     member: 'Yeni ekip üyesi',
-    match: 'Manuel müşteri-portföy eşleştirmesi',
   }[dialog || 'contact'];
 
   return (
@@ -2387,44 +2249,6 @@ function WorkspaceDialog({
             </>
           )}
 
-          {dialog === 'match' && (
-            <>
-              <label className={labelClass}>
-                Müşteri
-                <SelectField name="contactId" required>
-                  <option value="">Müşteri seçin</option>
-                  {contacts
-                    .filter((contact) =>
-                      ['BUYER', 'INVESTOR', 'TENANT'].includes(contact.type)
-                    )
-                    .map((contact) => (
-                      <option key={contact.id} value={contact.id}>
-                        {contact.name} · {contact.desiredLocation || 'Bölge yok'}
-                      </option>
-                    ))}
-                </SelectField>
-              </label>
-              <label className={labelClass}>
-                Portföy
-                <SelectField name="propertyId" required>
-                  <option value="">Portföy seçin</option>
-                  {properties
-                    .filter((property) =>
-                      ['ACTIVE', 'RESERVED'].includes(property.status)
-                    )
-                    .map((property) => (
-                      <option key={property.id} value={property.id}>
-                        {property.title} · {money(property.price)}
-                      </option>
-                    ))}
-                </SelectField>
-              </label>
-              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs leading-5 text-slate-400 sm:col-span-2">
-                Manuel eşleşme kalıcı tutulur. Otomatik hesaplama daha sonra
-                yenilense bile bu danışman seçimi silinmez.
-              </div>
-            </>
-          )}
         </form>
         <DialogFooter className="border-slate-800 bg-slate-950/50">
           <Button onClick={onClose} type="button" variant="ghost">

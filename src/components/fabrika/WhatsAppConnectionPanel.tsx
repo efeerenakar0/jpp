@@ -4,7 +4,6 @@ import Image from 'next/image';
 import {
   AlertTriangle,
   CheckCircle2,
-  ExternalLink,
   Link2,
   Loader2,
   MessageCircle,
@@ -447,24 +446,6 @@ export default function WhatsAppConnectionPanel() {
         ))}
       </div>
 
-      <aside className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-amber-100/80">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-          <p>
-            Bu bağlantı WhatsApp Web protokolünü kullanan WAHA/GOWS altyapısıdır.
-            Toplu veya izinsiz mesaj hesabın kısıtlanmasına yol açabilir. İlk temas iznini yalnızca hukuka
-            uygun müşteri listeleriyle açın.{' '}
-            <a
-              className="inline-flex items-center gap-1 font-medium text-amber-300 underline underline-offset-4"
-              href="https://www.whatsapp.com/legal/business-policy/"
-              rel="noreferrer"
-              target="_blank"
-            >
-              WhatsApp işletme ilkeleri <ExternalLink className="h-3 w-3" />
-            </a>
-          </p>
-        </div>
-      </aside>
     </div>
   );
 }

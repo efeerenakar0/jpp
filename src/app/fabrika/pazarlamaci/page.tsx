@@ -26,7 +26,6 @@ import EmptyState from '@/components/fabrika/EmptyState';
 import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
 import PageHeader from '@/components/fabrika/PageHeader';
 import StatCard from '@/components/fabrika/StatCard';
-import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -321,7 +320,6 @@ export default function MarketingPage() {
         }
       />
 
-      <WorkspacePulse />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Kampanya" value={data?.campaigns.length || 0} icon={Megaphone} />

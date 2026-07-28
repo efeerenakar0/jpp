@@ -9,7 +9,6 @@ const pageNames: Record<string, string> = {
   '/fabrika/crm': 'Merkezi CRM',
   '/fabrika/portfoyler': 'Portföy Yönetimi',
   '/fabrika/satis': 'Merkezi CRM · Satış süreci',
-  '/fabrika/eslestirme': 'Akıllı Eşleştirme',
   '/fabrika/takvim': 'Randevular ve Görevler',
   '/fabrika/satici-portali': 'Portföyler · Malik raporları',
   '/fabrika/sirket': 'Şirket ve Ekip',

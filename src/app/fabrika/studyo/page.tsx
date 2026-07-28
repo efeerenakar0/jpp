@@ -18,7 +18,6 @@ import {
   X,
 } from 'lucide-react';
 import PageHeader from '@/components/fabrika/PageHeader';
-import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import PosterMaker from '@/components/fabrika/PosterMaker';
 import {
@@ -358,7 +357,6 @@ export default function StudioPage() {
         }
       />
 
-      <WorkspacePulse />
 
       <main>
         {studioArea === 'poster' ? <PosterMaker /> : screen === 'upload' ? (

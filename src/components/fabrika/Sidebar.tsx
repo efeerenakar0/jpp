@@ -16,7 +16,6 @@ import {
   X,
   Users,
   Home,
-  Sparkles,
   CalendarDays,
   Settings2,
   Smartphone,
@@ -89,13 +88,6 @@ const realEstatePackages = [
     icon: Users,
     color: 'from-emerald-400 to-teal-500',
     description: 'Müşteri Profilleri',
-  },
-  {
-    name: 'Eşleştirme',
-    href: '/fabrika/eslestirme',
-    icon: Sparkles,
-    color: 'from-emerald-400 to-teal-500',
-    description: 'Müşteri × Portföy',
   },
   {
     name: 'Takvim',
