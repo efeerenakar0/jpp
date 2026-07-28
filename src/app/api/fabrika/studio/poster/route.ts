@@ -35,29 +35,33 @@ function imageMime(file: File) {
 
 function posterPrompt(input: {
   companyName: string;
+  location: string;
+  roomCount: string;
+  propertyType: string;
   area: string;
   price: string;
   details: string;
-  format: 'post' | 'story';
+  highlights: string[];
 }) {
   const facts = [
+    input.location ? `location: ${input.location}` : '',
+    input.propertyType ? `property type: ${input.propertyType}` : '',
+    input.roomCount ? `rooms: ${input.roomCount}` : '',
     input.area ? `${input.area} m²` : '',
     input.price ? `fiyat: ${input.price}` : '',
     input.details,
+    ...input.highlights.filter(Boolean),
   ]
     .filter(Boolean)
     .join(', ');
 
   return [
-    'Create a premium, photorealistic Turkish real-estate advertising poster background from the supplied property photo.',
-    'Preserve the exact architecture, facade, rooms, landscape, materials and realistic proportions of the property.',
-    'Make the composition polished, editorial and high-end, with clean negative space for a marketing overlay.',
+    'Make a conservative, photorealistic real-estate photography enhancement from the supplied property photo.',
+    'Preserve the exact architecture, facade, rooms, landscape, pool, materials, camera angle and realistic proportions. Do not invent, remove or redesign any part of the property.',
+    'Only improve natural lighting, color balance, clarity and editorial presentation while keeping clean negative space for a marketing overlay.',
     'Do not add any text, letters, numbers, logos, watermarks, people, sale signs or brand marks.',
     `Brand: ${input.companyName || 'real-estate agency'}.`,
     facts ? `Property facts to guide the visual mood: ${facts}.` : '',
-    input.format === 'story'
-      ? 'Compose for a refined vertical 9:16 social media story.'
-      : 'Compose for a refined vertical 4:5 Instagram feed post.',
   ]
     .filter(Boolean)
     .join(' ');
@@ -66,12 +70,17 @@ function posterPrompt(input: {
 function fallbackCampaign(input: {
   companyName: string;
   posterName: string;
+  location: string;
+  roomCount: string;
+  propertyType: string;
   area: string;
   price: string;
   details: string;
+  highlights: string[];
 }) {
   const variant = Math.floor(Date.now() / 1000) % 3;
-  const facts = [input.area ? `${input.area} m²` : '', input.price].filter(Boolean).join(' · ');
+  const facts = [input.location, input.propertyType, input.roomCount, input.area ? `${input.area} m²` : '', input.price].filter(Boolean).join(' · ');
+  const highlights = input.highlights.filter(Boolean).join(', ');
   const title = input.posterName || 'Yeni portföyümüz';
   const intros = [
     'Sizin için özenle hazırladığımız yeni portföyümüzü paylaşmak isteriz.',
@@ -79,8 +88,8 @@ function fallbackCampaign(input: {
     'Yeni portföyümüz, konfor ve yatırım değerini bir araya getiriyor.',
   ];
   const ctas = ['Detay ve randevu için bu mesaja yanıt verebilirsiniz.', 'Güncel bilgi için bizimle hemen iletişime geçin.', 'Yerinde incelemek için randevunuzu oluşturalım.'];
-  const whatsapp = `Merhaba, ${title} için hazırladığımız özel ilanı sizinle paylaşmak isteriz.${facts ? ` ${facts}.` : ''} ${input.details ? `${input.details} ` : ''}${intros[variant]} ${ctas[variant]}`;
-  const instagram = `${title}\n\n${facts || 'Özenle seçilmiş gayrimenkul fırsatı'}${input.details ? `\n${input.details}` : ''}\n\n${intros[(variant + 1) % 3]} ${ctas[(variant + 2) % 3]}\n\n#gayrimenkul #emlak #yatırım #satılık #${input.companyName.replace(/[^a-zA-Z0-9ğüşöçıİĞÜŞÖÇ]/g, '').toLowerCase() || 'emlak'}`;
+  const whatsapp = `Merhaba, ${title} için hazırladığımız özel ilanı sizinle paylaşmak isteriz.${facts ? ` ${facts}.` : ''}${highlights ? ` Öne çıkan özellikler: ${highlights}.` : ''} ${input.details ? `${input.details} ` : ''}${intros[variant]} ${ctas[variant]}`;
+  const instagram = `${title}\n\n${facts || 'Özenle seçilmiş gayrimenkul fırsatı'}${highlights ? `\nÖne çıkanlar: ${highlights}` : ''}${input.details ? `\n${input.details}` : ''}\n\n${intros[(variant + 1) % 3]} ${ctas[(variant + 2) % 3]}\n\n#gayrimenkul #emlak #yatırım #satılık #${input.companyName.replace(/[^a-zA-Z0-9ğüşöçıİĞÜŞÖÇ]/g, '').toLowerCase() || 'emlak'}`;
   return { whatsapp, instagram };
 }
 
@@ -100,9 +109,25 @@ function parseCampaign(content: string, fallback: ReturnType<typeof fallbackCamp
 export async function GET() {
   try {
     const principal = await requireFabrikaPrincipal();
+    const properties = await prisma.crmProperty.findMany({
+      where: { companyAccountId: principal.account.id },
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        price: true,
+        roomCount: true,
+        area: true,
+        description: true,
+        status: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+    });
     return NextResponse.json({
       companyName: principal.account.companyName,
       logoDataUrl: principal.account.brandLogoData || null,
+      properties,
     });
   } catch (error) {
     return NextResponse.json(
@@ -117,7 +142,7 @@ export async function POST(request: Request) {
     const principal = await requireFabrikaPrincipal();
     const form = await request.formData();
     const companyName = stringValue(form.get('companyName'), 120) || principal.account.companyName;
-    const format: 'post' | 'story' = form.get('format') === 'story' ? 'story' : 'post';
+    const mode: 'faithful' | 'creative' = form.get('mode') === 'creative' ? 'creative' : 'faithful';
     const files = form
       .getAll('photos')
       .filter((value): value is File => value instanceof File && value.size > 0)
@@ -130,14 +155,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Görseller JPG, PNG veya WEBP olmalı ve her biri 9 MB altında kalmalıdır.' },
         { status: 400 }
-      );
-    }
-
-    const stabilityApiKey = process.env.STABILITY_API_KEY?.trim();
-    if (!stabilityApiKey) {
-      return NextResponse.json(
-        { error: 'Poster motoru henüz yapılandırılmadı. Yönetici STABILITY_API_KEY değişkenini eklemelidir.' },
-        { status: 503 }
       );
     }
 
@@ -159,20 +176,44 @@ export async function POST(request: Request) {
     const hero = files[0];
     const input = {
       companyName,
+      location: stringValue(form.get('location'), 160),
+      roomCount: stringValue(form.get('roomCount'), 50),
+      propertyType: stringValue(form.get('propertyType'), 80),
       area: stringValue(form.get('area'), 60),
       price: stringValue(form.get('price'), 80),
       details: stringValue(form.get('details'), 1200),
-      format,
+      highlights: [
+        stringValue(form.get('highlight1'), 120),
+        stringValue(form.get('highlight2'), 120),
+        stringValue(form.get('highlight3'), 120),
+      ],
     };
+
+    if (mode === 'faithful') {
+      return NextResponse.json({
+        success: true,
+        mode,
+        backgroundDataUrl: dataUrl(Buffer.from(await hero.arrayBuffer()), imageMime(hero)),
+        logoDataUrl,
+      });
+    }
+
+    const stabilityApiKey = process.env.STABILITY_API_KEY?.trim();
+    if (!stabilityApiKey) {
+      return NextResponse.json(
+        { error: 'Kreatif poster motoru henüz yapılandırılmadı. Yönetici STABILITY_API_KEY değişkenini eklemelidir.' },
+        { status: 503 }
+      );
+    }
+
     const body = new FormData();
     body.append('prompt', posterPrompt(input));
     body.append('image', new Blob([await hero.arrayBuffer()], { type: imageMime(hero) }), hero.name || 'property.jpg');
-    body.append('strength', '0.72');
-    body.append('aspect_ratio', format === 'story' ? '9:16' : '4:5');
-    body.append('negative_prompt', 'text, letters, numbers, logo, watermark, people, distorted architecture, inaccurate building, low resolution');
+    body.append('control_strength', '0.92');
+    body.append('negative_prompt', 'text, letters, numbers, logo, watermark, people, redesigned property, changed architecture, new pool, altered facade, inaccurate building, low resolution');
     body.append('output_format', 'jpeg');
 
-    const response = await fetch('https://api.stability.ai/v2beta/stable-image/generate/ultra', {
+    const response = await fetch('https://api.stability.ai/v2beta/stable-image/control/structure', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${stabilityApiKey}`,
@@ -203,6 +244,7 @@ export async function POST(request: Request) {
     const result = Buffer.from(await response.arrayBuffer());
     return NextResponse.json({
       success: true,
+      mode,
       backgroundDataUrl: dataUrl(result, response.headers.get('content-type') || 'image/jpeg'),
       logoDataUrl,
     });
@@ -216,14 +258,25 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    await requireFabrikaPrincipal();
+    const principal = await requireFabrikaPrincipal();
     const body = (await request.json()) as Record<string, unknown>;
+    const propertyId = textValue(body.propertyId, 120);
+    const property = propertyId
+      ? await prisma.crmProperty.findFirst({
+          where: { id: propertyId, companyAccountId: principal.account.id },
+          select: { title: true, location: true, roomCount: true, area: true, price: true, description: true },
+        })
+      : null;
     const input = {
-      companyName: textValue(body.companyName, 120),
-      posterName: textValue(body.posterName, 160),
-      area: textValue(body.area, 60),
-      price: textValue(body.price, 80),
-      details: textValue(body.details, 1200),
+      companyName: textValue(body.companyName, 120) || principal.account.companyName,
+      posterName: textValue(body.posterName, 160) || property?.title || '',
+      location: textValue(body.location, 160) || property?.location || '',
+      roomCount: textValue(body.roomCount, 50) || property?.roomCount || '',
+      propertyType: textValue(body.propertyType, 80),
+      area: textValue(body.area, 60) || (property?.area ? String(property.area) : ''),
+      price: textValue(body.price, 80) || (property?.price ? new Intl.NumberFormat('tr-TR').format(property.price) + ' TL' : ''),
+      details: textValue(body.details, 1200) || property?.description || '',
+      highlights: [textValue(body.highlight1, 120), textValue(body.highlight2, 120), textValue(body.highlight3, 120)],
     };
     const fallback = fallbackCampaign(input);
     try {
@@ -235,7 +288,7 @@ export async function PUT(request: Request) {
         },
         {
           role: 'user',
-          content: `Şirket: ${input.companyName}. Poster adı: ${input.posterName}. Metrekare: ${input.area || 'verilmedi'}. Fiyat: ${input.price || 'verilmedi'}. Ek bilgiler: ${input.details || 'verilmedi'}. Bu postere özel iki paylaşım metni üret.`,
+          content: `Şirket: ${input.companyName}. İlan başlığı: ${input.posterName}. Konum: ${input.location || 'verilmedi'}. Tip: ${input.propertyType || 'verilmedi'}. Oda: ${input.roomCount || 'verilmedi'}. Metrekare: ${input.area || 'verilmedi'}. Fiyat: ${input.price || 'verilmedi'}. Öne çıkanlar: ${input.highlights.filter(Boolean).join(', ') || 'verilmedi'}. Ek bilgiler: ${input.details || 'verilmedi'}. Bu portföye özel iki paylaşım metni üret.`,
         },
       ]);
       return NextResponse.json({ ...parseCampaign(ai.content, fallback), source: 'ai' });

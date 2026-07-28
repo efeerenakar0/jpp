@@ -18,11 +18,24 @@ import toast from 'react-hot-toast';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 
 type PosterFormat = 'post' | 'story';
+type PosterMode = 'faithful' | 'creative';
+
+type WorkspaceProperty = {
+  id: string;
+  title: string;
+  location: string | null;
+  price: number | null;
+  roomCount: string | null;
+  area: number | null;
+  description: string | null;
+  status: string;
+};
 
 type PosterResult = {
   id: string;
   name: string;
   previewUrl: string;
+  brief: PosterForm;
   whatsapp?: string;
   instagram?: string;
   campaignLoading?: boolean;
@@ -31,19 +44,35 @@ type PosterResult = {
 
 type PosterForm = {
   companyName: string;
+  propertyId: string;
+  location: string;
+  roomCount: string;
+  propertyType: string;
   area: string;
   price: string;
   details: string;
+  highlight1: string;
+  highlight2: string;
+  highlight3: string;
   format: PosterFormat;
+  mode: PosterMode;
   posterName: string;
 };
 
 const INITIAL_FORM: PosterForm = {
   companyName: '',
+  propertyId: '',
+  location: '',
+  roomCount: '',
+  propertyType: '',
   area: '',
   price: '',
   details: '',
+  highlight1: '',
+  highlight2: '',
+  highlight3: '',
   format: 'post',
+  mode: 'faithful',
   posterName: '',
 };
 
@@ -150,6 +179,14 @@ async function createFinalPoster(input: {
     drawWrappedText(context, input.form.details, pad, textTop, width - pad * 2, 32, 2);
   }
 
+  if (input.form.mode === 'creative') {
+    context.fillStyle = 'rgba(3, 12, 24, 0.82)';
+    context.fillRect(pad, 54, 292, 42);
+    context.fillStyle = '#a7f3d0';
+    context.font = '700 18px Arial';
+    context.fillText('TEMSİLİ AI SUNUMU', pad + 16, 81);
+  }
+
   context.fillStyle = '#34d399';
   context.fillRect(pad, height - 58, 290, 7);
   context.fillStyle = '#e2e8f0';
@@ -207,6 +244,7 @@ export default function PosterMaker() {
   const [rememberLogo, setRememberLogo] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [results, setResults] = useState<PosterResult[]>([]);
+  const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -227,6 +265,7 @@ export default function PosterMaker() {
         if (response.ok) {
           setForm((current) => ({ ...current, companyName: data.companyName || current.companyName }));
           setSavedLogoUrl(data.logoDataUrl || null);
+          setWorkspaceProperties(data.properties || []);
         }
       } catch {
         // The form stays usable; only the automatic company identity fill is unavailable.
@@ -236,6 +275,25 @@ export default function PosterMaker() {
 
   const update = <Key extends keyof PosterForm>(key: Key, value: PosterForm[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const selectProperty = (propertyId: string) => {
+    const property = workspaceProperties.find((item) => item.id === propertyId);
+    if (!property) {
+      update('propertyId', '');
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      propertyId,
+      posterName: property.title || current.posterName,
+      location: property.location || current.location,
+      roomCount: property.roomCount || current.roomCount,
+      area: property.area ? String(property.area) : current.area,
+      price: property.price ? `${new Intl.NumberFormat('tr-TR').format(property.price)} TL` : current.price,
+      details: property.description || current.details,
+    }));
+    toast.success('Portföy bilgileri poster formuna aktarıldı.');
   };
 
   const addPhotos = (incoming: File[]) => {
@@ -268,10 +326,18 @@ export default function PosterMaker() {
       photos.forEach((photo) => data.append('photos', photo));
       if (logoFile) data.append('logo', logoFile);
       data.append('companyName', form.companyName);
+      data.append('propertyId', form.propertyId);
+      data.append('location', form.location);
+      data.append('roomCount', form.roomCount);
+      data.append('propertyType', form.propertyType);
       data.append('area', form.area);
       data.append('price', form.price);
       data.append('details', form.details);
+      data.append('highlight1', form.highlight1);
+      data.append('highlight2', form.highlight2);
+      data.append('highlight3', form.highlight3);
       data.append('format', form.format);
+      data.append('mode', form.mode);
       data.append('rememberLogo', String(rememberLogo && permissions.canManageSecrets));
       const response = await fetch('/api/fabrika/studio/poster', { method: 'POST', body: data });
       const body = await response.json();
@@ -283,7 +349,7 @@ export default function PosterMaker() {
         form,
       });
       const name = form.posterName.trim() || `Portföy posteri ${results.length + 1}`;
-      setResults((current) => [{ id: crypto.randomUUID(), name, previewUrl }, ...current]);
+      setResults((current) => [{ id: crypto.randomUUID(), name, previewUrl, brief: { ...form } }, ...current]);
       if (body.logoDataUrl) setSavedLogoUrl(body.logoDataUrl);
       toast.success('Posteriniz hazır. Şimdi buna özel kampanya metinleri üretebilirsiniz.');
     } catch (error) {
@@ -294,12 +360,14 @@ export default function PosterMaker() {
   };
 
   const createCampaign = async (id: string) => {
+    const result = results.find((item) => item.id === id);
+    if (!result) return;
     setResults((current) => current.map((item) => item.id === id ? { ...item, campaignLoading: true } : item));
     try {
       const response = await fetch('/api/fabrika/studio/poster', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(result.brief),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Kampanya metinleri üretilemedi.');
@@ -338,12 +406,37 @@ export default function PosterMaker() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <label className="mt-6 block rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3 text-xs font-bold text-emerald-100">Portföyden otomatik doldur <span className="font-normal text-emerald-200/70">(isteğe bağlı)</span>
+            <select value={form.propertyId} onChange={(event) => selectProperty(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400">
+              <option value="">Manuel bilgi gireceğim</option>
+              {workspaceProperties.map((property) => <option key={property.id} value={property.id}>{property.title}{property.location ? ` · ${property.location}` : ''}</option>)}
+            </select>
+          </label>
+
+          <fieldset className="mt-5">
+            <legend className="text-xs font-bold text-slate-300">Poster modu</legend>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => update('mode', 'faithful')} aria-pressed={form.mode === 'faithful'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${form.mode === 'faithful' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Gerçeğe sadık poster</span><span className="mt-1 block text-xs leading-5 text-slate-400">Varsayılan. Ana fotoğraf değiştirilmez; sadece gerçek görsele tasarım, metin ve logo eklenir.</span></button>
+              <button type="button" onClick={() => update('mode', 'creative')} aria-pressed={form.mode === 'creative'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${form.mode === 'creative' ? 'border-amber-400/70 bg-amber-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Kreatif AI sunumu</span><span className="mt-1 block text-xs leading-5 text-slate-400">Stability Structure kaynak görseli korumaya çalışarak temsilî, alternatif bir reklam yorumlaması oluşturur.</span></button>
+            </div>
+            {form.mode === 'creative' && <p role="status" className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">Bu görsel AI ile yeniden yorumlanır ve <strong>temsilîdir</strong>. İlanın gerçek fotoğrafı veya teknik özelliği olarak kullanılmamalıdır.</p>}
+          </fieldset>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="text-xs font-bold text-slate-300">Şirket adı <span className="font-normal text-slate-500">(isteğe bağlı)</span>
               <input value={form.companyName} onChange={(event) => update('companyName', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Şirket adınız" />
             </label>
             <label className="text-xs font-bold text-slate-300">Poster adı <span className="font-normal text-slate-500">(isteğe bağlı)</span>
               <input value={form.posterName} onChange={(event) => update('posterName', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. Kestel deniz manzaralı villa" />
+            </label>
+            <label className="text-xs font-bold text-slate-300">Konum <span className="font-normal text-slate-500">(isteğe bağlı)</span>
+              <input value={form.location} onChange={(event) => update('location', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. Alanya / Kestel" />
+            </label>
+            <label className="text-xs font-bold text-slate-300">Portföy tipi <span className="font-normal text-slate-500">(isteğe bağlı)</span>
+              <input value={form.propertyType} onChange={(event) => update('propertyType', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. Satılık villa" />
+            </label>
+            <label className="text-xs font-bold text-slate-300">Oda sayısı <span className="font-normal text-slate-500">(isteğe bağlı)</span>
+              <input value={form.roomCount} onChange={(event) => update('roomCount', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. 4+1" />
             </label>
             <label className="text-xs font-bold text-slate-300">Metrekare <span className="font-normal text-slate-500">(isteğe bağlı)</span>
               <input value={form.area} onChange={(event) => update('area', event.target.value)} inputMode="numeric" className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. 185" />
@@ -356,6 +449,10 @@ export default function PosterMaker() {
           <label className="mt-4 block text-xs font-bold text-slate-300">Ek bilgiler <span className="font-normal text-slate-500">(isteğe bağlı)</span>
             <textarea value={form.details} onChange={(event) => update('details', event.target.value)} className="mt-2 min-h-24 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Konum, oda sayısı, manzara, teslim durumu veya posterde öne çıkarmak istediğiniz özellikler..." />
           </label>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {(['highlight1', 'highlight2', 'highlight3'] as const).map((field, index) => <label key={field} className="text-xs font-bold text-slate-300">Öne çıkan özellik {index + 1} <span className="font-normal text-slate-500">(isteğe bağlı)</span><input value={form[field]} onChange={(event) => update(field, event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder={['Denize yakın', 'Özel havuz', 'Yeni teslim'][index]} /></label>)}
+          </div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
             <fieldset>
@@ -380,12 +477,12 @@ export default function PosterMaker() {
             <div><span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-emerald-300 text-emerald-950"><UploadCloud className="h-6 w-6" /></span><p className="mt-4 text-sm font-bold text-white">Gayrimenkul görsellerini yükleyin</p><p className="mt-1 text-xs leading-5 text-slate-400">Bir veya birden çok görsel bırakın ya da seçmek için tıklayın. En fazla 6 görsel.</p></div>
           </div>
           {photoPreviews.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{photoPreviews.map(({ file, url }, index) => <div key={`${file.name}-${file.lastModified}`} className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-700"><img src={url} alt={file.name} className="h-full w-full object-cover" /><button type="button" onClick={(event) => { event.stopPropagation(); setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index)); }} className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500" aria-label={`${file.name} görselini kaldır`}><X className="h-3.5 w-3.5" /></button></div>)}</div>}
-          <p className="mt-4 text-xs leading-5 text-slate-500">İlk görsel AI için ana görsel olur; diğerleri posterde seçili detay kareleri olarak kullanılabilir. Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
-          <button type="button" onClick={createPoster} disabled={isCreating || !photos.length} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3.5 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-45">{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : 'AI ile poster oluştur'}</button>
+          <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçeğe sadık modda ilk görsel doğrudan kullanılır; mülke ait olmayan hiçbir mimari ayrıntı üretilmez.' : 'Kreatif modda ilk görsel Stability Structure için ana referanstır; diğerleri posterde seçili detay kareleri olarak kullanılabilir.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
+          <button type="button" onClick={createPoster} disabled={isCreating || !photos.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
         </div>
       </div>
 
-      {results.length > 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold text-white">Oluşturulan posterler</h2><p className="mt-1 text-sm text-slate-400">Her postere özel, ayrı kampanya metinleri üretebilirsiniz.</p></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> {results.length} hazır</span></div><div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((result) => <article key={result.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"><img src={result.previewUrl} alt={result.name} className="aspect-[4/5] w-full object-cover" /><div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="text-sm font-bold text-white">{result.name}</h3><a href={result.previewUrl} download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200" aria-label="Posteri indir"><Download className="h-4 w-4" /></a></div><button type="button" onClick={() => createCampaign(result.id)} disabled={result.campaignLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50">{result.campaignLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI ile reklam kampanyası oluştur</button>{result.whatsapp && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp mesajı</p><button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.whatsapp}</p></div>}{result.instagram && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200"><Share2 className="h-3.5 w-3.5" /> Instagram açıklaması</p><button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.instagram}</p><a href="https://www.instagram.com/create/select/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"><Share2 className="h-3.5 w-3.5" /> Instagram’da paylaşımı aç</a></div>}</div></article>)}</div></div>}
+      {results.length > 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold text-white">Oluşturulan posterler</h2><p className="mt-1 text-sm text-slate-400">Her postere özel, ayrı kampanya metinleri üretebilirsiniz.</p></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> {results.length} hazır</span></div><div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((result) => <article key={result.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"><div className="relative"><img src={result.previewUrl} alt={result.name} className="aspect-[4/5] w-full object-cover" />{result.brief.mode === 'creative' && <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">TEMSİLİ AI SUNUMU</span>}</div><div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="text-sm font-bold text-white">{result.name}</h3><a href={result.previewUrl} download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200" aria-label="Posteri indir"><Download className="h-4 w-4" /></a></div><button type="button" onClick={() => createCampaign(result.id)} disabled={result.campaignLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50">{result.campaignLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI ile reklam kampanyası oluştur</button>{result.whatsapp && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp mesajı</p><button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.whatsapp}</p></div>}{result.instagram && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200"><Share2 className="h-3.5 w-3.5" /> Instagram açıklaması</p><button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.instagram}</p><a href="https://www.instagram.com/create/select/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"><Share2 className="h-3.5 w-3.5" /> Instagram’da paylaşımı aç</a></div>}</div></article>)}</div></div>}
     </section>
   );
 }
