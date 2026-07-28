@@ -13,7 +13,7 @@ export const DEFAULT_OPENROUTER_MODEL = 'openrouter/free';
 
 export type MarketingAIResult = {
   content: string;
-  provider: 'OPENROUTER' | 'GROQ' | 'RULE_ENGINE';
+  provider: 'OPENROUTER' | 'GROQ' | 'CLOUDFLARE' | 'RULE_ENGINE';
   model: string | null;
 };
 
@@ -139,8 +139,8 @@ export async function callCompanyMarketingAI(
     const response = await callAI(messages, 'marketing');
     return {
       content: response.content,
-      provider: 'GROQ',
-      model: 'llama-3.3-70b-versatile',
+      provider: response.provider,
+      model: response.model,
     };
   } catch {
     return { content: '', provider: 'RULE_ENGINE', model: null };

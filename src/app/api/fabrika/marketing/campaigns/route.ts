@@ -75,7 +75,11 @@ export async function GET() {
         active: credential?.active || false,
         keyHint: credential?.keyHint || null,
         model: credential?.model || DEFAULT_OPENROUTER_MODEL,
-        fallbackAvailable: Boolean(process.env.GROQ_API_KEY),
+        fallbackAvailable: Boolean(
+          process.env.GROQ_API_KEY ||
+            (process.env.CLOUDFLARE_API_TOKEN &&
+              process.env.CLOUDFLARE_ACCOUNT_ID)
+        ),
       },
       campaigns,
       properties,

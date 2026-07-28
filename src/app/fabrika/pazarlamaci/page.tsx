@@ -23,9 +23,11 @@ import {
 import { toast } from 'sonner';
 import AdCopyCard from '@/components/fabrika/AdCopyCard';
 import EmptyState from '@/components/fabrika/EmptyState';
+import InternationalMarketingPanel from '@/components/fabrika/InternationalMarketingPanel';
 import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
 import PageHeader from '@/components/fabrika/PageHeader';
 import StatCard from '@/components/fabrika/StatCard';
+import type { InternationalMarketingPlan } from '@/lib/international-marketing';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,7 +65,7 @@ type Campaign = {
   id: string;
   name: string;
   description: string | null;
-  type: 'listing' | 'brand';
+  type: 'listing' | 'brand' | 'international';
   objective: string | null;
   audience: string | null;
   posterTemplate: string | null;
@@ -71,6 +73,7 @@ type Campaign = {
   posterSubline: string | null;
   generatedBy: string | null;
   generatedModel: string | null;
+  internationalPlan: InternationalMarketingPlan | null;
   createdAt: string;
   property: Omit<Property, 'status'> | null;
   adCopies: AdCopy[];
@@ -171,14 +174,23 @@ export default function MarketingPage() {
     return () => window.clearTimeout(timer);
   }, [fetchData]);
 
+  const domesticCampaigns = useMemo(
+    () => (data?.campaigns || []).filter((campaign) => campaign.type !== 'international'),
+    [data]
+  );
+
+  const internationalCampaigns = useMemo(
+    () => (data?.campaigns || []).filter((campaign) => campaign.type === 'international'),
+    [data]
+  );
+
   const stats = useMemo(() => {
-    const campaigns = data?.campaigns || [];
-    const copies = campaigns.flatMap((campaign) => campaign.adCopies);
+    const copies = domesticCampaigns.flatMap((campaign) => campaign.adCopies);
     return {
       approved: copies.filter((copy) => copy.approved).length,
-      posterReady: campaigns.filter((campaign) => campaign.posterHeadline).length,
+      posterReady: domesticCampaigns.filter((campaign) => campaign.posterHeadline).length,
     };
-  }, [data]);
+  }, [domesticCampaigns]);
 
   async function generateCampaign() {
     if (campaignType === 'listing' && !propertyId) {
@@ -286,10 +298,10 @@ export default function MarketingPage() {
     }
   }
 
-  const aiLabel = data?.ai.active
+  const aiLabel = data?.ai.configured && data.ai.active
     ? `OpenRouter · ${data.ai.model}`
     : data?.ai.fallbackAvailable
-      ? 'Groq yedek motor'
+      ? 'Jasmine AI Router · Groq + Cloudflare'
       : 'Akıllı kural motoru';
 
   return (
@@ -320,15 +332,25 @@ export default function MarketingPage() {
         }
       />
 
+      <Tabs defaultValue="domestic" className="gap-6">
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto border border-slate-800 bg-slate-900 p-1 sm:w-fit">
+          <TabsTrigger value="domestic" className="min-h-10 px-5 text-slate-400 data-active:bg-emerald-500 data-active:text-emerald-950">
+            Yurt İçi
+          </TabsTrigger>
+          <TabsTrigger value="international" className="min-h-10 px-5 text-slate-400 data-active:bg-emerald-500 data-active:text-emerald-950">
+            <Globe2 /> Yurt Dışı
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Kampanya" value={data?.campaigns.length || 0} icon={Megaphone} />
-        <StatCard label="Aktif portföy" value={data?.properties.length || 0} icon={Target} />
-        <StatCard label="Onaylı kanal metni" value={stats.approved} icon={CheckCircle2} status="success" />
-        <StatCard label="İndirilebilir poster" value={stats.posterReady} icon={ImageIcon} />
-      </div>
+        <TabsContent value="domestic" className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Kampanya" value={domesticCampaigns.length} icon={Megaphone} />
+            <StatCard label="Aktif portföy" value={data?.properties.length || 0} icon={Target} />
+            <StatCard label="Onaylı kanal metni" value={stats.approved} icon={CheckCircle2} status="success" />
+            <StatCard label="İndirilebilir poster" value={stats.posterReady} icon={ImageIcon} />
+          </div>
 
-      <Tabs defaultValue="campaigns" className="gap-5">
+          <Tabs defaultValue="campaigns" className="gap-5">
         <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto border border-slate-800 bg-slate-900 p-1 sm:w-fit">
           <TabsTrigger value="campaigns" className="min-h-9 px-4 text-slate-400 data-active:bg-slate-800 data-active:text-white">
             <WandSparkles /> Kampanya stüdyosu
@@ -467,10 +489,10 @@ export default function MarketingPage() {
             </div>
             {loading ? (
               <LoadingSkeleton rows={3} />
-            ) : !data?.campaigns.length ? (
+            ) : domesticCampaigns.length === 0 ? (
               <EmptyState icon={Megaphone} title="Henüz kampanya yok" description="Yukarıdaki stüdyodan ilk kampanya setinizi oluşturun." />
             ) : (
-              data.campaigns.map((campaign) => (
+              domesticCampaigns.map((campaign) => (
                 <article key={campaign.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
                   <button
                     type="button"
@@ -484,7 +506,13 @@ export default function MarketingPage() {
                           {campaign.type === 'listing' ? 'Portföy' : 'Marka'}
                         </Badge>
                         <Badge variant="outline" className="border-slate-700 text-slate-400">
-                          {campaign.generatedBy === 'OPENROUTER' ? 'OpenRouter AI' : campaign.generatedBy === 'GROQ' ? 'Groq AI' : 'Akıllı kural motoru'}
+                          {campaign.generatedBy === 'OPENROUTER'
+                            ? 'OpenRouter AI'
+                            : campaign.generatedBy === 'GROQ'
+                              ? 'Groq AI'
+                              : campaign.generatedBy === 'CLOUDFLARE'
+                                ? 'Cloudflare AI'
+                                : 'Akıllı kural motoru'}
                         </Badge>
                         <h3 className="truncate text-sm font-semibold text-white">{campaign.name}</h3>
                       </div>
@@ -615,6 +643,17 @@ export default function MarketingPage() {
               ))
             )}
           </section>
+        </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="international">
+          <InternationalMarketingPanel
+            properties={data?.properties || []}
+            campaigns={internationalCampaigns}
+            loading={loading}
+            onGenerated={fetchData}
+          />
         </TabsContent>
       </Tabs>
 

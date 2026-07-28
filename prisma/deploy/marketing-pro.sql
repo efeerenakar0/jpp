@@ -12,7 +12,8 @@ ALTER TABLE "AdCampaign"
   ADD COLUMN IF NOT EXISTS "posterSubline" TEXT,
   ADD COLUMN IF NOT EXISTS "posterCta" TEXT,
   ADD COLUMN IF NOT EXISTS "generatedBy" TEXT,
-  ADD COLUMN IF NOT EXISTS "generatedModel" TEXT;
+  ADD COLUMN IF NOT EXISTS "generatedModel" TEXT,
+  ADD COLUMN IF NOT EXISTS "internationalPlan" JSONB;
 
 UPDATE "AdCampaign"
 SET "companyAccountId" = (

@@ -807,27 +807,28 @@ model GeneratedWebsite {
 // --- Modül 3: Pazarlamacı / Reklam Ekibi ---
 
 model AdCampaign {
-  id               String          @id @default(cuid())
-  companyAccountId String?
-  companyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  propertyId       String?
-  property         CrmProperty?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
-  name             String
-  description      String?         @db.Text
-  type             String // "listing" veya "brand"
-  objective        String?
-  audience         String?
-  tone             String?
-  status           String          @default("DRAFT")
-  posterTemplate   String?
-  posterHeadline   String?
-  posterSubline    String?
-  posterCta        String?
-  generatedBy      String?
-  generatedModel   String?
-  isActive         Boolean         @default(true)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                String          @id @default(cuid())
+  companyAccountId  String?
+  companyAccount    CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyId        String?
+  property          CrmProperty?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  name              String
+  description       String?         @db.Text
+  type              String // "listing" veya "brand"
+  objective         String?
+  audience          String?
+  tone              String?
+  status            String          @default("DRAFT")
+  posterTemplate    String?
+  posterHeadline    String?
+  posterSubline     String?
+  posterCta         String?
+  generatedBy       String?
+  generatedModel    String?
+  internationalPlan Json?
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   adCopies AdCopy[]
 
