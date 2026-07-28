@@ -32,6 +32,7 @@ export type SafeCompanyAccount = Omit<
   | 'accessKeyLookup'
   | 'accessKeyHash'
   | 'verificationCodeHash'
+  | 'brandLogoData'
 > & { hunterEnabled: boolean };
 
 export function isHunterEnabled(account: Pick<CompanyAccount, 'slug' | 'subscriptionPlan'>) {

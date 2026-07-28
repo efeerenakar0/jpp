@@ -321,6 +321,7 @@ model CompanyAccount {
   slug                 String               @unique
   ownerName            String
   ownerEmail           String?
+  brandLogoData        String?              @db.Text
   accessKeyLookup      String?              @unique
   accessKeyHash        String?
   accessKeyHint        String?

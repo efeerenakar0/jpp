@@ -20,6 +20,7 @@ import {
 import PageHeader from '@/components/fabrika/PageHeader';
 import WorkspacePulse from '@/components/fabrika/WorkspacePulse';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
+import PosterMaker from '@/components/fabrika/PosterMaker';
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,7 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
 
 export default function StudioPage() {
   const { permissions } = useFabrikaSession();
+  const [studioArea, setStudioArea] = useState<'enhancer' | 'poster'>('enhancer');
   const [screen, setScreen] = useState<StudioScreen>('upload');
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -316,10 +318,16 @@ export default function StudioPage() {
       <PageHeader
         eyebrow="Görsel operasyonu"
         title="Stüdyo"
-        description="Portföy fotoğraflarını profesyonel yayın standardına göre iyileştirin ve indirilebilir çıktılar hazırlayın."
+        description={studioArea === 'enhancer'
+          ? 'Portföy fotoğraflarını profesyonel yayın standardına göre iyileştirin ve indirilebilir çıktılar hazırlayın.'
+          : 'Gayrimenkul görsellerinizden şirket kimliğinize uygun reklam posterleri ve paylaşım metinleri oluşturun.'}
         icon={Aperture}
         actions={
           <>
+            <div role="tablist" aria-label="Stüdyo çalışma alanları" className="flex rounded-lg border border-slate-700 bg-slate-900 p-1">
+              <button type="button" role="tab" aria-selected={studioArea === 'enhancer'} onClick={() => setStudioArea('enhancer')} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${studioArea === 'enhancer' ? 'bg-emerald-400/15 text-emerald-200' : 'text-slate-400 hover:text-white'}`}>Resim iyileştirici</button>
+              <button type="button" role="tab" aria-selected={studioArea === 'poster'} onClick={() => setStudioArea('poster')} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${studioArea === 'poster' ? 'bg-emerald-400/15 text-emerald-200' : 'text-slate-400 hover:text-white'}`}>Poster yapıcı</button>
+            </div>
             {permissions.canManageSecrets && (
               <button
                 type="button"
@@ -337,7 +345,7 @@ export default function StudioPage() {
                   : 'AI sağlayıcısı seçin'
                 : 'Şirket AI sağlayıcısı'}
             </span>
-            {screen === 'results' && (
+            {studioArea === 'enhancer' && screen === 'results' && (
               <button
                 type="button"
                 onClick={resetStudio}
@@ -353,7 +361,7 @@ export default function StudioPage() {
       <WorkspacePulse />
 
       <main>
-        {screen === 'upload' ? (
+        {studioArea === 'poster' ? <PosterMaker /> : screen === 'upload' ? (
           <section className="mx-auto max-w-4xl">
             <div className="mb-7 text-center">
               <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300">

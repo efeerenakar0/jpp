@@ -330,6 +330,7 @@ async function getWorkspace(
       select: {
         id: true,
         companyName: true,
+        brandLogoData: true,
         ownerName: true,
         ownerEmail: true,
         slug: true,
@@ -466,6 +467,7 @@ async function getWorkspace(
     account: {
       id: account.id,
       companyName: account.companyName,
+      brandLogoData: account.brandLogoData,
       ownerName: account.ownerName,
       ownerEmail: account.ownerEmail,
       slug: account.slug,
