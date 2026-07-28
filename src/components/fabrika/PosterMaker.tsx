@@ -86,16 +86,35 @@ function loadImage(source: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawCover(
+const POSTER_TEMPLATE_VERSION = 'luxury-editorial-v2';
+const POSTER_NAVY = '#06243a';
+const POSTER_NAVY_DARK = '#031725';
+const POSTER_GOLD = '#e8b85b';
+const POSTER_CREAM = '#f6f0e5';
+
+function drawImageCover(
   context: CanvasRenderingContext2D,
   image: HTMLImageElement,
+  x: number,
+  y: number,
   width: number,
-  height: number
+  height: number,
 ) {
   const scale = Math.max(width / image.width, height / image.height);
   const imageWidth = image.width * scale;
   const imageHeight = image.height * scale;
-  context.drawImage(image, (width - imageWidth) / 2, (height - imageHeight) / 2, imageWidth, imageHeight);
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+  context.drawImage(
+    image,
+    x + (width - imageWidth) / 2,
+    y + (height - imageHeight) / 2,
+    imageWidth,
+    imageHeight
+  );
+  context.restore();
 }
 
 function drawWrappedText(
@@ -125,6 +144,140 @@ function drawWrappedText(
   return y + Math.max(lines.length, 1) * lineHeight;
 }
 
+function fitText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  startSize: number,
+  minSize: number,
+  weight = 700,
+  family = 'Arial'
+) {
+  let size = startSize;
+  while (size > minSize) {
+    context.font = `${weight} ${size}px ${family}`;
+    if (context.measureText(text).width <= maxWidth) break;
+    size -= 2;
+  }
+  return size;
+}
+
+function drawRule(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  color = 'rgba(232, 184, 91, 0.45)'
+) {
+  context.fillStyle = color;
+  context.fillRect(x, y, width, 1);
+}
+
+function drawFeatureList(
+  context: CanvasRenderingContext2D,
+  items: string[],
+  bounds: { x: number; y: number; width: number; height: number },
+  columns = 1
+) {
+  const visibleItems = items.filter(Boolean).slice(0, columns === 1 ? 7 : 6);
+  if (!visibleItems.length) return;
+
+  const columnWidth = bounds.width / columns;
+  const rows = Math.ceil(visibleItems.length / columns);
+  const rowHeight = bounds.height / Math.max(rows, 1);
+
+  visibleItems.forEach((item, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = bounds.x + column * columnWidth;
+    const y = bounds.y + row * rowHeight;
+    const markerSize = 28;
+
+    context.strokeStyle = POSTER_GOLD;
+    context.lineWidth = 2;
+    context.strokeRect(x, y + 3, markerSize, markerSize);
+    context.fillStyle = POSTER_GOLD;
+    context.font = '700 15px Arial';
+    context.textAlign = 'center';
+    context.fillText(String(index + 1).padStart(2, '0'), x + markerSize / 2, y + 23);
+    context.textAlign = 'left';
+    context.fillStyle = '#ffffff';
+    const fontSize = fitText(context, item, columnWidth - markerSize - 24, 18, 13, 600);
+    context.font = `600 ${fontSize}px Arial`;
+    drawWrappedText(context, item, x + markerSize + 13, y + 18, columnWidth - markerSize - 24, fontSize + 5, 2);
+    drawRule(context, x, y + rowHeight - 8, columnWidth - 14);
+  });
+}
+
+function drawGallery(
+  context: CanvasRenderingContext2D,
+  images: HTMLImageElement[],
+  bounds: { x: number; y: number; width: number; height: number }
+) {
+  if (!images.length) {
+    context.fillStyle = POSTER_NAVY_DARK;
+    context.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    return;
+  }
+
+  const gap = 4;
+  if (images.length <= 3) {
+    const cellWidth = (bounds.width - gap * (images.length - 1)) / images.length;
+    images.forEach((image, index) => {
+      drawImageCover(context, image, bounds.x + index * (cellWidth + gap), bounds.y, cellWidth, bounds.height);
+    });
+    return;
+  }
+
+  const topCount = Math.min(3, images.length);
+  const bottomImages = images.slice(topCount);
+  const rowHeight = (bounds.height - gap) / 2;
+  const topWidth = (bounds.width - gap * (topCount - 1)) / topCount;
+  images.slice(0, topCount).forEach((image, index) => {
+    drawImageCover(context, image, bounds.x + index * (topWidth + gap), bounds.y, topWidth, rowHeight);
+  });
+  const bottomWidth = (bounds.width - gap * (bottomImages.length - 1)) / bottomImages.length;
+  bottomImages.forEach((image, index) => {
+    drawImageCover(
+      context,
+      image,
+      bounds.x + index * (bottomWidth + gap),
+      bounds.y + rowHeight + gap,
+      bottomWidth,
+      rowHeight
+    );
+  });
+}
+
+function drawLogo(
+  context: CanvasRenderingContext2D,
+  logo: HTMLImageElement | null,
+  companyName: string,
+  bounds: { x: number; y: number; width: number; height: number }
+) {
+  if (logo) {
+    const ratio = Math.min(bounds.width / logo.width, bounds.height / logo.height);
+    const width = logo.width * ratio;
+    const height = logo.height * ratio;
+    context.drawImage(
+      logo,
+      bounds.x + (bounds.width - width) / 2,
+      bounds.y + (bounds.height - height) / 2,
+      width,
+      height
+    );
+    return;
+  }
+
+  const name = (companyName || 'GAYRİMENKUL').toLocaleUpperCase('tr-TR');
+  const size = fitText(context, name, bounds.width, 27, 16, 700, 'Georgia');
+  context.fillStyle = POSTER_GOLD;
+  context.font = `700 ${size}px Georgia`;
+  context.textAlign = 'center';
+  context.fillText(name, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2 + size / 3);
+  context.textAlign = 'left';
+}
+
 async function createFinalPoster(input: {
   backgroundUrl: string;
   photoUrls: string[];
@@ -139,111 +292,249 @@ async function createFinalPoster(input: {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Poster yüzeyi oluşturulamadı.');
 
-  const background = await loadImage(input.backgroundUrl);
-  drawCover(context, background, width, height);
-  const gradient = context.createLinearGradient(0, height * 0.2, 0, height);
-  gradient.addColorStop(0, 'rgba(3, 12, 24, 0.06)');
-  gradient.addColorStop(0.55, 'rgba(3, 12, 24, 0.2)');
-  gradient.addColorStop(1, 'rgba(3, 12, 24, 0.94)');
-  context.fillStyle = gradient;
+  const [background, logo, ...galleryImages] = await Promise.all([
+    loadImage(input.backgroundUrl),
+    input.logoUrl ? loadImage(input.logoUrl).catch(() => null) : Promise.resolve(null),
+    ...input.photoUrls.slice(1, 6).map((url) => loadImage(url).catch(() => null)),
+  ]);
+  const details = galleryImages.filter((image): image is HTMLImageElement => Boolean(image));
+  const title = input.form.posterName.trim() || input.form.propertyType.trim() || 'Özel gayrimenkul fırsatı';
+  const company = input.form.companyName.trim() || 'Gayrimenkul';
+  const facts = [
+    input.form.roomCount ? `${input.form.roomCount} oda` : '',
+    input.form.area ? `${input.form.area} m²` : '',
+    input.form.propertyType,
+  ].filter(Boolean);
+  const featureItems = [
+    input.form.highlight1,
+    input.form.highlight2,
+    input.form.highlight3,
+    input.form.location,
+    input.form.roomCount ? `${input.form.roomCount} oda` : '',
+    input.form.area ? `${input.form.area} m² kullanım alanı` : '',
+    input.form.propertyType,
+  ].filter(Boolean);
+
+  context.fillStyle = POSTER_NAVY_DARK;
   context.fillRect(0, 0, width, height);
 
-  const pad = 72;
-  let textTop = height - (input.form.format === 'story' ? 560 : 420);
-  context.fillStyle = '#d1fae5';
-  context.font = '700 25px Arial';
-  context.fillText((input.form.companyName || 'GAYRİMENKUL').toLocaleUpperCase('tr-TR'), pad, textTop);
-  textTop += 56;
-  context.fillStyle = '#ffffff';
-  context.font = '800 62px Arial';
-  textTop = drawWrappedText(
-    context,
-    input.form.posterName || 'Özel gayrimenkul fırsatı',
-    pad,
-    textTop,
-    width - pad * 2,
-    72,
-    2
-  );
-  const facts = [
-    input.form.location,
-    input.form.propertyType,
-    input.form.roomCount,
-    input.form.area ? `${input.form.area} m²` : '',
-    input.form.price,
-  ].filter(Boolean).join('  ·  ');
-  if (facts) {
-    textTop += 20;
-    context.fillStyle = '#e2e8f0';
-    context.font = '600 25px Arial';
-    textTop = drawWrappedText(context, facts, pad, textTop, width - pad * 2, 34, 2);
-  }
-  const highlights = [input.form.highlight1, input.form.highlight2, input.form.highlight3].filter(Boolean).join('  ·  ');
-  if (highlights) {
-    textTop += 14;
-    context.fillStyle = '#a7f3d0';
-    context.font = '700 21px Arial';
-    textTop = drawWrappedText(context, highlights, pad, textTop, width - pad * 2, 29, 1);
-  } else if (input.form.details) {
-    context.fillStyle = '#cbd5e1';
-    context.font = '400 21px Arial';
-    textTop += 10;
-    drawWrappedText(context, input.form.details, pad, textTop, width - pad * 2, 29, 1);
-  }
+  if (input.form.format === 'post') {
+    const heroWidth = 748;
+    const heroHeight = 705;
+    const railWidth = width - heroWidth;
+    const galleryY = heroHeight;
+    const galleryHeight = 315;
+    const footerY = galleryY + galleryHeight;
+    const footerHeight = height - footerY;
 
-  if (input.form.mode === 'creative') {
-    context.fillStyle = 'rgba(3, 12, 24, 0.82)';
-    context.fillRect(pad, 54, 292, 42);
-    context.fillStyle = '#a7f3d0';
-    context.font = '700 18px Arial';
-    context.fillText('TEMSİLİ AI SUNUMU', pad + 16, 81);
-  }
+    drawImageCover(context, background, 0, 0, heroWidth, heroHeight);
+    const heroGradient = context.createLinearGradient(0, 0, 0, heroHeight);
+    heroGradient.addColorStop(0, 'rgba(3, 23, 37, 0.94)');
+    heroGradient.addColorStop(0.43, 'rgba(3, 23, 37, 0.12)');
+    heroGradient.addColorStop(1, 'rgba(3, 23, 37, 0.42)');
+    context.fillStyle = heroGradient;
+    context.fillRect(0, 0, heroWidth, heroHeight);
 
-  context.fillStyle = '#34d399';
-  context.fillRect(pad, height - 58, 290, 7);
-  context.fillStyle = '#e2e8f0';
-  context.font = '700 20px Arial';
-  context.fillText('DETAY VE RANDEVU İÇİN İLETİŞİME GEÇİN', pad, height - 84);
+    context.fillStyle = POSTER_NAVY;
+    context.fillRect(heroWidth, 0, railWidth, heroHeight);
+    context.fillStyle = POSTER_GOLD;
+    context.fillRect(heroWidth, 0, 2, heroHeight);
+    context.font = '400 28px Georgia';
+    context.fillText('ÖNE ÇIKANLAR', heroWidth + 34, 62);
+    drawRule(context, heroWidth + 34, 82, railWidth - 68, POSTER_GOLD);
+    drawFeatureList(
+      context,
+      featureItems,
+      { x: heroWidth + 34, y: 112, width: railWidth - 68, height: heroHeight - 138 }
+    );
 
-  if (input.logoUrl) {
-    try {
-      const logo = await loadImage(input.logoUrl);
-      const ratio = Math.min(170 / logo.width, 88 / logo.height, 1);
-      const logoWidth = logo.width * ratio;
-      const logoHeight = logo.height * ratio;
-      context.fillStyle = 'rgba(255,255,255,0.94)';
-      context.fillRect(width - pad - logoWidth - 24, 54, logoWidth + 24, logoHeight + 24);
-      context.drawImage(logo, width - pad - logoWidth - 12, 66, logoWidth, logoHeight);
-    } catch {
-      // A poster can still be prepared if the optional logo cannot be rendered.
+    context.fillStyle = POSTER_GOLD;
+    context.font = '700 20px Arial';
+    context.fillText(company.toLocaleUpperCase('tr-TR'), 44, 58);
+    context.fillStyle = '#ffffff';
+    const titleSize = fitText(context, title, heroWidth - 88, 65, 34, 400, 'Georgia');
+    context.font = `400 ${titleSize}px Georgia`;
+    context.fillText(title, 44, 126);
+    drawRule(context, 44, 148, Math.min(230, heroWidth - 88), POSTER_GOLD);
+
+    if (input.form.location) {
+      context.fillStyle = POSTER_CREAM;
+      context.font = '500 24px Arial';
+      context.fillText(`●  ${input.form.location.toLocaleUpperCase('tr-TR')}`, 44, 190);
     }
-  }
 
-  const thumbnails = input.photoUrls.slice(1, 4);
-  if (thumbnails.length) {
-    const thumbWidth = 150;
-    const thumbHeight = 105;
-    for (const [index, photoUrl] of thumbnails.entries()) {
-      try {
-        const photo = await loadImage(photoUrl);
-        const x = width - pad - (thumbWidth + 16) * (index + 1) + 16;
-        const y = height - 205;
-        context.fillStyle = 'rgba(255,255,255,0.95)';
-        context.fillRect(x - 5, y - 5, thumbWidth + 10, thumbHeight + 10);
-        context.save();
-        context.beginPath();
-        context.rect(x, y, thumbWidth, thumbHeight);
-        context.clip();
-        const scale = Math.max(thumbWidth / photo.width, thumbHeight / photo.height);
-        const renderedWidth = photo.width * scale;
-        const renderedHeight = photo.height * scale;
-        context.drawImage(photo, x + (thumbWidth - renderedWidth) / 2, y + (thumbHeight - renderedHeight) / 2, renderedWidth, renderedHeight);
-        context.restore();
-      } catch {
-        // Additional photos are optional visual accents.
+    facts.slice(0, 3).forEach((fact, index) => {
+      const x = 44 + index * 220;
+      context.fillStyle = 'rgba(3, 23, 37, 0.8)';
+      context.fillRect(x, 222, 196, 74);
+      context.strokeStyle = 'rgba(232, 184, 91, 0.75)';
+      context.strokeRect(x, 222, 196, 74);
+      context.fillStyle = POSTER_GOLD;
+      const factSize = fitText(context, fact, 168, 22, 15, 700);
+      context.font = `700 ${factSize}px Arial`;
+      context.textAlign = 'center';
+      context.fillText(fact.toLocaleUpperCase('tr-TR'), x + 98, 266);
+      context.textAlign = 'left';
+    });
+
+    if (input.form.details) {
+      context.fillStyle = 'rgba(3, 23, 37, 0.82)';
+      context.fillRect(44, heroHeight - 118, heroWidth - 88, 82);
+      context.fillStyle = POSTER_CREAM;
+      context.font = '500 18px Arial';
+      drawWrappedText(context, input.form.details, 62, heroHeight - 82, heroWidth - 124, 24, 2);
+    }
+
+    drawGallery(context, details.length ? details : [background], {
+      x: 0,
+      y: galleryY,
+      width,
+      height: galleryHeight,
+    });
+
+    context.fillStyle = POSTER_NAVY;
+    context.fillRect(0, footerY, width, footerHeight);
+    context.fillStyle = POSTER_GOLD;
+    context.fillRect(0, footerY, width, 3);
+    context.strokeStyle = POSTER_GOLD;
+    context.lineWidth = 2;
+    context.strokeRect(34, footerY + 34, 350, 142);
+    context.fillStyle = POSTER_GOLD;
+    context.font = '500 22px Arial';
+    context.fillText('FİYAT', 58, footerY + 69);
+    const price = input.form.price || 'BİLGİ İÇİN ARAYIN';
+    const priceSize = fitText(context, price, 302, 45, 23, 700);
+    context.font = `700 ${priceSize}px Arial`;
+    context.fillText(price, 58, footerY + 129);
+
+    context.fillStyle = POSTER_CREAM;
+    context.font = '700 25px Arial';
+    context.textAlign = 'center';
+    context.fillText('DETAY VE RANDEVU İÇİN', 570, footerY + 76);
+    context.fillStyle = POSTER_GOLD;
+    context.font = 'italic 26px Georgia';
+    context.fillText('Bizimle iletişime geçin', 570, footerY + 119);
+    context.textAlign = 'left';
+    drawLogo(context, logo, company, { x: 760, y: footerY + 34, width: 276, height: 132 });
+
+    context.fillStyle = POSTER_CREAM;
+    context.fillRect(0, footerY + 200, width, footerHeight - 200);
+    const stripItems = [
+      input.form.location,
+      input.form.roomCount ? `${input.form.roomCount} ODA` : '',
+      input.form.area ? `${input.form.area} m²` : '',
+      input.form.propertyType,
+    ].filter(Boolean).slice(0, 4);
+    const stripWidth = width / Math.max(stripItems.length, 1);
+    stripItems.forEach((item, index) => {
+      const x = index * stripWidth;
+      if (index > 0) {
+        context.fillStyle = 'rgba(6, 36, 58, 0.2)';
+        context.fillRect(x, footerY + 217, 1, footerHeight - 234);
       }
+      context.fillStyle = POSTER_NAVY;
+      const stripSize = fitText(context, item.toLocaleUpperCase('tr-TR'), stripWidth - 28, 17, 12, 700);
+      context.font = `700 ${stripSize}px Arial`;
+      context.textAlign = 'center';
+      context.fillText(item.toLocaleUpperCase('tr-TR'), x + stripWidth / 2, footerY + 252);
+    });
+    context.textAlign = 'left';
+  } else {
+    const heroHeight = 860;
+    const featuresY = heroHeight;
+    const featuresHeight = 290;
+    const galleryY = featuresY + featuresHeight;
+    const galleryHeight = 430;
+    const footerY = galleryY + galleryHeight;
+
+    drawImageCover(context, background, 0, 0, width, heroHeight);
+    const heroGradient = context.createLinearGradient(0, 0, 0, heroHeight);
+    heroGradient.addColorStop(0, 'rgba(3, 23, 37, 0.94)');
+    heroGradient.addColorStop(0.42, 'rgba(3, 23, 37, 0.08)');
+    heroGradient.addColorStop(1, 'rgba(3, 23, 37, 0.74)');
+    context.fillStyle = heroGradient;
+    context.fillRect(0, 0, width, heroHeight);
+
+    context.fillStyle = POSTER_GOLD;
+    context.font = '700 24px Arial';
+    context.fillText(company.toLocaleUpperCase('tr-TR'), 56, 72);
+    context.fillStyle = '#ffffff';
+    const titleSize = fitText(context, title, width - 112, 78, 42, 400, 'Georgia');
+    context.font = `400 ${titleSize}px Georgia`;
+    context.fillText(title, 56, 156);
+    drawRule(context, 56, 182, 280, POSTER_GOLD);
+    if (input.form.location) {
+      context.fillStyle = POSTER_CREAM;
+      context.font = '500 28px Arial';
+      context.fillText(`●  ${input.form.location.toLocaleUpperCase('tr-TR')}`, 56, 228);
     }
+
+    const factWidth = (width - 112 - 28 * (facts.length - 1)) / Math.max(facts.length, 1);
+    facts.slice(0, 3).forEach((fact, index) => {
+      const x = 56 + index * (factWidth + 28);
+      context.fillStyle = 'rgba(3, 23, 37, 0.82)';
+      context.fillRect(x, heroHeight - 142, factWidth, 86);
+      context.strokeStyle = 'rgba(232, 184, 91, 0.75)';
+      context.strokeRect(x, heroHeight - 142, factWidth, 86);
+      context.fillStyle = POSTER_GOLD;
+      const factSize = fitText(context, fact, factWidth - 24, 25, 16, 700);
+      context.font = `700 ${factSize}px Arial`;
+      context.textAlign = 'center';
+      context.fillText(fact.toLocaleUpperCase('tr-TR'), x + factWidth / 2, heroHeight - 89);
+    });
+    context.textAlign = 'left';
+
+    context.fillStyle = POSTER_NAVY;
+    context.fillRect(0, featuresY, width, featuresHeight);
+    context.fillStyle = POSTER_GOLD;
+    context.fillRect(0, featuresY, width, 3);
+    context.font = '400 27px Georgia';
+    context.fillText('ÖNE ÇIKAN ÖZELLİKLER', 56, featuresY + 49);
+    drawFeatureList(context, featureItems, {
+      x: 56,
+      y: featuresY + 76,
+      width: width - 112,
+      height: featuresHeight - 90,
+    }, 2);
+
+    drawGallery(context, details.length ? details : [background], {
+      x: 0,
+      y: galleryY,
+      width,
+      height: galleryHeight,
+    });
+
+    context.fillStyle = POSTER_NAVY;
+    context.fillRect(0, footerY, width, height - footerY);
+    context.fillStyle = POSTER_GOLD;
+    context.fillRect(0, footerY, width, 3);
+    context.strokeStyle = POSTER_GOLD;
+    context.strokeRect(48, footerY + 42, 430, 174);
+    context.fillStyle = POSTER_GOLD;
+    context.font = '500 24px Arial';
+    context.fillText('FİYAT', 76, footerY + 82);
+    const price = input.form.price || 'BİLGİ İÇİN ARAYIN';
+    const priceSize = fitText(context, price, 374, 52, 27, 700);
+    context.font = `700 ${priceSize}px Arial`;
+    context.fillText(price, 76, footerY + 151);
+    context.fillStyle = POSTER_CREAM;
+    context.font = '700 27px Arial';
+    context.textAlign = 'center';
+    context.fillText('DETAY VE RANDEVU İÇİN', 758, footerY + 74);
+    context.fillStyle = POSTER_GOLD;
+    context.font = 'italic 30px Georgia';
+    context.fillText('Bizimle iletişime geçin', 758, footerY + 122);
+    drawLogo(context, logo, company, { x: 586, y: footerY + 147, width: 344, height: 92 });
+    context.textAlign = 'left';
   }
+
+  const modeLabel = input.form.mode === 'creative' ? 'TEMSİLİ AI GÖRSELİ' : 'GERÇEK PORTFÖY FOTOĞRAFLARI';
+  context.fillStyle = input.form.mode === 'creative' ? 'rgba(92, 48, 8, 0.94)' : 'rgba(3, 23, 37, 0.9)';
+  context.fillRect(20, height - 33, 280, 25);
+  context.fillStyle = input.form.mode === 'creative' ? '#fde68a' : '#dbeafe';
+  context.font = '700 13px Arial';
+  context.fillText(modeLabel, 31, height - 15);
+
   return canvas.toDataURL('image/jpeg', 0.94);
 }
 
@@ -349,6 +640,7 @@ export default function PosterMaker() {
       return;
     }
     const fingerprint = JSON.stringify({
+      template: POSTER_TEMPLATE_VERSION,
       form,
       heroIndex,
       photos: orderedPhotoPreviews.map(({ file }) => `${file.name}-${file.size}-${file.lastModified}`),
@@ -453,8 +745,8 @@ export default function PosterMaker() {
           <fieldset className="mt-5">
             <legend className="text-xs font-bold text-slate-300">Poster modu</legend>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => update('mode', 'faithful')} aria-pressed={form.mode === 'faithful'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${form.mode === 'faithful' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Gerçeğe sadık poster</span><span className="mt-1 block text-xs leading-5 text-slate-400">Varsayılan. Ana fotoğraf değiştirilmez; sadece gerçek görsele tasarım, metin ve logo eklenir.</span></button>
-              <button type="button" onClick={() => update('mode', 'creative')} aria-pressed={form.mode === 'creative'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${form.mode === 'creative' ? 'border-amber-400/70 bg-amber-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Kreatif AI sunumu</span><span className="mt-1 block text-xs leading-5 text-slate-400">Stable Image Ultra, kaynak görseli başlangıç noktası alarak temsilî ve kaliteli bir reklam yorumlaması oluşturur.</span></button>
+              <button type="button" onClick={() => update('mode', 'faithful')} aria-pressed={form.mode === 'faithful'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${form.mode === 'faithful' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Gerçek fotoğraflı profesyonel poster</span><span className="mt-1 block text-xs leading-5 text-slate-400">Mülkün fotoğrafları aynen korunur; başlık, özellikler, galeri, fiyat ve şirket kimliği profesyonel broşür şablonuna yerleştirilir.</span></button>
+              <button type="button" onClick={() => update('mode', 'creative')} aria-pressed={form.mode === 'creative'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${form.mode === 'creative' ? 'border-amber-400/70 bg-amber-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Kreatif AI görselli poster</span><span className="mt-1 block text-xs leading-5 text-slate-400">Aynı profesyonel broşür tasarımı kullanılır; yalnızca seçtiğiniz ana fotoğraf Stable Image Ultra ile belirgin biçimde yeniden yorumlanır.</span></button>
             </div>
             {form.mode === 'creative' && <p role="status" className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">Bu görsel AI ile yeniden yorumlanır ve <strong>temsilîdir</strong>. İlanın gerçek fotoğrafı veya teknik özelliği olarak kullanılmamalıdır.</p>}
           </fieldset>
@@ -514,12 +806,12 @@ export default function PosterMaker() {
             <div><span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-emerald-300 text-emerald-950"><UploadCloud className="h-6 w-6" /></span><p className="mt-4 text-sm font-bold text-white">Gayrimenkul görsellerini yükleyin</p><p className="mt-1 text-xs leading-5 text-slate-400">Bir veya birden çok görsel bırakın ya da seçmek için tıklayın. En fazla 6 görsel.</p></div>
           </div>
           {photoPreviews.length > 0 && <><p className="mt-4 text-xs font-semibold text-slate-300">Ana görseli seçin</p><div className="mt-2 grid grid-cols-3 gap-2">{photoPreviews.map(({ file, url }, index) => <div key={`${file.name}-${file.lastModified}`} className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${heroIndex === index ? 'border-amber-300 ring-2 ring-amber-300/40' : 'border-slate-700'}`}><button type="button" onClick={() => setHeroIndex(index)} className="h-full w-full" aria-pressed={heroIndex === index} aria-label={`${file.name} ana görsel olarak seç`}><img src={url} alt={file.name} className="h-full w-full object-cover" />{heroIndex === index && <span className="absolute bottom-1.5 left-1.5 rounded bg-amber-300 px-1.5 py-1 text-[10px] font-bold text-amber-950">ANA GÖRSEL</span>}</button><button type="button" onClick={(event) => { event.stopPropagation(); removePhoto(index); }} className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500" aria-label={`${file.name} görselini kaldır`}><X className="h-3.5 w-3.5" /></button></div>)}</div></>}
-          <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçeğe sadık modda seçtiğiniz ana görsel doğrudan kullanılır; mülke ait olmayan hiçbir mimari ayrıntı üretilmez.' : 'Kreatif modda seçtiğiniz ana görsel Stable Image Ultra için ana referanstır; diğer görseller posterde seçili detay kareleri olarak kullanılır.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
+          <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçek fotoğraflı modda seçtiğiniz ana görsel ve galeri fotoğrafları değiştirilmeden profesyonel şablona yerleştirilir.' : 'Kreatif modda yalnızca seçtiğiniz ana görsel Stable Image Ultra ile yeniden yorumlanır; diğer gerçek fotoğraflar galeri bölümünde aynen korunur.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
           <button type="button" onClick={createPoster} disabled={isCreating || !photos.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
         </div>
       </div>
 
-      {results.length > 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold text-white">Oluşturulan posterler</h2><p className="mt-1 text-sm text-slate-400">Her postere özel, ayrı kampanya metinleri üretebilirsiniz.</p></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> {results.length} hazır</span></div><div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((result) => <article key={result.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"><div className="relative"><img src={result.previewUrl} alt={result.name} className="aspect-[4/5] w-full object-cover" />{result.brief.mode === 'creative' && <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">TEMSİLİ AI SUNUMU</span>}</div><div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="text-sm font-bold text-white">{result.name}</h3><a href={result.previewUrl} download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200" aria-label="Posteri indir"><Download className="h-4 w-4" /></a></div><button type="button" onClick={() => createCampaign(result.id)} disabled={result.campaignLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50">{result.campaignLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI ile reklam kampanyası oluştur</button>{result.whatsapp && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp mesajı</p><button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.whatsapp}</p></div>}{result.instagram && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200"><Share2 className="h-3.5 w-3.5" /> Instagram açıklaması</p><button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.instagram}</p><a href="https://www.instagram.com/create/select/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"><Share2 className="h-3.5 w-3.5" /> Instagram’da paylaşımı aç</a></div>}</div></article>)}</div></div>}
+      {results.length > 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold text-white">Oluşturulan posterler</h2><p className="mt-1 text-sm text-slate-400">Her postere özel, ayrı kampanya metinleri üretebilirsiniz.</p></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> {results.length} hazır</span></div><div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((result) => <article key={result.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"><div className="relative"><img src={result.previewUrl} alt={result.name} className="w-full object-cover" style={{ aspectRatio: result.brief.format === 'story' ? '9 / 16' : '4 / 5' }} />{result.brief.mode === 'creative' ? <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">TEMSİLİ AI GÖRSELİ</span> : <span className="absolute left-3 top-3 rounded-full border border-sky-200/20 bg-slate-950/90 px-2 py-1 text-[10px] font-bold text-sky-100">GERÇEK FOTOĞRAFLAR</span>}</div><div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="text-sm font-bold text-white">{result.name}</h3><a href={result.previewUrl} download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200" aria-label="Posteri indir"><Download className="h-4 w-4" /></a></div><button type="button" onClick={() => createCampaign(result.id)} disabled={result.campaignLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50">{result.campaignLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI ile reklam kampanyası oluştur</button>{result.whatsapp && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp mesajı</p><button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.whatsapp}</p></div>}{result.instagram && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200"><Share2 className="h-3.5 w-3.5" /> Instagram açıklaması</p><button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.instagram}</p><a href="https://www.instagram.com/create/select/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"><Share2 className="h-3.5 w-3.5" /> Instagram’da paylaşımı aç</a></div>}</div></article>)}</div></div>}
     </section>
   );
 }
