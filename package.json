@@ -19,6 +19,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "@tiptap/react": "^3.27.3",
     "@tiptap/starter-kit": "^3.27.3",
+    "@vercel/blob": "^2.6.1",
     "@wppconnect-team/wppconnect": "^2.2.3",
     "adm-zip": "^0.6.0",
     "axios": "^1.18.1",

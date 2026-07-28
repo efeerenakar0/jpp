@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Flame,
   Home,
+  ImagePlus,
   Kanban,
   KeyRound,
   ListChecks,
@@ -28,11 +29,19 @@ import {
   Settings2,
   Share2,
   Target,
+  UploadCloud,
   UserCheck,
   UserX,
   Users,
+  X,
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { toast } from 'sonner';
 import EmptyState from '@/components/fabrika/EmptyState';
 import PageHeader from '@/components/fabrika/PageHeader';
@@ -365,22 +374,74 @@ function SelectField({
   children,
   defaultValue,
   required,
+  value,
+  disabled,
+  onChange,
 }: {
   name: string;
   children: React.ReactNode;
   defaultValue?: string;
   required?: boolean;
+  value?: string;
+  disabled?: boolean;
+  onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
 }) {
   return (
     <select
       className={fieldClass}
       defaultValue={defaultValue}
+      disabled={disabled}
       name={name}
+      onChange={onChange}
       required={required}
+      value={value}
     >
       {children}
     </select>
   );
+}
+
+type LocationOption = {
+  id: number;
+  name: string;
+};
+
+const roomCountOptions = [
+  '1+0',
+  '1+1',
+  '2+0',
+  '2+1',
+  '2+2',
+  '3+1',
+  '3+2',
+  '4+1',
+  '4+2',
+  '5+1',
+  '5+2',
+  '6+1',
+  '6+2',
+  '7+1',
+  '7+2',
+  '8+',
+];
+
+async function fetchLocationOptions(
+  level: 'provinces' | 'districts' | 'neighborhoods',
+  parentId?: string
+) {
+  const search = new URLSearchParams({ level });
+  if (parentId) search.set('parentId', parentId);
+
+  const response = await fetch(`/api/fabrika/locations?${search.toString()}`);
+  const body = (await response.json()) as {
+    success?: boolean;
+    items?: LocationOption[];
+    error?: string;
+  };
+  if (!response.ok || !body.success || !body.items) {
+    throw new Error(body.error || 'Konumlar yüklenemedi.');
+  }
+  return body.items;
 }
 
 export default function WorkspacePage({
@@ -1610,6 +1671,7 @@ export default function WorkspacePage({
       )}
 
       <WorkspaceDialog
+        key={dialog || 'closed'}
         dialog={dialog}
         members={workspace.members}
         contacts={workspace.contacts}
@@ -1701,8 +1763,118 @@ function WorkspaceDialog({
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>, message: string) => Promise<boolean>;
 }) {
+  const [provinces, setProvinces] = useState<LocationOption[]>([]);
+  const [districts, setDistricts] = useState<LocationOption[]>([]);
+  const [neighborhoods, setNeighborhoods] = useState<LocationOption[]>([]);
+  const [provinceId, setProvinceId] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const [neighborhoodId, setNeighborhoodId] = useState('');
+  const [locationLoading, setLocationLoading] = useState<
+    'provinces' | 'districts' | 'neighborhoods' | null
+  >(dialog === 'property' ? 'provinces' : null);
+  const [propertyImage, setPropertyImage] = useState<File | null>(null);
+  const [propertySubmitting, setPropertySubmitting] = useState(false);
+  const propertyImagePreview = useMemo(
+    () => (propertyImage ? URL.createObjectURL(propertyImage) : null),
+    [propertyImage]
+  );
+
+  useEffect(() => {
+    if (dialog !== 'property') return;
+
+    let cancelled = false;
+    fetchLocationOptions('provinces')
+      .then((items) => {
+        if (!cancelled) setProvinces(items);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          toast.error(
+            error instanceof Error ? error.message : 'İller yüklenemedi.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLocationLoading(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dialog]);
+
+  useEffect(() => {
+    return () => {
+      if (propertyImagePreview) URL.revokeObjectURL(propertyImagePreview);
+    };
+  }, [propertyImagePreview]);
+
+  async function selectProvince(event: ChangeEvent<HTMLSelectElement>) {
+    const nextId = event.target.value;
+    setProvinceId(nextId);
+    setDistrictId('');
+    setNeighborhoodId('');
+    setDistricts([]);
+    setNeighborhoods([]);
+    if (!nextId) return;
+
+    try {
+      setLocationLoading('districts');
+      setDistricts(await fetchLocationOptions('districts', nextId));
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'İlçeler yüklenemedi.'
+      );
+    } finally {
+      setLocationLoading(null);
+    }
+  }
+
+  async function selectDistrict(event: ChangeEvent<HTMLSelectElement>) {
+    const nextId = event.target.value;
+    setDistrictId(nextId);
+    setNeighborhoodId('');
+    setNeighborhoods([]);
+    if (!nextId) return;
+
+    try {
+      setLocationLoading('neighborhoods');
+      setNeighborhoods(await fetchLocationOptions('neighborhoods', nextId));
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Mahalleler yüklenemedi.'
+      );
+    } finally {
+      setLocationLoading(null);
+    }
+  }
+
+  function selectPropertyImage(event: ChangeEvent<HTMLInputElement>) {
+    const image = event.target.files?.[0] || null;
+    if (!image) {
+      setPropertyImage(null);
+      return;
+    }
+    if (
+      !['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(
+        image.type
+      )
+    ) {
+      toast.error('Yalnızca JPG, PNG, WebP veya AVIF yükleyebilirsiniz.');
+      event.target.value = '';
+      return;
+    }
+    if (image.size > 15 * 1024 * 1024) {
+      toast.error('Görsel boyutu 15 MB veya daha küçük olmalıdır.');
+      event.target.value = '';
+      return;
+    }
+    setPropertyImage(image);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving || propertySubmitting) return;
     const data = new FormData(event.currentTarget);
     const values = Object.fromEntries(data.entries());
 
@@ -1740,17 +1912,65 @@ function WorkspaceDialog({
       );
     }
     if (dialog === 'property') {
-      await onSubmit(
-        {
-          action: 'create-property',
-          ...values,
-          price: values.price || null,
-          area: values.area || null,
-          ownerContactId: values.ownerContactId || null,
-          assignedMemberId: values.assignedMemberId || null,
-        },
-        'Portföy eklendi.'
-      );
+      const province = provinces.find(
+        (item) => String(item.id) === provinceId
+      )?.name;
+      const district = districts.find(
+        (item) => String(item.id) === districtId
+      )?.name;
+      const neighborhood = neighborhoods.find(
+        (item) => String(item.id) === neighborhoodId
+      )?.name;
+
+      if (!province || !district || !neighborhood) {
+        toast.error('İl, ilçe ve mahalle seçimini tamamlayın.');
+        return;
+      }
+
+      try {
+        setPropertySubmitting(true);
+        let imageUrl = '';
+        if (propertyImage) {
+          const imageData = new FormData();
+          imageData.append('image', propertyImage);
+          const uploadResponse = await fetch(
+            '/api/fabrika/portfolio-image',
+            {
+              method: 'POST',
+              body: imageData,
+            }
+          );
+          const uploadBody = (await uploadResponse.json()) as {
+            success?: boolean;
+            url?: string;
+            error?: string;
+          };
+          if (!uploadResponse.ok || !uploadBody.success || !uploadBody.url) {
+            throw new Error(uploadBody.error || 'Görsel yüklenemedi.');
+          }
+          imageUrl = uploadBody.url;
+        }
+
+        await onSubmit(
+          {
+            action: 'create-property',
+            ...values,
+            location: [province, district, neighborhood].join(' / '),
+            imageUrl,
+            price: values.price || null,
+            area: values.area || null,
+            ownerContactId: values.ownerContactId || null,
+            assignedMemberId: values.assignedMemberId || null,
+          },
+          'Portföy eklendi ve Asistan bilgisi güncellendi.'
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : 'Portföy eklenemedi.'
+        );
+      } finally {
+        setPropertySubmitting(false);
+      }
     }
     if (dialog === 'deal') {
       await onSubmit(
@@ -1801,11 +2021,17 @@ function WorkspaceDialog({
 
   return (
     <Dialog open={Boolean(dialog)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto border border-slate-700 bg-slate-900 text-slate-100 sm:max-w-2xl">
+      <DialogContent
+        className={`max-h-[90vh] overflow-y-auto border border-slate-700 bg-slate-900 text-slate-100 ${
+          dialog === 'property' ? 'sm:max-w-3xl' : 'sm:max-w-2xl'
+        }`}
+      >
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            Bilgileri daha sonra müşteri veya portföy profilinden geliştirebilirsiniz.
+            {dialog === 'property'
+              ? 'Konumu listeden seçin; görseliniz kalite kaybı olmadan güvenli depolamaya yüklenir.'
+              : 'Bilgileri daha sonra müşteri veya portföy profilinden geliştirebilirsiniz.'}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -2042,17 +2268,98 @@ function WorkspaceDialog({
                 Referans kodu
                 <Input className={fieldClass} name="referenceCode" />
               </label>
-              <label className={labelClass}>
-                Konum
-                <Input className={fieldClass} name="location" />
-              </label>
+              <fieldset className="grid gap-3 rounded-xl border border-slate-700/80 bg-slate-950/45 p-4 sm:col-span-2 sm:grid-cols-3">
+                <legend className="px-1 text-xs font-semibold text-slate-200">
+                  Portföy konumu
+                </legend>
+                <label className={labelClass}>
+                  İl
+                  <SelectField
+                    disabled={locationLoading === 'provinces'}
+                    name="provinceId"
+                    onChange={selectProvince}
+                    required
+                    value={provinceId}
+                  >
+                    <option value="">
+                      {locationLoading === 'provinces'
+                        ? 'İller yükleniyor…'
+                        : 'İl seçin'}
+                    </option>
+                    {provinces.map((province) => (
+                      <option key={province.id} value={province.id}>
+                        {province.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                </label>
+                <label className={labelClass}>
+                  İlçe
+                  <SelectField
+                    disabled={
+                      !provinceId || locationLoading === 'districts'
+                    }
+                    name="districtId"
+                    onChange={selectDistrict}
+                    required
+                    value={districtId}
+                  >
+                    <option value="">
+                      {locationLoading === 'districts'
+                        ? 'İlçeler yükleniyor…'
+                        : 'İlçe seçin'}
+                    </option>
+                    {districts.map((district) => (
+                      <option key={district.id} value={district.id}>
+                        {district.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                </label>
+                <label className={labelClass}>
+                  Mahalle
+                  <SelectField
+                    disabled={
+                      !districtId || locationLoading === 'neighborhoods'
+                    }
+                    name="neighborhoodId"
+                    onChange={(event) =>
+                      setNeighborhoodId(event.target.value)
+                    }
+                    required
+                    value={neighborhoodId}
+                  >
+                    <option value="">
+                      {locationLoading === 'neighborhoods'
+                        ? 'Mahalleler yükleniyor…'
+                        : 'Mahalle seçin'}
+                    </option>
+                    {neighborhoods.map((neighborhood) => (
+                      <option key={neighborhood.id} value={neighborhood.id}>
+                        {neighborhood.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                </label>
+                <p className="text-[11px] leading-5 text-slate-500 sm:col-span-3">
+                  Bu seçim Asistan’ın “Mahmutlar’da 2+1” gibi müşteri
+                  taleplerini doğru portföyle eşleştirmesini sağlar.
+                </p>
+              </fieldset>
               <label className={labelClass}>
                 Fiyat
                 <Input className={fieldClass} min="0" name="price" type="number" />
               </label>
               <label className={labelClass}>
                 Oda sayısı
-                <Input className={fieldClass} name="roomCount" placeholder="3+1" />
+                <SelectField defaultValue="" name="roomCount" required>
+                  <option value="">Oda sayısını seçin</option>
+                  {roomCountOptions.map((roomCount) => (
+                    <option key={roomCount} value={roomCount}>
+                      {roomCount}
+                    </option>
+                  ))}
+                </SelectField>
               </label>
               <label className={labelClass}>
                 Alan (m²)
@@ -2087,10 +2394,82 @@ function WorkspaceDialog({
                   ))}
                 </SelectField>
               </label>
-              <label className={`${labelClass} sm:col-span-2`}>
-                Görsel adresi
-                <Input className={fieldClass} name="imageUrl" type="url" />
-              </label>
+              <div className="space-y-2 sm:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-medium text-slate-300">
+                    Portföy görseli
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    JPG, PNG, WebP veya AVIF · en fazla 15 MB
+                  </span>
+                </div>
+                <div className="group flex min-h-32 items-center gap-2 rounded-xl border border-dashed border-slate-600 bg-slate-950/60 p-2 transition hover:border-emerald-500/70 hover:bg-emerald-500/[0.04] focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
+                  <label
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 rounded-lg p-2"
+                    htmlFor="property-image"
+                  >
+                    <input
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      className="sr-only"
+                      id="property-image"
+                      key={propertyImage?.name || 'empty'}
+                      onChange={selectPropertyImage}
+                      type="file"
+                    />
+                    {propertyImagePreview ? (
+                      <div
+                        aria-label="Seçilen portföy görselinin önizlemesi"
+                        className="h-24 w-32 shrink-0 rounded-lg bg-cover bg-center shadow-inner"
+                        role="img"
+                        style={{
+                          backgroundImage: `url("${propertyImagePreview}")`,
+                        }}
+                      />
+                    ) : (
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-emerald-300">
+                        <UploadCloud aria-hidden="true" className="h-6 w-6" />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-slate-100">
+                        {propertyImage
+                          ? propertyImage.name
+                          : 'Bilgisayardan görsel seçin'}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-400">
+                        {propertyImage
+                          ? `${(propertyImage.size / 1024 / 1024).toFixed(2)} MB · Kalite değiştirilmeden yüklenecek`
+                          : 'Dosyaya tıklayın veya klavyeyle seçin. Görsel kalıcı bir bağlantıya dönüştürülür.'}
+                      </span>
+                    </span>
+                    {!propertyImage && (
+                      <ImagePlus
+                        aria-hidden="true"
+                        className="h-5 w-5 shrink-0 text-slate-500 transition group-hover:text-emerald-300"
+                      />
+                    )}
+                  </label>
+                  {propertyImage ? (
+                    <Button
+                      aria-label="Seçilen görseli kaldır"
+                      className="shrink-0"
+                      onClick={() => setPropertyImage(null)}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <X aria-hidden="true" className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+                <p
+                  aria-live="polite"
+                  className="text-[11px] leading-5 text-slate-500"
+                >
+                  Görsel yalnızca sizin şirketinizin portföy kaydına bağlanır;
+                  uygulama sunucusunun geçici diskinde tutulmaz.
+                </p>
+              </div>
               <label className={`${labelClass} sm:col-span-2`}>
                 Açıklama
                 <textarea className={`${fieldClass} min-h-24 py-3`} name="description" />
@@ -2256,12 +2635,18 @@ function WorkspaceDialog({
           </Button>
           <Button
             className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-            disabled={saving}
+            disabled={saving || propertySubmitting}
             form="workspace-form"
             type="submit"
           >
-            {saving && <Loader2 className="animate-spin" />}
-            Kaydet
+            {(saving || propertySubmitting) && (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            )}
+            {propertySubmitting
+              ? propertyImage
+                ? 'Görsel yükleniyor…'
+                : 'Portföy kaydediliyor…'
+              : 'Kaydet'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { callAI, PROMPTS } from '@/lib/ai';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import { loadAssistantPropertyContext } from '@/lib/assistant-property-context';
 
 const schema = z.object({
   message: z.string().trim().min(1).max(1000).optional(),
@@ -18,28 +19,15 @@ export async function POST(request: Request) {
     const message =
       parsed.data.message ||
       'Merhaba, güncel portföyleriniz hakkında bilgi alabilir miyim?';
-    const [config, properties] = await Promise.all([
+    const [config, propertyContext] = await Promise.all([
       prisma.whatsAppConfig.findUnique({
         where: { companyAccountId: principal.account.id },
       }),
-      prisma.crmProperty.findMany({
-        where: {
-          companyAccountId: principal.account.id,
-          status: 'ACTIVE',
-        },
-        select: {
-          title: true,
-          price: true,
-          location: true,
-          roomCount: true,
-          area: true,
-        },
-        take: 20,
-      }),
+      loadAssistantPropertyContext(principal.account.id, message),
     ]);
     const systemPrompt = PROMPTS.customerAssistant({
       companyName: config?.companyName || principal.account.companyName,
-      availableListings: JSON.stringify(properties),
+      availableListings: propertyContext,
       conversationHistory: `Müşteri: ${message}`,
       customerMessage: message,
       assistantName: config?.assistantName || 'Efe',

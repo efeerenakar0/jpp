@@ -2,6 +2,7 @@ import 'server-only';
 
 import prisma from '@/lib/prisma';
 import { callAI, PROMPTS } from '@/lib/ai';
+import { loadAssistantPropertyContext } from '@/lib/assistant-property-context';
 import {
   saveOutgoingConversationMessage,
   sendAssistantWhatsAppMessage,
@@ -181,26 +182,13 @@ export async function processIncomingWhatsAppMessage(
     return { duplicate: false, conversationId: conversation.id };
   }
 
-  const properties = await prisma.crmProperty.findMany({
-    where: {
-      companyAccountId: input.companyAccountId,
-      status: 'ACTIVE',
-    },
-    select: {
-      title: true,
-      referenceCode: true,
-      location: true,
-      price: true,
-      roomCount: true,
-      area: true,
-      description: true,
-    },
-    orderBy: { updatedAt: 'desc' },
-    take: 20,
-  });
+  const propertyContext = await loadAssistantPropertyContext(
+    input.companyAccountId,
+    input.text
+  );
   const systemPrompt = PROMPTS.customerAssistant({
     companyName: config?.companyName || 'Jasmine Group',
-    availableListings: JSON.stringify(properties),
+    availableListings: propertyContext,
     conversationHistory: conversation.messages
       .map((message) => `${message.role}: ${message.content}`)
       .join('\n'),
