@@ -5,6 +5,7 @@ import { createContext, useContext } from 'react';
 export type FabrikaClientSession = {
   principalType: 'OWNER' | 'EMPLOYEE';
   displayName: string;
+  hunterEnabled: boolean;
   permissions: {
     canManageTeam: boolean;
     canManageSecrets: boolean;

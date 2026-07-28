@@ -54,6 +54,8 @@ export default async function proxy(request: NextRequest) {
           subscriptionStatus: true,
           subscriptionEndsAt: true,
           workspaceEnabled: true,
+          subscriptionPlan: true,
+          slug: true,
           sessionVersion: true,
         },
       })
@@ -132,6 +134,25 @@ export default async function proxy(request: NextRequest) {
     return hasFabrikaSession
       ? NextResponse.redirect(new URL('/fabrika', request.url))
       : NextResponse.next();
+  }
+
+  const isHunterRoute =
+    pathname === '/fabrika/avci' ||
+    pathname.startsWith('/fabrika/avci/') ||
+    pathname.startsWith('/api/fabrika/hunting/');
+  if (
+    hasFabrikaSession &&
+    isHunterRoute &&
+    companyAccount?.slug !== 'jasmine-group' &&
+    !companyAccount?.subscriptionPlan.includes('+hunter')
+  ) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Avcı paketi bu şirket için etkin değil.' },
+        { status: 403 }
+      );
+    }
+    return NextResponse.redirect(new URL('/fabrika/portfoyler', request.url));
   }
 
   if (

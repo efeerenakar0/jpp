@@ -42,6 +42,7 @@ type CompanyAccount = {
   subscriptionPlan: string;
   subscriptionEndsAt: string | null;
   workspaceEnabled: boolean;
+  hunterEnabled: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -220,6 +221,7 @@ export default function PlatformAccountsDashboard() {
           action: 'subscription_status';
           subscriptionStatus: SubscriptionStatus;
         }
+      | { action: 'hunter_access'; hunterEnabled: boolean }
       | { action: 'reset_credentials' }
   ) {
     if (
@@ -682,6 +684,29 @@ export default function PlatformAccountsDashboard() {
                             </option>
                           )
                         )}
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`hunter-access-${account.id}`}
+                        className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                      >
+                        Avcı paketi
+                      </label>
+                      <select
+                        id={`hunter-access-${account.id}`}
+                        value={account.hunterEnabled ? 'enabled' : 'disabled'}
+                        disabled={saving === account.id}
+                        onChange={(event) =>
+                          void updateAccount(account.id, {
+                            action: 'hunter_access',
+                            hunterEnabled: event.target.value === 'enabled',
+                          })
+                        }
+                        className="min-h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-bold text-slate-200 outline-none focus-visible:border-cyan-400 focus-visible:ring-2 focus-visible:ring-cyan-400/30 disabled:opacity-60"
+                      >
+                        <option value="disabled">Kilitli</option>
+                        <option value="enabled">Etkin</option>
                       </select>
                     </div>
                     <div>

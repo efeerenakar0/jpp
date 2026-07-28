@@ -35,6 +35,11 @@ const updateAccountSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     id: z.string().min(1),
+    action: z.literal('hunter_access'),
+    hunterEnabled: z.boolean(),
+  }),
+  z.object({
+    id: z.string().min(1),
     action: z.literal('subscription_status'),
     subscriptionStatus: z.nativeEnum(SubscriptionStatus),
   }),
@@ -151,6 +156,13 @@ export async function PATCH(request: Request) {
       });
     }
 
+    const currentPlan =
+      input.action === 'hunter_access'
+        ? await prisma.companyAccount.findUniqueOrThrow({
+            where: { id: input.id },
+            select: { subscriptionPlan: true },
+          })
+        : null;
     const account = await prisma.companyAccount.update({
       where: { id: input.id },
       data:
@@ -159,10 +171,18 @@ export async function PATCH(request: Request) {
               status: input.status,
               sessionVersion: { increment: 1 },
             }
-          : {
+          : input.action === 'subscription_status'
+            ? {
               subscriptionStatus: input.subscriptionStatus,
               sessionVersion: { increment: 1 },
-            },
+              }
+            : {
+                subscriptionPlan: input.hunterEnabled
+                  ? currentPlan!.subscriptionPlan.includes('+hunter')
+                    ? currentPlan!.subscriptionPlan
+                    : `${currentPlan!.subscriptionPlan}+hunter`
+                  : currentPlan!.subscriptionPlan.replace('+hunter', ''),
+              },
     });
 
     return NextResponse.json({

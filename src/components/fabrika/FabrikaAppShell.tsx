@@ -38,6 +38,7 @@ export default function FabrikaAppShell({
           mobileOpen={mobileNavigationOpen}
           onMobileClose={() => setMobileNavigationOpen(false)}
           principalType={session.principalType}
+          hunterEnabled={session.hunterEnabled}
           profileName={session.displayName}
         />
 

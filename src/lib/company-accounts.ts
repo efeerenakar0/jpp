@@ -32,7 +32,11 @@ export type SafeCompanyAccount = Omit<
   | 'accessKeyLookup'
   | 'accessKeyHash'
   | 'verificationCodeHash'
->;
+> & { hunterEnabled: boolean };
+
+export function isHunterEnabled(account: Pick<CompanyAccount, 'slug' | 'subscriptionPlan'>) {
+  return account.slug === LEGACY_JASMINE_SLUG || account.subscriptionPlan.includes('+hunter');
+}
 
 function getCredentialSecret(): string {
   const secret =
@@ -143,6 +147,7 @@ export function toSafeCompanyAccount(
     subscriptionPlan: account.subscriptionPlan,
     subscriptionEndsAt: account.subscriptionEndsAt,
     workspaceEnabled: account.workspaceEnabled,
+    hunterEnabled: isHunterEnabled(account),
     sessionVersion: account.sessionVersion,
     lastLoginAt: account.lastLoginAt,
     createdAt: account.createdAt,

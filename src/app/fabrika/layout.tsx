@@ -22,6 +22,7 @@ export default async function FabrikaLayout({ children }: { children: React.Reac
           session={{
             principalType: principal.type,
             displayName: principal.displayName,
+            hunterEnabled: principal.account.hunterEnabled,
             permissions: principal.permissions,
           }}
         >
