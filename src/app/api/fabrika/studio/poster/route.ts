@@ -209,11 +209,11 @@ export async function POST(request: Request) {
     const body = new FormData();
     body.append('prompt', posterPrompt(input));
     body.append('image', new Blob([await hero.arrayBuffer()], { type: imageMime(hero) }), hero.name || 'property.jpg');
-    body.append('control_strength', '0.92');
+    body.append('strength', '0.35');
     body.append('negative_prompt', 'text, letters, numbers, logo, watermark, people, redesigned property, changed architecture, new pool, altered facade, inaccurate building, low resolution');
     body.append('output_format', 'jpeg');
 
-    const response = await fetch('https://api.stability.ai/v2beta/stable-image/control/structure', {
+    const response = await fetch('https://api.stability.ai/v2beta/stable-image/generate/ultra', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${stabilityApiKey}`,
