@@ -20,66 +20,34 @@ import {
   Settings2,
   Smartphone,
   LockKeyhole,
+  FileText,
 } from 'lucide-react';
 import { useState } from 'react';
+import { primaryModuleDefinitions } from '@/lib/fabrika-primary-modules';
 
-const primaryModules = [
-  {
-    name: 'Komuta Merkezi',
-    href: '/fabrika',
+const primaryModulePresentation = {
+  'Komuta Merkezi': {
     icon: Crown,
     color: 'from-amber-400 to-amber-600',
-    description: 'Genel Müdür',
   },
-  {
-    name: 'Yazılımcı',
-    href: '/fabrika/yazilimci',
-    icon: Code2,
-    color: 'from-cyan-400 to-teal-500',
-    description: 'Site Oluşturucu & SEO',
-    moduleNumber: 1,
-  },
-  {
-    name: 'Portföyler',
-    href: '/fabrika/portfoyler',
-    icon: Home,
+  Yazılımcı: { icon: Code2, color: 'from-cyan-400 to-teal-500' },
+  Portföyler: { icon: Home, color: 'from-emerald-400 to-teal-500' },
+  Avcı: { icon: Crosshair, color: 'from-amber-400 to-amber-600' },
+  Pazarlamacı: { icon: Megaphone, color: 'from-emerald-400 to-teal-400' },
+  Asistan: { icon: MessageCircle, color: 'from-rose-400 to-purple-500' },
+  Stüdyo: { icon: Aperture, color: 'from-cyan-400 to-blue-500' },
+  'Belge Merkezi': {
+    icon: FileText,
     color: 'from-emerald-400 to-teal-500',
-    description: 'Portföy Yönetimi',
   },
-  {
-    name: 'Avcı',
-    href: '/fabrika/avci',
-    icon: Crosshair,
-    color: 'from-amber-400 to-amber-600',
-    description: 'Ücretli Portföy Toplayıcı',
-    moduleNumber: 2,
-    requiresHunter: true,
-  },
-  {
-    name: 'Pazarlamacı',
-    href: '/fabrika/pazarlamaci',
-    icon: Megaphone,
-    color: 'from-emerald-400 to-teal-400',
-    description: 'Reklam Ekibi',
-    moduleNumber: 3,
-  },
-  {
-    name: 'Asistan',
-    href: '/fabrika/asistan',
-    icon: MessageCircle,
-    color: 'from-rose-400 to-purple-500',
-    description: 'CRM & İletişim',
-    moduleNumber: 4,
-  },
-  {
-    name: 'Stüdyo',
-    href: '/fabrika/studyo',
-    icon: Aperture,
-    color: 'from-cyan-400 to-blue-500',
-    description: 'Görsel Optimizasyon',
-    moduleNumber: 5,
-  },
-];
+} as const;
+
+const primaryModules = primaryModuleDefinitions.map((module) => ({
+  ...module,
+  ...primaryModulePresentation[module.name],
+  moduleNumber: 'moduleNumber' in module ? module.moduleNumber : undefined,
+  requiresHunter: 'requiresHunter' in module ? module.requiresHunter : false,
+}));
 
 const realEstatePackages = [
   {

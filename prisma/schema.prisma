@@ -461,6 +461,36 @@ enum ManagerPolicyStatus {
   CANCELLED
 }
 
+enum DocumentRecordStatus {
+  DRAFT
+  GENERATED
+  ARCHIVED
+  CANCELLED
+}
+
+enum DocumentLegalReviewStatus {
+  DRAFT
+  COMPANY_APPROVED
+  LEGAL_REVIEWED
+  NEEDS_UPDATE
+}
+
+enum DocumentAuditAction {
+  CREATED
+  VIEWED
+  UPDATED
+  GENERATED
+  DOWNLOADED_PDF
+  DOWNLOADED_DOCX
+  DUPLICATED
+  ARCHIVED
+  CANCELLED
+  SOFT_DELETED
+  RESTORED
+  FAVORITED
+  UNFAVORITED
+}
+
 model CompanyAccount {
   id                           String                  @id @default(cuid())
   companyName                  String
@@ -522,9 +552,113 @@ model CompanyAccount {
   customerConversations       CustomerConversation[]
   whatsAppMessages            WhatsAppMessage[]
   whatsAppOutboxMessages      WhatsAppOutboxMessage[]
+  documents                   CompanyDocument[]
+  documentFavorites           DocumentFavorite[]
+  documentAuditLogs           DocumentAuditLog[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
+}
+
+model DocumentTemplate {
+  id                  String                    @id @default(cuid())
+  key                 String
+  name                String
+  category            String
+  description         String                    @db.Text
+  estimatedMinutes    Int                       @default(5)
+  version             Int                       @default(1)
+  active              Boolean                   @default(true)
+  lastReviewedAt      DateTime
+  legalStatus         DocumentLegalReviewStatus @default(DRAFT)
+  legalNotice         String                    @db.Text
+  officialFormWarning String?                   @db.Text
+  schema              Json
+  content             Json
+  sources             Json
+  signatureRoles      Json
+  tags                String[]                  @default([])
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  documents CompanyDocument[]
+
+  @@unique([key, version])
+  @@index([active, category])
+  @@index([name])
+}
+
+model CompanyDocument {
+  id               String                    @id @default(cuid())
+  publicId         String                    @unique @default(uuid())
+  companyAccountId String
+  companyAccount   CompanyAccount            @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  templateId       String
+  template         DocumentTemplate          @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  documentNumber   String
+  title            String
+  status           DocumentRecordStatus      @default(DRAFT)
+  legalStatus      DocumentLegalReviewStatus @default(DRAFT)
+  templateKey      String
+  templateVersion  Int
+  values           Json
+  templateSnapshot Json
+  renderedSnapshot Json?
+  contextSnapshot  Json
+  versionGroupId   String                    @default(uuid())
+  versionNumber    Int                       @default(1)
+  parentDocumentId String?
+  parentDocument   CompanyDocument?          @relation("DocumentVersions", fields: [parentDocumentId], references: [id], onDelete: SetNull)
+  childVersions    CompanyDocument[]         @relation("DocumentVersions")
+  createdByType    String
+  createdById      String
+  createdByName    String
+  lastEditedByType String
+  lastEditedById   String
+  lastEditedByName String
+  generatedAt      DateTime?
+  archivedAt       DateTime?
+  cancelledAt      DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  auditLogs DocumentAuditLog[]
+
+  @@unique([companyAccountId, documentNumber])
+  @@unique([companyAccountId, versionGroupId, versionNumber])
+  @@index([companyAccountId, status, deletedAt, updatedAt])
+  @@index([companyAccountId, templateKey, createdAt])
+  @@index([parentDocumentId])
+}
+
+model DocumentFavorite {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  actorKey         String
+  templateKey      String
+  createdAt        DateTime       @default(now())
+
+  @@unique([companyAccountId, actorKey, templateKey])
+  @@index([companyAccountId, actorKey])
+}
+
+model DocumentAuditLog {
+  id               String              @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount      @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  documentId       String?
+  document         CompanyDocument?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  action           DocumentAuditAction
+  actorType        String
+  actorId          String
+  actorName        String
+  metadata         Json?
+  createdAt        DateTime            @default(now())
+
+  @@index([companyAccountId, createdAt])
+  @@index([documentId, createdAt])
 }
 
 model CompanyAiCredential {

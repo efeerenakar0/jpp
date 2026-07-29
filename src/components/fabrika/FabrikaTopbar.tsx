@@ -16,6 +16,7 @@ const pageNames: Record<string, string> = {
   '/fabrika/avci': 'Avcı',
   '/fabrika/pazarlamaci': 'Pazarlamacı',
   '/fabrika/studyo': 'Stüdyo',
+  '/fabrika/belgeler': 'Belge Merkezi',
   '/fabrika/yazilimci': 'Yazılımcı',
 };
 
