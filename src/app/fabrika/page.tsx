@@ -22,6 +22,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import EmptyState from '@/components/fabrika/EmptyState';
+import DigitalManagerOperations from '@/components/fabrika/DigitalManagerOperations';
 import NotificationPanel from '@/components/fabrika/NotificationPanel';
 import PageHeader from '@/components/fabrika/PageHeader';
 import StatCard from '@/components/fabrika/StatCard';
@@ -97,17 +98,6 @@ type ManagerProvider = {
   sharedWithAssistant: boolean;
 };
 
-type WorkspaceMetrics = {
-  contacts: number;
-  activeProperties: number;
-  openDeals: number;
-  overdueTasks: number;
-  upcomingCriticalTasks: number;
-  pipelineValue: number;
-  wonCommission: number;
-  averageMatchScore: number;
-};
-
 const getNotificationStyles = (type: string) => {
   switch (type) {
     case 'GREEN_LISTING':
@@ -135,7 +125,6 @@ export default function CommandCenter() {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [chatLoading, setChatLoading] = useState(true);
-  const [workspaceMetrics, setWorkspaceMetrics] = useState<WorkspaceMetrics | null>(null);
   const [context, setContext] = useState<OperationalContext | null>(null);
   const [suggestions, setSuggestions] = useState<ManagerSuggestion[]>([]);
   const [provider, setProvider] = useState<ManagerProvider | null>(null);
@@ -143,7 +132,7 @@ export default function CommandCenter() {
   const lastMessageIdRef = useRef<string | null>(null);
   const stickToBottomRef = useRef(true);
 
-  async function fetchData(includeWorkspace = false) {
+  async function fetchData() {
     try {
       const notifRes = await fetch('/api/fabrika/notifications?scope=important');
       const notifData = await notifRes.json();
@@ -167,13 +156,6 @@ export default function CommandCenter() {
       }
       setChatLoading(false);
 
-      if (includeWorkspace) {
-        const workspaceRes = await fetch('/api/fabrika/workspace');
-        const workspaceData = await workspaceRes.json();
-        if (workspaceRes.ok && workspaceData.success) {
-          setWorkspaceMetrics(workspaceData.workspace.metrics);
-        }
-      }
     } catch (err) {
       console.error('Data fetch error:', err);
       setChatLoading(false);
@@ -181,13 +163,11 @@ export default function CommandCenter() {
   }
 
   useEffect(() => {
-    const initialTimeout = setTimeout(() => fetchData(true), 0);
-    const interval = setInterval(fetchData, 5000);
-    const workspaceInterval = setInterval(() => fetchData(true), 15000);
+    const initialTimeout = setTimeout(() => fetchData(), 0);
+    const interval = setInterval(fetchData, 10_000);
     return () => {
       clearTimeout(initialTimeout);
       clearInterval(interval);
-      clearInterval(workspaceInterval);
     };
   }, []);
 
@@ -227,10 +207,11 @@ export default function CommandCenter() {
     setIsSending(true);
 
     try {
+      const clientRequestId = crypto.randomUUID();
       const response = await fetch('/api/fabrika/general-manager/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, clientRequestId }),
       });
 
       const data = await response.json();
@@ -248,6 +229,7 @@ export default function CommandCenter() {
         if (data.context) setContext(data.context);
         if (data.provider) setProvider(data.provider);
         fetchData();
+        window.dispatchEvent(new Event('digital-manager-refresh'));
       } else {
         toast.error(data.error || 'Mesaj gönderilemedi');
       }
@@ -274,19 +256,21 @@ export default function CommandCenter() {
                 : 'Doğrulanmış kural motoru'}
             </span>
             <span className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300">
-              İnsan onaylı
+              Politika ve onay korumalı
             </span>
           </>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="CRM müşterisi" value={workspaceMetrics?.contacts || 0} icon={Users} status="success" />
-        <StatCard label="Aktif portföy" value={workspaceMetrics?.activeProperties || 0} icon={Activity} />
-        <StatCard label="Açık satış fırsatı" value={workspaceMetrics?.openDeals || 0} icon={Kanban} status="success" />
-        <StatCard label="Geciken görev" value={workspaceMetrics?.overdueTasks || 0} icon={Clock} status="warning" />
-        <StatCard label="Yaklaşan randevu" value={workspaceMetrics?.upcomingCriticalTasks || 0} icon={CalendarDays} status="success" />
+        <StatCard label="CRM müşterisi" value={context?.metrics.crmContacts || 0} icon={Users} status="success" />
+        <StatCard label="Aktif portföy" value={context?.metrics.activeCrmProperties || 0} icon={Activity} />
+        <StatCard label="Açık satış fırsatı" value={context?.metrics.openDeals || 0} icon={Kanban} status="success" />
+        <StatCard label="Geciken görev" value={context?.metrics.overdueTasks || 0} icon={Clock} status="warning" />
+        <StatCard label="Yaklaşan randevu" value={context?.metrics.upcomingTasks || 0} icon={CalendarDays} status="success" />
       </div>
+
+      <DigitalManagerOperations />
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         <NotificationPanel
@@ -340,7 +324,7 @@ export default function CommandCenter() {
               </span>
               <div>
                 <h2 id="general-manager-title" className="text-sm font-semibold text-white">
-                  Genel Müdür Yardımcısı
+                  Dijital Genel Müdür
                 </h2>
                 <p className="mt-0.5 text-xs text-emerald-400">
                   Asistan ile aynı {provider?.provider || 'AI'} · şirket kapsamlı veri
@@ -384,7 +368,7 @@ export default function CommandCenter() {
             role="log"
             aria-live="polite"
             aria-relevant="additions text"
-            aria-label="Genel Müdür Yardımcısı mesajları"
+            aria-label="Dijital Genel Müdür mesajları"
             className="custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-slate-950/30 p-4 sm:p-5"
           >
             {chatLoading ? (
@@ -429,7 +413,7 @@ export default function CommandCenter() {
                     }`}
                   >
                     <div className={`mb-1.5 flex items-center gap-2 text-[10px] font-semibold ${isPatron ? 'justify-end text-emerald-300' : 'text-slate-400'}`}>
-                      <span>{isPatron ? message.authorName || 'Ekip üyesi' : 'Genel Müdür Yardımcısı'}</span>
+                      <span>{isPatron ? message.authorName || 'Ekip üyesi' : 'Dijital Genel Müdür'}</span>
                       {!isPatron && message.provider && (
                         <span className="rounded border border-slate-700 px-1.5 py-0.5 font-normal text-slate-500">
                           {message.provider === 'RULE_ENGINE' ? 'Doğrulanmış yedek' : message.provider}
@@ -448,7 +432,7 @@ export default function CommandCenter() {
               );
             })}
             {isSending && (
-              <div className="flex max-w-[90%] gap-2.5" aria-label="Genel Müdür Yardımcısı yanıt hazırlıyor">
+              <div className="flex max-w-[90%] gap-2.5" aria-label="Dijital Genel Müdür yanıt hazırlıyor">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300">
                   <Crown className="h-4 w-4" />
                 </span>

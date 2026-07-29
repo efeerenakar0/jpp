@@ -1,7 +1,8 @@
-import { after, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { processIncomingWhatsAppMessage } from '@/lib/whatsapp-incoming';
 import { verifyWebhookSecret } from '@/lib/whatsapp-crypto';
+import { recordProviderDeliveryReceipt } from '@/lib/digital-manager/message-delivery';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -25,17 +26,47 @@ function textFromMessage(message: Record<string, unknown>) {
   );
 }
 
+function quotedMessageId(message: Record<string, unknown>) {
+  const extended = message.extendedTextMessage as
+    | { contextInfo?: { stanzaId?: string } }
+    | undefined;
+  const image = message.imageMessage as
+    | { contextInfo?: { stanzaId?: string } }
+    | undefined;
+  const video = message.videoMessage as
+    | { contextInfo?: { stanzaId?: string } }
+    | undefined;
+  return String(
+    extended?.contextInfo?.stanzaId ||
+      image?.contextInfo?.stanzaId ||
+      video?.contextInfo?.stanzaId ||
+      ''
+  ).trim() || null;
+}
+
+function deliveryFromEvolution(value: unknown) {
+  const status = String(value || '').toUpperCase();
+  if (/FAIL|ERROR/.test(status)) return 'FAILED' as const;
+  if (/READ|PLAYED/.test(status)) return 'READ' as const;
+  if (/DELIVER/.test(status)) return 'DELIVERED' as const;
+  if (/SENT|SERVER/.test(status)) return 'SENT' as const;
+  return null;
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ accountId: string }> }
 ) {
   const { accountId } = await context.params;
-  const token = new URL(request.url).searchParams.get('token');
+  const token =
+    request.headers.get('x-webhook-secret') ||
+    new URL(request.url).searchParams.get('token');
   const config = await prisma.whatsAppConfig.findUnique({
     where: { companyAccountId: accountId },
   });
   if (
     !config ||
+    config.provider !== 'EVOLUTION' ||
     !verifyWebhookSecret(token, config.evolutionWebhookSecretHash)
   ) {
     return NextResponse.json({ error: 'Yetkisiz webhook.' }, { status: 401 });
@@ -49,7 +80,6 @@ export async function POST(
   }
   if (
     config.evolutionInstanceName &&
-    body.instance &&
     body.instance !== config.evolutionInstanceName
   ) {
     return NextResponse.json({ error: 'Oturum eşleşmedi.' }, { status: 403 });
@@ -81,39 +111,32 @@ export async function POST(
   if (event === 'MESSAGES_UPDATE') {
     const key = (data.key || {}) as { id?: string };
     const providerMessageId = String(key.id || data.id || '');
-    const rawStatus = String(data.status || data.update || '').toUpperCase();
-    if (providerMessageId && rawStatus) {
-      const delivered = /DELIVER|READ/.test(rawStatus);
-      const failed = /FAIL|ERROR/.test(rawStatus);
-      await Promise.all([
-        prisma.conversationMessage.updateMany({
-          where: { providerMessageId },
-          data: {
-            ...(delivered
-              ? { deliveryStatus: 'DELIVERED', deliveredAt: new Date() }
-              : {}),
-            ...(failed
-              ? { deliveryStatus: 'FAILED', failedAt: new Date() }
-              : {}),
-          },
-        }),
-        prisma.whatsAppOutboxMessage.updateMany({
-          where: { providerMessageId },
-          data: {
-            ...(delivered
-              ? { status: 'DELIVERED', deliveredAt: new Date() }
-              : {}),
-            ...(failed ? { status: 'FAILED', failedAt: new Date() } : {}),
-          },
-        }),
-        prisma.whatsAppMessage.updateMany({
-          where: { providerMessageId, companyAccountId: accountId },
-          data: {
-            ...(delivered ? { status: 'DELIVERED' } : {}),
-            ...(failed ? { status: 'FAILED' } : {}),
-          },
-        }),
-      ]);
+    const rawStatus = String(data.status || data.update || '');
+    const delivery = deliveryFromEvolution(rawStatus);
+    if (providerMessageId && delivery) {
+      await recordProviderDeliveryReceipt({
+        companyAccountId: accountId,
+        provider: 'EVOLUTION',
+        providerMessageId,
+        status: delivery,
+        rawStatus,
+        idempotencyKey: [
+          'evolution-ack',
+          accountId,
+          providerMessageId,
+          delivery,
+          rawStatus,
+        ].join(':'),
+        errorCode:
+          delivery === 'FAILED' ? 'EVOLUTION_ACK_FAILED' : undefined,
+        errorMessage:
+          delivery === 'FAILED'
+            ? String(
+                data.error ||
+                  'WhatsApp sağlayıcısı teslimatı reddetti.'
+              )
+            : undefined,
+      });
     }
     return NextResponse.json({ accepted: true });
   }
@@ -148,21 +171,25 @@ export async function POST(
     text: textFromMessage(message),
     providerMessageId: String(key.id || ''),
     messageType: type.replace(/Message$/, '') || 'unknown',
+    quotedProviderMessageId: quotedMessageId(message),
   };
-  after(async () => {
-    await processIncomingWhatsAppMessage(input).catch(async (error) => {
-      console.error('[Evolution Webhook Worker Error]:', error);
-      await prisma.whatsAppConfig.update({
-        where: { companyAccountId: accountId },
-        data: {
-          lastError:
-            error instanceof Error
-              ? error.message.slice(0, 500)
-              : 'Gelen mesaj işlenemedi.',
-        },
-      });
+  try {
+    const result = await processIncomingWhatsAppMessage(input);
+    return NextResponse.json({ accepted: true, result });
+  } catch (error) {
+    console.error('[Evolution Webhook Processing Error]:', error);
+    await prisma.whatsAppConfig.update({
+      where: { companyAccountId: accountId },
+      data: {
+        lastError:
+          error instanceof Error
+            ? error.message.slice(0, 500)
+            : 'Gelen mesaj işlenemedi.',
+      },
     });
-  });
-
-  return NextResponse.json({ accepted: true });
+    return NextResponse.json(
+      { error: 'Gelen mesaj güvenli biçimde işlenemedi.' },
+      { status: 500 }
+    );
+  }
 }

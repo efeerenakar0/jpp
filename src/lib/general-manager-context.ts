@@ -53,6 +53,10 @@ export async function getGeneralManagerContext(principal: ManagerPrincipal) {
     websiteAnalyses,
     importantNotifications,
     calendarConnection,
+    recentOperationEvents,
+    recentManagerAudits,
+    recentDeliveries,
+    activeManagerPolicies,
   ] = await Promise.all([
     isJasmineAccount
       ? prisma.project.count({ where: { published: true } })
@@ -62,10 +66,17 @@ export async function getGeneralManagerContext(principal: ManagerPrincipal) {
       where: { companyAccountId: accountId, status: 'AUTHORIZED' },
     }),
     isJasmineAccount
-      ? prisma.appointmentRequest.count({ where: { status: 'PENDING' } })
+      ? prisma.appointmentRequest.count({
+          where: {
+            status: 'PENDING',
+            conversation: { companyAccountId: accountId },
+          },
+        })
       : Promise.resolve(0),
     isJasmineAccount
-      ? prisma.customerConversation.count({ where: { isActive: true } })
+      ? prisma.customerConversation.count({
+          where: { companyAccountId: accountId, isActive: true },
+        })
       : Promise.resolve(0),
     prisma.notification.count({
       where: {
@@ -252,6 +263,67 @@ export async function getGeneralManagerContext(principal: ManagerPrincipal) {
         lastSyncStatus: true,
       },
     }),
+    prisma.operationEvent.findMany({
+      where: { companyAccountId: accountId },
+      select: {
+        id: true,
+        eventType: true,
+        entityType: true,
+        entityId: true,
+        actorType: true,
+        occurredAt: true,
+      },
+      orderBy: { occurredAt: 'desc' },
+      take: 20,
+    }),
+    prisma.managerAuditLog.findMany({
+      where: { companyAccountId: accountId },
+      select: {
+        id: true,
+        operation: true,
+        entityType: true,
+        entityId: true,
+        result: true,
+        policyDecision: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    prisma.whatsAppOutboxMessage.findMany({
+      where: { companyAccountId: accountId },
+      select: {
+        id: true,
+        purpose: true,
+        recipientType: true,
+        status: true,
+        sentAt: true,
+        deliveredAt: true,
+        failedAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    prisma.managerPolicy.findMany({
+      where: {
+        companyAccountId: accountId,
+        status: 'ACTIVE',
+        effectiveFrom: { lte: now },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: {
+        id: true,
+        scope: true,
+        ruleType: true,
+        rulePayload: true,
+        conversationId: true,
+        effectiveFrom: true,
+        expiresAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }),
   ]);
 
   const priorities: ManagerPriority[] = [];
@@ -351,6 +423,12 @@ export async function getGeneralManagerContext(principal: ManagerPrincipal) {
     marketing: { campaigns, websiteAnalyses },
     activity: activities,
     notifications: importantNotifications,
+    verifiedEvidence: {
+      operationEvents: recentOperationEvents,
+      auditLogs: recentManagerAudits,
+      deliveries: recentDeliveries,
+    },
+    policies: activeManagerPolicies,
     modules: [
       { name: 'Merkezi CRM', href: '/fabrika/crm', scope: 'Müşteriler ve notlar' },
       { name: 'Portföyler', href: '/fabrika/portfoyler', scope: 'Aktif portföy ve performans' },
@@ -378,6 +456,8 @@ export function publicGeneralManagerContext(context: GeneralManagerContext) {
     calendar: {
       google: context.calendar.google,
     },
+    verifiedEvidence: context.verifiedEvidence,
+    policies: context.policies,
   };
 }
 
@@ -415,6 +495,30 @@ export function fallbackGeneralManagerAnswer(
 ) {
   const normalized = question.toLocaleLowerCase('tr-TR');
   const metrics = context.metrics;
+  if (/nereden|kanıt|kaynak|nasıl biliyor|hangi kayıt/.test(normalized)) {
+    const evidence = [
+      ...context.verifiedEvidence.operationEvents
+        .slice(0, 4)
+        .map(
+          (event) =>
+            `• Olay ${event.id}: ${event.eventType} · ${event.occurredAt.toLocaleString(
+              'tr-TR',
+              { timeZone: 'Europe/Istanbul' }
+            )}`
+        ),
+      ...context.verifiedEvidence.auditLogs
+        .slice(0, 3)
+        .map(
+          (audit) =>
+            `• Denetim ${audit.id}: ${audit.operation} · ${audit.result}`
+        ),
+    ];
+    return evidence.length
+      ? `Yanıtlarımı şirketinizin doğrulanmış olay ve denetim kayıtlarından çıkarıyorum. En son dayanaklar:\n${evidence.join(
+          '\n'
+        )}`
+      : 'Bu şirket için henüz gösterilebilecek doğrulanmış olay veya denetim kaydı yok.';
+  }
   if (/gecik|görev|takvim|randevu|bugün/.test(normalized)) {
     const priorityLines = context.priorities
       .slice(0, 6)

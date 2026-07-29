@@ -1,8 +1,18 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
-import type { MessageDeliveryStatus } from '@prisma/client';
+import type { MessageDeliveryStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { getCompanyOperationalStatus } from '@/lib/digital-manager/company-guard';
+import {
+  appendMessageDeliveryAudit,
+  applyMessageDeliveryTransition,
+  reconcileProviderDeliveryReceipts,
+} from '@/lib/digital-manager/message-delivery';
+import {
+  clientDeliveryStatus,
+  type DeliveryRuntimeStatus,
+} from '@/lib/digital-manager/message-delivery-policy';
 import {
   checkEvolutionHealth,
   configureEvolutionWebhook,
@@ -31,6 +41,10 @@ import {
   type WahaSessionStatus,
   type WahaWebhook,
 } from '@/lib/waha-client';
+import {
+  classifyStaleWhatsAppDispatch,
+  classifyWhatsAppDispatchFailure,
+} from '@/lib/whatsapp-outbox-policy';
 
 export type WhatsAppProvider = 'WAHA' | 'EVOLUTION' | 'META';
 
@@ -535,25 +549,90 @@ async function checkDailyLimit(
 }
 
 export async function dispatchWhatsAppOutboxMessage(id: string) {
-  const current = await prisma.whatsAppOutboxMessage.findUnique({
+  let current = await prisma.whatsAppOutboxMessage.findUnique({
     where: { id },
   });
-  if (!current || ['SENT', 'DELIVERED'].includes(current.status)) {
+  if (
+    !current ||
+    ['SENT', 'DELIVERED', 'READ', 'FAILED'].includes(current.status)
+  ) {
     return current;
   }
 
-  const staleLock = new Date(Date.now() - 5 * 60_000);
+  const now = new Date();
+  const staleDisposition = classifyStaleWhatsAppDispatch(current, now);
+  if (staleDisposition === 'AMBIGUOUS_TERMINAL') {
+    await applyMessageDeliveryTransition({
+      companyAccountId: current.companyAccountId,
+      outboxMessageId: current.id,
+      providerMessageId: current.providerMessageId || undefined,
+      status: 'FAILED',
+      rawStatus: 'DISPATCH_OUTCOME_UNKNOWN',
+      errorCode: 'WHATSAPP_DISPATCH_OUTCOME_UNKNOWN',
+      errorMessage:
+        'Sağlayıcı gönderiminin sonucu kesinleştirilemedi. Çift mesajı önlemek için otomatik tekrar gönderim durduruldu.',
+      idempotencyKey: `outbox:${current.id}:dispatch-outcome-unknown`,
+      metadata: {
+        attemptCount: current.attemptCount,
+        automaticRetryPrevented: true,
+      },
+    });
+    return prisma.whatsAppOutboxMessage.findUnique({ where: { id } });
+  }
+  if (staleDisposition === 'REQUEUE_SAFE') {
+    await prisma.whatsAppOutboxMessage.updateMany({
+      where: {
+        id: current.id,
+        companyAccountId: current.companyAccountId,
+        status: 'PROCESSING',
+        lockedAt: current.lockedAt,
+      },
+      data: {
+        status: 'QUEUED',
+        lockedAt: null,
+        nextAttemptAt: now,
+        lastError:
+          'Gönderim öncesi yarım kalan güvenli işlem yeniden kuyruğa alındı.',
+      },
+    });
+    current = await prisma.whatsAppOutboxMessage.findUnique({ where: { id } });
+  }
+  if (
+    !current ||
+    current.status !== 'QUEUED' ||
+    current.lockedAt ||
+    current.nextAttemptAt > now
+  ) {
+    return current;
+  }
+  const operational = await getCompanyOperationalStatus(
+    current.companyAccountId
+  );
+  if (!operational.allowed) {
+    await prisma.whatsAppOutboxMessage.updateMany({
+      where: {
+        id: current.id,
+        companyAccountId: current.companyAccountId,
+        status: 'QUEUED',
+      },
+      data: {
+        nextAttemptAt: new Date(Date.now() + 60 * 60_000),
+        lastError: `Şirket işlemlere kapalı: ${operational.reason}.`,
+      },
+    });
+    return prisma.whatsAppOutboxMessage.findUnique({ where: { id } });
+  }
+
   const claimed = await prisma.whatsAppOutboxMessage.updateMany({
     where: {
       id,
-      OR: [
-        { status: 'QUEUED', lockedAt: null },
-        { status: 'PROCESSING', lockedAt: { lt: staleLock } },
-      ],
+      status: 'QUEUED',
+      lockedAt: null,
+      nextAttemptAt: { lte: now },
     },
     data: {
       status: 'PROCESSING',
-      lockedAt: new Date(),
+      lockedAt: now,
       attemptCount: { increment: 1 },
     },
   });
@@ -563,14 +642,33 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
   const outbox = await prisma.whatsAppOutboxMessage.findUniqueOrThrow({
     where: { id },
   });
-  const config = await ensureCompanyWhatsAppConfig(outbox.companyAccountId);
   const attemptCount = outbox.attemptCount;
+  await appendMessageDeliveryAudit({
+    companyAccountId: outbox.companyAccountId,
+    outboxMessageId: outbox.id,
+    status: 'SENDING',
+    idempotencyKey: `outbox:${outbox.id}:attempt:${attemptCount}:sending`,
+    metadata: { attemptCount },
+  });
 
+  let sent: { providerMessageId: string };
+  let sendAttempted = false;
   try {
+    const config = await ensureCompanyWhatsAppConfig(
+      outbox.companyAccountId
+    );
     await checkDailyLimit(
       outbox.companyAccountId,
       config.dailyMessageLimit
     );
+    const operationalBeforeSend = await getCompanyOperationalStatus(
+      outbox.companyAccountId
+    );
+    if (!operationalBeforeSend.allowed) {
+      throw new Error(
+        `Şirket işlemlere kapalı: ${operationalBeforeSend.reason}.`
+      );
+    }
     if (
       config.connectionStatus !== 'CONNECTED' ||
       !config.evolutionInstanceName
@@ -578,54 +676,152 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
       throw new Error('WhatsApp telefonu bağlı değil.');
     }
 
-    const sent = await sendWahaText({
+    const fenced = await prisma.whatsAppOutboxMessage.updateMany({
+      where: {
+        id: outbox.id,
+        companyAccountId: outbox.companyAccountId,
+        status: 'PROCESSING',
+        lockedAt: outbox.lockedAt,
+      },
+      data: {
+        status: 'SENDING',
+        lockedAt: new Date(),
+      },
+    });
+    if (fenced.count === 0) {
+      throw new Error('WhatsApp gönderim kilidi kaybedildi.');
+    }
+    sendAttempted = true;
+    sent = await sendWahaText({
       sessionName: config.evolutionInstanceName,
       to: outbox.toPhone,
       text: outbox.content,
     });
-    const updated = await prisma.whatsAppOutboxMessage.update({
-      where: { id },
-      data: {
-        status: 'SENT',
-        providerMessageId: sent.providerMessageId,
-        sentAt: new Date(),
-        lockedAt: null,
-        lastError: null,
-      },
-    });
-    await prisma.conversationMessage.updateMany({
-      where: { providerMessageId: `queue:${id}` },
-      data: {
-        providerMessageId: sent.providerMessageId,
-        deliveryStatus: 'SENT',
-      },
-    });
-    await prisma.whatsAppMessage.updateMany({
-      where: {
-        companyAccountId: outbox.companyAccountId,
-        providerMessageId: `queue:${id}`,
-      },
-      data: {
-        providerMessageId: sent.providerMessageId,
-        status: 'SENT',
-      },
-    });
-    return updated;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Mesaj gönderilemedi.';
-    const terminal = attemptCount >= outbox.maxAttempts;
-    return prisma.whatsAppOutboxMessage.update({
-      where: { id },
-      data: {
-        status: terminal ? 'FAILED' : 'QUEUED',
-        nextAttemptAt: retryAt(attemptCount),
-        failedAt: terminal ? new Date() : null,
-        lockedAt: null,
-        lastError: message.slice(0, 500),
+    if (
+      !sendAttempted &&
+      message.startsWith('Şirket işlemlere kapalı:')
+    ) {
+      await prisma.whatsAppOutboxMessage.updateMany({
+        where: {
+          id: outbox.id,
+          companyAccountId: outbox.companyAccountId,
+          status: 'PROCESSING',
+        },
+        data: {
+          status: 'QUEUED',
+          nextAttemptAt: new Date(Date.now() + 60 * 60_000),
+          lockedAt: null,
+          attemptCount: { decrement: 1 },
+          lastError: message.slice(0, 500),
+        },
+      });
+      return prisma.whatsAppOutboxMessage.findFirst({
+        where: {
+          id: outbox.id,
+          companyAccountId: outbox.companyAccountId,
+        },
+      });
+    }
+    const disposition = classifyWhatsAppDispatchFailure({
+      sendAttempted,
+      attemptCount,
+      maxAttempts: outbox.maxAttempts,
+    });
+    if (disposition !== 'RETRY') {
+      const ambiguous = disposition === 'AMBIGUOUS_TERMINAL';
+      await applyMessageDeliveryTransition({
+        companyAccountId: outbox.companyAccountId,
+        outboxMessageId: outbox.id,
+        providerMessageId: outbox.providerMessageId || undefined,
+        status: 'FAILED',
+        rawStatus: ambiguous
+          ? 'DISPATCH_OUTCOME_UNKNOWN'
+          : 'SEND_ATTEMPTS_EXHAUSTED',
+        errorCode: ambiguous
+          ? 'WHATSAPP_DISPATCH_OUTCOME_UNKNOWN'
+          : 'WHATSAPP_SEND_FAILED',
+        errorMessage: ambiguous
+          ? `Sağlayıcı çağrısı başladı ancak kesin sonuç alınamadı. Çift mesajı önlemek için otomatik tekrar gönderilmedi. ${message}`.slice(
+              0,
+              500
+            )
+          : message,
+        idempotencyKey: `outbox:${outbox.id}:attempt:${attemptCount}:${
+          ambiguous ? 'ambiguous-failure' : 'terminal-failure'
+        }`,
+        metadata: {
+          attemptCount,
+          terminal: true,
+          automaticRetryPrevented: ambiguous,
+        },
+      });
+    } else {
+      await prisma.$transaction(async (tx) => {
+        await tx.whatsAppOutboxMessage.updateMany({
+          where: {
+            id: outbox.id,
+            companyAccountId: outbox.companyAccountId,
+            status: 'PROCESSING',
+          },
+          data: {
+            status: 'QUEUED',
+            nextAttemptAt: retryAt(attemptCount),
+            lockedAt: null,
+            lastError: message.slice(0, 500),
+          },
+        });
+        await tx.messageDeliveryAudit.createMany({
+          data: [
+            {
+              companyAccountId: outbox.companyAccountId,
+              outboxMessageId: outbox.id,
+              status: 'FAILED',
+              providerMessageId: outbox.providerMessageId,
+              rawStatus: 'RETRY_SCHEDULED',
+              errorCode: 'WHATSAPP_SEND_RETRY',
+              errorMessage: message.slice(0, 500),
+              metadata: {
+                attemptCount,
+                terminal: false,
+              },
+              idempotencyKey: `outbox:${outbox.id}:attempt:${attemptCount}:retry`,
+            },
+          ],
+          skipDuplicates: true,
+        });
+      });
+    }
+    return prisma.whatsAppOutboxMessage.findFirst({
+      where: {
+        id: outbox.id,
+        companyAccountId: outbox.companyAccountId,
       },
     });
   }
+
+  await applyMessageDeliveryTransition({
+    companyAccountId: outbox.companyAccountId,
+    outboxMessageId: outbox.id,
+    providerMessageId: sent.providerMessageId,
+    status: 'SENT',
+    rawStatus: 'WAHA_ACCEPTED',
+    idempotencyKey: `outbox:${outbox.id}:sent:${sent.providerMessageId}`,
+    metadata: { attemptCount },
+  });
+  await reconcileProviderDeliveryReceipts({
+    companyAccountId: outbox.companyAccountId,
+    provider: outbox.provider,
+    providerMessageId: sent.providerMessageId,
+  });
+  return prisma.whatsAppOutboxMessage.findFirst({
+    where: {
+      id: outbox.id,
+      companyAccountId: outbox.companyAccountId,
+    },
+  });
 }
 
 export async function queueCompanyWhatsAppMessage(input: {
@@ -634,11 +830,33 @@ export async function queueCompanyWhatsAppMessage(input: {
   text: string;
   conversationId?: string;
   listingId?: string;
+  contactId?: string;
+  propertyId?: string;
+  recipientType?:
+    | 'OWNER'
+    | 'EMPLOYEE'
+    | 'CRM_CONTACT'
+    | 'PROPERTY_OWNER'
+    | 'UNKNOWN';
+  recipientId?: string;
+  purpose?: string;
+  relatedTaskId?: string;
+  operationEventId?: string;
+  managerActionId?: string;
+  correlationId?: string;
+  replyToProviderMessageId?: string;
+  metadata?: Prisma.InputJsonValue;
   idempotencyKey?: string;
   createdByType?: string;
   createdById?: string;
   firstContact?: boolean;
 }) {
+  const operational = await getCompanyOperationalStatus(
+    input.companyAccountId
+  );
+  if (!operational.allowed) {
+    throw new Error(`Şirket işlemlere kapalı: ${operational.reason}.`);
+  }
   const config = await ensureCompanyWhatsAppConfig(input.companyAccountId);
   const provider = 'WAHA' as const;
   if (input.firstContact && !config.allowFirstContact) {
@@ -651,24 +869,185 @@ export async function queueCompanyWhatsAppMessage(input: {
     throw new Error('Geçerli, ülke kodlu bir telefon numarası girin.');
   }
   const idempotencyKey = input.idempotencyKey || randomUUID();
-  const outbox = await prisma.whatsAppOutboxMessage.upsert({
-    where: { idempotencyKey },
-    update: {},
-    create: {
-      companyAccountId: input.companyAccountId,
-      conversationId: input.conversationId,
-      listingId: input.listingId,
-      toPhone: phone,
-      content: input.text,
-      provider,
-      idempotencyKey,
-      createdByType: input.createdByType,
-      createdById: input.createdById,
-    },
+  const outbox = await prisma.$transaction(async (tx) => {
+    const [
+      conversation,
+      listing,
+      contact,
+      property,
+      task,
+      operationEvent,
+      managerAction,
+    ] = await Promise.all([
+      input.conversationId
+        ? tx.customerConversation.findFirst({
+            where: {
+              id: input.conversationId,
+              companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.listingId
+        ? tx.huntedListing.findFirst({
+            where: {
+              id: input.listingId,
+              companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.contactId
+        ? tx.crmContact.findFirst({
+            where: {
+              id: input.contactId,
+              companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.propertyId
+        ? tx.crmProperty.findFirst({
+            where: {
+              id: input.propertyId,
+              companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.relatedTaskId
+        ? tx.crmTask.findFirst({
+            where: {
+              id: input.relatedTaskId,
+              companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.operationEventId
+        ? tx.operationEvent.findFirst({
+            where: {
+              id: input.operationEventId,
+              companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.managerActionId
+        ? tx.generalManagerAction.findFirst({
+            where: {
+              id: input.managerActionId,
+              companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+    ]);
+    const invalidReference =
+      (input.conversationId && !conversation) ||
+      (input.listingId && !listing) ||
+      (input.contactId && !contact) ||
+      (input.propertyId && !property) ||
+      (input.relatedTaskId && !task) ||
+      (input.operationEventId && !operationEvent) ||
+      (input.managerActionId && !managerAction);
+    if (invalidReference) {
+      throw new Error(
+        'WhatsApp kuyruğu ilişkilerinden biri bu şirkete ait değil.'
+      );
+    }
+    if (
+      input.recipientType === 'OWNER' &&
+      input.recipientId &&
+      input.recipientId !== input.companyAccountId
+    ) {
+      throw new Error('WhatsApp patron alıcısı bu şirkete ait değil.');
+    }
+    if (input.recipientType === 'EMPLOYEE' && input.recipientId) {
+      const member = await tx.companyMember.findFirst({
+        where: {
+          id: input.recipientId,
+          companyAccountId: input.companyAccountId,
+          active: true,
+        },
+        select: { id: true },
+      });
+      if (!member) {
+        throw new Error('WhatsApp çalışan alıcısı bu şirkete ait değil.');
+      }
+    }
+    const record = await tx.whatsAppOutboxMessage.upsert({
+      where: {
+        companyAccountId_idempotencyKey: {
+          companyAccountId: input.companyAccountId,
+          idempotencyKey,
+        },
+      },
+      update: {},
+      create: {
+        companyAccountId: input.companyAccountId,
+        conversationId: input.conversationId,
+        listingId: input.listingId,
+        contactId: input.contactId,
+        propertyId: input.propertyId,
+        recipientType: input.recipientType,
+        recipientId: input.recipientId,
+        purpose: input.purpose,
+        relatedTaskId: input.relatedTaskId,
+        operationEventId: input.operationEventId,
+        managerActionId: input.managerActionId,
+        correlationId: input.correlationId,
+        replyToProviderMessageId: input.replyToProviderMessageId,
+        metadata: input.metadata,
+        toPhone: phone,
+        content: input.text,
+        provider,
+        idempotencyKey,
+        createdByType: input.createdByType,
+        createdById: input.createdById,
+      },
+    });
+    if (
+      record.toPhone !== phone ||
+      record.content !== input.text ||
+      record.conversationId !== (input.conversationId || null) ||
+      record.listingId !== (input.listingId || null) ||
+      record.contactId !== (input.contactId || null) ||
+      record.propertyId !== (input.propertyId || null) ||
+      record.recipientType !== (input.recipientType || null) ||
+      record.recipientId !== (input.recipientId || null) ||
+      record.purpose !== (input.purpose || null) ||
+      record.relatedTaskId !== (input.relatedTaskId || null) ||
+      record.operationEventId !== (input.operationEventId || null) ||
+      record.managerActionId !== (input.managerActionId || null) ||
+      record.correlationId !== (input.correlationId || null) ||
+      record.replyToProviderMessageId !==
+        (input.replyToProviderMessageId || null)
+    ) {
+      throw new Error(
+        'Aynı idempotency anahtarı farklı bir WhatsApp mesajı için kullanılamaz.'
+      );
+    }
+    await tx.messageDeliveryAudit.createMany({
+      data: [
+        {
+          companyAccountId: input.companyAccountId,
+          outboxMessageId: record.id,
+          status: 'QUEUED',
+          providerMessageId: record.providerMessageId,
+          rawStatus: 'OUTBOX_CREATED',
+          metadata: { provider },
+          idempotencyKey: `outbox:${record.id}:queued`,
+        },
+      ],
+      skipDuplicates: true,
+    });
+    return record;
   });
   const dispatched = await dispatchWhatsAppOutboxMessage(outbox.id);
-  const deliveryStatus: MessageDeliveryStatus =
-    dispatched?.status === 'SENT' ? 'SENT' : 'QUEUED';
+  const deliveryStatus: MessageDeliveryStatus = clientDeliveryStatus(
+    (dispatched?.status || 'QUEUED') as DeliveryRuntimeStatus
+  );
   return {
     outboxId: outbox.id,
     providerMessageId:
@@ -680,13 +1059,20 @@ export async function queueCompanyWhatsAppMessage(input: {
 }
 
 export async function drainWhatsAppOutbox(limit = 25) {
+  const now = new Date();
+  const staleLock = new Date(now.getTime() - 5 * 60_000);
   const pending = await prisma.whatsAppOutboxMessage.findMany({
     where: {
-      status: { in: ['QUEUED', 'PROCESSING'] },
-      nextAttemptAt: { lte: new Date() },
       OR: [
-        { lockedAt: null },
-        { lockedAt: { lt: new Date(Date.now() - 5 * 60_000) } },
+        {
+          status: 'QUEUED',
+          nextAttemptAt: { lte: now },
+          lockedAt: null,
+        },
+        {
+          status: { in: ['PROCESSING', 'SENDING'] },
+          lockedAt: { lt: staleLock },
+        },
       ],
     },
     orderBy: { nextAttemptAt: 'asc' },

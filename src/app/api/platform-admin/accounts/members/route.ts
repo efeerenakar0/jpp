@@ -1,20 +1,29 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
+  CompanyMemberValidationError,
+  companyMemberOperationalFieldsSchema,
   createCompanyMemberAccount,
   resetCompanyMemberCredentials,
   setCompanyMemberActive,
+  updateCompanyMemberProfile,
 } from '@/lib/company-members';
 import { requirePlatformAdmin } from '@/lib/require-platform-admin';
 
-const createMemberSchema = z.object({
-  accountId: z.string().trim().min(1),
-  name: z.string().trim().min(2).max(120),
-  email: z.string().trim().email().optional().or(z.literal('')),
-  phone: z.string().trim().max(40).optional().or(z.literal('')),
-  username: z.string().trim().min(2).max(40).optional().or(z.literal('')),
-});
+const emailSchema = z.string().trim().email().optional().or(z.literal(''));
+const phoneSchema = z.string().trim().max(40).optional().or(z.literal(''));
+
+const createMemberSchema = z
+  .object({
+    accountId: z.string().trim().min(1),
+    name: z.string().trim().min(2).max(120),
+    email: emailSchema,
+    phone: phoneSchema,
+    username: z.string().trim().min(2).max(40).optional().or(z.literal('')),
+  })
+  .extend(companyMemberOperationalFieldsSchema.shape);
 
 const updateMemberSchema = z.discriminatedUnion('action', [
   z.object({
@@ -28,6 +37,16 @@ const updateMemberSchema = z.discriminatedUnion('action', [
     action: z.literal('set_active'),
     active: z.boolean(),
   }),
+  z
+    .object({
+      accountId: z.string().trim().min(1),
+      memberId: z.string().trim().min(1),
+      action: z.literal('update_profile'),
+      name: z.string().trim().min(2).max(120).optional(),
+      email: emailSchema,
+      phone: phoneSchema,
+    })
+    .extend(companyMemberOperationalFieldsSchema.shape),
 ]);
 
 function unauthorized() {
@@ -45,6 +64,18 @@ async function listMembers(accountId: string) {
       name: true,
       email: true,
       phone: true,
+      phoneNormalized: true,
+      phoneVerificationStatus: true,
+      phoneVerifiedAt: true,
+      canReceiveWhatsAppTasks: true,
+      allowAutomaticInternalMessages: true,
+      preferredLanguage: true,
+      workHours: true,
+      availability: true,
+      specialtyRegions: true,
+      specialties: true,
+      maxActiveTaskCapacity: true,
+      lastAssignedAt: true,
       role: true,
       active: true,
       username: true,
@@ -55,6 +86,33 @@ async function listMembers(accountId: string) {
     },
     orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
   });
+}
+
+function memberErrorResponse(error: unknown, fallback: string) {
+  if (error instanceof CompanyMemberValidationError) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.statusCode }
+    );
+  }
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    const target = Array.isArray(error.meta?.target)
+      ? error.meta.target.join(' ')
+      : String(error.meta?.target || '');
+    const message = target.includes('phone')
+      ? 'Bu telefon numarası başka bir aktif ekip üyesine atanmış.'
+      : target.includes('username')
+        ? 'Bu kullanıcı adı zaten kullanılıyor.'
+        : target.includes('email')
+          ? 'Bu e-posta adresi aynı şirkette zaten kullanılıyor.'
+          : 'Aynı bilgilerle kayıtlı başka bir ekip üyesi bulunuyor.';
+    return NextResponse.json({ error: message }, { status: 409 });
+  }
+  console.error('[Platform Member Error]:', error);
+  return NextResponse.json({ error: fallback }, { status: 500 });
 }
 
 export async function GET(request: Request) {
@@ -79,32 +137,44 @@ export async function POST(request: Request) {
     const parsed = createMemberSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Çalışan bilgilerini kontrol edin.' },
+        {
+          error:
+            parsed.error.issues[0]?.message ||
+            'Çalışan bilgilerini kontrol edin.',
+        },
         { status: 400 }
       );
     }
+    const {
+      accountId,
+      name,
+      email,
+      phone,
+      username,
+      ...operational
+    } = parsed.data;
 
     const result = await createCompanyMemberAccount({
-      companyAccountId: parsed.data.accountId,
-      name: parsed.data.name,
-      email: parsed.data.email || null,
-      phone: parsed.data.phone || null,
-      username: parsed.data.username || null,
+      companyAccountId: accountId,
+      name,
+      email: email || null,
+      phone: phone || null,
+      username: username || null,
+      ...operational,
     });
 
     return NextResponse.json(
       {
         member: result.member,
-        members: await listMembers(parsed.data.accountId),
+        members: await listMembers(accountId),
         oneTimeCredentials: result.credentials,
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error('[Platform Member POST Error]:', error);
-    return NextResponse.json(
-      { error: 'Çalışan hesabı oluşturulamadı.' },
-      { status: 500 }
+    return memberErrorResponse(
+      error,
+      'Çalışan hesabı oluşturulamadı.'
     );
   }
 }
@@ -118,7 +188,10 @@ export async function PATCH(request: Request) {
     const parsed = updateMemberSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Geçersiz çalışan işlemi.' },
+        {
+          error:
+            parsed.error.issues[0]?.message || 'Geçersiz çalışan işlemi.',
+        },
         { status: 400 }
       );
     }
@@ -136,6 +209,31 @@ export async function PATCH(request: Request) {
       });
     }
 
+    if (input.action === 'update_profile') {
+      const {
+        accountId,
+        memberId,
+        name,
+        email,
+        phone,
+        action: _action,
+        ...operational
+      } = input;
+      void _action;
+      const member = await updateCompanyMemberProfile({
+        companyAccountId: accountId,
+        memberId,
+        name,
+        email: email === undefined ? undefined : email || null,
+        phone: phone === undefined ? undefined : phone || null,
+        ...operational,
+      });
+      return NextResponse.json({
+        member,
+        members: await listMembers(accountId),
+      });
+    }
+
     const member = await setCompanyMemberActive({
       companyAccountId: input.accountId,
       memberId: input.memberId,
@@ -146,10 +244,9 @@ export async function PATCH(request: Request) {
       members: await listMembers(input.accountId),
     });
   } catch (error) {
-    console.error('[Platform Member PATCH Error]:', error);
-    return NextResponse.json(
-      { error: 'Çalışan hesabı güncellenemedi.' },
-      { status: 500 }
+    return memberErrorResponse(
+      error,
+      'Çalışan hesabı güncellenemedi.'
     );
   }
 }

@@ -7,6 +7,7 @@ import {
   CrmPropertyStatus,
   CrmTaskStatus,
   CrmTaskType,
+  Prisma,
 } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
@@ -17,9 +18,12 @@ import {
 } from '@/lib/fabrika-session';
 import { syncLegacyModulesToWorkspace } from '@/lib/fabrika-workspace-sync';
 import {
+  CompanyMemberValidationError,
+  companyMemberOperationalFieldsSchema,
   createCompanyMemberAccount,
   resetCompanyMemberCredentials,
   setCompanyMemberActive,
+  updateCompanyMemberProfile,
   type OneTimeMemberCredentials,
 } from '@/lib/company-members';
 import { calculateCrmScore } from '@/lib/crm-intelligence';
@@ -119,13 +123,30 @@ const actionSchema = z.discriminatedUnion('action', [
     id: z.string().trim().min(1),
     completed: z.boolean(),
   }),
-  z.object({
-    action: z.literal('create-member'),
-    name: z.string().trim().min(2).max(120),
-    email: z.string().trim().email().optional().or(z.literal('')),
-    phone: optionalText,
-    username: z.string().trim().min(2).max(40).optional().or(z.literal('')),
-  }),
+  z
+    .object({
+      action: z.literal('create-member'),
+      name: z.string().trim().min(2).max(120),
+      email: z.string().trim().email().optional().or(z.literal('')),
+      phone: optionalText,
+      username: z
+        .string()
+        .trim()
+        .min(2)
+        .max(40)
+        .optional()
+        .or(z.literal('')),
+    })
+    .extend(companyMemberOperationalFieldsSchema.shape),
+  z
+    .object({
+      action: z.literal('update-member-profile'),
+      id: z.string().trim().min(1),
+      name: z.string().trim().min(2).max(120).optional(),
+      email: z.string().trim().email().optional().or(z.literal('')),
+      phone: optionalText,
+    })
+    .extend(companyMemberOperationalFieldsSchema.shape),
   z.object({
     action: z.literal('reset-member-credentials'),
     id: z.string().trim().min(1),
@@ -349,6 +370,18 @@ async function getWorkspace(
         name: true,
         email: true,
         phone: true,
+        phoneNormalized: true,
+        phoneVerificationStatus: true,
+        phoneVerifiedAt: true,
+        canReceiveWhatsAppTasks: true,
+        allowAutomaticInternalMessages: true,
+        preferredLanguage: true,
+        workHours: true,
+        availability: true,
+        specialtyRegions: true,
+        specialties: true,
+        maxActiveTaskCapacity: true,
+        lastAssignedAt: true,
         role: true,
         active: true,
         username: true,
@@ -888,8 +921,43 @@ export async function POST(request: Request) {
         email: asNullable(input.email),
         phone: asNullable(input.phone),
         username: asNullable(input.username),
+        role: input.role,
+        phoneVerificationStatus: input.phoneVerificationStatus,
+        canReceiveWhatsAppTasks: input.canReceiveWhatsAppTasks,
+        allowAutomaticInternalMessages:
+          input.allowAutomaticInternalMessages,
+        preferredLanguage: input.preferredLanguage,
+        workHours: input.workHours,
+        availability: input.availability,
+        specialtyRegions: input.specialtyRegions,
+        specialties: input.specialties,
+        maxActiveTaskCapacity: input.maxActiveTaskCapacity,
       });
       oneTimeCredentials = result.credentials;
+    }
+
+    if (input.action === 'update-member-profile') {
+      if (!principal.permissions.canManageTeam) {
+        throw new FabrikaForbiddenError();
+      }
+      await updateCompanyMemberProfile({
+        companyAccountId: account.id,
+        memberId: input.id,
+        name: input.name,
+        email: input.email === undefined ? undefined : asNullable(input.email),
+        phone: input.phone === undefined ? undefined : asNullable(input.phone),
+        role: input.role,
+        phoneVerificationStatus: input.phoneVerificationStatus,
+        canReceiveWhatsAppTasks: input.canReceiveWhatsAppTasks,
+        allowAutomaticInternalMessages:
+          input.allowAutomaticInternalMessages,
+        preferredLanguage: input.preferredLanguage,
+        workHours: input.workHours,
+        availability: input.availability,
+        specialtyRegions: input.specialtyRegions,
+        specialties: input.specialties,
+        maxActiveTaskCapacity: input.maxActiveTaskCapacity,
+      });
     }
 
     if (input.action === 'reset-member-credentials') {
@@ -1007,6 +1075,25 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof FabrikaSessionError) return unauthorized();
     if (error instanceof FabrikaForbiddenError) return forbidden(error.message);
+    if (error instanceof CompanyMemberValidationError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode }
+      );
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Bu e-posta, telefon veya kullanıcı adı başka bir çalışan hesabında kullanılıyor.',
+        },
+        { status: 409 }
+      );
+    }
     console.error('Workspace POST error:', error);
     return NextResponse.json(
       {

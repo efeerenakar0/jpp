@@ -7,6 +7,7 @@ import {
   CrmTaskType,
 } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { normalizeE164 } from '@/lib/digital-manager/domain';
 
 type WorkspaceAccount = {
   id: string;
@@ -78,12 +79,16 @@ export async function syncLegacyModulesToWorkspace(account: WorkspaceAccount) {
   }
 
   const [conversations, listings, appointments, campaigns] = await Promise.all([
-    prisma.customerConversation.findMany({ orderBy: { updatedAt: 'desc' } }),
+    prisma.customerConversation.findMany({
+      where: { companyAccountId: account.id },
+      orderBy: { updatedAt: 'desc' },
+    }),
     prisma.huntedListing.findMany({
       where: { companyAccountId: account.id },
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.appointmentRequest.findMany({
+      where: { conversation: { companyAccountId: account.id } },
       include: { conversation: { select: { id: true } } },
       orderBy: { updatedAt: 'desc' },
     }),
@@ -106,6 +111,7 @@ export async function syncLegacyModulesToWorkspace(account: WorkspaceAccount) {
       update: {
         name: conversation.customerName,
         phone: conversation.customerPhone,
+        phoneNormalized: normalizeE164(conversation.customerPhone),
         email: conversation.customerEmail,
         notes: conversation.notes || conversation.summary,
         tags: conversation.tags,
@@ -117,6 +123,7 @@ export async function syncLegacyModulesToWorkspace(account: WorkspaceAccount) {
         sourceConversationId: conversation.id,
         name: conversation.customerName,
         phone: conversation.customerPhone,
+        phoneNormalized: normalizeE164(conversation.customerPhone),
         email: conversation.customerEmail,
         type:
           conversation.intent === 'INVESTMENT'

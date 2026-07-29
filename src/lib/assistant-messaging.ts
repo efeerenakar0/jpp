@@ -15,6 +15,8 @@ export async function sendAssistantWhatsAppMessage(input: {
   text: string;
   lastCustomerMessageAt: Date | null;
   conversationId?: string;
+  correlationId?: string;
+  idempotencyKey?: string;
   createdByType?: string;
   createdById?: string;
 }): Promise<AssistantDelivery> {
@@ -23,6 +25,8 @@ export async function sendAssistantWhatsAppMessage(input: {
     to: input.to,
     text: input.text,
     conversationId: input.conversationId,
+    correlationId: input.correlationId,
+    idempotencyKey: input.idempotencyKey,
     createdByType: input.createdByType,
     createdById: input.createdById,
   });
@@ -48,32 +52,69 @@ export async function saveOutgoingConversationMessage(input: {
   delivery: AssistantDelivery;
   role?: 'assistant' | 'patron';
 }) {
-  const message = await prisma.conversationMessage.create({
-    data: {
-      conversationId: input.conversationId,
-      role: input.role || 'assistant',
-      content: input.content,
-      metadata: input.delivery.metadata,
-      providerMessageId: input.delivery.providerMessageId,
-      deliveryStatus: input.delivery.deliveryStatus,
-      messageType: input.delivery.messageType,
-    },
-  });
   const conversation = await prisma.customerConversation.findUnique({
     where: { id: input.conversationId },
     select: { companyAccountId: true, customerPhone: true },
   });
-  if (conversation?.customerPhone) {
-    await prisma.whatsAppMessage.create({
-      data: {
-        companyAccountId: conversation.companyAccountId,
-        phone: conversation.customerPhone,
-        fromMe: true,
-        content: input.content,
-        status: input.delivery.deliveryStatus,
-        providerMessageId: input.delivery.providerMessageId,
-      },
-    });
+  if (!conversation) {
+    throw new Error('Sohbet bulunamadı.');
   }
-  return message;
+  return prisma.$transaction(async (tx) => {
+    let message = await tx.conversationMessage.findUnique({
+      where: { providerMessageId: input.delivery.providerMessageId },
+    });
+    if (message) {
+      if (
+        message.conversationId !== input.conversationId ||
+        message.content !== input.content
+      ) {
+        throw new Error(
+          'Sağlayıcı mesaj kimliği farklı bir sohbet mesajıyla çakışıyor.'
+        );
+      }
+    } else {
+      message = await tx.conversationMessage.create({
+        data: {
+          conversationId: input.conversationId,
+          role: input.role || 'assistant',
+          content: input.content,
+          metadata: input.delivery.metadata,
+          providerMessageId: input.delivery.providerMessageId,
+          deliveryStatus: input.delivery.deliveryStatus,
+          messageType: input.delivery.messageType,
+          processingStatus: 'COMPLETED',
+          processingCompletedAt: new Date(),
+        },
+      });
+    }
+
+    if (conversation.customerPhone) {
+      const stored = await tx.whatsAppMessage.findUnique({
+        where: { providerMessageId: input.delivery.providerMessageId },
+      });
+      if (
+        stored &&
+        (stored.companyAccountId !== conversation.companyAccountId ||
+          !stored.fromMe ||
+          stored.content !== input.content)
+      ) {
+        throw new Error(
+          'Sağlayıcı mesaj kimliği farklı bir WhatsApp kaydıyla çakışıyor.'
+        );
+      }
+      if (!stored) {
+        await tx.whatsAppMessage.create({
+          data: {
+            companyAccountId: conversation.companyAccountId,
+            phone: conversation.customerPhone,
+            fromMe: true,
+            content: input.content,
+            status: input.delivery.deliveryStatus,
+            providerMessageId: input.delivery.providerMessageId,
+          },
+        });
+      }
+    }
+    return message;
+  });
 }

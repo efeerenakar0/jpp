@@ -1,7 +1,8 @@
-import { after, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { processIncomingWhatsAppMessage } from '@/lib/whatsapp-incoming';
 import { verifyWebhookSecret } from '@/lib/whatsapp-crypto';
+import { recordProviderDeliveryReceipt } from '@/lib/digital-manager/message-delivery';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,10 +30,16 @@ function deliveryFromAck(value: unknown) {
   const status = String(value || '').toUpperCase();
   if (status === 'ERROR' || status === '-1') return 'FAILED' as const;
   if (
-    status === 'DEVICE' ||
     status === 'READ' ||
     status === 'PLAYED' ||
-    ['2', '3', '4'].includes(status)
+    status === '3' ||
+    status === '4'
+  ) {
+    return 'READ' as const;
+  }
+  if (
+    status === 'DEVICE' ||
+    status === '2'
   ) {
     return 'DELIVERED' as const;
   }
@@ -64,7 +71,36 @@ function messageDetails(payload: Record<string, unknown>) {
   return {
     from: String(payload.from || info.Chat || info.Sender || ''),
     pushName: String(payload.pushName || info.PushName || '').trim(),
+    quotedProviderMessageId: quotedMessageId(payload, data, info),
   };
+}
+
+function recordValue(value: unknown) {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function quotedMessageId(
+  payload: Record<string, unknown>,
+  data: Record<string, unknown>,
+  info: Record<string, unknown>
+) {
+  const replyTo = recordValue(payload.replyTo);
+  const quoted = recordValue(data.quotedMsg || data.QuotedMsg);
+  const quotedId = recordValue(quoted.id || quoted.ID);
+  const contextInfo = recordValue(
+    data.contextInfo || data.ContextInfo || info.ContextInfo
+  );
+  return String(
+    replyTo.id ||
+      replyTo.messageId ||
+      quotedId._serialized ||
+      quotedId.id ||
+      contextInfo.stanzaId ||
+      contextInfo.StanzaID ||
+      ''
+  ).trim() || null;
 }
 
 export async function POST(
@@ -72,7 +108,9 @@ export async function POST(
   context: { params: Promise<{ accountId: string }> }
 ) {
   const { accountId } = await context.params;
-  const token = new URL(request.url).searchParams.get('token');
+  const token =
+    request.headers.get('x-webhook-secret') ||
+    new URL(request.url).searchParams.get('token');
   const config = await prisma.whatsAppConfig.findUnique({
     where: { companyAccountId: accountId },
   });
@@ -94,7 +132,6 @@ export async function POST(
   const session = String(body.session || '');
   if (
     config.evolutionInstanceName &&
-    session &&
     session !== config.evolutionInstanceName
   ) {
     return NextResponse.json({ error: 'Oturum eşleşmedi.' }, { status: 403 });
@@ -138,30 +175,25 @@ export async function POST(
     const providerMessageId = String(payload.id || '');
     const delivery = deliveryFromAck(payload.ackName || payload.ack);
     if (providerMessageId && delivery) {
-      const deliveredAt = delivery === 'DELIVERED' ? new Date() : undefined;
-      const failedAt = delivery === 'FAILED' ? new Date() : undefined;
-      await Promise.all([
-        prisma.conversationMessage.updateMany({
-          where: { providerMessageId },
-          data: {
-            deliveryStatus: delivery,
-            ...(deliveredAt ? { deliveredAt } : {}),
-            ...(failedAt ? { failedAt } : {}),
-          },
-        }),
-        prisma.whatsAppOutboxMessage.updateMany({
-          where: { providerMessageId },
-          data: {
-            status: delivery,
-            ...(deliveredAt ? { deliveredAt } : {}),
-            ...(failedAt ? { failedAt } : {}),
-          },
-        }),
-        prisma.whatsAppMessage.updateMany({
-          where: { providerMessageId, companyAccountId: accountId },
-          data: { status: delivery },
-        }),
-      ]);
+      await recordProviderDeliveryReceipt({
+        companyAccountId: accountId,
+        provider: 'WAHA',
+        providerMessageId,
+        status: delivery,
+        rawStatus: String(payload.ackName || payload.ack || ''),
+        idempotencyKey: [
+          'waha-ack',
+          accountId,
+          providerMessageId,
+          delivery,
+          String(payload.ackName || payload.ack || ''),
+        ].join(':'),
+        errorCode: delivery === 'FAILED' ? 'WAHA_ACK_FAILED' : undefined,
+        errorMessage:
+          delivery === 'FAILED'
+            ? String(payload.error || 'WhatsApp sağlayıcısı teslimatı reddetti.')
+            : undefined,
+      });
     }
     return NextResponse.json({ accepted: true });
   }
@@ -193,22 +225,26 @@ export async function POST(
     text,
     providerMessageId,
     messageType: payload.hasMedia ? 'media' : 'text',
+    quotedProviderMessageId: details.quotedProviderMessageId,
   };
 
-  after(async () => {
-    await processIncomingWhatsAppMessage(input).catch(async (error) => {
-      console.error('[WAHA Webhook Worker Error]:', error);
-      await prisma.whatsAppConfig.update({
-        where: { companyAccountId: accountId },
-        data: {
-          lastError:
-            error instanceof Error
-              ? error.message.slice(0, 500)
-              : 'Gelen mesaj işlenemedi.',
-        },
-      });
+  try {
+    const result = await processIncomingWhatsAppMessage(input);
+    return NextResponse.json({ accepted: true, result });
+  } catch (error) {
+    console.error('[WAHA Webhook Processing Error]:', error);
+    await prisma.whatsAppConfig.update({
+      where: { companyAccountId: accountId },
+      data: {
+        lastError:
+          error instanceof Error
+            ? error.message.slice(0, 500)
+            : 'Gelen mesaj işlenemedi.',
+      },
     });
-  });
-
-  return NextResponse.json({ accepted: true });
+    return NextResponse.json(
+      { error: 'Gelen mesaj güvenli biçimde işlenemedi.' },
+      { status: 500 }
+    );
+  }
 }

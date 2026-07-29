@@ -45,6 +45,7 @@ import {
 import { toast } from 'sonner';
 import EmptyState from '@/components/fabrika/EmptyState';
 import PageHeader from '@/components/fabrika/PageHeader';
+import PhoneVerificationControl from '@/components/fabrika/PhoneVerificationControl';
 import StatCard from '@/components/fabrika/StatCard';
 import PortfolioSourcesPanel from '@/components/fabrika/PortfolioSourcesPanel';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,11 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import {
+  buildMemberOperationalPayload,
+  MEMBER_WORK_DAYS,
+  type MemberWorkDay,
+} from '@/lib/company-member-form';
 
 export type WorkspaceMode =
   | 'crm'
@@ -77,6 +83,26 @@ type Member = {
   name: string;
   email: string | null;
   phone: string | null;
+  phoneNormalized: string | null;
+  phoneVerificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'CONFLICT';
+  phoneVerifiedAt: string | null;
+  canReceiveWhatsAppTasks: boolean;
+  allowAutomaticInternalMessages: boolean;
+  preferredLanguage: string;
+  workHours: {
+    timezone: string;
+    days: Array<{
+      day: MemberWorkDay;
+      enabled: boolean;
+      start: string;
+      end: string;
+    }>;
+  } | null;
+  availability: 'AVAILABLE' | 'BUSY' | 'ON_LEAVE' | 'OFFLINE';
+  specialtyRegions: string[];
+  specialties: string[];
+  maxActiveTaskCapacity: number;
+  lastAssignedAt: string | null;
   role: 'OWNER' | 'MANAGER' | 'AGENT' | 'VIEWER';
   active: boolean;
   username: string | null;
@@ -224,6 +250,7 @@ type DialogKind =
   | 'deal'
   | 'task'
   | 'member'
+  | 'member-edit'
   | null;
 
 type OneTimeMemberCredentials = {
@@ -319,6 +346,20 @@ const contactTypeLabels: Record<Contact['type'], string> = {
   INVESTOR: 'Yatırımcı',
   TENANT: 'Kiracı',
   OTHER: 'Diğer',
+};
+
+const memberRoleLabels: Record<Member['role'], string> = {
+  OWNER: 'Patron',
+  MANAGER: 'Yönetici',
+  AGENT: 'Danışman',
+  VIEWER: 'Gözlemci',
+};
+
+const memberAvailabilityLabels: Record<Member['availability'], string> = {
+  AVAILABLE: 'Müsait',
+  BUSY: 'Meşgul',
+  ON_LEAVE: 'İzinli',
+  OFFLINE: 'Çevrimdışı',
 };
 
 function customerHeat(score: number) {
@@ -460,6 +501,7 @@ export default function WorkspacePage({
   const [query, setQuery] = useState('');
   const [crmFilter, setCrmFilter] = useState<'all' | 'hot' | 'follow-up'>('all');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<
     'overview' | 'activity'
   >('overview');
@@ -520,7 +562,11 @@ export default function WorkspacePage({
         throw new Error(data.error || 'İşlem tamamlanamadı.');
       }
       setWorkspace(data.workspace);
+      if (data.oneTimeCredentials) {
+        setMemberCredentials(data.oneTimeCredentials);
+      }
       setDialog(null);
+      setSelectedMemberId(null);
       toast.success(data.message || successMessage);
       return true;
     } catch (error) {
@@ -566,6 +612,8 @@ export default function WorkspacePage({
   const selectedContactTasks = selectedContact
     ? workspace?.tasks.filter((task) => task.contact?.id === selectedContact.id) || []
     : [];
+  const selectedMember =
+    workspace?.members.find((member) => member.id === selectedMemberId) || null;
 
   if (loading) {
     return (
@@ -1595,29 +1643,117 @@ export default function WorkspacePage({
             ) : (
               <div className="divide-y divide-slate-800">
                 {workspace.members.map((member) => (
-                  <div className="flex items-center gap-3 p-4" key={member.id}>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-sm font-semibold text-slate-200">
-                      {member.name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-white">{member.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-slate-500">
-                        {member.email || member.phone || 'İletişim bilgisi yok'}
-                      </p>
-                      <p className="mt-1 truncate font-mono text-[11px] text-emerald-300">
-                        {member.username || 'Giriş bilgisi henüz oluşturulmadı'}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className={`rounded-md border px-2 py-1 text-[10px] ${
-                        member.active
-                          ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-                          : 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-                      }`}>
-                        {member.active ? 'Aktif' : 'Kapalı'}
+                  <div
+                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start"
+                    key={member.id}
+                  >
+                    <div className="flex min-w-0 flex-1 gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-sm font-semibold text-slate-200">
+                        {member.name.slice(0, 1).toUpperCase()}
                       </span>
-                      {workspace.permissions.canManageTeam && (
-                        <>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-white">{member.name}</p>
+                          <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">
+                            {memberRoleLabels[member.role]}
+                          </span>
+                          <span
+                            className={`rounded-md border px-2 py-0.5 text-[10px] ${
+                              member.active
+                                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                                : 'border-rose-500/25 bg-rose-500/10 text-rose-300'
+                            }`}
+                          >
+                            {member.active ? 'Aktif' : 'Kapalı'}
+                          </span>
+                          <span className="rounded-md border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-300">
+                            {memberAvailabilityLabels[member.availability]}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {member.email ||
+                            member.phoneNormalized ||
+                            member.phone ||
+                            'İletişim bilgisi yok'}
+                        </p>
+                        <p className="mt-1 truncate font-mono text-[11px] text-emerald-300">
+                          {member.username ||
+                            'Giriş bilgisi henüz oluşturulmadı'}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                          <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
+                            WhatsApp görevi:{' '}
+                            {member.canReceiveWhatsAppTasks ? 'Açık' : 'Kapalı'}
+                          </span>
+                          <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
+                            Otomatik iç mesaj:{' '}
+                            {member.allowAutomaticInternalMessages
+                              ? 'Açık'
+                              : 'Kapalı'}
+                          </span>
+                          <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
+                            Kapasite: {member.maxActiveTaskCapacity}
+                          </span>
+                          <span
+                            className={`rounded-md border px-2 py-1 ${
+                              member.phoneVerificationStatus === 'VERIFIED'
+                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                                : member.phoneVerificationStatus === 'CONFLICT'
+                                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-300'
+                                  : 'border-slate-700 bg-slate-950 text-slate-400'
+                            }`}
+                          >
+                            Telefon:{' '}
+                            {member.phoneVerificationStatus === 'VERIFIED'
+                              ? 'Doğrulandı'
+                              : member.phoneVerificationStatus === 'CONFLICT'
+                                ? 'Çakışma var'
+                                : 'Doğrulanmadı'}
+                          </span>
+                          {member.specialtyRegions.length > 0 && (
+                            <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
+                              Bölgeler: {member.specialtyRegions.join(', ')}
+                            </span>
+                          )}
+                          {member.specialties.length > 0 && (
+                            <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
+                              Uzmanlık: {member.specialties.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {workspace.permissions.canManageTeam &&
+                      member.role !== 'OWNER' && (
+                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 self-end sm:self-start">
+                          {(member.phoneNormalized || member.phone) &&
+                            member.phoneVerificationStatus !== 'VERIFIED' && (
+                              <PhoneVerificationControl
+                                buttonLabel="Doğrulama kodu gönder"
+                                memberId={member.id}
+                                onVerified={async () => {
+                                  toast.success('Çalışan telefonu doğrulandı.');
+                                  await loadWorkspace();
+                                }}
+                                phone={
+                                  member.phoneNormalized || member.phone || ''
+                                }
+                                subjectType="MEMBER"
+                              />
+                            )}
+                          <Button
+                            aria-label={`${member.name} profilini düzenle`}
+                            disabled={saving}
+                            onClick={() => {
+                              setSelectedMemberId(member.id);
+                              setDialog('member-edit');
+                            }}
+                            size="icon"
+                            title="Çalışan profilini düzenle"
+                            variant="outline"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
                           <Button
                             aria-label={`${member.name} giriş kodunu yenile`}
                             disabled={saving}
@@ -1650,7 +1786,9 @@ export default function WorkspacePage({
                               )
                             }
                             size="icon"
-                            title={member.active ? 'Hesabı kapat' : 'Hesabı aç'}
+                            title={
+                              member.active ? 'Hesabı kapat' : 'Hesabı aç'
+                            }
                             variant="outline"
                           >
                             {member.active ? (
@@ -1659,9 +1797,8 @@ export default function WorkspacePage({
                               <UserCheck className="h-4 w-4" />
                             )}
                           </Button>
-                        </>
+                        </div>
                       )}
-                    </div>
                   </div>
                 ))}
               </div>
@@ -1671,15 +1808,19 @@ export default function WorkspacePage({
       )}
 
       <WorkspaceDialog
-        key={dialog || 'closed'}
+        key={`${dialog || 'closed'}-${selectedMember?.id || 'new'}`}
         dialog={dialog}
         members={workspace.members}
         contacts={workspace.contacts}
         properties={workspace.properties}
         deals={workspace.deals}
         selectedContact={selectedContact}
+        selectedMember={selectedMember}
         saving={saving}
-        onClose={() => setDialog(null)}
+        onClose={() => {
+          setDialog(null);
+          setSelectedMemberId(null);
+        }}
         onSubmit={postAction}
       />
       <Dialog
@@ -1749,6 +1890,7 @@ function WorkspaceDialog({
   properties,
   deals,
   selectedContact,
+  selectedMember,
   saving,
   onClose,
   onSubmit,
@@ -1759,6 +1901,7 @@ function WorkspaceDialog({
   properties: Property[];
   deals: Deal[];
   selectedContact: Contact | null;
+  selectedMember: Member | null;
   saving: boolean;
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>, message: string) => Promise<boolean>;
@@ -1877,6 +2020,8 @@ function WorkspaceDialog({
     if (saving || propertySubmitting) return;
     const data = new FormData(event.currentTarget);
     const values = Object.fromEntries(data.entries());
+    const text = (value: FormDataEntryValue | undefined) =>
+      typeof value === 'string' ? value.trim() : '';
 
     if (dialog === 'contact') {
       await onSubmit(
@@ -2002,10 +2147,34 @@ function WorkspaceDialog({
         'Görev oluşturuldu.'
       );
     }
-    if (dialog === 'member') {
+    if (dialog === 'member' || (dialog === 'member-edit' && selectedMember)) {
+      const operational = buildMemberOperationalPayload(values);
+      const {
+        phoneVerificationStatus: challengeVerifiedStatus,
+        ...challengeSafeOperational
+      } = operational;
+      void challengeVerifiedStatus;
       await onSubmit(
-        { action: 'create-member', ...values },
-        'Ekip üyesi eklendi.'
+        dialog === 'member'
+          ? {
+              action: 'create-member',
+              name: text(values.name),
+              email: text(values.email),
+              phone: text(values.phone),
+              username: text(values.username),
+              ...challengeSafeOperational,
+            }
+          : {
+              action: 'update-member-profile',
+              id: selectedMember!.id,
+              name: text(values.name),
+              email: text(values.email),
+              phone: text(values.phone),
+              ...challengeSafeOperational,
+            },
+        dialog === 'member'
+          ? 'Ekip üyesi eklendi.'
+          : 'Çalışan profili güncellendi.'
       );
     }
   }
@@ -2017,13 +2186,18 @@ function WorkspaceDialog({
     deal: 'Yeni satış fırsatı',
     task: 'Yeni görev veya randevu',
     member: 'Yeni ekip üyesi',
+    'member-edit': 'Çalışan profilini düzenle',
   }[dialog || 'contact'];
 
   return (
     <Dialog open={Boolean(dialog)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={`max-h-[90vh] overflow-y-auto border border-slate-700 bg-slate-900 text-slate-100 ${
-          dialog === 'property' ? 'sm:max-w-3xl' : 'sm:max-w-2xl'
+          dialog === 'property' ||
+          dialog === 'member' ||
+          dialog === 'member-edit'
+            ? 'sm:max-w-3xl'
+            : 'sm:max-w-2xl'
         }`}
       >
         <DialogHeader>
@@ -2031,13 +2205,15 @@ function WorkspaceDialog({
           <DialogDescription>
             {dialog === 'property'
               ? 'Konumu listeden seçin; görseliniz kalite kaybı olmadan güvenli depolamaya yüklenir.'
-              : 'Bilgileri daha sonra müşteri veya portföy profilinden geliştirebilirsiniz.'}
+              : dialog === 'member' || dialog === 'member-edit'
+                ? 'Rol, çalışma düzeni ve WhatsApp görev izinleri yalnızca patron tarafından yönetilir.'
+                : 'Bilgileri daha sonra müşteri veya portföy profilinden geliştirebilirsiniz.'}
           </DialogDescription>
         </DialogHeader>
         <form
           className="grid gap-4 sm:grid-cols-2"
           id="workspace-form"
-          key={`${dialog}-${selectedContact?.id || 'new'}`}
+          key={`${dialog}-${selectedContact?.id || selectedMember?.id || 'new'}`}
           onSubmit={submit}
         >
           {dialog === 'contact' && (
@@ -2598,34 +2774,11 @@ function WorkspaceDialog({
             </>
           )}
 
-          {dialog === 'member' && (
-            <>
-              <label className={`${labelClass} sm:col-span-2`}>
-                Ad soyad
-                <Input className={fieldClass} name="name" required />
-              </label>
-              <label className={labelClass}>
-                E-posta
-                <Input className={fieldClass} name="email" type="email" />
-              </label>
-              <label className={labelClass}>
-                Telefon
-                <Input className={fieldClass} name="phone" />
-              </label>
-              <label className={`${labelClass} sm:col-span-2`}>
-                Kullanıcı adı için kısa ad (isteğe bağlı)
-                <Input
-                  autoCapitalize="none"
-                  className={fieldClass}
-                  name="username"
-                  placeholder="ayse-yilmaz"
-                  spellCheck={false}
-                />
-                <span className="block text-[11px] font-normal leading-5 text-slate-500">
-                  Tam kullanıcı adı şirket koduyla birlikte otomatik oluşturulur.
-                </span>
-              </label>
-            </>
+          {(dialog === 'member' || dialog === 'member-edit') && (
+            <MemberProfileFields
+              creating={dialog === 'member'}
+              member={selectedMember}
+            />
           )}
 
         </form>
@@ -2651,5 +2804,254 @@ function WorkspaceDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function MemberProfileFields({
+  creating,
+  member,
+}: {
+  creating: boolean;
+  member: Member | null;
+}) {
+  const scheduleDays = member?.workHours?.days || [];
+  const scheduleDay = (day: MemberWorkDay) =>
+    scheduleDays.find((item) => item.day === day);
+
+  return (
+    <>
+      <label className={labelClass}>
+        Ad soyad
+        <Input
+          className={fieldClass}
+          defaultValue={member?.name || ''}
+          name="name"
+          required
+        />
+      </label>
+      <label className={labelClass}>
+        Rol
+        <SelectField
+          defaultValue={
+            member?.role && member.role !== 'OWNER' ? member.role : 'AGENT'
+          }
+          name="role"
+        >
+          <option value="MANAGER">Yönetici</option>
+          <option value="AGENT">Danışman</option>
+          <option value="VIEWER">Gözlemci</option>
+        </SelectField>
+      </label>
+      <label className={labelClass}>
+        E-posta
+        <Input
+          className={fieldClass}
+          defaultValue={member?.email || ''}
+          name="email"
+          type="email"
+        />
+      </label>
+      <label className={labelClass}>
+        Telefon
+        <Input
+          autoComplete="tel"
+          className={fieldClass}
+          defaultValue={member?.phoneNormalized || member?.phone || ''}
+          name="phone"
+          placeholder="+905551112233"
+          type="tel"
+        />
+        <span className="block text-[11px] font-normal leading-5 text-slate-500">
+          WhatsApp görevleri için ülke koduyla birlikte yazın.
+        </span>
+      </label>
+      {creating && (
+        <label className={`${labelClass} sm:col-span-2`}>
+          Kullanıcı adı için kısa ad (isteğe bağlı)
+          <Input
+            autoCapitalize="none"
+            className={fieldClass}
+            name="username"
+            placeholder="ayse-yilmaz"
+            spellCheck={false}
+          />
+          <span className="block text-[11px] font-normal leading-5 text-slate-500">
+            Tam kullanıcı adı şirket koduyla birlikte otomatik oluşturulur.
+          </span>
+        </label>
+      )}
+      <div className={labelClass}>
+        <span className="block">Telefon doğrulaması</span>
+        <div
+          className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs ${
+            member?.phoneVerificationStatus === 'VERIFIED'
+              ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
+              : member?.phoneVerificationStatus === 'CONFLICT'
+                ? 'border-rose-500/25 bg-rose-500/10 text-rose-200'
+                : 'border-slate-700 bg-slate-950 text-slate-400'
+          }`}
+        >
+          <BadgeCheck aria-hidden="true" className="h-4 w-4 shrink-0" />
+          {member?.phoneVerificationStatus === 'VERIFIED'
+            ? 'Telefon tek kullanımlık kodla doğrulandı'
+            : member?.phoneVerificationStatus === 'CONFLICT'
+              ? 'Numara çakışması var; telefonu düzeltip yeniden doğrulayın'
+              : creating
+                ? 'Hesabı kaydettikten sonra ekip kartından doğrulayın'
+                : 'Ekip kartından tek kullanımlık kod göndererek doğrulayın'}
+        </div>
+      </div>
+      <label className={labelClass}>
+        Çalışma durumu
+        <SelectField
+          defaultValue={member?.availability || 'AVAILABLE'}
+          name="availability"
+        >
+          <option value="AVAILABLE">Müsait</option>
+          <option value="BUSY">Meşgul</option>
+          <option value="ON_LEAVE">İzinli</option>
+          <option value="OFFLINE">Çevrimdışı</option>
+        </SelectField>
+      </label>
+      <label className={labelClass}>
+        Tercih edilen dil
+        <Input
+          className={fieldClass}
+          defaultValue={member?.preferredLanguage || 'tr'}
+          maxLength={16}
+          name="preferredLanguage"
+          pattern="[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*"
+          placeholder="tr veya tr-TR"
+          required
+        />
+      </label>
+      <label className={labelClass}>
+        Azami aktif görev
+        <Input
+          className={fieldClass}
+          defaultValue={member?.maxActiveTaskCapacity || 10}
+          max={100}
+          min={1}
+          name="maxActiveTaskCapacity"
+          required
+          type="number"
+        />
+      </label>
+      <label className={labelClass}>
+        Uzmanlık bölgeleri
+        <Input
+          className={fieldClass}
+          defaultValue={member?.specialtyRegions.join(', ') || ''}
+          name="specialtyRegions"
+          placeholder="Alanya, Kestel, Mahmutlar"
+        />
+      </label>
+      <label className={labelClass}>
+        Uzmanlık alanları
+        <Input
+          className={fieldClass}
+          defaultValue={member?.specialties.join(', ') || ''}
+          name="specialties"
+          placeholder="Villa, kiralık, ticari"
+        />
+      </label>
+      <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+        <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-700 bg-slate-950 p-3">
+          <input
+            className="mt-0.5 h-4 w-4 accent-emerald-500"
+            defaultChecked={member?.canReceiveWhatsAppTasks ?? true}
+            name="canReceiveWhatsAppTasks"
+            type="checkbox"
+          />
+          <span>
+            <span className="block text-xs font-semibold text-slate-200">
+              WhatsApp görevi alabilir
+            </span>
+            <span className="mt-1 block text-[11px] leading-5 text-slate-500">
+              Görev ataması için doğrulanabilir bir çalışan telefonu gerekir.
+            </span>
+          </span>
+        </label>
+        <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-700 bg-slate-950 p-3">
+          <input
+            className="mt-0.5 h-4 w-4 accent-emerald-500"
+            defaultChecked={
+              member?.allowAutomaticInternalMessages ?? false
+            }
+            name="allowAutomaticInternalMessages"
+            type="checkbox"
+          />
+          <span>
+            <span className="block text-xs font-semibold text-slate-200">
+              Otomatik iç mesaj alabilir
+            </span>
+            <span className="mt-1 block text-[11px] leading-5 text-slate-500">
+              Yalnızca WhatsApp görevi açık çalışanlarda etkinleşir.
+            </span>
+          </span>
+        </label>
+      </div>
+      <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-950/70 p-4 sm:col-span-2">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <label className="flex cursor-pointer items-center gap-3 text-xs font-semibold text-slate-200">
+            <input
+              className="h-4 w-4 accent-emerald-500"
+              defaultChecked={Boolean(member?.workHours)}
+              name="workHoursEnabled"
+              type="checkbox"
+            />
+            Çalışma saatlerini görev atamalarında kullan
+          </label>
+          <label className="flex items-center gap-2 text-[11px] text-slate-400">
+            Saat dilimi
+            <Input
+              className="h-8 w-44 border-slate-700 bg-slate-900 text-xs"
+              defaultValue={
+                member?.workHours?.timezone || 'Europe/Istanbul'
+              }
+              name="workHoursTimezone"
+            />
+          </label>
+        </div>
+        <div className="space-y-2">
+          {MEMBER_WORK_DAYS.map(({ value, label }, index) => {
+            const configuredDay = scheduleDay(value);
+            const defaultEnabled = member?.workHours
+              ? Boolean(configuredDay?.enabled)
+              : index < 5;
+            return (
+              <div
+                className="grid grid-cols-[minmax(0,1fr)_7.5rem_7.5rem] items-center gap-2"
+                key={value}
+              >
+                <label className="flex min-w-0 cursor-pointer items-center gap-2 text-xs text-slate-300">
+                  <input
+                    className="h-4 w-4 accent-emerald-500"
+                    defaultChecked={defaultEnabled}
+                    name={`workDay_${value}`}
+                    type="checkbox"
+                  />
+                  <span className="truncate">{label}</span>
+                </label>
+                <Input
+                  aria-label={`${label} başlangıç saati`}
+                  className="h-8 border-slate-700 bg-slate-900 px-2 text-xs"
+                  defaultValue={configuredDay?.start || '09:00'}
+                  name={`workHoursStart_${value}`}
+                  type="time"
+                />
+                <Input
+                  aria-label={`${label} bitiş saati`}
+                  className="h-8 border-slate-700 bg-slate-900 px-2 text-xs"
+                  defaultValue={configuredDay?.end || '18:00'}
+                  name={`workHoursEnd_${value}`}
+                  type="time"
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }

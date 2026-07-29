@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
-import { callAI, sharedAssistantAIStatus } from '@/lib/ai';
+
+import { sharedAssistantAIStatus } from '@/lib/ai';
+import { processDigitalManagerMessage } from '@/lib/digital-manager/manager-chat';
 import {
-  fallbackGeneralManagerAnswer,
   generalManagerSuggestions,
   getGeneralManagerContext,
   publicGeneralManagerContext,
@@ -13,10 +15,15 @@ import {
   FabrikaSessionError,
   requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
-import { syncLegacyModulesToWorkspace } from '@/lib/fabrika-workspace-sync';
+import { prisma } from '@/lib/prisma';
 
 const messageSchema = z.object({
-  message: z.string().trim().min(1, 'Mesaj boş olamaz.').max(2000, 'Mesaj en fazla 2.000 karakter olabilir.'),
+  message: z
+    .string()
+    .trim()
+    .min(1, 'Mesaj boş olamaz.')
+    .max(2000, 'Mesaj en fazla 2.000 karakter olabilir.'),
+  clientRequestId: z.string().trim().min(8).max(120).optional(),
 });
 
 function managerPrincipal(
@@ -48,97 +55,49 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    const manager = managerPrincipal(principal);
-    await syncLegacyModulesToWorkspace(principal.account);
-    const [context, recentMessages] = await Promise.all([
-      getGeneralManagerContext(manager),
-      prisma.generalManagerMessage.findMany({
-        where: { companyAccountId: principal.account.id },
-        orderBy: { createdAt: 'desc' },
-        take: 14,
-      }),
-    ]);
-    const history = recentMessages
-      .reverse()
-      .map((item) => ({
-        role: item.role === 'patron' ? ('user' as const) : ('assistant' as const),
-        content: item.content,
-      }));
-    const systemPrompt = `Sen ${principal.account.companyName} Fabrika Komuta Merkezi'nin Genel Müdür Yardımcısısın.
-Müşteri Asistanı ile aynı canlı AI altyapısını kullanıyorsun. Görevin şirketin doğrulanmış operasyon verisini açıklamak, önceliklendirmek ve doğru modüle yönlendirmektir.
-
-ANLIK DOĞRULANMIŞ ŞİRKET BAĞLAMI:
-${JSON.stringify(context)}
-
-KURALLAR:
-- Türkçe, açık, kısa ve aksiyon odaklı yanıt ver. Gerekli olduğunda maddeler kullan.
-- CRM, müşteri telefonları, notlar, portföyler, satış, görevler, randevular, Google Takvim, Asistan, Avcı, Pazarlamacı ve Stüdyo sorularını yukarıdaki veriden cevapla.
-- Bir sayı, isim, tarih, durum veya olay söylerken yalnızca doğrulanmış bağlamı kullan. Eksik veriyi tahmin etme.
-- Cevabın sonunda uygun olduğunda ilgili Fabrika sayfasını düz metin olarak belirt.
-- Genel bilgi sorusunu cevaplayabilirsin ancak bunun şirketin canlı verisi olmadığını ayır.
-- Kullanıcı bir kayıt değiştirme, mesaj gönderme, onaylama veya silme isterse işlemi yapılmış gibi gösterme. Bunun bir öneri olduğunu ve hangi sayfadan/onayla yapılacağını söyle.
-- Gizli anahtar, şifre, token veya kimlik doğrulama kodu isteme ve gösterme.
-- Kullanıcının şirketi dışındaki hiçbir veriye sahip olduğunu iddia etme.`;
-
-    let answer: string;
-    let provider = 'RULE_ENGINE';
-    try {
-      const aiResponse = await callAI([
-        { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'user', content: parsed.data.message },
-      ]);
-      answer = aiResponse.content;
-      provider = aiResponse.provider || 'GROQ';
-    } catch (error) {
-      console.warn(
-        '[General Manager AI Fallback]:',
-        error instanceof Error ? error.message : String(error)
+    const result = await processDigitalManagerMessage({
+      manager: managerPrincipal(principal),
+      message: parsed.data.message,
+      clientRequestId: parsed.data.clientRequestId || randomUUID(),
+      source: 'WEB',
+    });
+    if (!result.message) {
+      return NextResponse.json(
+        { error: 'Daha önceki isteğin yanıtı henüz hazırlanıyor.' },
+        { status: 409 }
       );
-      answer = fallbackGeneralManagerAnswer(parsed.data.message, context);
     }
-
-    const [requestMessage, assistantMessage] = await prisma.$transaction([
-      prisma.generalManagerMessage.create({
-        data: {
-          companyAccountId: principal.account.id,
-          authorId: principal.type === 'OWNER' ? principal.account.id : principal.member!.id,
-          authorName: principal.displayName,
-          authorType: principal.type,
-          role: 'patron',
-          content: parsed.data.message,
-        },
-      }),
-      prisma.generalManagerMessage.create({
-        data: {
-          companyAccountId: principal.account.id,
-          authorName: 'Genel Müdür Yardımcısı',
-          authorType: 'AI',
-          role: 'asistan',
-          content: answer,
-          provider,
-        },
-      }),
-    ]);
-
     return NextResponse.json({
       success: true,
-      message: assistantMessage,
-      requestMessageId: requestMessage.id,
-      context: publicGeneralManagerContext(context),
+      duplicate: result.duplicate,
+      message: result.message,
+      requestMessageId: result.requestMessage.id,
+      actions: result.actions.map((action) => ({
+        id: action.id,
+        actionType: action.actionType,
+        status: action.status,
+        requiresApproval: action.requiresApproval,
+        policyDecision: action.policyDecision,
+      })),
+      context: result.context,
       provider: {
         ...sharedAssistantAIStatus(),
-        activeProvider: provider,
+        activeProvider: result.provider,
+        activeModel: result.model,
         sharedWithAssistant: true,
       },
     });
   } catch (error) {
     const response = sessionError(error);
     if (response) return response;
-    console.error('[General Manager POST Error]:', error);
+    console.error('[Digital Manager POST Error]:', error);
     return NextResponse.json(
-      { error: 'Komuta Merkezi şu anda doğrulanmış bir yanıt üretemedi.' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Dijital Genel Müdür şu anda yanıt üretemedi.',
+      },
       { status: 500 }
     );
   }
@@ -148,8 +107,7 @@ export async function GET() {
   try {
     const principal = await requireFabrikaPrincipal();
     const manager = managerPrincipal(principal);
-    await syncLegacyModulesToWorkspace(principal.account);
-    const [messages, context] = await Promise.all([
+    const [latestMessages, context] = await Promise.all([
       prisma.generalManagerMessage.findMany({
         where: { companyAccountId: principal.account.id },
         select: {
@@ -159,31 +117,31 @@ export async function GET() {
           authorName: true,
           authorType: true,
           provider: true,
+          correlationId: true,
           createdAt: true,
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         take: 60,
       }),
       getGeneralManagerContext(manager),
     ]);
-
     return NextResponse.json({
       success: true,
-      messages,
+      messages: latestMessages.reverse(),
       context: publicGeneralManagerContext(context),
       suggestions: generalManagerSuggestions(context),
       provider: {
         ...sharedAssistantAIStatus(),
-        activeProvider: sharedAssistantAIStatus().configured ? 'GROQ' : 'RULE_ENGINE',
         sharedWithAssistant: true,
       },
+      managerName: 'Dijital Genel Müdür',
     });
   } catch (error) {
     const response = sessionError(error);
     if (response) return response;
-    console.error('[General Manager GET Error]:', error);
+    console.error('[Digital Manager GET Error]:', error);
     return NextResponse.json(
-      { error: 'Komuta Merkezi geçmişi alınamadı.' },
+      { error: 'Dijital Genel Müdür verileri yüklenemedi.' },
       { status: 500 }
     );
   }

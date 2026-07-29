@@ -315,49 +315,213 @@ enum CrmTaskType {
   OTHER
 }
 
-model CompanyAccount {
-  id                   String               @id @default(cuid())
-  companyName          String
-  slug                 String               @unique
-  ownerName            String
-  ownerEmail           String?
-  brandLogoData        String?              @db.Text
-  accessKeyLookup      String?              @unique
-  accessKeyHash        String?
-  accessKeyHint        String?
-  verificationCodeHash String?
-  verificationCodeHint String?
-  status               CompanyAccountStatus @default(ACTIVE)
-  subscriptionStatus   SubscriptionStatus   @default(TRIAL)
-  subscriptionPlan     String               @default("standard")
-  subscriptionEndsAt   DateTime?
-  workspaceEnabled     Boolean              @default(false)
-  sessionVersion       Int                  @default(1)
-  lastLoginAt          DateTime?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+enum PhoneVerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  CONFLICT
+}
 
-  aiCredentials            CompanyAiCredential[]
-  members                  CompanyMember[]
-  crmContacts              CrmContact[]
-  crmProperties            CrmProperty[]
-  crmDeals                 CrmDeal[]
-  crmTasks                 CrmTask[]
-  crmMatches               CrmMatch[]
-  crmActivities            CrmActivity[]
-  notifications            Notification[]
-  googleCalendarConnection GoogleCalendarConnection?
-  calendarSyncLogs         CalendarSyncLog[]
-  huntedListings           HuntedListing[]
-  portfolioSources         PortfolioSource[]
-  portfolioImports         PortfolioImportItem[]
-  adCampaigns              AdCampaign[]
-  websiteMarketingAnalyses MarketingWebsiteAnalysis[]
-  generalManagerMessages   GeneralManagerMessage[]
-  whatsAppConfig           WhatsAppConfig?
-  customerConversations    CustomerConversation[]
-  whatsAppMessages         WhatsAppMessage[]
-  whatsAppOutboxMessages   WhatsAppOutboxMessage[]
+enum MemberAvailability {
+  AVAILABLE
+  BUSY
+  ON_LEAVE
+  OFFLINE
+}
+
+enum OperationalTaskStatus {
+  CREATED
+  ASSIGNED
+  MESSAGE_QUEUED
+  DELIVERED
+  ACCEPTED
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  APPOINTMENT_PROPOSED
+  APPOINTMENT_CONFIRMED
+  COMPLETED
+  REJECTED
+  REASSIGNMENT_REQUIRED
+  CANCELLED
+  FAILED
+}
+
+enum OperationEventType {
+  HOT_LEAD_DETECTED
+  LISTING_FOUND
+  AUTHORIZATION_INTEREST
+  AUTHORIZATION_CONFIRMED
+  VIEWING_REQUESTED
+  TASK_ASSIGNED
+  TASK_ACCEPTED
+  TASK_REJECTED
+  CUSTOMER_CONTACTED
+  CUSTOMER_UNREACHABLE
+  APPOINTMENT_PROPOSED
+  APPOINTMENT_CONFIRMED
+  COMMITMENT_CREATED
+  COMMITMENT_OVERDUE
+  HANDOFF_REQUESTED
+  HANDOFF_ACCEPTED
+  MESSAGE_DELIVERY_FAILED
+  CORRECTION_RECEIVED
+}
+
+enum GeneralManagerActionType {
+  CREATE_TASK
+  ASSIGN_EMPLOYEE
+  REASSIGN_EMPLOYEE
+  UPDATE_TASK_STATUS
+  CREATE_COMMITMENT
+  CREATE_CRM_ACTIVITY
+  UPDATE_LEAD_STAGE
+  SEND_EMPLOYEE_WHATSAPP
+  NOTIFY_OWNER
+  OFFER_CONVERSATION_HANDOFF
+  SCHEDULE_APPOINTMENT
+  ASK_CLARIFICATION
+  CREATE_POLICY
+  NO_ACTION
+}
+
+enum GeneralManagerActionStatus {
+  PROPOSED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  EXECUTING
+  EXECUTED
+  FAILED
+  CANCELLED
+}
+
+enum ActionApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ManagerRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ManagerAutonomyMode {
+  SUGGEST_ONLY
+  APPROVAL_REQUIRED
+  AUTO_LOW_RISK
+}
+
+enum CommitmentStatus {
+  OPEN
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+enum ConversationHandoffStatus {
+  PROPOSED
+  REQUESTED
+  ACCEPTED
+  ACTIVE
+  RETURNED
+  REJECTED
+  CANCELLED
+}
+
+enum WhatsAppRecipientType {
+  OWNER
+  EMPLOYEE
+  CRM_CONTACT
+  PROPERTY_OWNER
+  UNKNOWN
+}
+
+enum DeliveryAuditStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  RECEIVED
+  FAILED
+}
+
+enum ManagerPolicyScope {
+  ONE_TIME
+  CONVERSATION
+  TEMPORARY
+  PERMANENT
+}
+
+enum ManagerPolicyStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model CompanyAccount {
+  id                           String                  @id @default(cuid())
+  companyName                  String
+  slug                         String                  @unique
+  ownerName                    String
+  ownerEmail                   String?
+  ownerPhone                   String?
+  ownerPhoneNormalized         String?
+  ownerPhoneVerificationStatus PhoneVerificationStatus @default(UNVERIFIED)
+  ownerPhoneVerifiedAt         DateTime?
+  brandLogoData                String?                 @db.Text
+  accessKeyLookup              String?                 @unique
+  accessKeyHash                String?
+  accessKeyHint                String?
+  verificationCodeHash         String?
+  verificationCodeHint         String?
+  status                       CompanyAccountStatus    @default(ACTIVE)
+  subscriptionStatus           SubscriptionStatus      @default(TRIAL)
+  subscriptionPlan             String                  @default("standard")
+  subscriptionEndsAt           DateTime?
+  workspaceEnabled             Boolean                 @default(false)
+  sessionVersion               Int                     @default(1)
+  lastLoginAt                  DateTime?
+  createdAt                    DateTime                @default(now())
+  updatedAt                    DateTime                @updatedAt
+
+  aiCredentials               CompanyAiCredential[]
+  members                     CompanyMember[]
+  crmContacts                 CrmContact[]
+  crmProperties               CrmProperty[]
+  crmDeals                    CrmDeal[]
+  crmTasks                    CrmTask[]
+  crmMatches                  CrmMatch[]
+  crmActivities               CrmActivity[]
+  notifications               Notification[]
+  googleCalendarConnection    GoogleCalendarConnection?
+  calendarSyncLogs            CalendarSyncLog[]
+  huntedListings              HuntedListing[]
+  portfolioSources            PortfolioSource[]
+  portfolioImports            PortfolioImportItem[]
+  adCampaigns                 AdCampaign[]
+  websiteMarketingAnalyses    MarketingWebsiteAnalysis[]
+  generalManagerMessages      GeneralManagerMessage[]
+  phoneVerificationChallenges PhoneVerificationChallenge[]
+  operationEvents             OperationEvent[]
+  generalManagerActions       GeneralManagerAction[]
+  actionApprovals             ActionApproval[]
+  taskStatusTransitions       TaskStatusTransition[]
+  operationalCommitments      OperationalCommitment[]
+  conversationHandoffs        ConversationHandoff[]
+  messageDeliveryAudits       MessageDeliveryAudit[]
+  whatsAppDeliveryReceipts    WhatsAppDeliveryReceipt[]
+  managerPreference           ManagerNotificationPreference?
+  managerPolicies             ManagerPolicy[]
+  auditLogs                   ManagerAuditLog[]
+  identityLinks               IdentityLink[]
+  dailyManagerSummaries       DailyManagerSummary[]
+  whatsAppConfig              WhatsAppConfig?
+  customerConversations       CustomerConversation[]
+  whatsAppMessages            WhatsAppMessage[]
+  whatsAppOutboxMessages      WhatsAppOutboxMessage[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -379,23 +543,35 @@ model CompanyAiCredential {
 }
 
 model CompanyMember {
-  id                   String            @id @default(cuid())
-  companyAccountId     String
-  companyAccount       CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  name                 String
-  email                String?
-  phone                String?
-  role                 CompanyMemberRole @default(AGENT)
-  active               Boolean           @default(true)
-  username             String?           @unique
-  passwordHash         String?
-  sessionVersion       Int               @default(1)
-  failedLoginAttempts  Int               @default(0)
-  lockedUntil          DateTime?
-  lastLoginAt          DateTime?
-  credentialsUpdatedAt DateTime?
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  id                             String                  @id @default(cuid())
+  companyAccountId               String
+  companyAccount                 CompanyAccount          @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  name                           String
+  email                          String?
+  phone                          String?
+  phoneNormalized                String?
+  phoneVerificationStatus        PhoneVerificationStatus @default(UNVERIFIED)
+  phoneVerifiedAt                DateTime?
+  canReceiveWhatsAppTasks        Boolean                 @default(true)
+  allowAutomaticInternalMessages Boolean                 @default(false)
+  preferredLanguage              String                  @default("tr")
+  workHours                      Json?
+  availability                   MemberAvailability      @default(AVAILABLE)
+  specialtyRegions               String[]                @default([])
+  specialties                    String[]                @default([])
+  maxActiveTaskCapacity          Int                     @default(10)
+  lastAssignedAt                 DateTime?
+  role                           CompanyMemberRole       @default(AGENT)
+  active                         Boolean                 @default(true)
+  username                       String?                 @unique
+  passwordHash                   String?
+  sessionVersion                 Int                     @default(1)
+  failedLoginAttempts            Int                     @default(0)
+  lockedUntil                    DateTime?
+  lastLoginAt                    DateTime?
+  credentialsUpdatedAt           DateTime?
+  createdAt                      DateTime                @default(now())
+  updatedAt                      DateTime                @updatedAt
 
   contacts      CrmContact[]
   properties    CrmProperty[]
@@ -403,9 +579,12 @@ model CompanyMember {
   tasks         CrmTask[]
   activities    CrmActivity[]
   notifications Notification[]
+  commitments   OperationalCommitment[]
 
   @@unique([companyAccountId, email])
   @@index([companyAccountId, active])
+  @@index([companyAccountId, phoneNormalized])
+  @@index([companyAccountId, availability, active])
 }
 
 model CrmContact {
@@ -416,6 +595,7 @@ model CrmContact {
   assignedMember       CompanyMember?  @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
   name                 String
   phone                String?
+  phoneNormalized      String?
   email                String?
   type                 CrmContactType  @default(BUYER)
   stage                CrmContactStage @default(NEW)
@@ -518,37 +698,57 @@ model CrmDeal {
 }
 
 model CrmTask {
-  id                 String         @id @default(cuid())
-  companyAccountId   String
-  companyAccount     CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  contactId          String?
-  contact            CrmContact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  propertyId         String?
-  property           CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  dealId             String?
-  deal               CrmDeal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  assignedMemberId   String?
-  assignedMember     CompanyMember? @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
-  type               CrmTaskType    @default(FOLLOW_UP)
-  title              String
-  description        String?        @db.Text
-  dueAt              DateTime?
-  endAt              DateTime?
-  allDay             Boolean        @default(false)
-  priority           Int            @default(2)
-  status             CrmTaskStatus  @default(OPEN)
-  completedAt        DateTime?
-  calendarSource     String         @default("JASMINE")
-  calendarSyncStatus String         @default("LOCAL")
-  googleCalendarId   String?
-  googleEventId      String?
-  googleUpdatedAt    DateTime?
-  calendarSyncedAt   DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                   String                @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  contactId            String?
+  contact              CrmContact?           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  propertyId           String?
+  property             CrmProperty?          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  dealId               String?
+  deal                 CrmDeal?              @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  assignedMemberId     String?
+  assignedMember       CompanyMember?        @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  type                 CrmTaskType           @default(FOLLOW_UP)
+  title                String
+  description          String?               @db.Text
+  dueAt                DateTime?
+  endAt                DateTime?
+  allDay               Boolean               @default(false)
+  priority             Int                   @default(2)
+  status               CrmTaskStatus         @default(OPEN)
+  workflowStatus       OperationalTaskStatus @default(CREATED)
+  workflowVersion      Int                   @default(1)
+  originEventId        String?
+  sourceConversationId String?
+  idempotencyKey       String?
+  assignmentReason     String?               @db.Text
+  assignedAt           DateTime?
+  messageQueuedAt      DateTime?
+  deliveredAt          DateTime?
+  acceptedAt           DateTime?
+  startedAt            DateTime?
+  lastStatusAt         DateTime?
+  failedAt             DateTime?
+  failureCode          String?
+  failureReason        String?               @db.Text
+  completedAt          DateTime?
+  calendarSource       String                @default("JASMINE")
+  calendarSyncStatus   String                @default("LOCAL")
+  googleCalendarId     String?
+  googleEventId        String?
+  googleUpdatedAt      DateTime?
+  calendarSyncedAt     DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  transitions TaskStatusTransition[]
+  commitments OperationalCommitment[]
 
   @@unique([companyAccountId, googleCalendarId, googleEventId])
+  @@unique([companyAccountId, idempotencyKey])
   @@index([companyAccountId, status, dueAt])
+  @@index([companyAccountId, workflowStatus, dueAt])
   @@index([assignedMemberId])
 }
 
@@ -658,32 +858,33 @@ model CompanyProfile {
 }
 
 model HuntedListing {
-  id                 String          @id @default(cuid())
-  companyAccountId   String?
-  companyAccount     CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  sourceUrl          String // Sahibinden.com link
-  title              String
-  price              String?
-  location           String?
-  roomCount          String? // e.g. "3+1"
-  area               String? // e.g. "120 m²"
-  ownerName          String?
-  ownerPhone         String?
-  imageUrl           String?
-  rawData            String?         @db.Text // JSON olarak ham veri
-  status             HuntingStatus   @default(YELLOW)
-  whatsappStatus     String          @default("BEKLIYOR") // BEKLIYOR, GONDERILDI, CEVAPLANDI
-  notes              String?         @db.Text
-  syncedToSite       Boolean         @default(false) // Modül 1'e gönderildi mi?
-  syncedProjectId    String? // Bağlanan Project id
-  authorizationNote  String?         @db.Text
-  authorizedAt       DateTime?
-  eliminationReason  String?
-  eliminationNote    String?         @db.Text
-  eliminationSummary String?         @db.Text
-  eliminatedAt       DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  id                   String          @id @default(cuid())
+  companyAccountId     String?
+  companyAccount       CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  sourceUrl            String // Sahibinden.com link
+  title                String
+  price                String?
+  location             String?
+  roomCount            String? // e.g. "3+1"
+  area                 String? // e.g. "120 m²"
+  ownerName            String?
+  ownerPhone           String?
+  ownerPhoneNormalized String?
+  imageUrl             String?
+  rawData              String?         @db.Text // JSON olarak ham veri
+  status               HuntingStatus   @default(YELLOW)
+  whatsappStatus       String          @default("BEKLIYOR") // BEKLIYOR, GONDERILDI, CEVAPLANDI
+  notes                String?         @db.Text
+  syncedToSite         Boolean         @default(false) // Modül 1'e gönderildi mi?
+  syncedProjectId      String? // Bağlanan Project id
+  authorizationNote    String?         @db.Text
+  authorizedAt         DateTime?
+  eliminationReason    String?
+  eliminationNote      String?         @db.Text
+  eliminationSummary   String?         @db.Text
+  eliminatedAt         DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   messages        HuntingMessage[]
   adCopies        AdCopy[]
@@ -895,29 +1096,36 @@ model CustomerConversation {
 
   messages            ConversationMessage[]
   appointmentRequests AppointmentRequest[]
+  handoffs            ConversationHandoff[]
 
   @@index([companyAccountId, isActive, updatedAt])
   @@index([companyAccountId, customerPhone, channel])
 }
 
 model ConversationMessage {
-  id                String                @id @default(cuid())
-  conversationId    String
-  conversation      CustomerConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role              String // "customer", "assistant", "patron"
-  content           String                @db.Text
-  metadata          String?               @db.Text // JSON: çapraz satış önerileri vb.
-  providerMessageId String?               @unique
-  deliveryStatus    MessageDeliveryStatus @default(NOT_APPLICABLE)
-  messageType       String                @default("TEXT")
-  deliveredAt       DateTime?
-  readAt            DateTime?
-  failedAt          DateTime?
-  errorMessage      String?               @db.Text
-  createdAt         DateTime              @default(now())
+  id                     String                @id @default(cuid())
+  conversationId         String
+  conversation           CustomerConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role                   String // "customer", "assistant", "patron"
+  content                String                @db.Text
+  metadata               String?               @db.Text // JSON: çapraz satış önerileri vb.
+  providerMessageId      String?               @unique
+  deliveryStatus         MessageDeliveryStatus @default(NOT_APPLICABLE)
+  messageType            String                @default("TEXT")
+  deliveredAt            DateTime?
+  readAt                 DateTime?
+  failedAt               DateTime?
+  errorMessage           String?               @db.Text
+  processingStatus       String                @default("COMPLETED")
+  processingStartedAt    DateTime?
+  processingCompletedAt  DateTime?
+  processingError        String?               @db.Text
+  processingAttemptCount Int                   @default(0)
+  createdAt              DateTime              @default(now())
 
   @@index([conversationId, createdAt])
   @@index([deliveryStatus])
+  @@index([processingStatus, createdAt])
 }
 
 model AppointmentRequest {
@@ -993,18 +1201,50 @@ model ProcessedPackage {
 // --- Komuta Merkezi (Genel Müdür Asistanı) ---
 
 model GeneralManagerMessage {
-  id               String          @id @default(cuid())
-  companyAccountId String?
-  companyAccount   CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  authorId         String?
-  authorName       String?
-  authorType       String?
-  role             String // "patron", "asistan", "system"
-  content          String          @db.Text
-  provider         String?
-  createdAt        DateTime        @default(now())
+  id                    String          @id @default(cuid())
+  companyAccountId      String?
+  companyAccount        CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  authorId              String?
+  authorName            String?
+  authorType            String?
+  role                  String // "patron", "asistan", "system"
+  content               String          @db.Text
+  provider              String?
+  clientRequestId       String?
+  correlationId         String?
+  processingStatus      String          @default("COMPLETED")
+  processingStartedAt   DateTime?
+  processingCompletedAt DateTime?
+  processingError       String?         @db.Text
+  structuredPlan        Json?
+  processingProvider    String?
+  processingModel       String?
+  createdAt             DateTime        @default(now())
 
+  @@unique([companyAccountId, clientRequestId])
   @@index([companyAccountId, createdAt])
+  @@index([companyAccountId, processingStatus, createdAt])
+}
+
+model PhoneVerificationChallenge {
+  id               String         @id
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  subjectType      String
+  subjectId        String
+  phoneNormalized  String
+  codeHash         String
+  expiresAt        DateTime
+  attempts         Int            @default(0)
+  maxAttempts      Int            @default(5)
+  sentAt           DateTime?
+  consumedAt       DateTime?
+  createdByType    String
+  createdById      String?
+  createdAt        DateTime       @default(now())
+
+  @@index([companyAccountId, subjectType, subjectId, createdAt])
+  @@index([companyAccountId, phoneNormalized, consumedAt, expiresAt])
 }
 
 model WhatsAppConfig {
@@ -1046,31 +1286,400 @@ model WhatsAppConfig {
 }
 
 model WhatsAppOutboxMessage {
-  id                String         @id @default(cuid())
-  companyAccountId  String
-  companyAccount    CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  conversationId    String?
-  listingId         String?
-  toPhone           String
-  content           String         @db.Text
-  provider          String
-  status            String         @default("QUEUED")
-  idempotencyKey    String         @unique
-  providerMessageId String?        @unique
-  createdByType     String?
-  createdById       String?
-  attemptCount      Int            @default(0)
-  maxAttempts       Int            @default(5)
-  nextAttemptAt     DateTime       @default(now())
-  lockedAt          DateTime?
-  sentAt            DateTime?
-  deliveredAt       DateTime?
-  failedAt          DateTime?
-  lastError         String?        @db.Text
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                       String                @id @default(cuid())
+  companyAccountId         String
+  companyAccount           CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  conversationId           String?
+  listingId                String?
+  contactId                String?
+  propertyId               String?
+  toPhone                  String
+  content                  String                @db.Text
+  provider                 String
+  status                   String                @default("QUEUED")
+  idempotencyKey           String
+  providerMessageId        String?               @unique
+  recipientType            WhatsAppRecipientType @default(UNKNOWN)
+  recipientId              String?
+  purpose                  String?
+  relatedTaskId            String?
+  operationEventId         String?
+  operationEvent           OperationEvent?       @relation(fields: [operationEventId], references: [id], onDelete: SetNull)
+  managerActionId          String?
+  managerAction            GeneralManagerAction? @relation(fields: [managerActionId], references: [id], onDelete: SetNull)
+  correlationId            String?
+  replyToProviderMessageId String?
+  metadata                 Json?
+  createdByType            String?
+  createdById              String?
+  attemptCount             Int                   @default(0)
+  maxAttempts              Int                   @default(5)
+  nextAttemptAt            DateTime              @default(now())
+  lockedAt                 DateTime?
+  sentAt                   DateTime?
+  deliveredAt              DateTime?
+  failedAt                 DateTime?
+  lastError                String?               @db.Text
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
 
+  deliveryAudits MessageDeliveryAudit[]
+
+  @@unique([companyAccountId, idempotencyKey])
   @@index([status, nextAttemptAt])
   @@index([companyAccountId, createdAt])
   @@index([companyAccountId, toPhone, createdAt])
+  @@index([companyAccountId, recipientType, recipientId])
+  @@index([operationEventId])
+  @@index([managerActionId])
+}
+
+// --- Dijital Genel Müdür: olay, aksiyon, kanıt ve gözlemlenebilirlik ---
+
+model OperationEvent {
+  id               String             @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount     @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  eventType        OperationEventType
+  entityType       String?
+  entityId         String?
+  actorType        String?
+  actorId          String?
+  contactId        String?
+  propertyId       String?
+  listingId        String?
+  taskId           String?
+  conversationId   String?
+  sourceProvider   String?
+  sourceMessageId  String?
+  metadata         Json?
+  occurredAt       DateTime           @default(now())
+  idempotencyKey   String
+  createdAt        DateTime           @default(now())
+
+  actions         GeneralManagerAction[]
+  outboxMessages  WhatsAppOutboxMessage[]
+  commitments     OperationalCommitment[]
+  taskTransitions TaskStatusTransition[]
+  auditLogs       ManagerAuditLog[]
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, eventType, occurredAt])
+  @@index([companyAccountId, entityType, entityId])
+  @@index([companyAccountId, sourceMessageId])
+}
+
+model GeneralManagerAction {
+  id                    String                     @id @default(cuid())
+  companyAccountId      String
+  companyAccount        CompanyAccount             @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  operationEventId      String?
+  operationEvent        OperationEvent?            @relation(fields: [operationEventId], references: [id], onDelete: SetNull)
+  triggerMessageId      String?
+  taskId                String?
+  actionType            GeneralManagerActionType
+  targetType            String?
+  targetId              String?
+  reason                String                     @db.Text
+  evidence              Json?
+  confidence            Float
+  riskLevel             ManagerRiskLevel
+  requiresApproval      Boolean                    @default(true)
+  policyDecision        String
+  payload               Json?
+  proposedMessage       String?                    @db.Text
+  status                GeneralManagerActionStatus @default(PROPOSED)
+  idempotencyKey        String
+  provider              String?
+  model                 String?
+  requestedByType       String?
+  requestedById         String?
+  errorCode             String?
+  errorMessage          String?                    @db.Text
+  approvedAt            DateTime?
+  executionStartedAt    DateTime?
+  executionAttemptCount Int                        @default(0)
+  executedAt            DateTime?
+  failedAt              DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+
+  approval        ActionApproval?
+  outboxMessages  WhatsAppOutboxMessage[]
+  commitments     OperationalCommitment[]
+  taskTransitions TaskStatusTransition[]
+  handoffs        ConversationHandoff[]
+  auditLogs       ManagerAuditLog[]
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, status, createdAt])
+  @@index([companyAccountId, actionType, createdAt])
+  @@index([operationEventId])
+}
+
+model ActionApproval {
+  id               String                 @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount         @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  actionId         String                 @unique
+  action           GeneralManagerAction   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  decision         ActionApprovalDecision @default(PENDING)
+  decidedByType    String?
+  decidedById      String?
+  decisionReason   String?                @db.Text
+  editedPayload    Json?
+  decidedAt        DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([companyAccountId, decision, createdAt])
+}
+
+model TaskStatusTransition {
+  id               String                @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  taskId           String
+  task             CrmTask               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fromStatus       OperationalTaskStatus
+  toStatus         OperationalTaskStatus
+  operationEventId String?
+  operationEvent   OperationEvent?       @relation(fields: [operationEventId], references: [id], onDelete: SetNull)
+  managerActionId  String?
+  managerAction    GeneralManagerAction? @relation(fields: [managerActionId], references: [id], onDelete: SetNull)
+  sourceMessageId  String?
+  actorType        String?
+  actorId          String?
+  evidence         Json?
+  reason           String?               @db.Text
+  idempotencyKey   String
+  createdAt        DateTime              @default(now())
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, taskId, createdAt])
+}
+
+model OperationalCommitment {
+  id               String                @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  taskId           String?
+  task             CrmTask?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  memberId         String?
+  member           CompanyMember?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  contactId        String?
+  propertyId       String?
+  operationEventId String?
+  operationEvent   OperationEvent?       @relation(fields: [operationEventId], references: [id], onDelete: SetNull)
+  managerActionId  String?
+  managerAction    GeneralManagerAction? @relation(fields: [managerActionId], references: [id], onDelete: SetNull)
+  description      String                @db.Text
+  sourceMessageId  String?
+  relativeTimeText String?
+  dueAt            DateTime?
+  timezone         String                @default("Europe/Istanbul")
+  certainty        Float                 @default(0)
+  status           CommitmentStatus      @default(OPEN)
+  reminderCount    Int                   @default(0)
+  lastReminderAt   DateTime?
+  escalatedAt      DateTime?
+  completedAt      DateTime?
+  idempotencyKey   String
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, status, dueAt])
+  @@index([memberId, status])
+}
+
+model ConversationHandoff {
+  id               String                    @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount            @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  conversationId   String
+  conversation     CustomerConversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  managerActionId  String?
+  managerAction    GeneralManagerAction?     @relation(fields: [managerActionId], references: [id], onDelete: SetNull)
+  requestedByType  String?
+  requestedById    String?
+  assignedMemberId String?
+  status           ConversationHandoffStatus @default(PROPOSED)
+  summary          String?                   @db.Text
+  verifiedContext  Json?
+  requestedAt      DateTime                  @default(now())
+  acceptedAt       DateTime?
+  returnedAt       DateTime?
+  idempotencyKey   String
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, status, createdAt])
+  @@index([conversationId, status])
+}
+
+model MessageDeliveryAudit {
+  id                String                @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  outboxMessageId   String
+  outboxMessage     WhatsAppOutboxMessage @relation(fields: [outboxMessageId], references: [id], onDelete: Cascade)
+  status            DeliveryAuditStatus
+  providerMessageId String?
+  rawStatus         String?
+  errorCode         String?
+  errorMessage      String?               @db.Text
+  metadata          Json?
+  idempotencyKey    String
+  occurredAt        DateTime              @default(now())
+  createdAt         DateTime              @default(now())
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, status, occurredAt])
+  @@index([outboxMessageId, occurredAt])
+}
+
+model WhatsAppDeliveryReceipt {
+  id                String              @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount      @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  provider          String
+  providerMessageId String
+  status            DeliveryAuditStatus
+  rawStatus         String?
+  errorCode         String?
+  errorMessage      String?             @db.Text
+  metadata          Json?
+  idempotencyKey    String
+  occurredAt        DateTime            @default(now())
+  processedAt       DateTime?
+  createdAt         DateTime            @default(now())
+
+  @@unique([companyAccountId, idempotencyKey], map: "WaDeliveryReceipt_tenant_idempotency_key")
+  @@index([companyAccountId, provider, providerMessageId, processedAt], map: "WaDeliveryReceipt_pending_idx")
+}
+
+model ManagerNotificationPreference {
+  id                               String                  @id @default(cuid())
+  companyAccountId                 String                  @unique
+  companyAccount                   CompanyAccount          @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  ownerPhone                       String?
+  ownerPhoneNormalized             String?
+  ownerPhoneVerificationStatus     PhoneVerificationStatus @default(UNVERIFIED)
+  ownerPhoneVerifiedAt             DateTime?
+  notifyCriticalImmediately        Boolean                 @default(true)
+  notifyTaskAccepted               Boolean                 @default(false)
+  notifyOnlyProblemsAndDelays      Boolean                 @default(true)
+  alwaysNotifyHotLeads             Boolean                 @default(true)
+  hourlySummaryEnabled             Boolean                 @default(false)
+  morningSummaryEnabled            Boolean                 @default(true)
+  eveningSummaryEnabled            Boolean                 @default(true)
+  quietHoursEnabled                Boolean                 @default(true)
+  quietHoursStart                  String                  @default("22:00")
+  quietHoursEnd                    String                  @default("08:00")
+  timezone                         String                  @default("Europe/Istanbul")
+  autonomyMode                     ManagerAutonomyMode     @default(SUGGEST_ONLY)
+  allowAutomaticEmployeeAssignment Boolean                 @default(false)
+  allowAutomaticEmployeeWhatsApp   Boolean                 @default(false)
+  createdAt                        DateTime                @default(now())
+  updatedAt                        DateTime                @updatedAt
+}
+
+model ManagerPolicy {
+  id               String              @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount      @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  scope            ManagerPolicyScope
+  status           ManagerPolicyStatus @default(ACTIVE)
+  ruleType         String
+  rulePayload      Json
+  conversationId   String?
+  sourceMessageId  String?
+  sourceActionId   String?
+  createdByType    String
+  createdById      String?
+  effectiveFrom    DateTime            @default(now())
+  expiresAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([companyAccountId, status, effectiveFrom, expiresAt])
+  @@index([companyAccountId, conversationId, status])
+}
+
+model ManagerAuditLog {
+  id               String                @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  operationEventId String?
+  operationEvent   OperationEvent?       @relation(fields: [operationEventId], references: [id], onDelete: SetNull)
+  managerActionId  String?
+  managerAction    GeneralManagerAction? @relation(fields: [managerActionId], references: [id], onDelete: SetNull)
+  actorType        String
+  actorId          String?
+  operation        String
+  entityType       String?
+  entityId         String?
+  verifiedContext  Json?
+  evidence         Json?
+  structuredAi     Json?
+  confidence       Float?
+  policyDecision   String?
+  result           String
+  errorCode        String?
+  errorMessage     String?               @db.Text
+  correctionOfId   String?
+  correctionOf     ManagerAuditLog?      @relation("AuditCorrections", fields: [correctionOfId], references: [id], onDelete: SetNull)
+  corrections      ManagerAuditLog[]     @relation("AuditCorrections")
+  createdAt        DateTime              @default(now())
+  completedAt      DateTime?
+
+  @@index([companyAccountId, createdAt])
+  @@index([companyAccountId, entityType, entityId])
+  @@index([operationEventId])
+  @@index([managerActionId])
+}
+
+model IdentityLink {
+  id               String                @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  phoneNormalized  String
+  role             WhatsAppRecipientType
+  entityType       String
+  entityId         String
+  source           String
+  verified         Boolean               @default(false)
+  confidence       Float                 @default(1)
+  active           Boolean               @default(true)
+  evidence         Json?
+  firstSeenAt      DateTime              @default(now())
+  lastSeenAt       DateTime              @default(now())
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([companyAccountId, phoneNormalized, role, entityId])
+  @@index([companyAccountId, phoneNormalized, active])
+  @@index([companyAccountId, entityType, entityId])
+}
+
+model DailyManagerSummary {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  periodStart      DateTime
+  periodEnd        DateTime
+  facts            Json
+  evidenceIds      String[]       @default([])
+  selectionReason  String?        @db.Text
+  generatedText    String         @db.Text
+  generatedBy      String         @default("RULE_ENGINE")
+  generatedModel   String?
+  deliveryStatus   String         @default("NOT_REQUESTED")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([companyAccountId, periodStart, periodEnd])
+  @@index([companyAccountId, periodStart])
 }
