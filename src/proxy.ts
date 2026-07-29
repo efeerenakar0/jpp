@@ -9,6 +9,7 @@ import {
   verifyPlatformAdminSessionToken,
 } from '@/lib/platform-admin-auth';
 import prisma from '@/lib/prisma';
+import { resolveRootRedirect } from '@/lib/root-navigation';
 
 const FABRIKA_LOGIN_PATH = '/fabrika-giris';
 const PUBLIC_WHATSAPP_WEBHOOKS = new Set([
@@ -44,6 +45,12 @@ function unauthorizedApiResponse() {
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const rootRedirect = resolveRootRedirect(pathname);
+
+  if (rootRedirect) {
+    return NextResponse.redirect(new URL(rootRedirect, request.url));
+  }
+
   const sessionToken = request.cookies.get(FABRIKA_SESSION_COOKIE)?.value;
   const sessionPayload = readFabrikaSessionToken(sessionToken);
   const companyAccount = sessionPayload
@@ -195,6 +202,7 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/',
     '/admin/:path*',
     '/emlakci-panel/:path*',
     '/fabrika/:path*',
