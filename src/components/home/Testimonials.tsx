@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { siteContent } from "@/data/site-content";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Quote } from "lucide-react";
 
 export default function Testimonials() {
@@ -52,7 +52,7 @@ export default function Testimonials() {
               >
                 <Quote className="w-12 h-12 text-gold-200 mx-auto mb-6" />
                 <p className="text-lg md:text-xl text-gray-700 italic mb-8 leading-relaxed">
-                  "{testimonials[currentIndex].content}"
+                  &ldquo;{testimonials[currentIndex].content}&rdquo;
                 </p>
                 <div>
                   <h4 className="font-bold text-gray-900">{testimonials[currentIndex].name}</h4>

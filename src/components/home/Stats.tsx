@@ -1,7 +1,7 @@
 "use client";
 
 import { siteContent } from "@/data/site-content";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 export default function Stats() {
   return (

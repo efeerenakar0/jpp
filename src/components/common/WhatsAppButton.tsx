@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { siteContent } from "@/data/site-content";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function WhatsAppButton() {
   const [isVisible, setIsVisible] = useState(false);
