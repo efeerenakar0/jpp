@@ -1,99 +1,78 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      width: 320px;
-      padding: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #030712;
-      color: #f3f4f6;
-      margin: 0;
-      text-align: center;
-    }
-    h2 {
-      margin-top: 0;
-      font-size: 18px;
-      color: #f59e0b; /* amber-500 */
-      border-bottom: 1px solid #1f2937;
-      padding-bottom: 15px;
-      margin-bottom: 20px;
-    }
-    .info {
-      font-size: 14px;
-      color: #9ca3af;
-      margin-bottom: 20px;
-      line-height: 1.5;
-    }
-    .count-box {
-      background: #111827;
-      border: 1px solid #1f2937;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-    .count-number {
-      font-size: 48px;
-      font-weight: bold;
-      color: #10b981;
-      line-height: 1;
-      margin-bottom: 5px;
-    }
-    .count-label {
-      font-size: 12px;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    button {
-      width: 100%;
-      padding: 14px;
-      background: linear-gradient(to right, #f59e0b, #ea580c);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-weight: bold;
-      cursor: pointer;
-      font-size: 15px;
-      margin-bottom: 12px;
-      transition: all 0.2s;
-    }
-    button.danger {
-      background: #ef4444;
-    }
-    button:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
-    button:disabled {
-      background: #374151;
-      color: #9ca3af;
-      cursor: not-allowed;
-      transform: none;
-    }
-    #status {
-      font-size: 13px;
-      color: #10b981;
-      min-height: 20px;
-    }
-  </style>
-</head>
-<body>
-  <h2>Jasmine Avcı 🎯</h2>
-  
-  <p class="info">Sahibinden sayfalarında gezinirken sağ alttaki <b>"Avcıya Ekle"</b> butonuna basarak ilanları hafızaya kaydedin. Engellenme riski sıfırdır!</p>
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jasmine Avcı</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        width: 340px;
+        margin: 0;
+        padding: 20px;
+        background: #07111f;
+        color: #e5edf7;
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      h1 { margin: 0 0 6px; font-size: 19px; }
+      p { margin: 0 0 18px; color: #9fb0c5; }
+      label { display: block; margin: 12px 0 6px; font-weight: 650; }
+      input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #26364b;
+        border-radius: 8px;
+        background: #0b1729;
+        color: inherit;
+      }
+      button, a {
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        margin-top: 16px;
+        padding: 11px 14px;
+        border: 0;
+        border-radius: 8px;
+        background: #10b981;
+        color: #02150f;
+        font-weight: 750;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button:disabled { opacity: .55; cursor: wait; }
+      #status { min-height: 42px; margin-top: 14px; font-size: 13px; }
+      #status[data-kind="error"] { color: #fca5a5; }
+      #status[data-kind="success"] { color: #6ee7b7; }
+      .notice {
+        margin-top: 16px;
+        padding: 10px;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        color: #aebdd0;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Bu aramayı Avcı’ya aktar</h1>
+    <p>Yalnızca açık filtre URL’si ve ekranda görünen ilan satırları aktarılır.</p>
 
-  <div class="count-box">
-    <div class="count-number" id="listingCount">0</div>
-    <div class="count-label">Kaydedilen İlan</div>
-  </div>
+    <label for="appUrl">Jasmine adresi</label>
+    <input id="appUrl" type="url" autocomplete="url" />
 
-  <button id="downloadBtn" disabled>💾 JSON Olarak İndir</button>
-  <button id="clearBtn" class="danger" disabled>🗑️ Hafızayı Temizle</button>
+    <label for="sourceAuthorizationId">Kaynak yetki kaydı (isteğe bağlı)</label>
+    <input id="sourceAuthorizationId" type="text" autocomplete="off" />
 
-  <div id="status"></div>
+    <button id="transferButton" type="button">Aramayı iş kuyruğuna al</button>
+    <div id="status" role="status" aria-live="polite"></div>
+    <a id="jobLink" href="#" target="_blank" rel="noreferrer" hidden>Avcı’da ilerlemeyi aç</a>
 
-  <script src="popup.js"></script>
-</body>
+    <div class="notice">
+      Eklenti ilan detayına girmez, yeni sekme açmaz, telefon göstermez ve
+      güvenlik engellerini aşmaya çalışmaz.
+    </div>
+    <script src="popup.js"></script>
+  </body>
 </html>

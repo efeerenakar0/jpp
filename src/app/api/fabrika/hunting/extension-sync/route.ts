@@ -1,89 +1,147 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
+import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import { huntingApiError, principalActor } from '@/lib/hunting-v2/api';
+import { createHuntJob } from '@/lib/hunting-v2/job-service';
+import { enforceHuntingRateLimit } from '@/lib/hunting-v2/rate-limit';
+import { assertAllowedSourceUrl } from '@/lib/hunting-v2/security';
 
-// CORS Middleware (Extension'dan gelen istekleri engellememek için)
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export const runtime = 'nodejs';
+
+const rowSchema = z
+  .object({
+    listingId: z.string().regex(/^\d{5,20}$/),
+    url: z.string().url().max(3000),
+    title: z.string().trim().min(2).max(300),
+    price: z.string().trim().max(100).optional(),
+    location: z.string().trim().max(300).optional(),
+  })
+  .strict();
+
+const bodySchema = z
+  .object({
+    searchUrl: z.string().url().max(3000),
+    sourceAuthorizationId: z.string().min(1).optional(),
+    visibleRows: z.array(rowSchema).max(100).default([]),
+    idempotencyKey: z.string().min(8).max(160).optional(),
+  })
+  .strict();
+
+function allowedOrigins() {
+  return new Set(
+    (process.env.HUNTING_EXTENSION_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
 }
 
-export async function POST(req: Request) {
+function corsHeaders(request: Request) {
+  const origin = request.headers.get('origin');
+  if (!origin || !allowedOrigins().has(origin)) {
+    throw new Error('Eklenti origin değeri izinli değil.');
+  }
+  return {
+    'Access-Control-Allow-Origin': origin,
+    Vary: 'Origin',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
+
+function attachAllowedCors(response: NextResponse, request: Request) {
+  const origin = request.headers.get('origin');
+  if (origin && allowedOrigins().has(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Vary', 'Origin');
+  }
+  return response;
+}
+
+export async function OPTIONS(request: Request) {
   try {
-    const data = await req.json();
-    const legacyAccount = await prisma.companyAccount.findUnique({
-      where: { slug: 'jasmine-group' },
-      select: { id: true },
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        ...corsHeaders(request),
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
     });
-    if (!legacyAccount) {
-      return NextResponse.json(
-        { error: 'Jasmine şirket çalışma alanı hazır değil.' },
-        {
-          status: 503,
-          headers: { 'Access-Control-Allow-Origin': '*' },
-        }
-      );
+  } catch (error) {
+    return attachAllowedCors(huntingApiError(error), request);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const cors = corsHeaders(request);
+    const principal = await requireFabrikaPrincipal();
+    const actor = principalActor(principal);
+    enforceHuntingRateLimit(
+      `extension:${principal.account.id}:${actor.key}`,
+      { limit: 10, windowMs: 60_000 }
+    );
+    const body = bodySchema.parse(await request.json());
+    assertAllowedSourceUrl(body.searchUrl, 'SAHIBINDEN');
+    for (const row of body.visibleRows) {
+      assertAllowedSourceUrl(row.url, 'SAHIBINDEN');
     }
 
-    if (!data.url || !data.title) {
-      return NextResponse.json({ error: 'Eksik veri (url veya title)' }, { 
-        status: 400,
-        headers: { 'Access-Control-Allow-Origin': '*' }
-      });
-    }
-
-    // İlan zaten var mı kontrol et
-    const existing = data.listingId 
-      ? await prisma.huntedListing.findFirst({
-          where: {
-            companyAccountId: legacyAccount.id,
-            sourceUrl: { contains: data.listingId },
-          },
-        })
-      : await prisma.huntedListing.findFirst({
-          where: {
-            companyAccountId: legacyAccount.id,
-            sourceUrl: data.url,
-          },
-        });
-
-    if (existing) {
-      return NextResponse.json({ success: true, message: 'Bu ilan zaten avlanmış', listing: existing }, { 
-        headers: { 'Access-Control-Allow-Origin': '*' }
-      });
-    }
-
-    // Yeni ilanı kaydet
-    const listing = await prisma.huntedListing.create({
-      data: {
-        companyAccountId: legacyAccount.id,
-        sourceUrl: data.url,
-        title: data.title,
-        price: data.price || null,
-        location: data.location || null,
-        roomCount: data.roomCount || null,
-        area: data.area || null,
-        ownerName: data.ownerName || null,
-        ownerPhone: data.ownerPhone || null,
-        status: 'YELLOW', // Direkt panoya sarı olarak düşer
-        rawData: JSON.stringify(data),
+    const job = await createHuntJob({
+      companyAccountId: principal.account.id,
+      createdBy: actor.key,
+      body: {
+        provider: 'SAHIBINDEN',
+        searchUrl: body.searchUrl,
+        sourceAuthorizationId: body.sourceAuthorizationId,
+        idempotencyKey: body.idempotencyKey,
       },
     });
 
-    return NextResponse.json({ success: true, listing }, {
-      headers: { 'Access-Control-Allow-Origin': '*' }
-    });
+    for (const row of body.visibleRows) {
+      await prisma.huntedListing.upsert({
+        where: {
+          companyAccountId_sourceProvider_sourceListingId: {
+            companyAccountId: principal.account.id,
+            sourceProvider: 'SAHIBINDEN',
+            sourceListingId: row.listingId,
+          },
+        },
+        update: {
+          huntJobId: job.id,
+          sourceUrl: row.url,
+          title: row.title,
+          price: row.price,
+          location: row.location,
+          lastSeenAt: new Date(),
+        },
+        create: {
+          companyAccountId: principal.account.id,
+          huntJobId: job.id,
+          sourceProvider: 'SAHIBINDEN',
+          sourceListingId: row.listingId,
+          sourceUrl: row.url,
+          title: row.title,
+          price: row.price,
+          location: row.location,
+          acquisitionStatus: 'DISCOVERED',
+        },
+      });
+    }
 
+    return NextResponse.json(
+      {
+        success: true,
+        jobId: job.id,
+        status: job.status,
+        visibleRowsAccepted: body.visibleRows.length,
+        jobUrl: `/fabrika/avci?job=${job.id}`,
+      },
+      { status: 202, headers: cors }
+    );
   } catch (error) {
-    console.error('Error syncing extension data:', error);
-    return NextResponse.json({ error: 'Sunucu hatası' }, { 
-      status: 500,
-      headers: { 'Access-Control-Allow-Origin': '*' }
-    });
+    return attachAllowedCors(huntingApiError(error), request);
   }
 }

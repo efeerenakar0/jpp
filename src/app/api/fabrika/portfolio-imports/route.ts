@@ -40,7 +40,6 @@ async function importData(companyAccountId: string) {
         select: {
           id: true,
           ownerName: true,
-          ownerPhone: true,
           authorizationNote: true,
         },
       },

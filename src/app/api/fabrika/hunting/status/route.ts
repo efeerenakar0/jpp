@@ -86,10 +86,21 @@ export async function GET() {
     const listings = await prisma.huntedListing.findMany({
       where: { companyAccountId: principal.account.id },
       orderBy: { createdAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        location: true,
+        ownerName: true,
+        sourceUrl: true,
+        status: true,
+        authorizationNote: true,
+        eliminationReason: true,
+        eliminationSummary: true,
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 1,
+          select: { content: true },
         },
         portfolioImport: {
           select: {

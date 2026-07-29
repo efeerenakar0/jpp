@@ -45,6 +45,7 @@ import {
   classifyStaleWhatsAppDispatch,
   classifyWhatsAppDispatchFailure,
 } from '@/lib/whatsapp-outbox-policy';
+import { requireContactPolicyApproval } from '@/lib/hunting-v2/contact-service';
 
 export type WhatsAppProvider = 'WAHA' | 'EVOLUTION' | 'META';
 
@@ -623,6 +624,48 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
     return prisma.whatsAppOutboxMessage.findUnique({ where: { id } });
   }
 
+  if (
+    current.huntedContactId ||
+    current.purpose === 'SALES_AUTHORITY_DISCUSSION' ||
+    current.recipientType === 'PROPERTY_OWNER'
+  ) {
+    try {
+      if (
+        !current.listingId ||
+        !current.huntedContactId ||
+        current.purpose !== 'SALES_AUTHORITY_DISCUSSION'
+      ) {
+        throw new Error('Avcı iletişim bağlamı eksik.');
+      }
+      const policy = await requireContactPolicyApproval({
+        companyAccountId: current.companyAccountId,
+        listingId: current.listingId,
+        contactId: current.huntedContactId,
+        channel: 'WHATSAPP',
+        purpose: current.purpose,
+        evaluatedBy: 'SYSTEM:WHATSAPP_DISPATCH',
+      });
+      if (policy.phone !== current.toPhone) {
+        throw new Error('Avcı iletişim alıcısı politika kaydıyla eşleşmiyor.');
+      }
+    } catch (error) {
+      await applyMessageDeliveryTransition({
+        companyAccountId: current.companyAccountId,
+        outboxMessageId: current.id,
+        status: 'FAILED',
+        rawStatus: 'CONTACT_POLICY_DENIED',
+        errorCode: 'CONTACT_POLICY_DENIED',
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : 'İletişim politikası gönderimi reddetti.',
+        idempotencyKey: `outbox:${current.id}:contact-policy-denied`,
+        metadata: { automaticRetryPrevented: true },
+      });
+      return prisma.whatsAppOutboxMessage.findUnique({ where: { id } });
+    }
+  }
+
   const claimed = await prisma.whatsAppOutboxMessage.updateMany({
     where: {
       id,
@@ -831,6 +874,7 @@ export async function queueCompanyWhatsAppMessage(input: {
   conversationId?: string;
   listingId?: string;
   contactId?: string;
+  huntedContactId?: string;
   propertyId?: string;
   recipientType?:
     | 'OWNER'
@@ -864,7 +908,34 @@ export async function queueCompanyWhatsAppMessage(input: {
       'Yeni numaralara ilk temas gönderimi şirket ayarlarında kapalı.'
     );
   }
-  const phone = input.to.replace(/\D/g, '');
+  let phone = input.to.replace(/\D/g, '');
+  if (
+    input.huntedContactId ||
+    input.purpose === 'SALES_AUTHORITY_DISCUSSION' ||
+    input.recipientType === 'PROPERTY_OWNER'
+  ) {
+    if (
+      !input.listingId ||
+      !input.huntedContactId ||
+      input.purpose !== 'SALES_AUTHORITY_DISCUSSION'
+    ) {
+      throw new Error(
+        'Avcı ilk teması için ilan, doğrulanmış kişi ve amaç zorunludur.'
+      );
+    }
+    const policy = await requireContactPolicyApproval({
+      companyAccountId: input.companyAccountId,
+      listingId: input.listingId,
+      contactId: input.huntedContactId,
+      channel: 'WHATSAPP',
+      purpose: input.purpose,
+      evaluatedBy: `${input.createdByType || 'SYSTEM'}:${input.createdById || 'UNKNOWN'}`,
+    });
+    if (!policy.phone || policy.phone !== phone) {
+      throw new Error('Alıcı, onaylanmış Avcı iletişim kaydıyla eşleşmiyor.');
+    }
+    phone = policy.phone;
+  }
   if (phone.length < 10 || phone.length > 15) {
     throw new Error('Geçerli, ülke kodlu bir telefon numarası girin.');
   }
@@ -874,6 +945,7 @@ export async function queueCompanyWhatsAppMessage(input: {
       conversation,
       listing,
       contact,
+      huntedContact,
       property,
       task,
       operationEvent,
@@ -902,6 +974,16 @@ export async function queueCompanyWhatsAppMessage(input: {
             where: {
               id: input.contactId,
               companyAccountId: input.companyAccountId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.huntedContactId
+        ? tx.huntedContact.findFirst({
+            where: {
+              id: input.huntedContactId,
+              companyAccountId: input.companyAccountId,
+              listingId: input.listingId,
             },
             select: { id: true },
           })
@@ -947,6 +1029,7 @@ export async function queueCompanyWhatsAppMessage(input: {
       (input.conversationId && !conversation) ||
       (input.listingId && !listing) ||
       (input.contactId && !contact) ||
+      (input.huntedContactId && !huntedContact) ||
       (input.propertyId && !property) ||
       (input.relatedTaskId && !task) ||
       (input.operationEventId && !operationEvent) ||
@@ -989,6 +1072,7 @@ export async function queueCompanyWhatsAppMessage(input: {
         conversationId: input.conversationId,
         listingId: input.listingId,
         contactId: input.contactId,
+        huntedContactId: input.huntedContactId,
         propertyId: input.propertyId,
         recipientType: input.recipientType,
         recipientId: input.recipientId,
@@ -1013,6 +1097,7 @@ export async function queueCompanyWhatsAppMessage(input: {
       record.conversationId !== (input.conversationId || null) ||
       record.listingId !== (input.listingId || null) ||
       record.contactId !== (input.contactId || null) ||
+      record.huntedContactId !== (input.huntedContactId || null) ||
       record.propertyId !== (input.propertyId || null) ||
       record.recipientType !== (input.recipientType || null) ||
       record.recipientId !== (input.recipientId || null) ||

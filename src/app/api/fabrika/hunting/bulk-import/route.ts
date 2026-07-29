@@ -16,9 +16,8 @@ const listingSchema = z.object({
   roomCount: z.string().trim().max(50).optional().nullable(),
   area: z.string().trim().max(100).optional().nullable(),
   ownerName: z.string().trim().max(200).optional().nullable(),
-  ownerPhone: z.string().trim().max(50).optional().nullable(),
   imageUrl: z.string().trim().url().optional().nullable(),
-});
+}).strict();
 
 export async function POST(request: Request) {
   try {
@@ -64,7 +63,6 @@ export async function POST(request: Request) {
           roomCount: item.roomCount || null,
           area: item.area || null,
           ownerName: item.ownerName || null,
-          ownerPhone: item.ownerPhone || null,
           imageUrl: item.imageUrl || null,
           status: 'YELLOW',
           rawData: JSON.stringify(item),

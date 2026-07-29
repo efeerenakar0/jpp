@@ -1,61 +1,94 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { z } from 'zod';
 import { callAI, PROMPTS } from '@/lib/ai';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import {
+  huntingApiError,
+  principalActor,
+} from '@/lib/hunting-v2/api';
+import { enforceHuntingRateLimit } from '@/lib/hunting-v2/rate-limit';
+import prisma from '@/lib/prisma';
 
-export async function POST(req: Request) {
+export const runtime = 'nodejs';
+
+const bodySchema = z
+  .object({
+    listingIds: z.array(z.string().min(1)).min(1).max(25),
+    tone: z.enum(['samimi', 'resmi', 'acil']).default('samimi'),
+  })
+  .strict();
+
+export async function POST(request: Request) {
   try {
     const principal = await requireFabrikaPrincipal();
-    const { listingIds, tone = 'samimi' } = await req.json();
-
-    if (!listingIds || !Array.isArray(listingIds) || listingIds.length === 0) {
-      return NextResponse.json({ error: 'İlan ID listesi gerekli' }, { status: 400 });
-    }
-
-    const companyProfile = await prisma.companyProfile.findFirst();
-    if (!companyProfile) {
-      return NextResponse.json({ error: 'Önce şirket profilini doldurmalısınız' }, { status: 400 });
+    const actor = principalActor(principal);
+    enforceHuntingRateLimit(
+      `draft:${principal.account.id}:${actor.key}`,
+      { limit: 20, windowMs: 60_000 }
+    );
+    const body = bodySchema.parse(await request.json());
+    const listings = await prisma.huntedListing.findMany({
+      where: {
+        id: { in: body.listingIds },
+        companyAccountId: principal.account.id,
+      },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        province: true,
+        district: true,
+        neighborhood: true,
+      },
+    });
+    if (listings.length !== new Set(body.listingIds).size) {
+      throw new Error('Bir veya daha fazla ilan bu şirkette bulunamadı.');
     }
 
     const generatedMessages = [];
-
-    // İlanları sırayla işle (Gerçekte Promise.all ile paralel yapılabilir ama API rate limitleri için sıralı daha güvenli)
-    for (const listingId of listingIds) {
-      const listing = await prisma.huntedListing.findFirst({
-        where: { id: listingId, companyAccountId: principal.account.id },
-      });
-      if (!listing) continue;
-
+    for (const listing of listings) {
+      const location = [
+        listing.province,
+        listing.district,
+        listing.neighborhood,
+      ]
+        .filter(Boolean)
+        .join(' / ');
       const prompt = PROMPTS.huntingMessage(
         {
           title: listing.title,
           price: listing.price || undefined,
-          location: listing.location || undefined,
+          location: location || undefined,
         },
         {
-          companyName: companyProfile.companyName,
-          strengths: companyProfile.strengths,
-          uniquePoints: companyProfile.uniquePoints,
+          companyName: principal.account.companyName,
+          strengths: [],
+          uniquePoints: [],
         },
-        tone
+        body.tone
       );
-
-      const response = await callAI([{ role: 'user', content: prompt }], 'hunting');
-
+      const response = await callAI(
+        [{ role: 'user', content: prompt }],
+        'hunting-draft'
+      );
       const message = await prisma.huntingMessage.create({
         data: {
           listingId: listing.id,
-          content: response.content,
-          tone,
+          content: response.content.trim().slice(0, 4000),
+          tone: body.tone,
+          sent: false,
         },
       });
-      
-      generatedMessages.push({ listingId, message });
+      generatedMessages.push({ listingId: listing.id, message });
     }
 
-    return NextResponse.json({ success: true, count: generatedMessages.length, messages: generatedMessages });
+    return NextResponse.json({
+      success: true,
+      count: generatedMessages.length,
+      messages: generatedMessages,
+      autoSent: false,
+    });
   } catch (error) {
-    console.error('Error generating bulk messages:', error);
-    return NextResponse.json({ error: 'Mesajlar üretilirken hata oluştu' }, { status: 500 });
+    return huntingApiError(error);
   }
 }

@@ -17,7 +17,6 @@ export interface ParsedListing {
   category: string | null;
   isValid: boolean;
   ownerName?: string;
-  ownerPhone?: string;
   error?: string;
 }
 
@@ -133,9 +132,8 @@ export function mergeWithManualData(
     roomCount?: string;
     area?: string;
     ownerName?: string;
-    ownerPhone?: string;
   }
-): ParsedListing & { ownerName?: string; ownerPhone?: string } {
+): ParsedListing & { ownerName?: string } {
   return {
     ...parsed,
     title: manual.title || parsed.title,
@@ -144,78 +142,5 @@ export function mergeWithManualData(
     roomCount: manual.roomCount || parsed.roomCount,
     area: manual.area || parsed.area,
     ownerName: manual.ownerName,
-    ownerPhone: manual.ownerPhone,
   };
-}
-
-/**
- * WhatsApp wa.me linki oluşturur
- */
-export function generateWhatsAppLink(phone: string, message: string): string {
-  // Türk telefon numarasını düzenle
-  let cleanPhone = phone.replace(/\D/g, '');
-  
-  // Başında 0 varsa kaldır ve 90 ekle
-  if (cleanPhone.startsWith('0')) {
-    cleanPhone = '90' + cleanPhone.substring(1);
-  }
-  // 90 ile başlamıyorsa ekle
-  if (!cleanPhone.startsWith('90')) {
-    cleanPhone = '90' + cleanPhone;
-  }
-
-  const encodedMessage = encodeURIComponent(message);
-  return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-}
-
-/**
- * Toplu Tarama (Bulk Hunt) Simülasyonu
- * Arama sayfası URL'si verildiğinde 10-15 adet mock ilan üretir.
- */
-export function parseSearchUrlBulk(searchUrl: string, count: number = 12): ParsedListing[] {
-  if (!isValidSahibindenUrl(searchUrl)) {
-    return [];
-  }
-
-  const mockLocations = ['Mahmutlar', 'Oba', 'Kestel', 'Avsallar', 'Alanya Merkez', 'Kargıcak'];
-  const mockPrices = ['3.500.000 TL', '4.250.000 TL', '5.100.000 TL', '2.850.000 TL', '6.000.000 TL', '7.500.000 TL'];
-  const mockRooms = ['1+1', '2+1', '3+1', '4+1 Dubleks', '2+1 Eşyalı'];
-  const mockAreas = ['65', '85', '110', '140', '180'];
-  const mockOwnerNames = ['Ahmet Yılmaz', 'Mehmet Kaya', 'Ayşe Demir', 'Fatma Şahin', 'Mustafa Çelik', 'Emre Can'];
-  
-  // Rastgele telefon numaraları (05xx ile başlayan)
-  const generatePhone = () => {
-    const prefixes = ['532', '533', '555', '542', '544', '505'];
-    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-    const num = Math.floor(1000000 + Math.random() * 9000000);
-    return `0${prefix}${num}`;
-  };
-
-  const results: ParsedListing[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const loc = mockLocations[Math.floor(Math.random() * mockLocations.length)];
-    const room = mockRooms[Math.floor(Math.random() * mockRooms.length)];
-    const price = mockPrices[Math.floor(Math.random() * mockPrices.length)];
-    const area = mockAreas[Math.floor(Math.random() * mockAreas.length)];
-    const ownerName = mockOwnerNames[Math.floor(Math.random() * mockOwnerNames.length)];
-    const phone = generatePhone();
-    const id = Math.floor(1000000000 + Math.random() * 900000000).toString();
-
-    results.push({
-      url: `https://www.sahibinden.com/ilan/emlak-konut-satilik-${loc.toLowerCase()}-da-deniz-manzarali-${room.replace('+', '-')}-daire-${id}/detay`,
-      listingId: id,
-      title: `${loc} bölgesinde Acil Satılık ${room} Fırsat Daire`,
-      price,
-      location: loc,
-      roomCount: room,
-      area,
-      category: 'Satılık',
-      isValid: true,
-      ownerName,
-      ownerPhone: phone
-    });
-  }
-
-  return results;
 }

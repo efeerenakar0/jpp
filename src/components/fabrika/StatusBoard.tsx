@@ -36,7 +36,6 @@ interface Listing {
   sourceUrl: string;
   status: HuntingStatus;
   ownerName?: string | null;
-  ownerPhone?: string | null;
   authorizationNote?: string | null;
   eliminationReason?: string | null;
   eliminationSummary?: string | null;
@@ -72,8 +71,7 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
     return (
       l.title.toLowerCase().includes(term) ||
       (l.location && l.location.toLowerCase().includes(term)) ||
-      (l.ownerName && l.ownerName.toLowerCase().includes(term)) ||
-      (l.ownerPhone && l.ownerPhone.includes(term))
+      (l.ownerName && l.ownerName.toLowerCase().includes(term))
     );
   });
 
@@ -165,18 +163,12 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
                   {listing.title}
                 </h4>
 
-                {(listing.ownerName || listing.ownerPhone) && (
+                {listing.ownerName && (
                   <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 mb-3 space-y-1 text-[11px]">
-                    {listing.ownerName && (
-                      <p className="text-slate-300 font-bold flex items-center gap-1.5">
-                        <span className="text-slate-500">👤 Sahib:</span> {listing.ownerName}
-                      </p>
-                    )}
-                    {listing.ownerPhone && (
-                      <p className="text-emerald-400 font-mono font-bold flex items-center gap-1.5">
-                        <span className="text-slate-500">📱 Tel:</span> {listing.ownerPhone}
-                      </p>
-                    )}
+                    <p className="text-slate-300 font-bold flex items-center gap-1.5">
+                      <span className="text-slate-500">Malik:</span>{' '}
+                      {listing.ownerName}
+                    </p>
                   </div>
                 )}
 
@@ -248,7 +240,7 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
           <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="İlan başlığı, konum veya telefon ara..."
+            placeholder="İlan başlığı, konum veya malik adı ara..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/50 transition-colors"

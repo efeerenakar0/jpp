@@ -198,6 +198,107 @@ enum HuntingStatus {
   GREEN // Avlandı - siteye eklenmek üzere
 }
 
+enum SourceProvider {
+  SAHIBINDEN
+  FIXTURE
+}
+
+enum SourceAuthorizationStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  EXPIRED
+}
+
+enum SourceScope {
+  SEARCH_READ
+  DETAIL_READ
+  MEDIA_READ
+  MEDIA_COPY
+  CONTACT_READ
+}
+
+enum HuntJobStatus {
+  QUEUED
+  RUNNING
+  PAUSED
+  COMPLETED
+  PARTIAL
+  FAILED
+  CANCELLED
+  SOURCE_CHALLENGE
+}
+
+enum HuntingAcquisitionStatus {
+  DISCOVERED
+  DETAIL_COMPLETE
+  PARTIAL
+  UNAVAILABLE
+  REMOVED
+  SOURCE_CHALLENGE
+}
+
+enum AddressPrecision {
+  UNKNOWN
+  CITY
+  DISTRICT
+  NEIGHBORHOOD
+  STREET
+  EXACT
+}
+
+enum ContactSubjectRole {
+  OWNER
+  AUTHORIZED_REPRESENTATIVE
+  AGENT
+  UNKNOWN
+}
+
+enum HuntedContactSourceType {
+  PARTNER_FEED
+  BANA_EMLAKCI_BUL
+  FIRST_PARTY_FORM
+  EXISTING_CRM
+  MANUAL_VERIFIED
+  LEGACY_UNVERIFIED
+}
+
+enum HuntedContactVerificationStatus {
+  UNVERIFIED
+  OTP_VERIFIED
+  PARTNER_VERIFIED
+  MANUALLY_VERIFIED
+  REJECTED
+}
+
+enum ContactLegalBasisStatus {
+  UNKNOWN
+  CONFIRMED
+  REJECTED
+  EXPIRED
+}
+
+enum ContactConsentChannel {
+  VOICE
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum ContactConsentStatus {
+  UNKNOWN
+  GRANTED
+  REJECTED
+  REVOKED
+  EXPIRED
+}
+
+enum OutreachApprovalStatus {
+  APPROVED
+  REVOKED
+}
+
 enum AdPlatform {
   GOOGLE_ADS
   INSTAGRAM
@@ -555,6 +656,12 @@ model CompanyAccount {
   documents                   CompanyDocument[]
   documentFavorites           DocumentFavorite[]
   documentAuditLogs           DocumentAuditLog[]
+  sourceAuthorizations        SourceAuthorization[]
+  huntJobs                    HuntJob[]
+  huntedContacts              HuntedContact[]
+  contactConsents             ContactConsent[]
+  contactPolicyDecisions      ContactPolicyDecision[]
+  huntedOutreachApprovals     HuntedOutreachApproval[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -992,40 +1099,242 @@ model CompanyProfile {
 }
 
 model HuntedListing {
-  id                   String          @id @default(cuid())
-  companyAccountId     String?
-  companyAccount       CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  sourceUrl            String // Sahibinden.com link
-  title                String
-  price                String?
-  location             String?
-  roomCount            String? // e.g. "3+1"
-  area                 String? // e.g. "120 m²"
-  ownerName            String?
-  ownerPhone           String?
-  ownerPhoneNormalized String?
-  imageUrl             String?
-  rawData              String?         @db.Text // JSON olarak ham veri
-  status               HuntingStatus   @default(YELLOW)
-  whatsappStatus       String          @default("BEKLIYOR") // BEKLIYOR, GONDERILDI, CEVAPLANDI
-  notes                String?         @db.Text
-  syncedToSite         Boolean         @default(false) // Modül 1'e gönderildi mi?
-  syncedProjectId      String? // Bağlanan Project id
-  authorizationNote    String?         @db.Text
-  authorizedAt         DateTime?
-  eliminationReason    String?
-  eliminationNote      String?         @db.Text
-  eliminationSummary   String?         @db.Text
-  eliminatedAt         DateTime?
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  id                       String                   @id @default(cuid())
+  companyAccountId         String?
+  companyAccount           CompanyAccount?          @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  huntJobId                String?
+  huntJob                  HuntJob?                 @relation(fields: [huntJobId], references: [id], onDelete: SetNull)
+  sourceProvider           SourceProvider?
+  sourceListingId          String?
+  sourceUrl                String                   @db.Text
+  title                    String
+  price                    String?
+  location                 String?
+  roomCount                String?
+  area                     String?
+  ownerName                String?
+  ownerPhone               String?
+  ownerPhoneNormalized     String?
+  imageUrl                 String?
+  rawData                  String?                  @db.Text
+  descriptionText          String?                  @db.Text
+  sanitizedDescriptionHtml String?                  @db.Text
+  category                 String?
+  subcategory              String?
+  sellerType               String?
+  listingPublishedAt       DateTime?
+  priceAmount              Decimal?                 @db.Decimal(18, 2)
+  currency                 String?
+  province                 String?
+  district                 String?
+  neighborhood             String?
+  street                   String?
+  latitude                 Decimal?                 @db.Decimal(10, 7)
+  longitude                Decimal?                 @db.Decimal(10, 7)
+  addressPrecision         AddressPrecision         @default(UNKNOWN)
+  acquisitionStatus        HuntingAcquisitionStatus @default(DISCOVERED)
+  completenessScore        Int                      @default(0)
+  attributesJson           Json?
+  firstSeenAt              DateTime                 @default(now())
+  lastSeenAt               DateTime                 @default(now())
+  removedAt                DateTime?
+  sourceUpdatedAt          DateTime?
+  status                   HuntingStatus            @default(YELLOW)
+  whatsappStatus           String                   @default("BEKLIYOR")
+  notes                    String?                  @db.Text
+  syncedToSite             Boolean                  @default(false)
+  syncedProjectId          String?
+  authorizationNote        String?                  @db.Text
+  authorizedAt             DateTime?
+  eliminationReason        String?
+  eliminationNote          String?                  @db.Text
+  eliminationSummary       String?                  @db.Text
+  eliminatedAt             DateTime?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
 
-  messages        HuntingMessage[]
-  adCopies        AdCopy[]
-  portfolioImport PortfolioImportItem?
+  messages          HuntingMessage[]
+  adCopies          AdCopy[]
+  portfolioImport   PortfolioImportItem?
+  images            HuntedListingImage[]
+  contacts          HuntedContact[]
+  policyDecisions   ContactPolicyDecision[]
+  outreachApprovals HuntedOutreachApproval[]
 
   @@unique([companyAccountId, sourceUrl])
+  @@unique([companyAccountId, sourceProvider, sourceListingId])
   @@index([companyAccountId, status, updatedAt])
+  @@index([companyAccountId, acquisitionStatus, completenessScore])
+  @@index([huntJobId, acquisitionStatus])
+  @@index([sourceProvider, sourceListingId])
+}
+
+model SourceAuthorization {
+  id                String                    @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount            @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  provider          SourceProvider
+  status            SourceAuthorizationStatus @default(PENDING)
+  allowedScopes     SourceScope[]
+  contractReference String
+  startsAt          DateTime
+  expiresAt         DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  huntJobs HuntJob[]
+
+  @@unique([companyAccountId, provider, contractReference])
+  @@index([companyAccountId, provider, status, expiresAt])
+}
+
+model HuntJob {
+  id                    String              @id @default(cuid())
+  companyAccountId      String
+  companyAccount        CompanyAccount      @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  sourceAuthorizationId String
+  sourceAuthorization   SourceAuthorization @relation(fields: [sourceAuthorizationId], references: [id], onDelete: Restrict)
+  provider              SourceProvider
+  searchUrl             String              @db.Text
+  idempotencyKey        String
+  status                HuntJobStatus       @default(QUEUED)
+  totalDiscovered       Int                 @default(0)
+  totalCompleted        Int                 @default(0)
+  totalPartial          Int                 @default(0)
+  totalFailed           Int                 @default(0)
+  errorSummary          String?             @db.Text
+  createdBy             String
+  startedAt             DateTime?
+  pausedAt              DateTime?
+  completedAt           DateTime?
+  lastHeartbeatAt       DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  listings HuntedListing[]
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, status, createdAt])
+  @@index([status, updatedAt])
+}
+
+model HuntedListingImage {
+  id         String        @id @default(cuid())
+  listingId  String
+  listing    HuntedListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  order      Int
+  sourceUrl  String        @db.Text
+  storageKey String?
+  checksum   String?
+  mimeType   String?
+  width      Int?
+  height     Int?
+  byteSize   Int?
+  createdAt  DateTime      @default(now())
+
+  @@unique([listingId, order])
+  @@unique([listingId, sourceUrl])
+  @@index([listingId, order])
+}
+
+model HuntedContact {
+  id                   String                          @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount                  @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  listingId            String?
+  listing              HuntedListing?                  @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  phoneCiphertext      String?                         @db.Text
+  phoneHmac            String
+  maskedPhone          String
+  subjectRole          ContactSubjectRole              @default(UNKNOWN)
+  sourceType           HuntedContactSourceType
+  sourceReference      String
+  purpose              String
+  sourcePurposeAllowed Boolean?
+  verificationStatus   HuntedContactVerificationStatus @default(UNVERIFIED)
+  verifiedAt           DateTime?
+  verificationMethod   String?
+  legalBasisStatus     ContactLegalBasisStatus         @default(UNKNOWN)
+  retentionUntil       DateTime?
+  quarantinedAt        DateTime?
+  quarantineReason     String?
+  doNotContactAt       DateTime?
+  createdAt            DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
+
+  consents        ContactConsent[]
+  policyDecisions ContactPolicyDecision[]
+  approvals       HuntedOutreachApproval[]
+  outboxMessages  WhatsAppOutboxMessage[]
+
+  @@unique([companyAccountId, phoneHmac, listingId])
+  @@index([companyAccountId, verificationStatus, doNotContactAt])
+  @@index([listingId, sourceType])
+}
+
+model ContactConsent {
+  id                      String                @id @default(cuid())
+  contactId               String
+  contact                 HuntedContact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  companyAccountId        String
+  companyAccount          CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  channel                 ContactConsentChannel
+  purpose                 String
+  status                  ContactConsentStatus  @default(UNKNOWN)
+  consentTextVersion      String?
+  evidenceReference       String?
+  grantedAt               DateTime?
+  revokedAt               DateTime?
+  iysStatus               String?
+  iysCheckedAt            DateTime?
+  iysTransactionReference String?
+  recipientType           String?
+  recipientTypeEvidence   String?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  @@unique([contactId, companyAccountId, channel, purpose])
+  @@index([companyAccountId, channel, status])
+}
+
+model ContactPolicyDecision {
+  id               String                @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  listingId        String
+  listing          HuntedListing         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  contactId        String
+  contact          HuntedContact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel          ContactConsentChannel
+  purpose          String
+  allowed          Boolean
+  reasonCodes      String[]
+  evaluatedAt      DateTime              @default(now())
+  evaluatedBy      String
+
+  @@index([companyAccountId, contactId, evaluatedAt])
+  @@index([listingId, evaluatedAt])
+}
+
+model HuntedOutreachApproval {
+  id               String                 @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount         @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  listingId        String
+  listing          HuntedListing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  contactId        String
+  contact          HuntedContact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  purpose          String
+  channel          ContactConsentChannel
+  status           OutreachApprovalStatus @default(APPROVED)
+  approvedByType   String
+  approvedById     String
+  approvedAt       DateTime               @default(now())
+  revokedAt        DateTime?
+  createdAt        DateTime               @default(now())
+
+  @@index([companyAccountId, listingId, contactId, status])
+  @@index([contactId, channel, purpose, approvedAt])
 }
 
 model PortfolioSource {
@@ -1426,6 +1735,8 @@ model WhatsAppOutboxMessage {
   conversationId           String?
   listingId                String?
   contactId                String?
+  huntedContactId          String?
+  huntedContact            HuntedContact?        @relation(fields: [huntedContactId], references: [id], onDelete: SetNull)
   propertyId               String?
   toPhone                  String
   content                  String                @db.Text
@@ -1464,6 +1775,7 @@ model WhatsAppOutboxMessage {
   @@index([companyAccountId, createdAt])
   @@index([companyAccountId, toPhone, createdAt])
   @@index([companyAccountId, recipientType, recipientId])
+  @@index([companyAccountId, huntedContactId, createdAt])
   @@index([operationEventId])
   @@index([managerActionId])
 }

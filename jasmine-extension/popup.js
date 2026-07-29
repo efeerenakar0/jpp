@@ -1,54 +1,83 @@
-// popup.js
-document.addEventListener('DOMContentLoaded', () => {
-  const listingCountEl = document.getElementById('listingCount');
-  const downloadBtn = document.getElementById('downloadBtn');
-  const clearBtn = document.getElementById('clearBtn');
-  const statusEl = document.getElementById('status');
+document.addEventListener('DOMContentLoaded', async () => {
+  const appUrlInput = document.getElementById('appUrl');
+  const authorizationInput = document.getElementById('sourceAuthorizationId');
+  const transferButton = document.getElementById('transferButton');
+  const status = document.getElementById('status');
+  const jobLink = document.getElementById('jobLink');
 
-  let currentListings = [];
+  const stored = await chrome.storage.local.get([
+    'jasmineAppUrl',
+    'sourceAuthorizationId',
+  ]);
+  appUrlInput.value =
+    stored.jasmineAppUrl || 'https://jpp-ufeb.vercel.app';
+  authorizationInput.value = stored.sourceAuthorizationId || '';
 
-  function updateUI() {
-    chrome.storage.local.get(['savedListings'], function(result) {
-      currentListings = result.savedListings || [];
-      listingCountEl.textContent = currentListings.length;
-      
-      if (currentListings.length > 0) {
-        downloadBtn.disabled = false;
-        clearBtn.disabled = false;
-      } else {
-        downloadBtn.disabled = true;
-        clearBtn.disabled = true;
-      }
-    });
+  function setStatus(message, kind = 'info') {
+    status.textContent = message;
+    status.dataset.kind = kind;
   }
 
-  updateUI();
-
-  downloadBtn.addEventListener('click', () => {
-    if (currentListings.length === 0) return;
-    
-    const jsonString = JSON.stringify(currentListings, null, 2);
-    // UTF-8 string to Base64
-    const encodedString = btoa(unescape(encodeURIComponent(jsonString)));
-    const dataUrl = 'data:application/json;base64,' + encodedString;
-    
-    chrome.downloads.download({
-      url: dataUrl,
-      filename: 'jasmine_ilanlar.json',
-      saveAs: true
-    }, () => {
-      statusEl.textContent = "✅ Dosya başarıyla indirildi!";
-      setTimeout(() => statusEl.textContent = "", 3000);
-    });
-  });
-
-  clearBtn.addEventListener('click', () => {
-    if (confirm("Hafızadaki tüm ilanlar silinecek. Emin misiniz?")) {
-      chrome.storage.local.set({ savedListings: [] }, function() {
-        updateUI();
-        statusEl.textContent = "🗑️ Hafıza temizlendi!";
-        setTimeout(() => statusEl.textContent = "", 3000);
+  transferButton.addEventListener('click', async () => {
+    transferButton.disabled = true;
+    jobLink.hidden = true;
+    setStatus('Açık aramadaki görünür satırlar hazırlanıyor…');
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
       });
+      if (!tab?.id || !tab.url?.startsWith('https://www.sahibinden.com/')) {
+        throw new Error(
+          'Önce filtrelenmiş Sahibinden arama sonuçları sekmesini açın.'
+        );
+      }
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js'],
+      });
+      const snapshot = await chrome.tabs.sendMessage(tab.id, {
+        action: 'collect_visible_search',
+      });
+      if (!snapshot?.ok) {
+        throw new Error(snapshot?.error || 'Arama sonuçları okunamadı.');
+      }
+
+      const appUrl = appUrlInput.value.trim().replace(/\/+$/, '');
+      const sourceAuthorizationId = authorizationInput.value.trim();
+      await chrome.storage.local.set({
+        jasmineAppUrl: appUrl,
+        sourceAuthorizationId,
+      });
+      const response = await fetch(
+        `${appUrl}/api/fabrika/hunting/extension-sync`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...snapshot.data,
+            ...(sourceAuthorizationId ? { sourceAuthorizationId } : {}),
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Avcı işi oluşturulamadı.');
+      }
+      setStatus(
+        `${data.visibleRowsAccepted} görünür satır kabul edildi. İş kuyruğa alındı.`,
+        'success'
+      );
+      jobLink.href = `${appUrl}${data.jobUrl}`;
+      jobLink.hidden = false;
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : 'Aktarım tamamlanamadı.',
+        'error'
+      );
+    } finally {
+      transferButton.disabled = false;
     }
   });
 });

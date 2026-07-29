@@ -74,7 +74,6 @@ type ImportItem = {
   huntedListing: {
     id: string;
     ownerName: string | null;
-    ownerPhone: string | null;
     authorizationNote: string | null;
   } | null;
   property: {
@@ -687,9 +686,6 @@ export default function PortfolioSourcesPanel({
                     {item.huntedListing && (
                       <p className="mt-2 text-[11px] text-slate-500">
                         Malik: {item.huntedListing.ownerName || 'Belirtilmedi'}
-                        {item.huntedListing.ownerPhone
-                          ? ` · ${item.huntedListing.ownerPhone}`
-                          : ''}
                       </p>
                     )}
                     {item.reviewNote && (

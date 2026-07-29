@@ -6,13 +6,37 @@ import {
   FabrikaSessionError,
   requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
+import {
+  ContactPolicyDeniedError,
+  requireContactPolicyApproval,
+} from '@/lib/hunting-v2/contact-service';
 
-const requestSchema = z.object({
-  phone: z.string().trim().min(10).max(32),
-  message: z.string().trim().min(1).max(4000),
-  messageId: z.string().trim().optional(),
-  listingId: z.string().trim().optional(),
-});
+const requestSchema = z
+  .object({
+    phone: z.string().trim().min(10).max(32).optional(),
+    message: z.string().trim().min(1).max(4000),
+    messageId: z.string().trim().optional(),
+    listingId: z.string().trim().optional(),
+    huntedContactId: z.string().trim().optional(),
+    purpose: z.literal('SALES_AUTHORITY_DISCUSSION').optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.listingId) {
+      if (!value.huntedContactId || !value.purpose) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Avcı mesajında doğrulanmış kişi ve satış yetkisi amacı zorunludur.',
+        });
+      }
+    } else if (!value.phone) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Telefon zorunludur.',
+      });
+    }
+  });
 
 export async function POST(request: Request) {
   try {
@@ -24,7 +48,25 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const phone = parsed.data.phone.replace(/\D/g, '');
+    const actorId =
+      principal.type === 'EMPLOYEE'
+        ? principal.member.id
+        : principal.account.id;
+    const approvedContact =
+      parsed.data.listingId &&
+      parsed.data.huntedContactId &&
+      parsed.data.purpose
+        ? await requireContactPolicyApproval({
+            companyAccountId: principal.account.id,
+            listingId: parsed.data.listingId,
+            contactId: parsed.data.huntedContactId,
+            channel: 'WHATSAPP',
+            purpose: parsed.data.purpose,
+            evaluatedBy: `${principal.type}:${actorId}`,
+          })
+        : null;
+    const phone =
+      approvedContact?.phone || parsed.data.phone?.replace(/\D/g, '') || '';
     const draft = parsed.data.messageId
       ? await prisma.whatsAppMessage.findFirst({
           where: {
@@ -71,10 +113,11 @@ export async function POST(request: Request) {
       text: parsed.data.message,
       conversationId: conversation.id,
       listingId: parsed.data.listingId,
+      huntedContactId: parsed.data.huntedContactId,
+      purpose: parsed.data.purpose,
       idempotencyKey: draft ? `hunter-draft:${draft.id}` : undefined,
       createdByType: principal.type,
-      createdById:
-        principal.type === 'EMPLOYEE' ? principal.member.id : principal.account.id,
+      createdById: actorId,
       firstContact: !previousIncoming,
     });
     const message = draft
@@ -116,6 +159,15 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof FabrikaSessionError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ContactPolicyDeniedError) {
+      return NextResponse.json(
+        {
+          error: 'İletişim izinleri gönderime uygun değil.',
+          reasonCodes: error.reasonCodes,
+        },
+        { status: 403 }
+      );
     }
     const message =
       error instanceof Error ? error.message : 'Mesaj gönderilemedi.';

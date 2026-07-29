@@ -1,12 +1,25 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { parseListingUrl, mergeWithManualData } from '@/lib/sahibinden-parser';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 
+const bodySchema = z
+  .object({
+    url: z.string().url().max(3000),
+    title: z.string().trim().min(2).max(300).optional(),
+    price: z.string().trim().max(100).optional(),
+    location: z.string().trim().max(300).optional(),
+    roomCount: z.string().trim().max(50).optional(),
+    area: z.string().trim().max(100).optional(),
+    ownerName: z.string().trim().max(200).optional(),
+  })
+  .strict();
+
 export async function POST(req: Request) {
   try {
     const principal = await requireFabrikaPrincipal();
-    const body = await req.json();
+    const body = bodySchema.parse(await req.json());
     const { url, ...manualData } = body;
 
     if (!url) {
@@ -30,7 +43,6 @@ export async function POST(req: Request) {
         roomCount: finalData.roomCount,
         area: finalData.area,
         ownerName: finalData.ownerName,
-        ownerPhone: finalData.ownerPhone,
         status: 'YELLOW',
         rawData: JSON.stringify(finalData),
       },
