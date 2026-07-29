@@ -1,51 +1,78 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 import {
-  FabrikaSessionError,
   requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
+import { huntingApiError, principalActor } from '@/lib/hunting-v2/api';
+import {
+  parseHuntingImportPackage,
+  parseHuntingImportPayload,
+} from '@/lib/hunting-v2/import-package';
+import { enforceHuntingRateLimit } from '@/lib/hunting-v2/rate-limit';
 import prisma from '@/lib/prisma';
 
-const listingSchema = z.object({
-  listingId: z.string().trim().optional().nullable(),
-  title: z.string().trim().min(2).max(300),
-  url: z.string().trim().url().optional().nullable(),
-  sourceUrl: z.string().trim().url().optional().nullable(),
-  price: z.string().trim().max(100).optional().nullable(),
-  location: z.string().trim().max(300).optional().nullable(),
-  roomCount: z.string().trim().max(50).optional().nullable(),
-  area: z.string().trim().max(100).optional().nullable(),
-  ownerName: z.string().trim().max(200).optional().nullable(),
-  imageUrl: z.string().trim().url().optional().nullable(),
-}).strict();
+export const runtime = 'nodejs';
+
+async function readImport(request: Request) {
+  const contentType = request.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+      throw new Error('Yüklenecek ZIP veya JSON dosyası seçilmedi.');
+    }
+    return parseHuntingImportPackage({
+      fileName: file.name,
+      mimeType: file.type,
+      bytes: new Uint8Array(await file.arrayBuffer()),
+    });
+  }
+  return parseHuntingImportPayload(await request.json());
+}
+
+function sourceProvider(sourceUrl: string) {
+  try {
+    return new URL(sourceUrl).hostname
+      .toLocaleLowerCase('tr-TR')
+      .endsWith('sahibinden.com')
+      ? ('SAHIBINDEN' as const)
+      : ('FIXTURE' as const);
+  } catch {
+    return 'FIXTURE' as const;
+  }
+}
 
 export async function POST(request: Request) {
   try {
     const principal = await requireFabrikaPrincipal();
-    const payload = await request.json();
-    const parsed = z.array(listingSchema).max(250).safeParse(payload);
-    if (!parsed.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            parsed.error.issues[0]?.message ||
-            'Geçersiz ilan veri formatı.',
-        },
-        { status: 400 }
-      );
-    }
+    const actor = principalActor(principal);
+    enforceHuntingRateLimit(
+      `bulk-import:${principal.account.id}:${actor.key}`,
+      { limit: 5, windowMs: 60_000 }
+    );
+    const imported = await readImport(request);
     let added = 0;
     let skipped = 0;
-    for (const item of parsed.data) {
+    for (const item of imported.listings) {
+      const sourceListingId = item.listingId || null;
       const sourceUrl =
         item.url ||
         item.sourceUrl ||
-        `https://manual.jasmine.local/${item.listingId || crypto.randomUUID()}`;
+        `https://manual.jasmine.local/${sourceListingId || crypto.randomUUID()}`;
+      const provider = sourceProvider(sourceUrl);
       const existing = await prisma.huntedListing.findFirst({
         where: {
           companyAccountId: principal.account.id,
-          sourceUrl,
+          OR: [
+            { sourceUrl },
+            ...(sourceListingId
+              ? [
+                  {
+                    sourceProvider: provider,
+                    sourceListingId,
+                  },
+                ]
+              : []),
+          ],
         },
         select: { id: true },
       });
@@ -56,6 +83,8 @@ export async function POST(request: Request) {
       await prisma.huntedListing.create({
         data: {
           companyAccountId: principal.account.id,
+          sourceProvider: provider,
+          sourceListingId,
           sourceUrl,
           title: item.title,
           price: item.price || null,
@@ -63,25 +92,28 @@ export async function POST(request: Request) {
           roomCount: item.roomCount || null,
           area: item.area || null,
           ownerName: item.ownerName || null,
+          ownerPhone: null,
+          ownerPhoneNormalized: null,
           imageUrl: item.imageUrl || null,
           status: 'YELLOW',
+          acquisitionStatus: 'DISCOVERED',
           rawData: JSON.stringify(item),
         },
       });
       added += 1;
     }
-    return NextResponse.json({ success: true, added, skipped });
+    return NextResponse.json({
+      success: true,
+      added,
+      skipped,
+      sourceFile: imported.sourceFile,
+      ignoredSensitiveFieldCount: imported.ignoredSensitiveFieldCount,
+    });
   } catch (error) {
-    if (error instanceof FabrikaSessionError) {
-      return NextResponse.json(
-        { success: false, error: 'Fabrika oturumu gerekli.' },
-        { status: 401 }
-      );
-    }
-    console.error('JSON import error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Yükleme sırasında hata oluştu.' },
-      { status: 500 }
+    console.error(
+      'Hunting import error:',
+      error instanceof Error ? error.message : error
     );
+    return huntingApiError(error);
   }
 }

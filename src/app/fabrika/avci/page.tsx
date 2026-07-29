@@ -1,16 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   BadgeCheck,
   CheckCircle2,
   CircleX,
   Crosshair,
+  Download,
+  FileArchive,
   Layers,
+  Loader2,
   Puzzle,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  UploadCloud,
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import AvciV2Workspace from '@/components/fabrika/avci-v2/AvciV2Workspace';
@@ -55,6 +65,7 @@ export default function AvciPage() {
   const [activeView, setActiveView] = useState<ActiveView>('kesif');
   const [listings, setListings] = useState<HuntingListing[]>([]);
   const [loadingBoard, setLoadingBoard] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
 
   const fetchListings = useCallback(async () => {
     setLoadingBoard(true);
@@ -131,6 +142,57 @@ export default function AvciPage() {
       toast.error(
         error instanceof Error ? error.message : 'İlan kaldırılamadı.'
       );
+    }
+  }
+
+  async function handleImportPackage(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const lowerName = file.name.toLocaleLowerCase('tr-TR');
+    if (!lowerName.endsWith('.zip') && !lowerName.endsWith('.json')) {
+      toast.error('Yalnızca eklentinin oluşturduğu ZIP veya JSON dosyası yüklenebilir.');
+      input.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('İçe aktarma dosyası en fazla 10 MB olabilir.');
+      input.value = '';
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      const result = await apiJson<{
+        added: number;
+        skipped: number;
+        ignoredSensitiveFieldCount: number;
+      }>('/api/fabrika/hunting/bulk-import', {
+        method: 'POST',
+        body: formData,
+      });
+      toast.success(
+        `${result.added} ilan eklendi${
+          result.skipped ? `, ${result.skipped} tekrar atlandı` : ''
+        }.`
+      );
+      if (result.ignoredSensitiveFieldCount > 0) {
+        toast(
+          `${result.ignoredSensitiveFieldCount} kayıttaki telefon alanı güvenlik nedeniyle içe alınmadı.`,
+          { icon: 'ℹ️' }
+        );
+      }
+      await fetchListings();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'İlan paketi yüklenemedi.'
+      );
+    } finally {
+      setIsImporting(false);
+      input.value = '';
     }
   }
 
@@ -310,6 +372,92 @@ export default function AvciPage() {
                   </p>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-300">
+                    <Download className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      Jasmine Avcı eklentisini kurun
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Paketi indirin, ZIP&apos;i klasöre çıkarın ve Chrome
+                      uzantılar ekranından klasörü yükleyin.
+                    </p>
+                  </div>
+                </div>
+                <ol className="mt-4 space-y-2 text-xs leading-5 text-slate-400">
+                  <li>1. Aşağıdaki kurulum paketini indirin ve arşivden çıkarın.</li>
+                  <li>
+                    2. Chrome&apos;da{' '}
+                    <code className="rounded bg-slate-900 px-1.5 py-0.5 text-slate-300">
+                      chrome://extensions
+                    </code>{' '}
+                    adresini açın.
+                  </li>
+                  <li>
+                    3. Geliştirici modunu açıp “Paketlenmemiş öğe yükle” ile{' '}
+                    <strong className="font-semibold text-slate-300">
+                      jasmine-extension
+                    </strong>{' '}
+                    klasörünü seçin.
+                  </li>
+                </ol>
+                <a
+                  className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 text-xs font-bold text-emerald-950 transition hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                  download
+                  href="/downloads/jasmine-extension.zip"
+                >
+                  <Download className="h-4 w-4" />
+                  Eklentiyi indir
+                </a>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-lg bg-sky-500/10 p-2 text-sky-300">
+                    <FileArchive className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      Toplanan ilan paketini yükleyin
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Eklentinin dışa aktardığı en fazla 10 MB boyutundaki ZIP
+                      veya JSON dosyasını Avcı&apos;ya alın.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-lg border border-dashed border-slate-700 bg-slate-900/60 p-4 text-center">
+                  <p className="text-xs leading-5 text-slate-400">
+                    Eklenti kurulum ZIP&apos;i burada kullanılmaz. Yalnızca
+                    ilanları içeren dışa aktarma paketini seçin.
+                  </p>
+                  <label
+                    className={`mt-3 inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 text-xs font-bold text-sky-200 transition hover:bg-sky-500/15 focus-within:ring-2 focus-within:ring-sky-300 ${
+                      isImporting ? 'pointer-events-none opacity-60' : ''
+                    }`}
+                  >
+                    {isImporting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <UploadCloud className="h-4 w-4" />
+                    )}
+                    {isImporting ? 'İlanlar aktarılıyor…' : 'ZIP / JSON seç'}
+                    <input
+                      accept=".zip,.json,application/zip,application/json"
+                      className="sr-only"
+                      disabled={isImporting}
+                      onChange={(event) => void handleImportPackage(event)}
+                      type="file"
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs leading-5 text-amber-100">

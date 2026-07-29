@@ -41,6 +41,13 @@
         text-decoration: none;
         cursor: pointer;
       }
+      button.secondary {
+        margin-top: 8px;
+        border: 1px solid #334155;
+        background: #0f1d31;
+        color: #dbe7f5;
+      }
+      button.secondary:hover { background: #16263d; }
       button:disabled { opacity: .55; cursor: wait; }
       #status { min-height: 42px; margin-top: 14px; font-size: 13px; }
       #status[data-kind="error"] { color: #fca5a5; }
@@ -66,6 +73,9 @@
     <input id="sourceAuthorizationId" type="text" autocomplete="off" />
 
     <button id="transferButton" type="button">Aramayı iş kuyruğuna al</button>
+    <button class="secondary" id="exportButton" type="button">
+      İlan paketini JSON olarak indir
+    </button>
     <div id="status" role="status" aria-live="polite"></div>
     <a id="jobLink" href="#" target="_blank" rel="noreferrer" hidden>Avcı’da ilerlemeyi aç</a>
 
