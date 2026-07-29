@@ -41,6 +41,7 @@ import {
   legalStatusLabel,
   toInputValue,
 } from './helpers';
+import { DOCUMENT_WIZARD_DIALOG_CLASS_NAME } from './layout';
 import type {
   DocumentRecordDTO,
   DocumentTemplateDTO,
@@ -628,7 +629,8 @@ export default function DocumentWizard({
     <Dialog open={open} onOpenChange={(next) => !next && closeWizard()}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-[95vh] max-h-[95vh] w-[98vw] max-w-[1500px] flex-col gap-0 overflow-hidden border-slate-700 bg-[#07101f] p-0 text-slate-100 shadow-2xl"
+        data-testid="document-wizard-dialog"
+        className={DOCUMENT_WIZARD_DIALOG_CLASS_NAME}
       >
         <DialogHeader className="border-b border-slate-800 px-4 py-3 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
