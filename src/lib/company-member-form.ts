@@ -15,7 +15,6 @@ export type MemberAvailabilityValue =
   | 'ON_LEAVE'
   | 'OFFLINE';
 export type MemberRoleValue = 'MANAGER' | 'AGENT' | 'VIEWER';
-export type MemberPhoneVerificationValue = 'UNVERIFIED' | 'VERIFIED';
 
 export type MemberWorkHoursValue = {
   timezone: string;
@@ -29,7 +28,6 @@ export type MemberWorkHoursValue = {
 
 export type MemberOperationalPayload = {
   role: MemberRoleValue;
-  phoneVerificationStatus?: MemberPhoneVerificationValue;
   canReceiveWhatsAppTasks: boolean;
   allowAutomaticInternalMessages: boolean;
   preferredLanguage: string;

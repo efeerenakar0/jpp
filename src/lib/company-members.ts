@@ -79,12 +79,6 @@ export const companyMemberOperationalFieldsSchema = z.object({
       CompanyMemberRole.VIEWER,
     ])
     .optional(),
-  phoneVerificationStatus: z
-    .enum([
-      PhoneVerificationStatus.UNVERIFIED,
-      PhoneVerificationStatus.VERIFIED,
-    ])
-    .optional(),
   canReceiveWhatsAppTasks: z.boolean().optional(),
   allowAutomaticInternalMessages: z.boolean().optional(),
   preferredLanguage: z
@@ -219,45 +213,11 @@ function validatedPhone(input: {
 
 function verificationData(input: {
   phoneNormalized: string | null;
-  requestedStatus?: PhoneVerificationStatus;
-  previousStatus?: PhoneVerificationStatus;
-  previousVerifiedAt?: Date | null;
-  phoneChanged?: boolean;
 }) {
   if (!input.phoneNormalized) {
-    if (input.requestedStatus === PhoneVerificationStatus.VERIFIED) {
-      throw new CompanyMemberValidationError(
-        'Telefon doğrulanmış olarak işaretlenmeden önce geçerli bir numara girin.'
-      );
-    }
     return {
       phoneVerificationStatus: PhoneVerificationStatus.UNVERIFIED,
       phoneVerifiedAt: null,
-    };
-  }
-  if (input.requestedStatus === PhoneVerificationStatus.VERIFIED) {
-    if (
-      input.previousStatus !== PhoneVerificationStatus.VERIFIED ||
-      input.phoneChanged
-    ) {
-      throw new CompanyMemberValidationError(
-        'Telefon yalnızca WhatsApp ile gönderilen tek kullanımlık kod doğrulandıktan sonra etkinleştirilebilir.'
-      );
-    }
-  }
-  if (input.requestedStatus === PhoneVerificationStatus.UNVERIFIED) {
-    return {
-      phoneVerificationStatus: PhoneVerificationStatus.UNVERIFIED,
-      phoneVerifiedAt: null,
-    };
-  }
-  if (
-    !input.phoneChanged &&
-    input.previousStatus === PhoneVerificationStatus.VERIFIED
-  ) {
-    return {
-      phoneVerificationStatus: PhoneVerificationStatus.VERIFIED,
-      phoneVerifiedAt: input.previousVerifiedAt || null,
     };
   }
   return {
@@ -339,7 +299,6 @@ export async function createCompanyMemberAccount(input: {
       }
       const verification = verificationData({
         phoneNormalized: phone.phoneNormalized,
-        requestedStatus: operational.phoneVerificationStatus,
       });
       const canReceiveWhatsAppTasks = phone.phoneNormalized
         ? operational.canReceiveWhatsAppTasks ?? true
@@ -415,9 +374,6 @@ export async function updateCompanyMemberProfile(
           phoneContext.account.whatsAppConfig?.connectedPhone,
         activeEmployeePhones: phoneContext.activeEmployeePhones,
       });
-      const phoneChanged =
-        normalizeE164(existing.phoneNormalized || existing.phone) !==
-        phone.phoneNormalized;
       if (
         !phone.phoneNormalized &&
         (operational.canReceiveWhatsAppTasks === true ||
@@ -429,10 +385,6 @@ export async function updateCompanyMemberProfile(
       }
       const verification = verificationData({
         phoneNormalized: phone.phoneNormalized,
-        requestedStatus: operational.phoneVerificationStatus,
-        previousStatus: existing.phoneVerificationStatus,
-        previousVerifiedAt: existing.phoneVerifiedAt,
-        phoneChanged,
       });
       const canReceiveWhatsAppTasks = phone.phoneNormalized
         ? operational.canReceiveWhatsAppTasks ??

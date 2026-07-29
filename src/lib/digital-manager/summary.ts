@@ -153,7 +153,6 @@ export async function generateVerifiedDailyManagerSummary(
       select: {
         name: true,
         availability: true,
-        phoneVerificationStatus: true,
         _count: {
           select: {
             tasks: {
@@ -314,7 +313,6 @@ export async function generateVerifiedDailyManagerSummary(
       name: employee.name,
       availability: employee.availability,
       openTasks: employee._count.tasks,
-      phoneVerified: employee.phoneVerificationStatus === 'VERIFIED',
     })),
     nextActions,
     evidenceIds,

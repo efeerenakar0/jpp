@@ -41,7 +41,6 @@ export async function resolveCompanyPhoneIdentity(
         select: {
           id: true,
           ownerPhoneNormalized: true,
-          ownerPhoneVerificationStatus: true,
         },
       }),
       prisma.whatsAppConfig.findUnique({
@@ -53,7 +52,6 @@ export async function resolveCompanyPhoneIdentity(
           companyAccountId,
           active: true,
           phoneNormalized: phone,
-          phoneVerificationStatus: 'VERIFIED',
         },
         select: { id: true },
       }),
@@ -76,10 +74,7 @@ export async function resolveCompanyPhoneIdentity(
     normalizeE164(whatsAppConfig?.connectedPhone) === phone;
   const candidates: IdentityCandidate[] = [];
 
-  if (
-    account?.ownerPhoneVerificationStatus === 'VERIFIED' &&
-    account.ownerPhoneNormalized === phone
-  ) {
+  if (account?.ownerPhoneNormalized === phone) {
     candidates.push({ role: 'OWNER', entityId: account.id, phone });
   }
   members.forEach((member) => {

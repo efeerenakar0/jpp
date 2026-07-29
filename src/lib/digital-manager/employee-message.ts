@@ -45,7 +45,6 @@ export async function processVerifiedEmployeeWhatsAppMessage(input: {
       id: input.employeeId,
       companyAccountId: input.companyAccountId,
       active: true,
-      phoneVerificationStatus: 'VERIFIED',
     },
     select: {
       id: true,
@@ -54,7 +53,7 @@ export async function processVerifiedEmployeeWhatsAppMessage(input: {
     },
   });
   if (!employee) {
-    throw new Error('Doğrulanmış aktif çalışan bulunamadı.');
+    throw new Error('Aktif çalışan bulunamadı.');
   }
 
   const tasks = await prisma.crmTask.findMany({

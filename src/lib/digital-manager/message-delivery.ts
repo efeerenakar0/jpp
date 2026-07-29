@@ -377,7 +377,6 @@ export async function applyMessageDeliveryTransition(
             where: { id: input.companyAccountId },
             select: {
               ownerPhoneNormalized: true,
-              ownerPhoneVerificationStatus: true,
             },
           }),
           tx.whatsAppConfig.findUnique({
@@ -438,11 +437,9 @@ export async function applyMessageDeliveryTransition(
           occurredAt
         );
         const ownerPhone =
-          preference.ownerPhoneVerificationStatus === 'VERIFIED'
-            ? preference.ownerPhoneNormalized?.replace(/\D/g, '')
-            : account?.ownerPhoneVerificationStatus === 'VERIFIED'
-            ? account.ownerPhoneNormalized?.replace(/\D/g, '')
-            : null;
+          preference.ownerPhoneNormalized?.replace(/\D/g, '') ||
+          account?.ownerPhoneNormalized?.replace(/\D/g, '') ||
+          null;
         const connectedPhone = config?.connectedPhone?.replace(/\D/g, '');
         if (
           shouldSendWhatsApp &&

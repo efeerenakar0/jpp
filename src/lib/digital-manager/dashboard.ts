@@ -224,8 +224,6 @@ export async function getDigitalManagerDashboard(
           select: {
             ownerPhone: true,
             ownerPhoneNormalized: true,
-            ownerPhoneVerificationStatus: true,
-            ownerPhoneVerifiedAt: true,
             notifyCriticalImmediately: true,
             notifyTaskAccepted: true,
             notifyOnlyProblemsAndDelays: true,
@@ -264,7 +262,6 @@ export async function getDigitalManagerDashboard(
             id: true,
             name: true,
             availability: true,
-            phoneVerificationStatus: true,
             maxActiveTaskCapacity: true,
             _count: {
               select: {
@@ -315,7 +312,6 @@ export async function getDigitalManagerDashboard(
       id: member.id,
       name: member.name,
       availability: member.availability,
-      phoneVerificationStatus: member.phoneVerificationStatus,
       maxActiveTaskCapacity: member.maxActiveTaskCapacity,
       activeTaskCount: member._count.tasks,
     })),

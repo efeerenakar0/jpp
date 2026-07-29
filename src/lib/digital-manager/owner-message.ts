@@ -15,11 +15,10 @@ export async function processVerifiedOwnerWhatsAppMessage(input: {
       id: input.companyAccountId,
       status: 'ACTIVE',
       workspaceEnabled: true,
-      ownerPhoneVerificationStatus: 'VERIFIED',
     },
   });
   if (!account) {
-    throw new Error('Doğrulanmış aktif patron hesabı bulunamadı.');
+    throw new Error('Aktif patron hesabı bulunamadı.');
   }
   const manager: ManagerPrincipal = {
     accountId: account.id,

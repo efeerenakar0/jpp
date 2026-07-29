@@ -21,7 +21,6 @@ export async function processDueOperationalCommitments(now = new Date()) {
           id: true,
           name: true,
           phoneNormalized: true,
-          phoneVerificationStatus: true,
           canReceiveWhatsAppTasks: true,
         },
       },
@@ -85,7 +84,7 @@ export async function processDueOperationalCommitments(now = new Date()) {
     if (decision === 'REMIND_EMPLOYEE') {
       if (
         !commitment.member ||
-        commitment.member.phoneVerificationStatus !== 'VERIFIED' ||
+        !commitment.member.phoneNormalized ||
         !commitment.member.canReceiveWhatsAppTasks
       ) {
         await createCompanyNotification({
@@ -94,7 +93,7 @@ export async function processDueOperationalCommitments(now = new Date()) {
           title: 'Taahhüt gecikti',
           message: `${
             commitment.member?.name || 'Atanmamış çalışan'
-          } için doğrulanmış görev telefonu bulunamadı: ${commitment.description}`,
+          } için görev telefonu bulunamadı: ${commitment.description}`,
           link: '/fabrika',
           important: true,
           dedupeKey: `commitment:${commitment.id}:missing-phone`,
@@ -228,7 +227,6 @@ export async function generateActiveCompanyDailySummaries(now = new Date()) {
     select: {
       id: true,
       ownerPhoneNormalized: true,
-      ownerPhoneVerificationStatus: true,
     },
     take: 1000,
   });
@@ -287,11 +285,7 @@ export async function generateActiveCompanyDailySummaries(now = new Date()) {
       now
     );
     const ownerPhone =
-      preference.ownerPhoneVerificationStatus === 'VERIFIED'
-        ? preference.ownerPhoneNormalized
-        : account.ownerPhoneVerificationStatus === 'VERIFIED'
-          ? account.ownerPhoneNormalized
-          : null;
+      preference.ownerPhoneNormalized || account.ownerPhoneNormalized || null;
     const normalizedOwnerPhone = ownerPhone?.replace(/\D/g, '') || null;
     const normalizedConnectedPhone =
       config?.connectedPhone?.replace(/\D/g, '') || null;

@@ -26,7 +26,6 @@ export async function selectAvailableCompanyMember(input: {
       maxActiveTaskCapacity: true,
       lastAssignedAt: true,
       phoneNormalized: true,
-      phoneVerificationStatus: true,
       canReceiveWhatsAppTasks: true,
       allowAutomaticInternalMessages: true,
     },

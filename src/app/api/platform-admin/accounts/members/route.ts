@@ -65,8 +65,6 @@ async function listMembers(accountId: string) {
       email: true,
       phone: true,
       phoneNormalized: true,
-      phoneVerificationStatus: true,
-      phoneVerifiedAt: true,
       canReceiveWhatsAppTasks: true,
       allowAutomaticInternalMessages: true,
       preferredLanguage: true,

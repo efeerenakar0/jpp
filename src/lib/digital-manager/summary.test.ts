@@ -20,7 +20,6 @@ describe('verified manager summary', () => {
           name: 'Ayşe',
           availability: 'AVAILABLE',
           openTasks: 2,
-          phoneVerified: true,
         },
       ],
       nextActions: [

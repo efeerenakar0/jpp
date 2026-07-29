@@ -34,7 +34,7 @@ async function proposeEmployeeTaskMessage(input: {
 }) {
   if (
     !input.employee ||
-    input.employee.phoneVerificationStatus !== 'VERIFIED' ||
+    !input.employee.phoneNormalized ||
     !input.employee.canReceiveWhatsAppTasks
   ) {
     return null;
@@ -50,7 +50,7 @@ async function proposeEmployeeTaskMessage(input: {
       message: input.message,
     },
     reason:
-      'Doğrulanmış operasyon olayı uygun ekip üyesine iletiliyor.',
+      'Operasyon olayı uygun ekip üyesine iletiliyor.',
     evidence: {
       taskId: input.taskId,
       employeeId: input.employee.id,

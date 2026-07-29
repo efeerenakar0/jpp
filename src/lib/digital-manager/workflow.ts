@@ -175,7 +175,6 @@ export type VerifiedManagerFacts = {
     name: string;
     availability: string;
     openTasks: number;
-    phoneVerified: boolean;
   }>;
   nextActions?: string[];
   evidenceIds: string[];

@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-import PhoneVerificationControl from '@/components/fabrika/PhoneVerificationControl';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -133,7 +132,6 @@ type Correction = {
 
 type Preferences = {
   ownerPhone: string | null;
-  ownerPhoneVerificationStatus: string;
   notifyCriticalImmediately: boolean;
   notifyTaskAccepted: boolean;
   notifyOnlyProblemsAndDelays: boolean;
@@ -154,7 +152,6 @@ type Member = {
   id: string;
   name: string;
   availability: string;
-  phoneVerificationStatus: string;
   maxActiveTaskCapacity: number;
   activeTaskCount: number;
 };
@@ -612,9 +609,6 @@ export default function DigitalManagerOperations() {
   const ownerPhoneDraft = preferences?.ownerPhone?.trim() || '';
   const ownerPhoneIsSaved =
     Boolean(ownerPhoneDraft) && ownerPhoneDraft === savedOwnerPhone;
-  const ownerPhoneVerificationStatus = ownerPhoneIsSaved
-    ? dashboard.preferences?.ownerPhoneVerificationStatus || 'UNVERIFIED'
-    : 'UNVERIFIED';
 
   return (
     <section
@@ -1277,66 +1271,17 @@ export default function DigitalManagerOperations() {
                       setPreferences({
                         ...preferences,
                         ownerPhone: event.target.value || null,
-                        ownerPhoneVerificationStatus: 'UNVERIFIED',
                       })
                     }
                     placeholder="+90 5xx xxx xx xx"
                     className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none"
                   />
                 </label>
-                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-medium text-slate-300">
-                        Patron telefonu doğrulaması
-                      </p>
-                      <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                        Doğrulama yalnız telefona gelen tek kullanımlık kodla
-                        tamamlanır.
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${
-                        ownerPhoneVerificationStatus === 'VERIFIED'
-                          ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-                          : ownerPhoneVerificationStatus === 'CONFLICT'
-                            ? 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-                            : 'border-slate-700 bg-slate-900 text-slate-400'
-                      }`}
-                    >
-                      {ownerPhoneVerificationStatus === 'VERIFIED'
-                        ? 'Doğrulandı'
-                        : ownerPhoneVerificationStatus === 'CONFLICT'
-                          ? 'Numara çakışıyor'
-                          : 'Doğrulanmadı'}
-                    </span>
-                  </div>
-                  {!ownerPhoneDraft ? (
-                    <p className="text-[11px] leading-5 text-amber-300">
-                      Önce patron telefonunu girip tercihleri kaydedin.
-                    </p>
-                  ) : !ownerPhoneIsSaved ? (
-                    <p className="text-[11px] leading-5 text-amber-300">
-                      Doğrulama kodu istemeden önce telefon değişikliğini
-                      “Tercihleri kaydet” düğmesiyle kaydedin.
-                    </p>
-                  ) : ownerPhoneVerificationStatus !== 'VERIFIED' ? (
-                    <PhoneVerificationControl
-                      disabled={busyId === 'preferences'}
-                      onVerified={async () => {
-                        toast.success('Patron telefonu doğrulandı.');
-                        await refresh(true);
-                      }}
-                      phone={savedOwnerPhone}
-                      subjectType="OWNER"
-                    />
-                  ) : (
-                    <p className="flex items-center gap-2 text-[11px] leading-5 text-emerald-300">
-                      <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                      Bu numara OTP koduyla doğrulandı.
-                    </p>
-                  )}
-                </div>
+                <p className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-[11px] leading-5 text-slate-400">
+                  {ownerPhoneIsSaved
+                    ? 'Telefon kaydedildi. Bildirimler ve yönetici mesajları bu numaraya gönderilir.'
+                    : 'Telefonu kaydedin; tek kullanımlık kod istenmez.'}
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-medium text-slate-300">
                     Sessiz başlangıç

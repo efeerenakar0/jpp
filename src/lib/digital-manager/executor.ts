@@ -760,11 +760,11 @@ async function executeActionInTransaction(
         executable.employeeId
       );
       if (
-        member.phoneVerificationStatus !== 'VERIFIED' ||
+        !(member.phoneNormalized || member.phone) ||
         !member.canReceiveWhatsAppTasks
       ) {
         throw new Error(
-          'Çalışanın doğrulanmış ve görev alabilen bir WhatsApp numarası yok.'
+          'Çalışanın kayıtlı ve görev alabilen bir WhatsApp numarası yok.'
         );
       }
       if (!action.requiresApproval) {
@@ -814,7 +814,6 @@ async function executeActionInTransaction(
           where: { id: action.companyAccountId },
           select: {
             ownerPhoneNormalized: true,
-            ownerPhoneVerificationStatus: true,
           },
         }),
         tx.managerNotificationPreference.upsert({
@@ -866,11 +865,7 @@ async function executeActionInTransaction(
         },
       });
       const ownerPhone =
-        preference?.ownerPhoneVerificationStatus === 'VERIFIED'
-          ? preference.ownerPhoneNormalized
-          : account?.ownerPhoneVerificationStatus === 'VERIFIED'
-            ? account.ownerPhoneNormalized
-            : null;
+        preference?.ownerPhoneNormalized || account?.ownerPhoneNormalized || null;
       const notifyNow = shouldNotifyOwnerNow(
         { importance, eventType },
         toPolicySettings(preference)
@@ -988,11 +983,11 @@ async function executeActionInTransaction(
           executable.recipientId
         );
         if (
-          member.phoneVerificationStatus !== 'VERIFIED' ||
+          !(member.phoneNormalized || member.phone) ||
           !member.canReceiveWhatsAppTasks
         ) {
           throw new Error(
-            'Çalışanın doğrulanmış ve görev mesajına izin veren telefonu yok.'
+            'Çalışanın kayıtlı ve görev mesajına izin veren telefonu yok.'
           );
         }
         if (
@@ -1019,11 +1014,10 @@ async function executeActionInTransaction(
         where: { id: action.companyAccountId },
         select: {
           ownerPhoneNormalized: true,
-          ownerPhoneVerificationStatus: true,
         },
       });
-      if (account?.ownerPhoneVerificationStatus !== 'VERIFIED') {
-        throw new Error('Patronun telefonu doğrulanmamış.');
+      if (!account?.ownerPhoneNormalized) {
+        throw new Error('Patronun kayıtlı telefonu bulunamadı.');
       }
       return createInternalOutbox(tx, {
         action,

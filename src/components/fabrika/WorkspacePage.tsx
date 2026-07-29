@@ -45,7 +45,6 @@ import {
 import { toast } from 'sonner';
 import EmptyState from '@/components/fabrika/EmptyState';
 import PageHeader from '@/components/fabrika/PageHeader';
-import PhoneVerificationControl from '@/components/fabrika/PhoneVerificationControl';
 import StatCard from '@/components/fabrika/StatCard';
 import PortfolioSourcesPanel from '@/components/fabrika/PortfolioSourcesPanel';
 import { Button } from '@/components/ui/button';
@@ -84,8 +83,6 @@ type Member = {
   email: string | null;
   phone: string | null;
   phoneNormalized: string | null;
-  phoneVerificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'CONFLICT';
-  phoneVerifiedAt: string | null;
   canReceiveWhatsAppTasks: boolean;
   allowAutomaticInternalMessages: boolean;
   preferredLanguage: string;
@@ -1694,21 +1691,8 @@ export default function WorkspacePage({
                           <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
                             Kapasite: {member.maxActiveTaskCapacity}
                           </span>
-                          <span
-                            className={`rounded-md border px-2 py-1 ${
-                              member.phoneVerificationStatus === 'VERIFIED'
-                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-                                : member.phoneVerificationStatus === 'CONFLICT'
-                                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-300'
-                                  : 'border-slate-700 bg-slate-950 text-slate-400'
-                            }`}
-                          >
-                            Telefon:{' '}
-                            {member.phoneVerificationStatus === 'VERIFIED'
-                              ? 'Doğrulandı'
-                              : member.phoneVerificationStatus === 'CONFLICT'
-                                ? 'Çakışma var'
-                                : 'Doğrulanmadı'}
+                          <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
+                            Telefon: {member.phoneNormalized || member.phone ? 'Tanımlı' : 'Eksik'}
                           </span>
                           {member.specialtyRegions.length > 0 && (
                             <span className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-slate-400">
@@ -1726,21 +1710,6 @@ export default function WorkspacePage({
                     {workspace.permissions.canManageTeam &&
                       member.role !== 'OWNER' && (
                         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 self-end sm:self-start">
-                          {(member.phoneNormalized || member.phone) &&
-                            member.phoneVerificationStatus !== 'VERIFIED' && (
-                              <PhoneVerificationControl
-                                buttonLabel="Doğrulama kodu gönder"
-                                memberId={member.id}
-                                onVerified={async () => {
-                                  toast.success('Çalışan telefonu doğrulandı.');
-                                  await loadWorkspace();
-                                }}
-                                phone={
-                                  member.phoneNormalized || member.phone || ''
-                                }
-                                subjectType="MEMBER"
-                              />
-                            )}
                           <Button
                             aria-label={`${member.name} profilini düzenle`}
                             disabled={saving}
@@ -2149,11 +2118,6 @@ function WorkspaceDialog({
     }
     if (dialog === 'member' || (dialog === 'member-edit' && selectedMember)) {
       const operational = buildMemberOperationalPayload(values);
-      const {
-        phoneVerificationStatus: challengeVerifiedStatus,
-        ...challengeSafeOperational
-      } = operational;
-      void challengeVerifiedStatus;
       await onSubmit(
         dialog === 'member'
           ? {
@@ -2162,7 +2126,7 @@ function WorkspaceDialog({
               email: text(values.email),
               phone: text(values.phone),
               username: text(values.username),
-              ...challengeSafeOperational,
+              ...operational,
             }
           : {
               action: 'update-member-profile',
@@ -2170,7 +2134,7 @@ function WorkspaceDialog({
               name: text(values.name),
               email: text(values.email),
               phone: text(values.phone),
-              ...challengeSafeOperational,
+              ...operational,
             },
         dialog === 'member'
           ? 'Ekip üyesi eklendi.'
@@ -2880,27 +2844,9 @@ function MemberProfileFields({
           </span>
         </label>
       )}
-      <div className={labelClass}>
-        <span className="block">Telefon doğrulaması</span>
-        <div
-          className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs ${
-            member?.phoneVerificationStatus === 'VERIFIED'
-              ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
-              : member?.phoneVerificationStatus === 'CONFLICT'
-                ? 'border-rose-500/25 bg-rose-500/10 text-rose-200'
-                : 'border-slate-700 bg-slate-950 text-slate-400'
-          }`}
-        >
-          <BadgeCheck aria-hidden="true" className="h-4 w-4 shrink-0" />
-          {member?.phoneVerificationStatus === 'VERIFIED'
-            ? 'Telefon tek kullanımlık kodla doğrulandı'
-            : member?.phoneVerificationStatus === 'CONFLICT'
-              ? 'Numara çakışması var; telefonu düzeltip yeniden doğrulayın'
-              : creating
-                ? 'Hesabı kaydettikten sonra ekip kartından doğrulayın'
-                : 'Ekip kartından tek kullanımlık kod göndererek doğrulayın'}
-        </div>
-      </div>
+      <p className={`${labelClass} rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs leading-5 text-slate-400`}>
+        Telefon numarası kaydedildiğinde WhatsApp görevleri için kullanılabilir. Tek kullanımlık kod istenmez.
+      </p>
       <label className={labelClass}>
         Çalışma durumu
         <SelectField

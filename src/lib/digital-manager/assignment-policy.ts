@@ -1,7 +1,6 @@
 import type {
   CompanyMemberRole,
   MemberAvailability,
-  PhoneVerificationStatus,
   Prisma,
 } from '@prisma/client';
 
@@ -20,7 +19,6 @@ export type AssignmentCandidate = {
   activeTaskCount: number;
   lastAssignedAt: Date | null;
   phoneNormalized: string | null;
-  phoneVerificationStatus: PhoneVerificationStatus;
   canReceiveWhatsAppTasks: boolean;
   allowAutomaticInternalMessages: boolean;
 };
@@ -66,11 +64,11 @@ export function chooseAssignmentCandidate(
       if (regionDifference !== 0) return regionDifference;
       const phoneDifference =
         Number(
-          right.phoneVerificationStatus === 'VERIFIED' &&
+          Boolean(right.phoneNormalized) &&
             right.canReceiveWhatsAppTasks
         ) -
         Number(
-          left.phoneVerificationStatus === 'VERIFIED' &&
+          Boolean(left.phoneNormalized) &&
             left.canReceiveWhatsAppTasks
         );
       if (phoneDifference !== 0) return phoneDifference;

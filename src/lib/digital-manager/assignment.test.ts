@@ -23,7 +23,6 @@ function candidate(
     activeTaskCount: 0,
     lastAssignedAt: null,
     phoneNormalized: '+905551112233',
-    phoneVerificationStatus: 'VERIFIED',
     canReceiveWhatsAppTasks: true,
     allowAutomaticInternalMessages: true,
     ...overrides,
@@ -71,5 +70,24 @@ describe('digital manager assignment selection', () => {
       { now }
     );
     expect(selected?.id).toBe('free');
+  });
+
+  it('uses a saved WhatsApp number without requiring an OTP status', () => {
+    const selected = chooseAssignmentCandidate(
+      [
+        candidate({
+          id: 'saved-number',
+          canReceiveWhatsAppTasks: true,
+        }),
+        candidate({
+          id: 'no-number',
+          phoneNormalized: null,
+          canReceiveWhatsAppTasks: true,
+        }),
+      ],
+      { now }
+    );
+
+    expect(selected?.id).toBe('saved-number');
   });
 });

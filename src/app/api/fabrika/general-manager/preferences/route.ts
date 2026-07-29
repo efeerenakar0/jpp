@@ -16,7 +16,6 @@ const clockSchema = z
 const preferenceSchema = z
   .object({
     ownerPhone: z.string().trim().max(40).nullable().optional(),
-    ownerPhoneVerified: z.boolean().optional(),
     notifyCriticalImmediately: z.boolean().optional(),
     notifyTaskAccepted: z.boolean().optional(),
     notifyOnlyProblemsAndDelays: z.boolean().optional(),
@@ -77,20 +76,7 @@ export async function PATCH(request: Request) {
         { status: 400 }
       );
     }
-    const {
-      ownerPhoneVerified,
-      ownerPhone,
-      ...preferenceData
-    } = parsed.data;
-    if (ownerPhoneVerified !== undefined) {
-      return NextResponse.json(
-        {
-          error:
-            'Telefon doğrulaması yalnız WhatsApp ile gönderilen tek kullanımlık kodla yapılabilir.',
-        },
-        { status: 400 }
-      );
-    }
+    const { ownerPhone, ...preferenceData } = parsed.data;
     const requestedNormalized =
       ownerPhone === undefined
         ? undefined
@@ -101,18 +87,12 @@ export async function PATCH(request: Request) {
         { status: 400 }
       );
     }
-    const [connected, existing, account] = await Promise.all([
-      prisma.whatsAppConfig.findUnique({
-        where: { companyAccountId: principal.account.id },
-        select: { connectedPhone: true },
-      }),
+    const [existing, account] = await Promise.all([
       prisma.managerNotificationPreference.findUnique({
         where: { companyAccountId: principal.account.id },
         select: {
           ownerPhone: true,
           ownerPhoneNormalized: true,
-          ownerPhoneVerificationStatus: true,
-          ownerPhoneVerifiedAt: true,
         },
       }),
       prisma.companyAccount.findUnique({
@@ -120,8 +100,6 @@ export async function PATCH(request: Request) {
         select: {
           ownerPhone: true,
           ownerPhoneNormalized: true,
-          ownerPhoneVerificationStatus: true,
-          ownerPhoneVerifiedAt: true,
         },
       }),
     ]);
@@ -135,30 +113,6 @@ export async function PATCH(request: Request) {
           account?.ownerPhoneNormalized ||
           normalizeE164(effectiveOwnerPhone)
         : requestedNormalized;
-    const previousNormalized =
-      existing?.ownerPhoneNormalized ||
-      account?.ownerPhoneNormalized ||
-      null;
-    const phoneChanged =
-      ownerPhone !== undefined &&
-      effectiveNormalized !== previousNormalized;
-    const effectiveVerified =
-      !phoneChanged &&
-      (existing?.ownerPhoneVerificationStatus ||
-        account?.ownerPhoneVerificationStatus) === 'VERIFIED';
-    if (
-      ownerPhone !== undefined &&
-      effectiveNormalized &&
-      normalizeE164(connected?.connectedPhone) === effectiveNormalized
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'Patronun kişisel komut numarası bağlı işletme numarasıyla aynı olamaz.',
-        },
-        { status: 409 }
-      );
-    }
     const preferences = await prisma.managerNotificationPreference.upsert({
       where: { companyAccountId: principal.account.id },
       create: {
@@ -166,15 +120,6 @@ export async function PATCH(request: Request) {
         ...preferenceData,
         ownerPhone: effectiveOwnerPhone,
         ownerPhoneNormalized: effectiveNormalized,
-        ownerPhoneVerificationStatus: effectiveVerified
-          ? 'VERIFIED'
-          : 'UNVERIFIED',
-        ownerPhoneVerifiedAt:
-          effectiveVerified
-            ? existing?.ownerPhoneVerifiedAt ||
-              account?.ownerPhoneVerifiedAt ||
-              null
-            : null,
       },
       update: {
         ...preferenceData,
@@ -182,18 +127,6 @@ export async function PATCH(request: Request) {
         ...(ownerPhone === undefined
           ? {}
           : { ownerPhoneNormalized: requestedNormalized }),
-        ...(ownerPhone === undefined
-          ? {}
-          : {
-              ownerPhoneVerificationStatus: effectiveVerified
-                ? ('VERIFIED' as const)
-                : ('UNVERIFIED' as const),
-              ownerPhoneVerifiedAt: effectiveVerified
-                ? existing?.ownerPhoneVerifiedAt ||
-                  account?.ownerPhoneVerifiedAt ||
-                  null
-                : null,
-            }),
       },
     });
     if (ownerPhone !== undefined) {
@@ -202,14 +135,6 @@ export async function PATCH(request: Request) {
         data: {
           ownerPhone: effectiveOwnerPhone,
           ownerPhoneNormalized: effectiveNormalized,
-          ownerPhoneVerificationStatus: effectiveVerified
-            ? 'VERIFIED'
-            : 'UNVERIFIED',
-          ownerPhoneVerifiedAt: effectiveVerified
-            ? existing?.ownerPhoneVerifiedAt ||
-              account?.ownerPhoneVerifiedAt ||
-              null
-            : null,
         },
       });
     }

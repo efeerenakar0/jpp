@@ -371,8 +371,6 @@ async function getWorkspace(
         email: true,
         phone: true,
         phoneNormalized: true,
-        phoneVerificationStatus: true,
-        phoneVerifiedAt: true,
         canReceiveWhatsAppTasks: true,
         allowAutomaticInternalMessages: true,
         preferredLanguage: true,
@@ -922,7 +920,6 @@ export async function POST(request: Request) {
         phone: asNullable(input.phone),
         username: asNullable(input.username),
         role: input.role,
-        phoneVerificationStatus: input.phoneVerificationStatus,
         canReceiveWhatsAppTasks: input.canReceiveWhatsAppTasks,
         allowAutomaticInternalMessages:
           input.allowAutomaticInternalMessages,
@@ -947,7 +944,6 @@ export async function POST(request: Request) {
         email: input.email === undefined ? undefined : asNullable(input.email),
         phone: input.phone === undefined ? undefined : asNullable(input.phone),
         role: input.role,
-        phoneVerificationStatus: input.phoneVerificationStatus,
         canReceiveWhatsAppTasks: input.canReceiveWhatsAppTasks,
         allowAutomaticInternalMessages:
           input.allowAutomaticInternalMessages,

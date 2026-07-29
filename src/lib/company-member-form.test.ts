@@ -9,7 +9,6 @@ describe('company member form payload', () => {
     const payload = buildMemberOperationalPayload({
       phone: '+905551112233',
       role: 'MANAGER',
-      phoneVerificationStatus: 'VERIFIED',
       canReceiveWhatsAppTasks: 'on',
       allowAutomaticInternalMessages: 'on',
       preferredLanguage: 'tr-TR',
@@ -49,13 +48,11 @@ describe('company member form payload', () => {
   it('disables phone-dependent automation without a phone number', () => {
     const payload = buildMemberOperationalPayload({
       phone: '',
-      phoneVerificationStatus: 'VERIFIED',
       canReceiveWhatsAppTasks: 'on',
       allowAutomaticInternalMessages: 'on',
       workHoursEnabled: '',
     });
 
-    expect(payload.phoneVerificationStatus).toBeUndefined();
     expect(payload.canReceiveWhatsAppTasks).toBe(false);
     expect(payload.allowAutomaticInternalMessages).toBe(false);
     expect(payload.workHours).toBeNull();
