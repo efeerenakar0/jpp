@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 
 import {
   FabrikaSessionError,
@@ -12,16 +11,10 @@ import {
   StabilityUltraError,
   enhanceWithStableImageUltra,
 } from '@/lib/stability-ultra';
-import { getOrCreateSession } from '@/lib/studio-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 300;
-
-const processRequestSchema = z.object({
-  shootId: z.string().trim().min(1).max(120),
-  prompt: z.string().trim().min(1).max(10_000).optional(),
-});
 
 function imageMimeType(name: string): string {
   const extension = name.split('.').pop()?.toLowerCase();
@@ -44,66 +37,64 @@ export async function POST(request: Request) {
   try {
     await requireFabrikaPrincipal();
 
-    const payload = processRequestSchema.safeParse(
-      await request.json().catch(() => null)
-    );
-    if (!payload.success) {
+    const formData = await request.formData().catch(() => null);
+    if (!formData) {
       return NextResponse.json(
         {
           success: false,
           code: 'INVALID_REQUEST',
           error:
-            'İyileştirme isteği geçersiz. Görselleri yeniden yükleyip talimatı kontrol edin.',
+            'İyileştirme isteği okunamadı. Görseli yeniden seçip tekrar deneyin.',
         },
         { status: 400 }
       );
     }
 
-    const { shootId } = payload.data;
-    const prompt =
-      payload.data.prompt || DEFAULT_STUDIO_ENHANCEMENT_PROMPT;
-    const session = getOrCreateSession(shootId);
-
-    if (session.photos.length === 0) {
+    const photo = formData.get('photo');
+    if (!(photo instanceof File)) {
       return NextResponse.json(
         {
           success: false,
           code: 'INVALID_IMAGE',
           error:
-            'İşlenecek fotoğraf bulunamadı. Lütfen görselleri yeniden yükleyin.',
+            'İşlenecek fotoğraf bulunamadı. Lütfen görseli yeniden seçin.',
         },
         { status: 400 }
       );
     }
 
-    session.aiPhotos = [];
-    session.aiProvider = 'STABILITY';
-    session.aiModel = 'Stable Image Ultra';
-
-    for (const [index, photo] of session.photos.entries()) {
-      const processed = await enhanceWithStableImageUltra({
-        image: photo.buffer,
-        mimeType: photo.mimeType || imageMimeType(photo.name),
-        prompt,
-      });
-      session.aiPhotos.push({
-        name: `${safeBaseName(photo.name, index)}_AI_iyilestirilmis.${processed.extension}`,
-        buffer: processed.buffer,
-        mimeType: processed.mimeType,
-      });
+    const promptValue = formData.get('prompt');
+    const prompt =
+      typeof promptValue === 'string' && promptValue.trim()
+        ? promptValue.trim()
+        : DEFAULT_STUDIO_ENHANCEMENT_PROMPT;
+    if (prompt.length > 10_000) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'INVALID_PROMPT',
+          error:
+            'İyileştirme talimatı en fazla 10.000 karakter olabilir.',
+        },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
+    const processed = await enhanceWithStableImageUltra({
+      image: Buffer.from(await photo.arrayBuffer()),
+      mimeType: photo.type || imageMimeType(photo.name),
       prompt,
-      provider: 'Stable Image Ultra',
-      processedCount: session.aiPhotos.length,
-      results: session.aiPhotos.map((photo, index) => ({
-        name: photo.name,
-        previewUrl: `/api/fabrika/studio/download?shootId=${encodeURIComponent(shootId)}&format=single&index=${index}`,
-        downloadUrl: `/api/fabrika/studio/download?shootId=${encodeURIComponent(shootId)}&format=single&index=${index}&download=true`,
-      })),
-      zipUrl: `/api/fabrika/studio/download?shootId=${encodeURIComponent(shootId)}&format=zip`,
+    });
+    const outputName = `${safeBaseName(photo.name, 0)}_AI_iyilestirilmis.${processed.extension}`;
+
+    return new Response(new Uint8Array(processed.buffer), {
+      status: 200,
+      headers: {
+        'Content-Type': processed.mimeType,
+        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(outputName)}`,
+        'X-Studio-File-Name': encodeURIComponent(outputName),
+        'Cache-Control': 'private, no-store, max-age=0',
+      },
     });
   } catch (error: unknown) {
     if (error instanceof FabrikaSessionError) {

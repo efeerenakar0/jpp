@@ -43,6 +43,7 @@ type StudioResult = {
   name: string;
   previewUrl: string;
   downloadUrl: string;
+  blob: Blob;
 };
 
 type StudioProvider = 'OPENAI' | 'GEMINI';
@@ -116,7 +117,7 @@ export default function StudioPage() {
   const [status, setStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState<StudioResult[]>([]);
-  const [zipUrl, setZipUrl] = useState('');
+  const [isPreparingZip, setIsPreparingZip] = useState(false);
   const [activeResult, setActiveResult] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [provider, setProvider] = useState<StudioProvider>('OPENAI');
@@ -143,6 +144,11 @@ export default function StudioPage() {
   useEffect(() => {
     return () => filePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
   }, [filePreviews]);
+
+  useEffect(() => {
+    return () =>
+      results.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+  }, [results]);
 
   useEffect(() => {
     async function loadProperties() {
@@ -278,36 +284,64 @@ export default function StudioPage() {
 
     setIsProcessing(true);
     setErrorMessage('');
-    setProgress(12);
-    setStatus('Fotoğraflar güvenli olarak stüdyoya yükleniyor…');
+    setProgress(5);
+    setStatus('Fotoğraflar Stable Image Ultra için hazırlanıyor…');
 
+    const processedResults: StudioResult[] = [];
     try {
-      const formData = new FormData();
-      files.forEach((file) => formData.append('photos', file));
-      const uploadResponse = await fetch('/api/fabrika/studio/upload', { method: 'POST', body: formData });
-      const uploadData = await uploadResponse.json();
-      if (!uploadResponse.ok) throw new Error(uploadData.error || 'Fotoğraflar yüklenemedi.');
+      for (const [index, file] of files.entries()) {
+        setProgress(Math.round(5 + (index / files.length) * 90));
+        setStatus(
+          `Stable Image Ultra, ${index + 1}/${files.length} fotoğrafı özgün yapıyı koruyarak iyileştiriyor…`
+        );
 
-      setProgress(38);
-      setStatus('Stable Image Ultra, özgün yapıyı koruyarak ışık, renk ve detayları iyileştiriyor…');
-      const processResponse = await fetch('/api/fabrika/studio/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shootId: uploadData.shootId,
-          prompt: safeInstruction,
-        }),
-      });
-      const processData = await processResponse.json();
-      if (!processResponse.ok) throw new Error(processData.error || 'Görseller işlenemedi.');
-      if (!processData.results?.length) {
-        throw new Error('Stable Image Ultra geçerli bir görsel döndürmedi. Lütfen yeniden deneyin.');
+        const formData = new FormData();
+        formData.set('photo', file);
+        formData.set('prompt', safeInstruction);
+        const response = await fetch('/api/fabrika/studio/process', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          let message = 'Görsel işlenemedi. Lütfen yeniden deneyin.';
+          try {
+            const data = await response.json();
+            if (typeof data.error === 'string') message = data.error;
+          } catch {
+            // The fallback message covers non-JSON provider/proxy errors.
+          }
+          throw new Error(message);
+        }
+
+        const resultBlob = await response.blob();
+        if (!resultBlob.type.startsWith('image/') || resultBlob.size === 0) {
+          throw new Error(
+            'Stable Image Ultra geçerli bir görsel döndürmedi. Lütfen yeniden deneyin.'
+          );
+        }
+
+        const encodedName = response.headers.get('x-studio-file-name');
+        let resultName = `${file.name.replace(/\.[^/.]+$/, '') || `gorsel_${index + 1}`}_AI_iyilestirilmis.jpg`;
+        if (encodedName) {
+          try {
+            resultName = decodeURIComponent(encodedName);
+          } catch {
+            // Keep the deterministic fallback filename.
+          }
+        }
+        const resultUrl = URL.createObjectURL(resultBlob);
+        processedResults.push({
+          name: resultName,
+          previewUrl: resultUrl,
+          downloadUrl: resultUrl,
+          blob: resultBlob,
+        });
       }
 
       setProgress(100);
       setStatus('İndirilebilir görseller hazırlanıyor…');
-      setResults(processData.results ?? []);
-      setZipUrl(processData.zipUrl ?? '');
+      setResults(processedResults);
       setActiveResult(0);
       setScreen('results');
       if (selectedPropertyId) {
@@ -317,15 +351,18 @@ export default function StudioPage() {
           body: JSON.stringify({
             action: 'record-studio-output',
             propertyId: selectedPropertyId,
-            resultCount: processData.processedCount,
+            resultCount: processedResults.length,
           }),
         });
         if (!linkResponse.ok) {
           toast.error('Görseller hazırlandı ancak portföy aktivitesine eklenemedi.');
         }
       }
-      toast.success(`${processData.processedCount} fotoğrafınız iyileştirildi.`);
+      toast.success(`${processedResults.length} fotoğrafınız iyileştirildi.`);
     } catch (error) {
+      processedResults.forEach(({ previewUrl }) =>
+        URL.revokeObjectURL(previewUrl)
+      );
       const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
       setErrorMessage(message);
       setProgress(0);
@@ -336,11 +373,33 @@ export default function StudioPage() {
     }
   };
 
+  const downloadAllResults = async () => {
+    if (!results.length || isPreparingZip) return;
+    setIsPreparingZip(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      results.forEach((result) => zip.file(result.name, result.blob));
+      const archive = await zip.generateAsync({ type: 'blob' });
+      const archiveUrl = URL.createObjectURL(archive);
+      const anchor = document.createElement('a');
+      anchor.href = archiveUrl;
+      anchor.download = 'Jasmine_Studio_AI_Iyilestirilmis.zip';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(archiveUrl), 1_000);
+    } catch {
+      toast.error('ZIP dosyası hazırlanamadı. Görselleri tek tek indirebilirsiniz.');
+    } finally {
+      setIsPreparingZip(false);
+    }
+  };
+
   const resetStudio = () => {
     setScreen('upload');
     setFiles([]);
     setResults([]);
-    setZipUrl('');
     setActiveResult(0);
     setProgress(0);
     setErrorMessage('');
@@ -569,7 +628,21 @@ export default function StudioPage() {
                 <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Portföye hazır görselleriniz.</h1>
                 <p className="mt-2 text-sm text-slate-400">İyileştirilmiş sonucu inceleyin veya tüm görselleri tek ZIP dosyası halinde indirin.</p>
               </div>
-              {zipUrl && <a href={zipUrl} download="Jasmine_Studio_AI_Iyilestirilmis.zip" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200"><Download className="h-4 w-4" /> Tümünü ZIP indir</a>}
+              {results.length > 0 && (
+                <button
+                  type="button"
+                  onClick={downloadAllResults}
+                  disabled={isPreparingZip}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isPreparingZip ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {isPreparingZip ? 'ZIP hazırlanıyor…' : 'Tümünü ZIP indir'}
+                </button>
+              )}
             </div>
 
             {activePhoto ? (
