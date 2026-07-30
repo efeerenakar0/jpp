@@ -787,6 +787,26 @@ export async function POST(request: Request) {
           imageUrl: asNullable(input.imageUrl),
         },
       });
+      if (input.imageUrl) {
+        await prisma.crmPropertyMedia.create({
+          data: {
+            companyAccountId: account.id,
+            propertyId: property.id,
+            url: input.imageUrl,
+            fileName: `portfoy-kapak-${property.id}.jpg`,
+            mimeType: 'image/jpeg',
+            sortOrder: 0,
+            isCover: true,
+            mediaType: 'PHOTO',
+            source: 'MANUAL_UPLOAD',
+            variantType: 'ORIGINAL',
+            usageRightsStatus: 'CONFIRMED',
+            fingerprint: `property-create:${property.id}`,
+            provenance: { uploadedFrom: 'LEGACY_PROPERTY_CREATE_FORM' },
+            createdByMemberId: principal.member?.id ?? null,
+          },
+        });
+      }
       await prisma.crmActivity.create({
         data: {
           companyAccountId: account.id,

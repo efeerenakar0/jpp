@@ -17,6 +17,7 @@ import {
   Flame,
   Home,
   ImagePlus,
+  Images,
   Kanban,
   KeyRound,
   ListChecks,
@@ -47,6 +48,7 @@ import EmptyState from '@/components/fabrika/EmptyState';
 import PageHeader from '@/components/fabrika/PageHeader';
 import StatCard from '@/components/fabrika/StatCard';
 import PortfolioSourcesPanel from '@/components/fabrika/PortfolioSourcesPanel';
+import PropertyMediaLibrary from '@/components/fabrika/PropertyMediaLibrary';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -499,6 +501,7 @@ export default function WorkspacePage({
   const [crmFilter, setCrmFilter] = useState<'all' | 'hot' | 'follow-up'>('all');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [mediaProperty, setMediaProperty] = useState<Property | null>(null);
   const [profileView, setProfileView] = useState<
     'overview' | 'activity'
   >('overview');
@@ -1337,6 +1340,15 @@ export default function WorkspacePage({
                       </div>
                     ))}
                   </div>
+                  <Button
+                    className="mt-4 w-full border-slate-700 bg-slate-950 text-slate-200 hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200"
+                    onClick={() => setMediaProperty(property)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Images className="mr-2 h-4 w-4" />
+                    Fotoğrafları yönet
+                  </Button>
                   <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs">
                     <span className="text-slate-500">
                       {property.ownerContact?.name || 'Mülk sahibi atanmadı'}
@@ -1792,6 +1804,15 @@ export default function WorkspacePage({
         }}
         onSubmit={postAction}
       />
+      {mediaProperty && (
+        <PropertyMediaLibrary
+          onChanged={() => void loadWorkspace()}
+          onOpenChange={(open) => !open && setMediaProperty(null)}
+          open={Boolean(mediaProperty)}
+          propertyId={mediaProperty.id}
+          propertyTitle={mediaProperty.title}
+        />
+      )}
       <Dialog
         open={Boolean(memberCredentials)}
         onOpenChange={(open) => !open && setMemberCredentials(null)}

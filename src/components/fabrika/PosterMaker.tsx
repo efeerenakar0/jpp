@@ -16,6 +16,11 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
+import { prepareInstagramShare } from '@/lib/instagram-sharing';
+import {
+  recommendPropertyMedia,
+  togglePosterMediaSelection,
+} from '@/lib/property-media-selection';
 
 type PosterFormat = 'post' | 'story';
 type PosterMode = 'faithful' | 'creative';
@@ -40,7 +45,25 @@ type PosterResult = {
   whatsapp?: string;
   instagram?: string;
   campaignLoading?: boolean;
+  saveLoading?: boolean;
   campaignSource?: 'ai' | 'template';
+  mediaIds: string[];
+  mode: PosterMode;
+  savedMediaId?: string;
+};
+
+type PortfolioMedia = {
+  id: string;
+  url: string;
+  fileName: string;
+  parentMediaId: string | null;
+  isCover: boolean;
+  sortOrder: number;
+  mediaType: 'PHOTO' | 'POSTER' | 'MARKETING_ASSET';
+  variantType: 'ORIGINAL' | 'ENHANCED' | 'CREATIVE';
+  usageRightsStatus: 'CONFIRMED' | 'UNVERIFIED' | 'RESTRICTED';
+  archivedAt: string | null;
+  createdAt: string;
 };
 
 type PosterForm = {
@@ -547,7 +570,10 @@ export default function PosterMaker() {
   const [rememberLogo, setRememberLogo] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [results, setResults] = useState<PosterResult[]>([]);
-  const [heroIndex, setHeroIndex] = useState(0);
+  const [heroKey, setHeroKey] = useState('');
+  const [portfolioMedia, setPortfolioMedia] = useState<PortfolioMedia[]>([]);
+  const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -556,12 +582,31 @@ export default function PosterMaker() {
     () => photos.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [photos]
   );
-  const orderedPhotoPreviews = useMemo(() => {
-    const hero = photoPreviews[heroIndex];
+  const selectedPosterSources = useMemo(() => {
+    const mediaSources = selectedMediaIds
+      .map((id) => portfolioMedia.find((item) => item.id === id))
+      .filter((item): item is PortfolioMedia => Boolean(item))
+      .map((item) => ({
+        key: `media:${item.id}`,
+        url: item.url,
+        mediaId: item.id,
+        file: null as File | null,
+        name: item.fileName,
+      }));
+    const fileSources = photoPreviews.map(({ file, url }, index) => ({
+      key: `file:${index}`,
+      url,
+      mediaId: null as string | null,
+      file,
+      name: file.name,
+    }));
+    const sources = [...mediaSources, ...fileSources].slice(0, 6);
+    const hero = sources.find((source) => source.key === heroKey) ?? sources[0];
     return hero
-      ? [hero, ...photoPreviews.filter((_, index) => index !== heroIndex)]
-      : photoPreviews;
-  }, [heroIndex, photoPreviews]);
+      ? [hero, ...sources.filter((source) => source.key !== hero.key)]
+      : sources;
+  }, [heroKey, photoPreviews, portfolioMedia, selectedMediaIds]);
+  const effectiveHeroKey = selectedPosterSources[0]?.key || '';
   const logoPreview = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : savedLogoUrl), [logoFile, savedLogoUrl]);
 
   useEffect(() => () => photoPreviews.forEach(({ url }) => URL.revokeObjectURL(url)), [photoPreviews]);
@@ -587,10 +632,12 @@ export default function PosterMaker() {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const selectProperty = (propertyId: string) => {
+  const selectProperty = async (propertyId: string, requestedIds: string[] = []) => {
     const property = workspaceProperties.find((item) => item.id === propertyId);
     if (!property) {
       update('propertyId', '');
+      setPortfolioMedia([]);
+      setSelectedMediaIds([]);
       return;
     }
     setForm((current) => ({
@@ -603,25 +650,77 @@ export default function PosterMaker() {
       price: property.price ? `${new Intl.NumberFormat('tr-TR').format(property.price)} TL` : current.price,
       details: property.description || current.details,
     }));
-    toast.success('Portföy bilgileri poster formuna aktarıldı.');
+    setIsLoadingMedia(true);
+    try {
+      const response = await fetch(
+        `/api/fabrika/properties/${encodeURIComponent(propertyId)}/media`,
+        { cache: 'no-store' }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Portföy görselleri yüklenemedi.');
+      }
+      const items = (data.items || []) as PortfolioMedia[];
+      setPortfolioMedia(items);
+      const requested = requestedIds.filter((id) =>
+        items.some((item) => item.id === id)
+      );
+      const recommended = recommendPropertyMedia(items, {
+        mode: form.mode,
+      });
+      const selected = (requested.length ? requested : recommended).slice(
+        0,
+        Math.max(0, 6 - photos.length)
+      );
+      setSelectedMediaIds(selected);
+      const cover = items.find(
+        (item) => item.isCover && selected.includes(item.id)
+      );
+      setHeroKey(`media:${cover?.id || selected[0] || ''}`);
+      toast.success(
+        `Portföy bilgileri ve ${items.length} medya adayı yüklendi.`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Portföy görselleri yüklenemedi.'
+      );
+    } finally {
+      setIsLoadingMedia(false);
+    }
   };
+
+  useEffect(() => {
+    if (!workspaceProperties.length || form.propertyId) return;
+    const search = new URLSearchParams(window.location.search);
+    const propertyId = search.get('propertyId');
+    if (!propertyId) return;
+    const requested = (search.get('mediaIds') || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const timer = window.setTimeout(
+      () => void selectProperty(propertyId, requested),
+      0
+    );
+    return () => window.clearTimeout(timer);
+    // Query hydration intentionally runs when the property catalog first arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceProperties]);
 
   const addPhotos = (incoming: File[]) => {
     const images = incoming.filter((file) => file.type.startsWith('image/'));
     if (incoming.length !== images.length) toast.error('Yalnızca görsel dosyaları ekleyebilirsiniz.');
     setPhotos((current) => {
       const keys = new Set(current.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
-      return [...current, ...images.filter((file) => !keys.has(`${file.name}-${file.size}-${file.lastModified}`))].slice(0, 6);
+      return [...current, ...images.filter((file) => !keys.has(`${file.name}-${file.size}-${file.lastModified}`))].slice(0, Math.max(0, 6 - selectedMediaIds.length));
     });
   };
 
   const removePhoto = (index: number) => {
     setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index));
-    setHeroIndex((current) => {
-      if (index < current) return current - 1;
-      if (index === current) return 0;
-      return current;
-    });
+    if (heroKey === `file:${index}`) setHeroKey('');
   };
 
   const onPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -635,15 +734,19 @@ export default function PosterMaker() {
   };
 
   const createPoster = async () => {
-    if (!photos.length) {
-      toast.error('Önce en az bir gayrimenkul görseli yükleyin.');
+    if (!selectedPosterSources.length) {
+      toast.error('Portföyden veya bilgisayarınızdan en az bir görsel seçin.');
       return;
     }
     const fingerprint = JSON.stringify({
       template: POSTER_TEMPLATE_VERSION,
       form,
-      heroIndex,
-      photos: orderedPhotoPreviews.map(({ file }) => `${file.name}-${file.size}-${file.lastModified}`),
+      heroKey: selectedPosterSources[0]?.key,
+      sources: selectedPosterSources.map((source) =>
+        source.mediaId
+          ? `media:${source.mediaId}`
+          : `${source.file?.name}-${source.file?.size}-${source.file?.lastModified}`
+      ),
     });
     if (results.some((result) => result.fingerprint === fingerprint)) {
       toast.error('Bu ayarlarla bir poster zaten oluşturuldu. Yeni varyasyon için ana görseli veya bilgileri değiştirin.');
@@ -652,7 +755,22 @@ export default function PosterMaker() {
     setIsCreating(true);
     try {
       const data = new FormData();
-      orderedPhotoPreviews.forEach(({ file }) => data.append('photos', file));
+      selectedPosterSources
+        .filter((source) => source.file)
+        .forEach((source) => data.append('photos', source.file!));
+      data.append(
+        'mediaIdsJson',
+        JSON.stringify(
+          selectedPosterSources
+            .map((source) => source.mediaId)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+      data.append(
+        'sourceOrderJson',
+        JSON.stringify(selectedPosterSources.map((source) => source.key))
+      );
+      data.append('heroKey', selectedPosterSources[0]?.key || '');
       if (logoFile) data.append('logo', logoFile);
       data.append('companyName', form.companyName);
       data.append('propertyId', form.propertyId);
@@ -673,12 +791,22 @@ export default function PosterMaker() {
       if (!response.ok) throw new Error(body.error || 'Poster üretilemedi.');
       const previewUrl = await createFinalPoster({
         backgroundUrl: body.backgroundDataUrl,
-        photoUrls: orderedPhotoPreviews.map((item) => item.url),
+        photoUrls: selectedPosterSources.map((item) => item.url),
         logoUrl: body.logoDataUrl || logoPreview,
         form,
       });
       const name = form.posterName.trim() || `Portföy posteri ${results.length + 1}`;
-      setResults((current) => [{ id: crypto.randomUUID(), name, previewUrl, fingerprint, brief: { ...form } }, ...current]);
+      setResults((current) => [{
+        id: crypto.randomUUID(),
+        name,
+        previewUrl,
+        fingerprint,
+        brief: { ...form },
+        mediaIds: selectedPosterSources
+          .map((source) => source.mediaId)
+          .filter((id): id is string => Boolean(id)),
+        mode: form.mode,
+      }, ...current]);
       if (body.logoDataUrl) setSavedLogoUrl(body.logoDataUrl);
       toast.success('Posteriniz hazır. Şimdi buna özel kampanya metinleri üretebilirsiniz.');
     } catch (error) {
@@ -714,12 +842,111 @@ export default function PosterMaker() {
     }
   };
 
+  const savePosterToProperty = async (id: string) => {
+    const result = results.find((item) => item.id === id);
+    if (!result || !result.brief.propertyId || result.savedMediaId) return;
+    setResults((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, saveLoading: true } : item
+      )
+    );
+    try {
+      const posterResponse = await fetch(result.previewUrl);
+      if (!posterResponse.ok) {
+        throw new Error('Poster dosyası kaydetmek için hazırlanamadı.');
+      }
+      const posterBlob = await posterResponse.blob();
+      const extension =
+        posterBlob.type === 'image/png'
+          ? 'png'
+          : posterBlob.type === 'image/webp'
+            ? 'webp'
+            : 'jpg';
+      const formData = new FormData();
+      formData.append(
+        'poster',
+        new File([posterBlob], `${result.name}.${extension}`, {
+          type: posterBlob.type || 'image/jpeg',
+        })
+      );
+      formData.append('propertyId', result.brief.propertyId);
+      formData.append('posterName', `${result.name}.${extension}`);
+      formData.append('mode', result.mode);
+      formData.append('format', result.brief.format);
+      formData.append('mediaIdsJson', JSON.stringify(result.mediaIds));
+      formData.append('fingerprint', result.fingerprint);
+      const response = await fetch('/api/fabrika/studio/poster/save', {
+        method: 'POST',
+        body: formData,
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) {
+        throw new Error(body.error || 'Poster portföye kaydedilemedi.');
+      }
+      setResults((current) =>
+        current.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                saveLoading: false,
+                savedMediaId: body.media.id,
+              }
+            : item
+        )
+      );
+      toast.success(
+        result.mode === 'creative'
+          ? 'Poster pazarlama materyallerine kaydedildi.'
+          : 'Poster portföy medya kütüphanesine kaydedildi.'
+      );
+    } catch (error) {
+      setResults((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, saveLoading: false } : item
+        )
+      );
+      toast.error(
+        error instanceof Error ? error.message : 'Poster kaydedilemedi.'
+      );
+    }
+  };
+
   const copy = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value);
       toast.success(`${label} kopyalandı.`);
     } catch {
       toast.error('Kopyalama başarısız oldu. Metni seçip manuel kopyalayabilirsiniz.');
+    }
+  };
+
+  const shareOnInstagram = async (result: PosterResult) => {
+    const outcome = await prepareInstagramShare(
+      {
+        caption: result.instagram || '',
+        posterName: result.name,
+        posterUrl: result.previewUrl,
+      },
+      {
+        openInstagram: (url) => {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        },
+        downloadPoster: (url, filename) => {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        },
+        copyCaption: (caption) => navigator.clipboard.writeText(caption),
+      },
+    );
+
+    if (outcome.captionCopied) {
+      toast.success('Poster indirildi, açıklama kopyalandı ve Instagram açıldı. Yeni gönderi oluşturup posteri seçin.');
+    } else {
+      toast.error('Poster indirildi ve Instagram açıldı; açıklama otomatik kopyalanamadı.');
     }
   };
 
@@ -736,7 +963,7 @@ export default function PosterMaker() {
           </div>
 
           <label className="mt-6 block rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3 text-xs font-bold text-emerald-100">Portföyden otomatik doldur <span className="font-normal text-emerald-200/70">(isteğe bağlı)</span>
-            <select value={form.propertyId} onChange={(event) => selectProperty(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400">
+            <select value={form.propertyId} onChange={(event) => void selectProperty(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400">
               <option value="">Manuel bilgi gireceğim</option>
               {workspaceProperties.map((property) => <option key={property.id} value={property.id}>{property.title}{property.location ? ` · ${property.location}` : ''}</option>)}
             </select>
@@ -795,23 +1022,354 @@ export default function PosterMaker() {
             <div>
               <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} />
               <button type="button" onClick={() => logoInputRef.current?.click()} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs font-semibold text-slate-200 transition hover:border-slate-600 sm:w-auto"><Building2 className="h-4 w-4 text-emerald-300" /> {logoPreview ? 'Logoyu değiştir' : 'Şirket logosu ekle'}</button>
-              {logoPreview && <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400"><img src={logoPreview} alt="Şirket logosu ön izlemesi" className="h-5 w-8 rounded bg-white object-contain p-0.5" /> Logo hazır {permissions.canManageSecrets && <label className="ml-1 inline-flex items-center gap-1"><input type="checkbox" checked={rememberLogo} onChange={(event) => setRememberLogo(event.target.checked)} className="accent-emerald-400" /> Profilde hatırla</label>}</div>}
+              {logoPreview && (
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+                  {/* Local object URLs and saved tenant logos intentionally use native preview rendering. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logoPreview}
+                    alt="Şirket logosu ön izlemesi"
+                    className="h-5 w-8 rounded bg-white object-contain p-0.5"
+                  />
+                  Logo hazır
+                  {permissions.canManageSecrets && (
+                    <label className="ml-1 inline-flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={rememberLogo}
+                        onChange={(event) =>
+                          setRememberLogo(event.target.checked)
+                        }
+                        className="accent-emerald-400"
+                      />
+                      Profilde hatırla
+                    </label>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+          {form.propertyId && (
+            <section className="mb-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold text-cyan-100">
+                    Portföy medya adayları
+                  </p>
+                  <p className="mt-1 text-[11px] leading-5 text-slate-400">
+                    Tüm görseller görünür; posterde en fazla 6 seçili görsel
+                    kullanılır. Kapak varsayılan ana görseldir.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] font-bold text-cyan-200">
+                  {selectedPosterSources.length}/6
+                </span>
+              </div>
+              {isLoadingMedia ? (
+                <div className="grid h-28 place-items-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
+                </div>
+              ) : portfolioMedia.length ? (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {portfolioMedia.map((item) => {
+                    const selected = selectedMediaIds.includes(item.id);
+                    const unavailable =
+                      item.mediaType !== 'PHOTO' ||
+                      item.usageRightsStatus === 'RESTRICTED' ||
+                      (form.mode === 'faithful' &&
+                        item.variantType === 'CREATIVE');
+                    const limitReached =
+                      !selected &&
+                      selectedMediaIds.length + photos.length >= 6;
+                    return (
+                      <article
+                        className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${
+                          selected
+                            ? 'border-cyan-300 ring-2 ring-cyan-300/25'
+                            : 'border-slate-700'
+                        } ${unavailable ? 'opacity-45' : ''}`}
+                        key={item.id}
+                      >
+                        <button
+                          aria-label={`${item.fileName} görselini ${selected ? 'çıkar' : 'seç'}`}
+                          aria-pressed={selected}
+                          className="h-full w-full disabled:cursor-not-allowed"
+                          disabled={unavailable || limitReached}
+                          onClick={() => {
+                            const next = togglePosterMediaSelection(
+                              selectedMediaIds,
+                              item.id
+                            ).slice(0, Math.max(0, 6 - photos.length));
+                            setSelectedMediaIds(next);
+                            if (!next.includes(item.id) && heroKey === `media:${item.id}`) {
+                              setHeroKey('');
+                            }
+                          }}
+                          type="button"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            alt={item.fileName}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                            src={item.url}
+                          />
+                          <span
+                            className={`absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full border ${
+                              selected
+                                ? 'border-cyan-100 bg-cyan-300 text-cyan-950'
+                                : 'border-white/40 bg-slate-950/75 text-transparent'
+                            }`}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/90 to-transparent px-1.5 pb-1.5 pt-5 text-left text-[9px] font-bold text-white">
+                            {item.isCover ? 'Kapak · ' : ''}
+                            {item.variantType === 'ENHANCED'
+                              ? 'İyileştirilmiş'
+                              : item.variantType === 'CREATIVE'
+                                ? 'Temsilî'
+                                : 'Orijinal'}
+                          </span>
+                        </button>
+                        {selected && (
+                          <button
+                            className={`absolute bottom-1.5 right-1.5 rounded px-1.5 py-1 text-[9px] font-bold ${
+                              effectiveHeroKey === `media:${item.id}`
+                                ? 'bg-amber-300 text-amber-950'
+                                : 'bg-slate-950/85 text-white hover:bg-amber-300 hover:text-amber-950'
+                            }`}
+                            onClick={() => setHeroKey(`media:${item.id}`)}
+                            type="button"
+                          >
+                            {effectiveHeroKey === `media:${item.id}`
+                              ? 'ANA'
+                              : 'Ana yap'}
+                          </button>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-3 rounded-lg border border-dashed border-slate-700 p-4 text-center text-xs text-slate-400">
+                  Bu portföyde medya yok. Aşağıdan manuel görsel ekleyebilirsiniz.
+                </p>
+              )}
+            </section>
+          )}
           <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={onPhotoChange} />
           <div onDragOver={(event) => event.preventDefault()} onDrop={onDrop} role="button" tabIndex={0} onKeyDown={(event) => event.key === 'Enter' && photoInputRef.current?.click()} onClick={() => photoInputRef.current?.click()} className="grid min-h-56 cursor-pointer place-items-center rounded-xl border border-dashed border-emerald-400/40 bg-emerald-400/[0.05] p-6 text-center transition hover:bg-emerald-400/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
             <div><span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-emerald-300 text-emerald-950"><UploadCloud className="h-6 w-6" /></span><p className="mt-4 text-sm font-bold text-white">Gayrimenkul görsellerini yükleyin</p><p className="mt-1 text-xs leading-5 text-slate-400">Bir veya birden çok görsel bırakın ya da seçmek için tıklayın. En fazla 6 görsel.</p></div>
           </div>
-          {photoPreviews.length > 0 && <><p className="mt-4 text-xs font-semibold text-slate-300">Ana görseli seçin</p><div className="mt-2 grid grid-cols-3 gap-2">{photoPreviews.map(({ file, url }, index) => <div key={`${file.name}-${file.lastModified}`} className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${heroIndex === index ? 'border-amber-300 ring-2 ring-amber-300/40' : 'border-slate-700'}`}><button type="button" onClick={() => setHeroIndex(index)} className="h-full w-full" aria-pressed={heroIndex === index} aria-label={`${file.name} ana görsel olarak seç`}><img src={url} alt={file.name} className="h-full w-full object-cover" />{heroIndex === index && <span className="absolute bottom-1.5 left-1.5 rounded bg-amber-300 px-1.5 py-1 text-[10px] font-bold text-amber-950">ANA GÖRSEL</span>}</button><button type="button" onClick={(event) => { event.stopPropagation(); removePhoto(index); }} className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500" aria-label={`${file.name} görselini kaldır`}><X className="h-3.5 w-3.5" /></button></div>)}</div></>}
+          {photoPreviews.length > 0 && (
+            <>
+              <p className="mt-4 text-xs font-semibold text-slate-300">
+                Manuel görseller · ana görseli seçin
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {photoPreviews.map(({ file, url }, index) => {
+                  const key = `file:${index}`;
+                  return (
+                    <div
+                      key={`${file.name}-${file.lastModified}`}
+                      className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${
+                        heroKey === key
+                          ? 'border-amber-300 ring-2 ring-amber-300/40'
+                          : 'border-slate-700'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setHeroKey(key)}
+                        className="h-full w-full"
+                        aria-pressed={heroKey === key}
+                        aria-label={`${file.name} ana görsel olarak seç`}
+                      >
+                        {/* Native img is required for local object URL previews. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={file.name}
+                          className="h-full w-full object-cover"
+                        />
+                        {heroKey === key && (
+                          <span className="absolute bottom-1.5 left-1.5 rounded bg-amber-300 px-1.5 py-1 text-[10px] font-bold text-amber-950">
+                            ANA GÖRSEL
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removePhoto(index);
+                        }}
+                        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500"
+                        aria-label={`${file.name} görselini kaldır`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
           <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçek fotoğraflı modda seçtiğiniz ana görsel ve galeri fotoğrafları değiştirilmeden profesyonel şablona yerleştirilir.' : 'Kreatif modda yalnızca seçtiğiniz ana görsel Stable Image Ultra ile yeniden yorumlanır; diğer gerçek fotoğraflar galeri bölümünde aynen korunur.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
-          <button type="button" onClick={createPoster} disabled={isCreating || !photos.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
+          <button type="button" onClick={createPoster} disabled={isCreating || !selectedPosterSources.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
         </div>
       </div>
 
-      {results.length > 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold text-white">Oluşturulan posterler</h2><p className="mt-1 text-sm text-slate-400">Her postere özel, ayrı kampanya metinleri üretebilirsiniz.</p></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> {results.length} hazır</span></div><div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((result) => <article key={result.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"><div className="relative"><img src={result.previewUrl} alt={result.name} className="w-full object-cover" style={{ aspectRatio: result.brief.format === 'story' ? '9 / 16' : '4 / 5' }} />{result.brief.mode === 'creative' ? <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">TEMSİLİ AI GÖRSELİ</span> : <span className="absolute left-3 top-3 rounded-full border border-sky-200/20 bg-slate-950/90 px-2 py-1 text-[10px] font-bold text-sky-100">GERÇEK FOTOĞRAFLAR</span>}</div><div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="text-sm font-bold text-white">{result.name}</h3><a href={result.previewUrl} download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200" aria-label="Posteri indir"><Download className="h-4 w-4" /></a></div><button type="button" onClick={() => createCampaign(result.id)} disabled={result.campaignLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50">{result.campaignLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI ile reklam kampanyası oluştur</button>{result.whatsapp && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp mesajı</p><button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.whatsapp}</p></div>}{result.instagram && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200"><Share2 className="h-3.5 w-3.5" /> Instagram açıklaması</p><button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.instagram}</p><a href="https://www.instagram.com/create/select/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"><Share2 className="h-3.5 w-3.5" /> Instagram’da paylaşımı aç</a></div>}</div></article>)}</div></div>}
+      {results.length > 0 && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Oluşturulan posterler
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Her postere özel kampanya metni üretin ve sonucu seçili
+                portföyün medya kütüphanesine kaydedin.
+              </p>
+            </div>
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+              <Check className="h-3.5 w-3.5" /> {results.length} hazır
+            </span>
+          </div>
+          <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {results.map((result) => (
+              <article
+                key={result.id}
+                className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"
+              >
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={result.previewUrl}
+                    alt={result.name}
+                    className="w-full object-cover"
+                    style={{
+                      aspectRatio:
+                        result.brief.format === 'story' ? '9 / 16' : '4 / 5',
+                    }}
+                  />
+                  {result.brief.mode === 'creative' ? (
+                    <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">
+                      TEMSİLİ AI GÖRSELİ
+                    </span>
+                  ) : (
+                    <span className="absolute left-3 top-3 rounded-full border border-sky-200/20 bg-slate-950/90 px-2 py-1 text-[10px] font-bold text-sky-100">
+                      GERÇEK FOTOĞRAFLAR
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-sm font-bold text-white">
+                      {result.name}
+                    </h3>
+                    <a
+                      href={result.previewUrl}
+                      download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
+                      aria-label="Posteri indir"
+                    >
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </div>
+                  {result.brief.propertyId && (
+                    <button
+                      type="button"
+                      onClick={() => savePosterToProperty(result.id)}
+                      disabled={result.saveLoading || Boolean(result.savedMediaId)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-2.5 text-xs font-bold text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:border-emerald-400/25 disabled:bg-emerald-400/10 disabled:text-emerald-200"
+                    >
+                      {result.saveLoading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      {result.savedMediaId
+                        ? 'Portföye kaydedildi'
+                        : result.mode === 'creative'
+                          ? 'Pazarlama materyallerine kaydet'
+                          : 'Portföye poster olarak kaydet'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => createCampaign(result.id)}
+                    disabled={result.campaignLoading}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50"
+                  >
+                    {result.campaignLoading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}{' '}
+                    AI ile reklam kampanyası oluştur
+                  </button>
+                  {result.whatsapp && (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200">
+                          <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                          mesajı
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            copy(result.whatsapp || '', 'WhatsApp mesajı')
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"
+                        >
+                          <Copy className="h-3 w-3" /> Kopyala
+                        </button>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                        {result.whatsapp}
+                      </p>
+                    </div>
+                  )}
+                  {result.instagram && (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200">
+                          <Share2 className="h-3.5 w-3.5" /> Instagram
+                          açıklaması
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            copy(result.instagram || '', 'Instagram açıklaması')
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"
+                        >
+                          <Copy className="h-3 w-3" /> Kopyala
+                        </button>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                        {result.instagram}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => shareOnInstagram(result)}
+                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"
+                      >
+                        <Share2 className="h-3.5 w-3.5" /> Instagram için hazırla
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
