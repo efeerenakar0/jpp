@@ -3,6 +3,9 @@
 set -euo pipefail
 
 codespace_display_name="${WAHA_CODESPACE_DISPLAY_NAME:-jasmine-evolution-test}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_dir="$(cd -- "${script_dir}/.." && pwd)"
+watchdog_source="${project_dir}/infra/waha/session-watchdog.mjs"
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "Hata: GitHub CLI (gh) bulunamadı." >&2
@@ -22,9 +25,38 @@ if [ -z "${codespace_name}" ]; then
 fi
 
 echo "WhatsApp test gateway'i başlatılıyor (${codespace_name})..."
+gh codespace cp -e -c "${codespace_name}" \
+  "${watchdog_source}" 'remote:~/'
+
 gh codespace ssh -c "${codespace_name}" -- \
   'docker start jasmine-waha >/dev/null 2>&1 || true
    test "$(docker inspect --format "{{.State.Running}}" jasmine-waha 2>/dev/null)" = "true"
+   docker update --restart always jasmine-waha >/dev/null
+   waha_runtime_key="$(
+     docker inspect jasmine-waha \
+       --format "{{range .Config.Env}}{{println .}}{{end}}" \
+       | sed -n "s/^WAHA_API_KEY=//p" \
+       | head -n 1
+   )"
+   test -n "${waha_runtime_key}"
+   if docker inspect jasmine-waha-watchdog >/dev/null 2>&1; then
+     docker start jasmine-waha-watchdog >/dev/null
+     docker update --restart always jasmine-waha-watchdog >/dev/null
+   else
+     docker run -d \
+       --name jasmine-waha-watchdog \
+       --restart always \
+       --network container:jasmine-waha \
+       -e WAHA_API_KEY="${waha_runtime_key}" \
+       -e WAHA_INTERNAL_URL=http://127.0.0.1:3000 \
+       -e WAHA_WATCHDOG_INTERVAL_MS=15000 \
+       -v /home/codespace/session-watchdog.mjs:/app/session-watchdog.mjs:ro \
+       node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 \
+       node /app/session-watchdog.mjs >/dev/null
+   fi
+   test "$(
+     docker inspect --format "{{.State.Running}}" jasmine-waha-watchdog
+   )" = "true"
    docker exec jasmine-waha node -e '"'"'
      fetch("http://127.0.0.1:3000/api/sessions?all=true", {
        headers: { "X-Api-Key": process.env.WAHA_API_KEY }
