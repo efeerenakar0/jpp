@@ -92,6 +92,21 @@ const actionSchema = z.discriminatedUnion('action', [
     assignedMemberId: optionalId,
   }),
   z.object({
+    action: z.literal('update-property'),
+    id: z.string().trim().min(1),
+    title: z.string().trim().min(3).max(180),
+    referenceCode: optionalText,
+    location: optionalText,
+    price: optionalNumber,
+    roomCount: optionalText,
+    area: optionalNumber,
+    status: z.nativeEnum(CrmPropertyStatus),
+    description: z.string().trim().max(10000).optional().nullable(),
+    imageUrl: z.string().trim().url().optional().or(z.literal('')),
+    ownerContactId: optionalId,
+    assignedMemberId: optionalId,
+  }),
+  z.object({
     action: z.literal('create-deal'),
     title: z.string().trim().min(3).max(180),
     contactId: z.string().trim().min(1),
@@ -793,6 +808,50 @@ export async function POST(request: Request) {
           propertyId: property.id,
           type: 'PROPERTY_CREATED',
           title: 'Yeni portföy eklendi',
+          description: property.title,
+        },
+      });
+    }
+
+    if (input.action === 'update-property') {
+      const propertyId = await ensureOwnedResource(
+        'property',
+        input.id,
+        account.id
+      );
+      const ownerContactId = await ensureOwnedResource(
+        'contact',
+        input.ownerContactId,
+        account.id
+      );
+      const assignedMemberId = await ensureOwnedResource(
+        'member',
+        input.assignedMemberId,
+        account.id
+      );
+      const property = await prisma.crmProperty.update({
+        where: { id: propertyId! },
+        data: {
+          ownerContactId,
+          assignedMemberId,
+          title: input.title,
+          referenceCode: asNullable(input.referenceCode),
+          location: asNullable(input.location),
+          price: input.price,
+          roomCount: asNullable(input.roomCount),
+          area: input.area,
+          status: input.status,
+          description: asNullable(input.description),
+          imageUrl: asNullable(input.imageUrl),
+        },
+      });
+      await prisma.crmActivity.create({
+        data: {
+          companyAccountId: account.id,
+          propertyId: property.id,
+          actorMemberId: principal.member?.id || null,
+          type: 'PROPERTY_UPDATED',
+          title: 'Portföy güncellendi',
           description: property.title,
         },
       });
