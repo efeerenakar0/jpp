@@ -244,6 +244,7 @@ type DialogKind =
   | 'contact'
   | 'contact-edit'
   | 'property'
+  | 'property-edit'
   | 'deal'
   | 'task'
   | 'member'
@@ -498,6 +499,9 @@ export default function WorkspacePage({
   const [query, setQuery] = useState('');
   const [crmFilter, setCrmFilter] = useState<'all' | 'hot' | 'follow-up'>('all');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
+    null
+  );
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<
     'overview' | 'activity'
@@ -564,6 +568,7 @@ export default function WorkspacePage({
       }
       setDialog(null);
       setSelectedMemberId(null);
+      setSelectedPropertyId(null);
       toast.success(data.message || successMessage);
       return true;
     } catch (error) {
@@ -611,6 +616,10 @@ export default function WorkspacePage({
     : [];
   const selectedMember =
     workspace?.members.find((member) => member.id === selectedMemberId) || null;
+  const selectedProperty =
+    workspace?.properties.find(
+      (property) => property.id === selectedPropertyId
+    ) || null;
 
   if (loading) {
     return (
@@ -1341,13 +1350,26 @@ export default function WorkspacePage({
                     <span className="text-slate-500">
                       {property.ownerContact?.name || 'Mülk sahibi atanmadı'}
                     </span>
-                    <Link
-                      className="flex items-center gap-1 text-emerald-300 hover:text-emerald-200"
-                      href={`/portfoy-takip/${property.sellerPortalToken}`}
-                      target="_blank"
-                    >
-                      Malik raporu <ExternalLink className="h-3 w-3" />
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="flex items-center gap-1 text-cyan-300 hover:text-cyan-200"
+                        onClick={() => {
+                          setSelectedPropertyId(property.id);
+                          setDialog('property-edit');
+                        }}
+                        type="button"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Düzenle
+                      </button>
+                      <Link
+                        className="flex items-center gap-1 text-emerald-300 hover:text-emerald-200"
+                        href={`/portfoy-takip/${property.sellerPortalToken}`}
+                        target="_blank"
+                      >
+                        Malik raporu <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -1777,18 +1799,20 @@ export default function WorkspacePage({
       )}
 
       <WorkspaceDialog
-        key={`${dialog || 'closed'}-${selectedMember?.id || 'new'}`}
+        key={`${dialog || 'closed'}-${selectedMember?.id || selectedProperty?.id || 'new'}`}
         dialog={dialog}
         members={workspace.members}
         contacts={workspace.contacts}
         properties={workspace.properties}
         deals={workspace.deals}
         selectedContact={selectedContact}
+        selectedProperty={selectedProperty}
         selectedMember={selectedMember}
         saving={saving}
         onClose={() => {
           setDialog(null);
           setSelectedMemberId(null);
+          setSelectedPropertyId(null);
         }}
         onSubmit={postAction}
       />
@@ -1859,6 +1883,7 @@ function WorkspaceDialog({
   properties,
   deals,
   selectedContact,
+  selectedProperty,
   selectedMember,
   saving,
   onClose,
@@ -1870,6 +1895,7 @@ function WorkspaceDialog({
   properties: Property[];
   deals: Deal[];
   selectedContact: Contact | null;
+  selectedProperty: Property | null;
   selectedMember: Member | null;
   saving: boolean;
   onClose: () => void;
@@ -1890,6 +1916,9 @@ function WorkspaceDialog({
     () => (propertyImage ? URL.createObjectURL(propertyImage) : null),
     [propertyImage]
   );
+  const displayedPropertyImage =
+    propertyImagePreview ||
+    (dialog === 'property-edit' ? selectedProperty?.imageUrl : null);
 
   useEffect(() => {
     if (dialog !== 'property') return;
@@ -2025,25 +2054,36 @@ function WorkspaceDialog({
         'Müşteri profili güncellendi.'
       );
     }
-    if (dialog === 'property') {
-      const province = provinces.find(
-        (item) => String(item.id) === provinceId
-      )?.name;
-      const district = districts.find(
-        (item) => String(item.id) === districtId
-      )?.name;
-      const neighborhood = neighborhoods.find(
-        (item) => String(item.id) === neighborhoodId
-      )?.name;
+    if (
+      dialog === 'property' ||
+      (dialog === 'property-edit' && selectedProperty)
+    ) {
+      const province =
+        dialog === 'property'
+          ? provinces.find((item) => String(item.id) === provinceId)?.name
+          : null;
+      const district =
+        dialog === 'property'
+          ? districts.find((item) => String(item.id) === districtId)?.name
+          : null;
+      const neighborhood =
+        dialog === 'property'
+          ? neighborhoods.find((item) => String(item.id) === neighborhoodId)
+              ?.name
+          : null;
 
-      if (!province || !district || !neighborhood) {
+      if (
+        dialog === 'property' &&
+        (!province || !district || !neighborhood)
+      ) {
         toast.error('İl, ilçe ve mahalle seçimini tamamlayın.');
         return;
       }
 
       try {
         setPropertySubmitting(true);
-        let imageUrl = '';
+        let imageUrl =
+          dialog === 'property-edit' ? selectedProperty?.imageUrl || '' : '';
         if (propertyImage) {
           const imageData = new FormData();
           imageData.append('image', propertyImage);
@@ -2067,20 +2107,31 @@ function WorkspaceDialog({
 
         await onSubmit(
           {
-            action: 'create-property',
+            action:
+              dialog === 'property-edit'
+                ? 'update-property'
+                : 'create-property',
+            ...(dialog === 'property-edit'
+              ? { id: selectedProperty!.id }
+              : {}),
             ...values,
-            location: [province, district, neighborhood].join(' / '),
+            location:
+              dialog === 'property'
+                ? [province, district, neighborhood].join(' / ')
+                : values.location,
             imageUrl,
             price: values.price || null,
             area: values.area || null,
             ownerContactId: values.ownerContactId || null,
             assignedMemberId: values.assignedMemberId || null,
           },
-          'Portföy eklendi ve Asistan bilgisi güncellendi.'
+          dialog === 'property-edit'
+            ? 'Portföy güncellendi; bağlı web sitesi yeni veriyi API üzerinden alacak.'
+            : 'Portföy eklendi ve bağlı web sitesi için API verisi güncellendi.'
         );
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : 'Portföy eklenemedi.'
+          error instanceof Error ? error.message : 'Portföy kaydedilemedi.'
         );
       } finally {
         setPropertySubmitting(false);
@@ -2147,6 +2198,7 @@ function WorkspaceDialog({
     contact: 'Yeni müşteri',
     'contact-edit': 'Müşteri profilini düzenle',
     property: 'Yeni portföy',
+    'property-edit': 'Portföyü düzenle',
     deal: 'Yeni satış fırsatı',
     task: 'Yeni görev veya randevu',
     member: 'Yeni ekip üyesi',
@@ -2158,6 +2210,7 @@ function WorkspaceDialog({
       <DialogContent
         className={`max-h-[90vh] overflow-y-auto border border-slate-700 bg-slate-900 text-slate-100 ${
           dialog === 'property' ||
+          dialog === 'property-edit' ||
           dialog === 'member' ||
           dialog === 'member-edit'
             ? 'sm:max-w-3xl'
@@ -2167,8 +2220,8 @@ function WorkspaceDialog({
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            {dialog === 'property'
-              ? 'Konumu listeden seçin; görseliniz kalite kaybı olmadan güvenli depolamaya yüklenir.'
+            {dialog === 'property' || dialog === 'property-edit'
+              ? 'Kaydedilen değişiklikler bağlı müşteri web sitesinde API üzerinden otomatik görünür.'
               : dialog === 'member' || dialog === 'member-edit'
                 ? 'Rol, çalışma düzeni ve WhatsApp görev izinleri yalnızca patron tarafından yönetilir.'
                 : 'Bilgileri daha sonra müşteri veya portföy profilinden geliştirebilirsiniz.'}
@@ -2177,7 +2230,7 @@ function WorkspaceDialog({
         <form
           className="grid gap-4 sm:grid-cols-2"
           id="workspace-form"
-          key={`${dialog}-${selectedContact?.id || selectedMember?.id || 'new'}`}
+          key={`${dialog}-${selectedContact?.id || selectedProperty?.id || selectedMember?.id || 'new'}`}
           onSubmit={submit}
         >
           {dialog === 'contact' && (
@@ -2398,17 +2451,28 @@ function WorkspaceDialog({
             </>
           )}
 
-          {dialog === 'property' && (
+          {(dialog === 'property' ||
+            (dialog === 'property-edit' && selectedProperty)) && (
             <>
               <label className={`${labelClass} sm:col-span-2`}>
                 Portföy başlığı
-                <Input className={fieldClass} name="title" required />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.title || ''}
+                  name="title"
+                  required
+                />
               </label>
               <label className={labelClass}>
                 Referans kodu
-                <Input className={fieldClass} name="referenceCode" />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.referenceCode || ''}
+                  name="referenceCode"
+                />
               </label>
-              <fieldset className="grid gap-3 rounded-xl border border-slate-700/80 bg-slate-950/45 p-4 sm:col-span-2 sm:grid-cols-3">
+              {dialog === 'property' ? (
+                <fieldset className="grid gap-3 rounded-xl border border-slate-700/80 bg-slate-950/45 p-4 sm:col-span-2 sm:grid-cols-3">
                 <legend className="px-1 text-xs font-semibold text-slate-200">
                   Portföy konumu
                 </legend>
@@ -2485,14 +2549,36 @@ function WorkspaceDialog({
                   Bu seçim Asistan’ın “Mahmutlar’da 2+1” gibi müşteri
                   taleplerini doğru portföyle eşleştirmesini sağlar.
                 </p>
-              </fieldset>
+                </fieldset>
+              ) : (
+                <label className={`${labelClass} sm:col-span-2`}>
+                  Konum
+                  <Input
+                    className={fieldClass}
+                    defaultValue={selectedProperty?.location || ''}
+                    name="location"
+                    placeholder="İl / İlçe / Mahalle"
+                    required
+                  />
+                </label>
+              )}
               <label className={labelClass}>
                 Fiyat
-                <Input className={fieldClass} min="0" name="price" type="number" />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.price ?? ''}
+                  min="0"
+                  name="price"
+                  type="number"
+                />
               </label>
               <label className={labelClass}>
                 Oda sayısı
-                <SelectField defaultValue="" name="roomCount" required>
+                <SelectField
+                  defaultValue={selectedProperty?.roomCount || ''}
+                  name="roomCount"
+                  required
+                >
                   <option value="">Oda sayısını seçin</option>
                   {roomCountOptions.map((roomCount) => (
                     <option key={roomCount} value={roomCount}>
@@ -2503,11 +2589,20 @@ function WorkspaceDialog({
               </label>
               <label className={labelClass}>
                 Alan (m²)
-                <Input className={fieldClass} min="0" name="area" type="number" />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.area ?? ''}
+                  min="0"
+                  name="area"
+                  type="number"
+                />
               </label>
               <label className={labelClass}>
                 Durum
-                <SelectField defaultValue="ACTIVE" name="status">
+                <SelectField
+                  defaultValue={selectedProperty?.status || 'ACTIVE'}
+                  name="status"
+                >
                   <option value="DRAFT">Taslak</option>
                   <option value="ACTIVE">Aktif</option>
                   <option value="RESERVED">Rezerve</option>
@@ -2518,7 +2613,10 @@ function WorkspaceDialog({
               </label>
               <label className={labelClass}>
                 Mülk sahibi
-                <SelectField defaultValue="" name="ownerContactId">
+                <SelectField
+                  defaultValue={selectedProperty?.ownerContact?.id || ''}
+                  name="ownerContactId"
+                >
                   <option value="">Atanmadı</option>
                   {contacts.filter((contact) => contact.type === 'SELLER').map((contact) => (
                     <option key={contact.id} value={contact.id}>{contact.name}</option>
@@ -2527,7 +2625,10 @@ function WorkspaceDialog({
               </label>
               <label className={labelClass}>
                 Sorumlu danışman
-                <SelectField defaultValue="" name="assignedMemberId">
+                <SelectField
+                  defaultValue={selectedProperty?.assignedMember?.id || ''}
+                  name="assignedMemberId"
+                >
                   <option value="">Atanmadı</option>
                   {members.map((member) => (
                     <option key={member.id} value={member.id}>{member.name}</option>
@@ -2556,13 +2657,13 @@ function WorkspaceDialog({
                       onChange={selectPropertyImage}
                       type="file"
                     />
-                    {propertyImagePreview ? (
+                    {displayedPropertyImage ? (
                       <div
                         aria-label="Seçilen portföy görselinin önizlemesi"
                         className="h-24 w-32 shrink-0 rounded-lg bg-cover bg-center shadow-inner"
                         role="img"
                         style={{
-                          backgroundImage: `url("${propertyImagePreview}")`,
+                          backgroundImage: `url("${displayedPropertyImage}")`,
                         }}
                       />
                     ) : (
@@ -2574,7 +2675,9 @@ function WorkspaceDialog({
                       <span className="block text-sm font-semibold text-slate-100">
                         {propertyImage
                           ? propertyImage.name
-                          : 'Bilgisayardan görsel seçin'}
+                          : selectedProperty?.imageUrl
+                            ? 'Mevcut görsel · değiştirmek için seçin'
+                            : 'Bilgisayardan görsel seçin'}
                       </span>
                       <span className="mt-1 block text-xs leading-5 text-slate-400">
                         {propertyImage
@@ -2612,7 +2715,11 @@ function WorkspaceDialog({
               </div>
               <label className={`${labelClass} sm:col-span-2`}>
                 Açıklama
-                <textarea className={`${fieldClass} min-h-24 py-3`} name="description" />
+                <textarea
+                  className={`${fieldClass} min-h-24 py-3`}
+                  defaultValue={selectedProperty?.description || ''}
+                  name="description"
+                />
               </label>
             </>
           )}

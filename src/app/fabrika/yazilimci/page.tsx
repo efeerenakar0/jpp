@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Monitor, Code, Download, Send, Loader2, Server, Globe } from 'lucide-react';
+import { Monitor, Code, Download, Send, Loader2, Globe } from 'lucide-react';
 import PageHeader from '@/components/fabrika/PageHeader';
+import ExistingWebsiteIntegration from '@/components/fabrika/ExistingWebsiteIntegration';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function YazilimciPage() {
@@ -133,16 +134,7 @@ export default function YazilimciPage() {
                         </div>
                     </div>
                 ) : hasWebsite === true ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
-                        <Server className="w-16 h-16 text-emerald-400 mb-2" />
-                        <h3 className="text-lg font-bold text-white">Harika! Webhook Entegrasyonu Hazır.</h3>
-                        <p className="text-xs text-slate-400 max-w-md font-medium">Kendi web sitenizdeki ilanları otomatik güncellemek için Endpoint adresimiz:</p>
-                        <code className="bg-slate-950 text-emerald-400 px-4 py-3 rounded-xl border border-slate-800 text-xs font-mono w-full max-w-md">
-                            POST /api/portfolios/add
-                        </code>
-                        <p className="text-[11px] text-slate-500 mt-4">Bu endpoint&apos;e gönderilen veriler Gemini ile SEO uyumlu hale getirilip saklanır.</p>
-                        <button onClick={() => setHasWebsite(null)} className="text-cyan-400 hover:text-cyan-300 text-xs mt-8 underline cursor-pointer">Geri Dön</button>
-                    </div>
+                    <ExistingWebsiteIntegration onBack={() => setHasWebsite(null)} />
                 ) : (
                     <div className="flex-1 flex flex-col h-full animate-in slide-in-from-right-8 duration-500">
                         <p className="text-xs text-slate-400 mb-6 font-medium">Hemen size özel temel bir emlak sitesi şablonu oluşturalım. Bilgileri doldurun ve sitenizi indirin.</p>

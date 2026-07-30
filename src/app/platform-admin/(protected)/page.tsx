@@ -1,4 +1,5 @@
 import PlatformAccountsDashboard from '@/components/platform-admin/PlatformAccountsDashboard';
+import PlatformWebsiteIntegrations from '@/components/platform-admin/PlatformWebsiteIntegrations';
 import PlatformWhatsAppOverview from '@/components/platform-admin/PlatformWhatsAppOverview';
 
 export default function PlatformAdminPage() {
@@ -6,6 +7,7 @@ export default function PlatformAdminPage() {
     <>
       <PlatformWhatsAppOverview />
       <PlatformAccountsDashboard />
+      <PlatformWebsiteIntegrations />
     </>
   );
 }
