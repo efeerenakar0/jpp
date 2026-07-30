@@ -35,6 +35,10 @@ import {
   type StudioEnhancementPreset,
   type StudioEnhancementPresetId,
 } from '@/lib/studio-enhancement';
+import {
+  processStudioBatch,
+  type StudioBatchFailure,
+} from '@/lib/studio-batch';
 import toast from 'react-hot-toast';
 
 type StudioScreen = 'upload' | 'results';
@@ -44,6 +48,7 @@ type StudioResult = {
   previewUrl: string;
   downloadUrl: string;
   blob: Blob;
+  sourceIndex: number;
 };
 
 type StudioProvider = 'OPENAI' | 'GEMINI';
@@ -116,6 +121,9 @@ export default function StudioPage() {
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [processingFailures, setProcessingFailures] = useState<
+    StudioBatchFailure[]
+  >([]);
   const [results, setResults] = useState<StudioResult[]>([]);
   const [isPreparingZip, setIsPreparingZip] = useState(false);
   const [activeResult, setActiveResult] = useState(0);
@@ -284,59 +292,78 @@ export default function StudioPage() {
 
     setIsProcessing(true);
     setErrorMessage('');
+    setProcessingFailures([]);
     setProgress(5);
     setStatus('Fotoğraflar Stable Image Ultra için hazırlanıyor…');
 
-    const processedResults: StudioResult[] = [];
+    let processedResults: StudioResult[] = [];
     try {
-      for (const [index, file] of files.entries()) {
-        setProgress(Math.round(5 + (index / files.length) * 90));
-        setStatus(
-          `Stable Image Ultra, ${index + 1}/${files.length} fotoğrafı özgün yapıyı koruyarak iyileştiriyor…`
-        );
-
-        const formData = new FormData();
-        formData.set('photo', file);
-        formData.set('prompt', safeInstruction);
-        const response = await fetch('/api/fabrika/studio/process', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          let message = 'Görsel işlenemedi. Lütfen yeniden deneyin.';
-          try {
-            const data = await response.json();
-            if (typeof data.error === 'string') message = data.error;
-          } catch {
-            // The fallback message covers non-JSON provider/proxy errors.
-          }
-          throw new Error(message);
-        }
-
-        const resultBlob = await response.blob();
-        if (!resultBlob.type.startsWith('image/') || resultBlob.size === 0) {
-          throw new Error(
-            'Stable Image Ultra geçerli bir görsel döndürmedi. Lütfen yeniden deneyin.'
+      const batch = await processStudioBatch({
+        items: files,
+        getName: (file) => file.name,
+        process: async (file, index): Promise<StudioResult> => {
+          setStatus(
+            `Stable Image Ultra, ${index + 1}/${files.length} fotoğrafı özgün yapıyı koruyarak iyileştiriyor…`
           );
-        }
 
-        const encodedName = response.headers.get('x-studio-file-name');
-        let resultName = `${file.name.replace(/\.[^/.]+$/, '') || `gorsel_${index + 1}`}_AI_iyilestirilmis.jpg`;
-        if (encodedName) {
-          try {
-            resultName = decodeURIComponent(encodedName);
-          } catch {
-            // Keep the deterministic fallback filename.
+          const formData = new FormData();
+          formData.set('photo', file);
+          formData.set('prompt', safeInstruction);
+          const response = await fetch('/api/fabrika/studio/process', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            let message = 'Görsel işlenemedi. Lütfen yeniden deneyin.';
+            try {
+              const data = await response.json();
+              if (typeof data.error === 'string') message = data.error;
+            } catch {
+              // The fallback message covers non-JSON provider/proxy errors.
+            }
+            throw new Error(message);
           }
-        }
-        const resultUrl = URL.createObjectURL(resultBlob);
-        processedResults.push({
-          name: resultName,
-          previewUrl: resultUrl,
-          downloadUrl: resultUrl,
-          blob: resultBlob,
-        });
+
+          const resultBlob = await response.blob();
+          if (!resultBlob.type.startsWith('image/') || resultBlob.size === 0) {
+            throw new Error(
+              'Stable Image Ultra geçerli bir görsel döndürmedi. Lütfen yeniden deneyin.'
+            );
+          }
+
+          const encodedName = response.headers.get('x-studio-file-name');
+          let resultName = `${file.name.replace(/\.[^/.]+$/, '') || `gorsel_${index + 1}`}_AI_iyilestirilmis.jpg`;
+          if (encodedName) {
+            try {
+              resultName = decodeURIComponent(encodedName);
+            } catch {
+              // Keep the deterministic fallback filename.
+            }
+          }
+          const resultUrl = URL.createObjectURL(resultBlob);
+          return {
+            name: resultName,
+            previewUrl: resultUrl,
+            downloadUrl: resultUrl,
+            blob: resultBlob,
+            sourceIndex: index,
+          };
+        },
+        onProgress: ({ completed, total }) => {
+          setProgress(Math.round(5 + (completed / total) * 90));
+        },
+      });
+
+      processedResults = batch.successes;
+      setProcessingFailures(batch.failures);
+      if (!processedResults.length) {
+        const firstFailure = batch.failures[0];
+        throw new Error(
+          firstFailure
+            ? `Hiçbir görsel iyileştirilemedi. ${firstFailure.name}: ${firstFailure.message}`
+            : 'Hiçbir görsel iyileştirilemedi. Lütfen yeniden deneyin.'
+        );
       }
 
       setProgress(100);
@@ -345,20 +372,30 @@ export default function StudioPage() {
       setActiveResult(0);
       setScreen('results');
       if (selectedPropertyId) {
-        const linkResponse = await fetch('/api/fabrika/workspace', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'record-studio-output',
-            propertyId: selectedPropertyId,
-            resultCount: processedResults.length,
-          }),
-        });
-        if (!linkResponse.ok) {
+        try {
+          const linkResponse = await fetch('/api/fabrika/workspace', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'record-studio-output',
+              propertyId: selectedPropertyId,
+              resultCount: processedResults.length,
+            }),
+          });
+          if (!linkResponse.ok) {
+            throw new Error('Workspace update failed');
+          }
+        } catch {
           toast.error('Görseller hazırlandı ancak portföy aktivitesine eklenemedi.');
         }
       }
-      toast.success(`${processedResults.length} fotoğrafınız iyileştirildi.`);
+      if (batch.failures.length) {
+        toast.success(
+          `${processedResults.length} görsel iyileştirildi; ${batch.failures.length} görsel atlandı.`
+        );
+      } else {
+        toast.success(`${processedResults.length} fotoğrafınız iyileştirildi.`);
+      }
     } catch (error) {
       processedResults.forEach(({ previewUrl }) =>
         URL.revokeObjectURL(previewUrl)
@@ -403,12 +440,15 @@ export default function StudioPage() {
     setActiveResult(0);
     setProgress(0);
     setErrorMessage('');
+    setProcessingFailures([]);
     setSelectedPresetId('professional-camera');
     setEnhancementInstruction(DEFAULT_STUDIO_ENHANCEMENT_PROMPT);
   };
 
   const activePhoto = results[activeResult];
-  const activeOriginal = filePreviews[activeResult];
+  const activeOriginal = activePhoto
+    ? filePreviews[activePhoto.sourceIndex]
+    : undefined;
 
   return (
     <div className="space-y-6 overflow-x-hidden pb-8 text-slate-100">
@@ -644,6 +684,37 @@ export default function StudioPage() {
                 </button>
               )}
             </div>
+
+            {processingFailures.length > 0 && (
+              <div
+                role="alert"
+                className="mb-6 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-amber-50"
+              >
+                <div className="flex gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+                  <div>
+                    <p className="text-sm font-extrabold">
+                      {processingFailures.length} görsel atlandı
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-amber-100/75">
+                      Diğer görseller başarıyla hazırlandı. Atlanan dosyaları farklı
+                      kırpma veya JPG biçimiyle tekrar deneyebilirsiniz.
+                    </p>
+                    <ul className="mt-3 space-y-2 text-xs leading-5">
+                      {processingFailures.map((failure, index) => (
+                        <li
+                          key={`${failure.name}-${index}`}
+                          className="rounded-lg border border-amber-200/15 bg-black/10 px-3 py-2"
+                        >
+                          <span className="font-bold">{failure.name}:</span>{' '}
+                          {failure.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {activePhoto ? (
               <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/50 shadow-2xl shadow-black/30 lg:grid-cols-[1.15fr_0.85fr]">

@@ -7,6 +7,9 @@ export const STABLE_IMAGE_ULTRA_ENDPOINT =
 
 export const STUDIO_IMAGE_TO_IMAGE_STRENGTH = 0.3;
 
+export const SAFE_STUDIO_RETRY_PROMPT =
+  'Enhance this real estate photograph with natural exposure, accurate white balance, realistic colors, clean detail, and professional architectural photography quality. Preserve the exact property, objects, materials, geometry, and composition.';
+
 const MAX_IMAGE_BYTES = 9 * 1024 * 1024;
 const MAX_RESULT_BYTES = 25 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = new Set([
@@ -51,7 +54,7 @@ function stabilityUltraErrorMessage(code: StabilityUltraErrorCode) {
     case 'INSUFFICIENT_CREDITS':
       return 'Stability AI hesabında yeterli kredi bulunmuyor. Sistem yöneticiniz bakiye ve kullanım limitini kontrol etmelidir.';
     case 'CONTENT_REJECTED':
-      return 'Görsel veya talimat Stability AI güvenlik denetiminden geçemedi. Farklı bir görsel ya da daha sade bir talimat deneyin.';
+      return 'Bu görsel, sadeleştirilmiş güvenli talimatla yapılan ikinci denemede de Stability AI güvenlik filtresinden geçemedi. Görselde kişi veya filtrenin yanlış algıladığı bir ayrıntı olabilir.';
     case 'RATE_LIMITED':
       return 'Stability AI şu anda yoğun. Lütfen yaklaşık bir dakika bekleyip yeniden deneyin.';
     case 'PROVIDER_UNAVAILABLE':
@@ -94,6 +97,63 @@ function extensionForMimeType(mimeType: string) {
   return 'jpg';
 }
 
+function ultraRequestBody({
+  image,
+  mimeType,
+  prompt,
+  includeNegativePrompt,
+}: {
+  image: Buffer;
+  mimeType: string;
+  prompt: string;
+  includeNegativePrompt: boolean;
+}) {
+  const body = new FormData();
+  body.append('prompt', prompt);
+  if (includeNegativePrompt) {
+    body.append('negative_prompt', STUDIO_NEGATIVE_PROMPT);
+  }
+  body.append(
+    'image',
+    new Blob([new Uint8Array(image)], { type: mimeType }),
+    `property.${extensionForMimeType(mimeType)}`
+  );
+  body.append('strength', String(STUDIO_IMAGE_TO_IMAGE_STRENGTH));
+  body.append('output_format', 'jpeg');
+  return body;
+}
+
+function requestStableImageUltra({
+  apiKey,
+  image,
+  mimeType,
+  prompt,
+  includeNegativePrompt,
+}: {
+  apiKey: string;
+  image: Buffer;
+  mimeType: string;
+  prompt: string;
+  includeNegativePrompt: boolean;
+}) {
+  return fetch(STABLE_IMAGE_ULTRA_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'image/*',
+      'stability-client-id': 'Jasmine AI Studio',
+      'stability-client-version': '2.1',
+    },
+    body: ultraRequestBody({
+      image,
+      mimeType,
+      prompt,
+      includeNegativePrompt,
+    }),
+    cache: 'no-store',
+  });
+}
+
 export async function enhanceWithStableImageUltra({
   image,
   mimeType,
@@ -121,28 +181,27 @@ export async function enhanceWithStableImageUltra({
     throw new StabilityUltraError('INVALID_IMAGE', 400);
   }
 
-  const body = new FormData();
-  body.append('prompt', safePrompt);
-  body.append('negative_prompt', STUDIO_NEGATIVE_PROMPT);
-  body.append(
-    'image',
-    new Blob([new Uint8Array(image)], { type: mimeType }),
-    `property.${extensionForMimeType(mimeType)}`
-  );
-  body.append('strength', String(STUDIO_IMAGE_TO_IMAGE_STRENGTH));
-  body.append('output_format', 'jpeg');
-
-  const response = await fetch(STABLE_IMAGE_ULTRA_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: 'image/*',
-      'stability-client-id': 'Jasmine AI Studio',
-      'stability-client-version': '2.0',
-    },
-    body,
-    cache: 'no-store',
+  let response = await requestStableImageUltra({
+    apiKey,
+    image,
+    mimeType,
+    prompt: safePrompt,
+    includeNegativePrompt: true,
   });
+
+  if (
+    response.status === 403 &&
+    safePrompt !== SAFE_STUDIO_RETRY_PROMPT
+  ) {
+    await response.body?.cancel().catch(() => undefined);
+    response = await requestStableImageUltra({
+      apiKey,
+      image,
+      mimeType,
+      prompt: SAFE_STUDIO_RETRY_PROMPT,
+      includeNegativePrompt: false,
+    });
+  }
 
   if (!response.ok) {
     throw providerError(response.status);
