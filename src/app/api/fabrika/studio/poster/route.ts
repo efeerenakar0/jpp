@@ -5,6 +5,8 @@ import {
   FabrikaSessionError,
   requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
+import { fetchOwnedMediaBytes } from '@/lib/media-storage';
+import { propertyMediaHttpError } from '@/lib/property-media-http';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,6 +15,11 @@ export const runtime = 'nodejs';
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_BYTES = 9 * 1024 * 1024;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const POSTER_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
 
 function stringValue(value: FormDataEntryValue | null, maximum = 500) {
   return typeof value === 'string' ? value.trim().slice(0, maximum) : '';
@@ -31,6 +38,29 @@ function imageMime(file: File) {
     return file.type;
   }
   return 'image/jpeg';
+}
+
+type PosterSource = {
+  key: string;
+  buffer: Buffer;
+  mimeType: string;
+  name: string;
+};
+
+function stringArray(value: FormDataEntryValue | null, maximum: number) {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .slice(0, maximum)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function posterPrompt(input: {
@@ -147,13 +177,90 @@ export async function POST(request: Request) {
       .getAll('photos')
       .filter((value): value is File => value instanceof File && value.size > 0)
       .slice(0, MAX_PHOTOS);
+    const propertyId = stringValue(form.get('propertyId'), 120);
+    const mediaIds = stringArray(form.get('mediaIdsJson'), MAX_PHOTOS);
 
-    if (!files.length) {
+    if (!files.length && !mediaIds.length) {
       return NextResponse.json({ error: 'Poster için en az bir görsel yükleyin.' }, { status: 400 });
     }
-    if (files.some((file) => !file.type.startsWith('image/') || file.size > MAX_PHOTO_BYTES)) {
+    if (
+      files.some(
+        (file) =>
+          !POSTER_IMAGE_TYPES.has(file.type) ||
+          file.size > MAX_PHOTO_BYTES
+      )
+    ) {
       return NextResponse.json(
         { error: 'Görseller JPG, PNG veya WEBP olmalı ve her biri 9 MB altında kalmalıdır.' },
+        { status: 400 }
+      );
+    }
+    if (files.length + mediaIds.length > MAX_PHOTOS) {
+      return NextResponse.json(
+        { error: 'Poster düzeninde en fazla 6 görsel kullanılabilir.' },
+        { status: 400 }
+      );
+    }
+    const media = mediaIds.length
+      ? await prisma.crmPropertyMedia.findMany({
+          where: {
+            id: { in: mediaIds },
+            companyAccountId: principal.account.id,
+            ...(propertyId ? { propertyId } : {}),
+            archivedAt: null,
+            mediaType: 'PHOTO',
+            mimeType: { in: ['image/jpeg', 'image/png', 'image/webp'] },
+            usageRightsStatus: { not: 'RESTRICTED' },
+            ...(mode === 'faithful'
+              ? { variantType: { not: 'CREATIVE' as const } }
+              : {}),
+          },
+        })
+      : [];
+    if (media.length !== mediaIds.length) {
+      return NextResponse.json(
+        { error: 'Seçilen portföy görsellerinden biri kullanılamıyor veya başka şirkete ait.' },
+        { status: 403 }
+      );
+    }
+    const mediaById = new Map(media.map((item) => [item.id, item]));
+    const mediaSources: PosterSource[] = [];
+    for (const mediaId of mediaIds) {
+      const item = mediaById.get(mediaId)!;
+      const downloaded = await fetchOwnedMediaBytes(item.url, {
+        maxBytes: MAX_PHOTO_BYTES,
+      });
+      mediaSources.push({
+        key: `media:${item.id}`,
+        buffer: downloaded.bytes,
+        mimeType: downloaded.mimeType,
+        name: item.fileName,
+      });
+    }
+    const fileSources: PosterSource[] = await Promise.all(
+      files.map(async (file, index) => ({
+        key: `file:${index}`,
+        buffer: Buffer.from(await file.arrayBuffer()),
+        mimeType: imageMime(file),
+        name: file.name || `manuel-${index + 1}.jpg`,
+      }))
+    );
+    const allSources = [...mediaSources, ...fileSources];
+    const sourceOrder = stringArray(form.get('sourceOrderJson'), MAX_PHOTOS);
+    const sourceByKey = new Map(allSources.map((source) => [source.key, source]));
+    const orderedSources = [
+      ...sourceOrder
+        .map((key) => sourceByKey.get(key))
+        .filter((source): source is PosterSource => Boolean(source)),
+      ...allSources.filter((source) => !sourceOrder.includes(source.key)),
+    ].slice(0, MAX_PHOTOS);
+    const heroKey = stringValue(form.get('heroKey'), 160);
+    const selectedHero =
+      orderedSources.find((source) => source.key === heroKey) ??
+      orderedSources[0];
+    if (!selectedHero) {
+      return NextResponse.json(
+        { error: 'Poster ana görseli bulunamadı.' },
         { status: 400 }
       );
     }
@@ -161,7 +268,7 @@ export async function POST(request: Request) {
     const logo = form.get('logo');
     let logoDataUrl: string | null = principal.account.brandLogoData || null;
     if (logo instanceof File && logo.size > 0) {
-      if (!logo.type.startsWith('image/') || logo.size > MAX_LOGO_BYTES) {
+      if (!POSTER_IMAGE_TYPES.has(logo.type) || logo.size > MAX_LOGO_BYTES) {
         return NextResponse.json({ error: 'Logo bir görsel olmalı ve 2 MB altında kalmalıdır.' }, { status: 400 });
       }
       logoDataUrl = dataUrl(Buffer.from(await logo.arrayBuffer()), imageMime(logo));
@@ -173,7 +280,6 @@ export async function POST(request: Request) {
       }
     }
 
-    const hero = files[0];
     const input = {
       companyName,
       location: stringValue(form.get('location'), 160),
@@ -193,8 +299,10 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         mode,
-        backgroundDataUrl: dataUrl(Buffer.from(await hero.arrayBuffer()), imageMime(hero)),
+        backgroundDataUrl: dataUrl(selectedHero.buffer, selectedHero.mimeType),
         logoDataUrl,
+        usedMediaIds: mediaIds,
+        heroKey: selectedHero.key,
       });
     }
 
@@ -208,7 +316,13 @@ export async function POST(request: Request) {
 
     const body = new FormData();
     body.append('prompt', posterPrompt(input));
-    body.append('image', new Blob([await hero.arrayBuffer()], { type: imageMime(hero) }), hero.name || 'property.jpg');
+    body.append(
+      'image',
+      new Blob([new Uint8Array(selectedHero.buffer)], {
+        type: selectedHero.mimeType,
+      }),
+      selectedHero.name || 'property.jpg'
+    );
     body.append('strength', '0.55');
     body.append('negative_prompt', 'text, letters, numbers, logo, watermark, people, redesigned property, changed architecture, new pool, altered facade, inaccurate building, low resolution');
     body.append('output_format', 'jpeg');
@@ -247,12 +361,11 @@ export async function POST(request: Request) {
       mode,
       backgroundDataUrl: dataUrl(result, response.headers.get('content-type') || 'image/jpeg'),
       logoDataUrl,
+      usedMediaIds: mediaIds,
+      heroKey: selectedHero.key,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof FabrikaSessionError ? error.message : 'Poster oluşturulamadı.' },
-      { status: error instanceof FabrikaSessionError ? 401 : 500 }
-    );
+    return propertyMediaHttpError(error);
   }
 }
 
