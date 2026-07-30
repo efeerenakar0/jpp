@@ -52,6 +52,10 @@ deploy'da geçici olarak `WAHA_BOOTSTRAP_SESSION` tanımlanabilir. Şirket kayd�
 - Durum: `docker compose ps`
 - Log: `docker compose logs --tail=200 waha`
 - Yeniden başlatma: `docker compose restart waha`
+- `session-watchdog`, WAHA oturumlarını 15 saniyede bir denetler ve yalnızca
+  `FAILED`/`STOPPED` durumundaki oturumları güvenli şekilde yeniden başlatır.
+- Tüm servisler `restart: always` ilkesiyle çalışır; sunucu yeniden başladığında
+  Docker ile birlikte otomatik ayağa kalkar.
 - Toplu veya izinsiz mesaj göndermeyin. Bu bağlantı resmi Meta Cloud API
   değildir ve WhatsApp hesabı kısıtlanabilir.
 

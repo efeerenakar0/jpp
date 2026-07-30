@@ -96,8 +96,11 @@ export default function WhatsAppConnectionPanel() {
       setQrCode(null);
       setPairingCode(null);
     } else {
-      if (data.qrCode) setQrCode(data.qrCode);
-      if (data.pairingCode) setPairingCode(data.pairingCode);
+      // WAHA QR'ları kısa ömürlüdür. Sağlayıcı yeni kod döndürmezse eski
+      // görseli ekranda tutmak telefonda "yeni cihaz bağlanamıyor" hatasına
+      // yol açar; bu nedenle eski kodu hemen geçersiz sayarız.
+      setQrCode(data.qrCode || null);
+      setPairingCode(data.pairingCode || null);
     }
     return data;
   }, []);
@@ -195,13 +198,24 @@ export default function WhatsAppConnectionPanel() {
   }
 
   async function disconnect() {
-    if (!window.confirm('Bu şirket telefonunun WhatsApp bağlantısı kapatılsın mı?')) {
+    const confirmation = window.prompt(
+      'Bu işlem telefonu Jasmine’den tamamen ayırır. Devam etmek için BAĞLANTIYI KES yazın.'
+    );
+    if (confirmation?.trim().toLocaleUpperCase('tr-TR') !== 'BAĞLANTIYI KES') {
+      if (confirmation !== null) {
+        toast.error('Bağlantı kesilmedi. Onay ifadesi eşleşmedi.');
+      }
       return;
     }
     setWorking(true);
     try {
       const response = await fetch('/api/fabrika/whatsapp/connection', {
-        method: 'DELETE',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'disconnect',
+          confirmation: 'WHATSAPP_BAGLANTISINI_KES',
+        }),
       });
       const data = (await response.json()) as Status & { error?: string };
       if (!response.ok) throw new Error(data.error || 'Bağlantı kapatılamadı.');
@@ -297,6 +311,10 @@ export default function WhatsAppConnectionPanel() {
                 <li><strong>2.</strong> Ayarlar → Bağlı Cihazlar&apos;a girin.</li>
                 <li><strong>3.</strong> “Cihaz Bağla”ya basıp QR kodu okutun.</li>
                 <li><strong>4.</strong> Bu ekran birkaç saniye içinde “Bağlı” olur.</li>
+                <li className="text-emerald-300">
+                  QR kod otomatik yenilenir; yalnızca ekranda o anda görünen
+                  kodu taratın.
+                </li>
                 {pairingCode && (
                   <li className="rounded-lg border border-slate-700 bg-slate-900 p-3">
                     Eşleştirme kodu: <strong className="font-mono text-white">{pairingCode}</strong>

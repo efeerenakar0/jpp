@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
   disconnectCompanyWhatsAppConnection,
@@ -13,19 +12,9 @@ import {
   FabrikaSessionError,
   requireFabrikaOwner,
 } from '@/lib/fabrika-session';
+import { parseWhatsAppConnectionAction } from '@/lib/whatsapp-connection-policy';
 
 export const dynamic = 'force-dynamic';
-
-const actionSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('prepare') }),
-  z.object({ action: z.literal('refresh') }),
-  z.object({
-    action: z.literal('settings'),
-    autoReplyEnabled: z.boolean(),
-    allowFirstContact: z.boolean(),
-    dailyMessageLimit: z.number().int().min(5).max(500),
-  }),
-]);
 
 function handleError(error: unknown) {
   if (
@@ -65,7 +54,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const principal = await requireFabrikaOwner();
-    const parsed = actionSchema.safeParse(await request.json());
+    const parsed = parseWhatsAppConnectionAction(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Geçersiz WhatsApp bağlantı isteği.' },
@@ -81,6 +70,12 @@ export async function POST(request: Request) {
       return NextResponse.json(
         await refreshCompanyWhatsAppConnection(principal.account.id)
       );
+    }
+    if (parsed.data.action === 'disconnect') {
+      const config = await disconnectCompanyWhatsAppConnection(
+        principal.account.id
+      );
+      return NextResponse.json(serializeCompanyWhatsAppStatus(config));
     }
     const config = await ensureCompanyWhatsAppConfig(principal.account.id);
     const updated = await prisma.whatsAppConfig.update({
@@ -98,13 +93,14 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  try {
-    const principal = await requireFabrikaOwner();
-    const config = await disconnectCompanyWhatsAppConnection(
-      principal.account.id
-    );
-    return NextResponse.json(serializeCompanyWhatsAppStatus(config));
-  } catch (error) {
-    return handleError(error);
-  }
+  return NextResponse.json(
+    {
+      error:
+        'Güvenlik nedeniyle bağlantı yalnızca açık kullanıcı onayıyla kapatılabilir.',
+    },
+    {
+      status: 405,
+      headers: { Allow: 'GET, POST' },
+    }
+  );
 }
