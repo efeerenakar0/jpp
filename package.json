@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "whatsapp:presentation": "bash scripts/waha-presentation-ready.sh",
     "seed:documents": "tsx prisma/seed-document-templates.ts",
     "worker:avci": "tsx workers/avci-crawler/index.ts"
   },

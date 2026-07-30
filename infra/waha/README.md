@@ -58,3 +58,20 @@ deploy'da geçici olarak `WAHA_BOOTSTRAP_SESSION` tanımlanabilir. Şirket kayd�
 GitHub Codespaces kurulumu yalnızca test içindir. Codespace uyuduğunda WhatsApp
 gateway'i de çevrimdışı olur; satışa açmadan önce bu paketi sürekli çalışan bir
 VPS'e taşıyın.
+
+## Sunum öncesi ücretsiz test gateway'ini hazırlama
+
+Proje kökünde aşağıdaki komutu çalıştırın:
+
+```bash
+npm run whatsapp:presentation
+```
+
+Komut `jasmine-evolution-test` Codespace'ini uyandırır, `jasmine-waha`
+container'ını başlatır, 8080 portunu herkese açık hale getirir ve anahtarlı WAHA
+sağlık kontrolünü tamamlar. `Hazır` sonucu görüldükten sonra
+`/fabrika/whatsapp` ekranındaki **QR oluştur** düğmesi kullanılabilir.
+
+Bu hazırlık yalnızca ücretsiz demo ortamı içindir. Codespaces boşta kaldığında
+uykuya geçebildiği için kesintisiz müşteri kullanımı sağlayan üretim çözümü
+değildir.
