@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getOrCreateSession } from '@/lib/studio-store';
-import { getCompanyStudioCredential } from '@/lib/company-ai-credentials';
+
 import {
-  FABRIKA_SESSION_COOKIE,
-  readFabrikaSessionToken,
-} from '@/lib/fabrika-auth';
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
+import {
+  DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
+} from '@/lib/studio-enhancement';
+import {
+  StabilityUltraError,
+  enhanceWithStableImageUltra,
+} from '@/lib/stability-ultra';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-export const STUDIO_ENHANCEMENT_PROMPT =
-  'Bu resimler portföyümün sitesinde yayınlanacak. Her birini yapay zeka ile muhteşem hale getir; ışıklandırmayı, renkleri, netliği ve genel kaliteyi profesyonel emlak fotoğrafçılığı standardında iyileştir. Mimariyi, mobilyaları, perspektifi ve mülkün gerçek özelliklerini koru; yeni nesneler, kişiler, yazılar veya logolar ekleme.';
+export const maxDuration = 300;
 
 function imageMimeType(name: string): string {
   const extension = name.split('.').pop()?.toLowerCase();
@@ -20,238 +23,111 @@ function imageMimeType(name: string): string {
   return 'image/jpeg';
 }
 
-type ProcessedImage = {
-  buffer: Buffer;
-  mimeType: string;
-  extension: string;
-};
-
-class StudioProviderError extends Error {
-  constructor(
-    readonly provider: 'OPENAI' | 'GEMINI',
-    readonly status: number,
-    readonly providerMessage: string
-  ) {
-    super(providerMessage);
-    this.name = 'StudioProviderError';
-  }
-}
-
-function studioErrorResponse(error: unknown) {
-  if (!(error instanceof StudioProviderError)) {
-    return {
-      status: 500,
-      message: error instanceof Error ? error.message : 'Görseller işlenemedi.',
-    };
-  }
-
-  const normalized = error.providerMessage.toLowerCase();
-  const quotaExceeded =
-    error.status === 429 ||
-    normalized.includes('quota') ||
-    normalized.includes('billing');
-  const unauthorized =
-    error.status === 401 ||
-    error.status === 403 ||
-    normalized.includes('api key not valid') ||
-    normalized.includes('invalid api key');
-
-  if (error.provider === 'GEMINI' && quotaExceeded) {
-    return {
-      status: 429,
-      message:
-        'Gemini görsel oluşturma ücretsiz pakette kullanılamıyor. Google AI Studio’da bu API anahtarının bağlı olduğu proje için Billing bölümünden ücretli kullanımı açın, ardından tekrar deneyin.',
-    };
-  }
-
-  if (error.provider === 'OPENAI' && quotaExceeded) {
-    return {
-      status: 429,
-      message:
-        'OpenAI hesabınızın görsel oluşturma bakiyesi veya kullanım limiti yetersiz. OpenAI Platform Billing bölümünü kontrol edip tekrar deneyin.',
-    };
-  }
-
-  if (unauthorized) {
-    return {
-      status: 401,
-      message: `${error.provider === 'GEMINI' ? 'Gemini' : 'OpenAI'} API anahtarı geçersiz veya bu projede yetkili değil. Stüdyo API ayarlarından anahtarı kontrol edin.`,
-    };
-  }
-
-  return {
-    status: 502,
-    message: `${
-      error.provider === 'GEMINI' ? 'Gemini' : 'OpenAI'
-    } görsel servisi isteği tamamlayamadı. API ayarlarınızı ve seçilen modeli kontrol edip tekrar deneyin.`,
-  };
-}
-
-async function enhanceWithOpenAI(
-  photo: { name: string; buffer: Buffer },
-  apiKey: string,
-  model: string
-): Promise<ProcessedImage> {
-  const body = new FormData();
-  body.append(
-    'image',
-    new Blob([new Uint8Array(photo.buffer)], { type: imageMimeType(photo.name) }),
-    photo.name
-  );
-  body.append('prompt', STUDIO_ENHANCEMENT_PROMPT);
-  body.append('model', model || process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1');
-  body.append('quality', 'high');
-  body.append('output_format', 'jpeg');
-  body.append('output_compression', '92');
-
-  const response = await fetch('https://api.openai.com/v1/images/edits', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body,
-    cache: 'no-store',
-  });
-  const payload = await response.json().catch(() => null) as {
-    data?: Array<{ b64_json?: string }>;
-    error?: { message?: string };
-  } | null;
-
-  const image = payload?.data?.[0]?.b64_json;
-  if (!response.ok || !image) {
-    throw new StudioProviderError(
-      'OPENAI',
-      response.status,
-      payload?.error?.message || 'OpenAI görsel düzenleme yanıtı alınamadı.'
-    );
-  }
-  return { buffer: Buffer.from(image, 'base64'), mimeType: 'image/jpeg', extension: 'jpg' };
-}
-
-async function enhanceWithGemini(
-  photo: { name: string; buffer: Buffer },
-  apiKey: string,
-  model: string
-): Promise<ProcessedImage> {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: STUDIO_ENHANCEMENT_PROMPT },
-              {
-                inline_data: {
-                  mime_type: imageMimeType(photo.name),
-                  data: photo.buffer.toString('base64'),
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: { responseModalities: ['IMAGE'] },
-      }),
-      cache: 'no-store',
-    }
-  );
-  const payload = (await response.json().catch(() => null)) as {
-    candidates?: Array<{
-      content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> };
-    }>;
-    error?: { message?: string };
-  } | null;
-  const image = payload?.candidates?.[0]?.content?.parts?.find(
-    (part) => part.inlineData?.data
-  )?.inlineData;
-
-  if (!response.ok || !image?.data) {
-    throw new StudioProviderError(
-      'GEMINI',
-      response.status,
-      payload?.error?.message || 'Gemini görsel düzenleme yanıtı alınamadı.'
-    );
-  }
-
-  const mimeType = image.mimeType || 'image/png';
-  return {
-    buffer: Buffer.from(image.data, 'base64'),
-    mimeType,
-    extension: mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png',
-  };
-}
-
-async function configuredStudioProvider() {
-  const cookieStore = await cookies();
-  const session = readFabrikaSessionToken(
-    cookieStore.get(FABRIKA_SESSION_COOKIE)?.value
-  );
-  if (!session) throw new Error('Fabrika oturumu gerekli.');
-
-  const companyCredential = await getCompanyStudioCredential(session.accountId);
-  if (companyCredential) return companyCredential;
-
-  const fallbackApiKey = process.env.OPENAI_API_KEY;
-  if (fallbackApiKey) {
-    return {
-      provider: 'OPENAI' as const,
-      apiKey: fallbackApiKey,
-      model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
-    };
-  }
-
-  throw new Error('Stüdyo AI ayarlarından Gemini veya OpenAI API anahtarınızı ekleyin.');
+function safeBaseName(name: string, index: number) {
+  const withoutExtension = name.replace(/\.[^/.]+$/, '');
+  const normalized = withoutExtension
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}._-]+/gu, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+  return normalized || `gorsel_${index + 1}`;
 }
 
 export async function POST(request: Request) {
   try {
-    const { shootId } = await request.json().catch(() => ({}));
-    const safeShootId = shootId || `shoot_${Date.now()}`;
-    const session = getOrCreateSession(safeShootId);
+    await requireFabrikaPrincipal();
 
-    if (session.photos.length === 0) {
+    const formData = await request.formData().catch(() => null);
+    if (!formData) {
       return NextResponse.json(
-        { success: false, error: 'İşlenecek fotoğraf bulunamadı.' },
+        {
+          success: false,
+          code: 'INVALID_REQUEST',
+          error:
+            'İyileştirme isteği okunamadı. Görseli yeniden seçip tekrar deneyin.',
+        },
         { status: 400 }
       );
     }
 
-    const provider = await configuredStudioProvider();
-    session.aiPhotos = [];
-    session.aiProvider = provider.provider;
-    session.aiModel = provider.model;
-    for (const photo of session.photos) {
-      const processed = provider.provider === 'GEMINI'
-        ? await enhanceWithGemini(photo, provider.apiKey, provider.model)
-        : await enhanceWithOpenAI(photo, provider.apiKey, provider.model);
-      const baseName = photo.name.replace(/\.[^/.]+$/, '');
-      session.aiPhotos.push({
-        name: `${baseName}_AI_iyilestirilmis.${processed.extension}`,
-        buffer: processed.buffer,
-        mimeType: processed.mimeType,
-      });
+    const photo = formData.get('photo');
+    if (!(photo instanceof File)) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'INVALID_IMAGE',
+          error:
+            'İşlenecek fotoğraf bulunamadı. Lütfen görseli yeniden seçin.',
+        },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      prompt: STUDIO_ENHANCEMENT_PROMPT,
-      processedCount: session.aiPhotos.length,
-      results: session.aiPhotos.map((photo, index) => ({
-        name: photo.name,
-        previewUrl: `/api/fabrika/studio/download?shootId=${encodeURIComponent(safeShootId)}&format=single&index=${index}`,
-        downloadUrl: `/api/fabrika/studio/download?shootId=${encodeURIComponent(safeShootId)}&format=single&index=${index}&download=true`,
-      })),
-      zipUrl: `/api/fabrika/studio/download?shootId=${encodeURIComponent(safeShootId)}&format=zip`,
+    const promptValue = formData.get('prompt');
+    const prompt =
+      typeof promptValue === 'string' && promptValue.trim()
+        ? promptValue.trim()
+        : DEFAULT_STUDIO_ENHANCEMENT_PROMPT;
+    if (prompt.length > 10_000) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'INVALID_PROMPT',
+          error:
+            'İyileştirme talimatı en fazla 10.000 karakter olabilir.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const processed = await enhanceWithStableImageUltra({
+      image: Buffer.from(await photo.arrayBuffer()),
+      mimeType: photo.type || imageMimeType(photo.name),
+      prompt,
+    });
+    const outputName = `${safeBaseName(photo.name, 0)}_AI_iyilestirilmis.${processed.extension}`;
+
+    return new Response(new Uint8Array(processed.buffer), {
+      status: 200,
+      headers: {
+        'Content-Type': processed.mimeType,
+        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(outputName)}`,
+        'X-Studio-File-Name': encodeURIComponent(outputName),
+        'Cache-Control': 'private, no-store, max-age=0',
+      },
     });
   } catch (error: unknown) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'UNAUTHORIZED',
+          error: error.message,
+        },
+        { status: 401 }
+      );
+    }
+
+    if (error instanceof StabilityUltraError) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: error.code,
+          error: error.message,
+        },
+        { status: error.status }
+      );
+    }
+
     console.error('Studio Process Error:', error);
-    const responseError = studioErrorResponse(error);
     return NextResponse.json(
-      { success: false, error: responseError.message },
-      { status: responseError.status }
+      {
+        success: false,
+        code: 'PROCESSING_FAILED',
+        error:
+          'Görseller işlenirken beklenmeyen bir sorun oluştu. Lütfen kısa bir süre sonra yeniden deneyin.',
+      },
+      { status: 500 }
     );
   }
 }

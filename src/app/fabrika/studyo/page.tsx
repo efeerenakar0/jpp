@@ -29,6 +29,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+  DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
+  STUDIO_ENHANCEMENT_PRESETS,
+  type StudioEnhancementPreset,
+  type StudioEnhancementPresetId,
+} from '@/lib/studio-enhancement';
 import toast from 'react-hot-toast';
 
 type StudioScreen = 'upload' | 'results';
@@ -37,6 +43,7 @@ type StudioResult = {
   name: string;
   previewUrl: string;
   downloadUrl: string;
+  blob: Blob;
 };
 
 type StudioProvider = 'OPENAI' | 'GEMINI';
@@ -110,7 +117,7 @@ export default function StudioPage() {
   const [status, setStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState<StudioResult[]>([]);
-  const [zipUrl, setZipUrl] = useState('');
+  const [isPreparingZip, setIsPreparingZip] = useState(false);
   const [activeResult, setActiveResult] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [provider, setProvider] = useState<StudioProvider>('OPENAI');
@@ -121,7 +128,13 @@ export default function StudioPage() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
+  const [selectedPresetId, setSelectedPresetId] =
+    useState<StudioEnhancementPresetId>('professional-camera');
+  const [enhancementInstruction, setEnhancementInstruction] = useState(
+    DEFAULT_STUDIO_ENHANCEMENT_PROMPT
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const instructionRef = useRef<HTMLTextAreaElement>(null);
 
   const filePreviews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -131,6 +144,11 @@ export default function StudioPage() {
   useEffect(() => {
     return () => filePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
   }, [filePreviews]);
+
+  useEffect(() => {
+    return () =>
+      results.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+  }, [results]);
 
   useEffect(() => {
     async function loadProperties() {
@@ -174,6 +192,14 @@ export default function StudioPage() {
 
   const removeFile = (index: number) => {
     setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const selectEnhancementPreset = (preset: StudioEnhancementPreset) => {
+    setSelectedPresetId(preset.id);
+    setEnhancementInstruction(preset.prompt);
+    if (preset.id === 'custom') {
+      requestAnimationFrame(() => instructionRef.current?.focus());
+    }
   };
 
   const selectedProviderStatus = providerStatuses.find(
@@ -244,33 +270,78 @@ export default function StudioPage() {
       toast.error('Önce en az bir fotoğraf yükleyin.');
       return;
     }
+    const safeInstruction = enhancementInstruction.trim();
+    if (!safeInstruction) {
+      toast.error('İyileştirme talimatınızı yazın veya hazır seçeneklerden birini seçin.');
+      instructionRef.current?.focus();
+      return;
+    }
+    if (safeInstruction.length > 10_000) {
+      toast.error('İyileştirme talimatı en fazla 10.000 karakter olabilir.');
+      instructionRef.current?.focus();
+      return;
+    }
 
     setIsProcessing(true);
     setErrorMessage('');
-    setProgress(12);
-    setStatus('Fotoğraflar güvenli olarak stüdyoya yükleniyor…');
+    setProgress(5);
+    setStatus('Fotoğraflar Stable Image Ultra için hazırlanıyor…');
 
+    const processedResults: StudioResult[] = [];
     try {
-      const formData = new FormData();
-      files.forEach((file) => formData.append('photos', file));
-      const uploadResponse = await fetch('/api/fabrika/studio/upload', { method: 'POST', body: formData });
-      const uploadData = await uploadResponse.json();
-      if (!uploadResponse.ok) throw new Error(uploadData.error || 'Fotoğraflar yüklenemedi.');
+      for (const [index, file] of files.entries()) {
+        setProgress(Math.round(5 + (index / files.length) * 90));
+        setStatus(
+          `Stable Image Ultra, ${index + 1}/${files.length} fotoğrafı özgün yapıyı koruyarak iyileştiriyor…`
+        );
 
-      setProgress(38);
-      setStatus('Seçtiğiniz AI motoru, portföy kalitesini koruyarak ışık ve renkleri iyileştiriyor…');
-      const processResponse = await fetch('/api/fabrika/studio/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shootId: uploadData.shootId }),
-      });
-      const processData = await processResponse.json();
-      if (!processResponse.ok) throw new Error(processData.error || 'Görseller işlenemedi.');
+        const formData = new FormData();
+        formData.set('photo', file);
+        formData.set('prompt', safeInstruction);
+        const response = await fetch('/api/fabrika/studio/process', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          let message = 'Görsel işlenemedi. Lütfen yeniden deneyin.';
+          try {
+            const data = await response.json();
+            if (typeof data.error === 'string') message = data.error;
+          } catch {
+            // The fallback message covers non-JSON provider/proxy errors.
+          }
+          throw new Error(message);
+        }
+
+        const resultBlob = await response.blob();
+        if (!resultBlob.type.startsWith('image/') || resultBlob.size === 0) {
+          throw new Error(
+            'Stable Image Ultra geçerli bir görsel döndürmedi. Lütfen yeniden deneyin.'
+          );
+        }
+
+        const encodedName = response.headers.get('x-studio-file-name');
+        let resultName = `${file.name.replace(/\.[^/.]+$/, '') || `gorsel_${index + 1}`}_AI_iyilestirilmis.jpg`;
+        if (encodedName) {
+          try {
+            resultName = decodeURIComponent(encodedName);
+          } catch {
+            // Keep the deterministic fallback filename.
+          }
+        }
+        const resultUrl = URL.createObjectURL(resultBlob);
+        processedResults.push({
+          name: resultName,
+          previewUrl: resultUrl,
+          downloadUrl: resultUrl,
+          blob: resultBlob,
+        });
+      }
 
       setProgress(100);
       setStatus('İndirilebilir görseller hazırlanıyor…');
-      setResults(processData.results ?? []);
-      setZipUrl(processData.zipUrl ?? '');
+      setResults(processedResults);
       setActiveResult(0);
       setScreen('results');
       if (selectedPropertyId) {
@@ -280,15 +351,18 @@ export default function StudioPage() {
           body: JSON.stringify({
             action: 'record-studio-output',
             propertyId: selectedPropertyId,
-            resultCount: processData.processedCount,
+            resultCount: processedResults.length,
           }),
         });
         if (!linkResponse.ok) {
           toast.error('Görseller hazırlandı ancak portföy aktivitesine eklenemedi.');
         }
       }
-      toast.success(`${processData.processedCount} fotoğrafınız iyileştirildi.`);
+      toast.success(`${processedResults.length} fotoğrafınız iyileştirildi.`);
     } catch (error) {
+      processedResults.forEach(({ previewUrl }) =>
+        URL.revokeObjectURL(previewUrl)
+      );
       const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
       setErrorMessage(message);
       setProgress(0);
@@ -299,14 +373,38 @@ export default function StudioPage() {
     }
   };
 
+  const downloadAllResults = async () => {
+    if (!results.length || isPreparingZip) return;
+    setIsPreparingZip(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      results.forEach((result) => zip.file(result.name, result.blob));
+      const archive = await zip.generateAsync({ type: 'blob' });
+      const archiveUrl = URL.createObjectURL(archive);
+      const anchor = document.createElement('a');
+      anchor.href = archiveUrl;
+      anchor.download = 'Jasmine_Studio_AI_Iyilestirilmis.zip';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(archiveUrl), 1_000);
+    } catch {
+      toast.error('ZIP dosyası hazırlanamadı. Görselleri tek tek indirebilirsiniz.');
+    } finally {
+      setIsPreparingZip(false);
+    }
+  };
+
   const resetStudio = () => {
     setScreen('upload');
     setFiles([]);
     setResults([]);
-    setZipUrl('');
     setActiveResult(0);
     setProgress(0);
     setErrorMessage('');
+    setSelectedPresetId('professional-camera');
+    setEnhancementInstruction(DEFAULT_STUDIO_ENHANCEMENT_PROMPT);
   };
 
   const activePhoto = results[activeResult];
@@ -327,7 +425,7 @@ export default function StudioPage() {
               <button type="button" role="tab" aria-selected={studioArea === 'enhancer'} onClick={() => setStudioArea('enhancer')} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${studioArea === 'enhancer' ? 'bg-emerald-400/15 text-emerald-200' : 'text-slate-400 hover:text-white'}`}>Resim iyileştirici</button>
               <button type="button" role="tab" aria-selected={studioArea === 'poster'} onClick={() => setStudioArea('poster')} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${studioArea === 'poster' ? 'bg-emerald-400/15 text-emerald-200' : 'text-slate-400 hover:text-white'}`}>Poster yapıcı</button>
             </div>
-            {permissions.canManageSecrets && (
+            {studioArea === 'poster' && permissions.canManageSecrets && (
               <button
                 type="button"
                 onClick={openSettings}
@@ -338,7 +436,9 @@ export default function StudioPage() {
             )}
             <span className="hidden items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-300 sm:inline-flex">
               <Sparkles className="h-3.5 w-3.5 text-emerald-300" />{' '}
-              {permissions.canManageSecrets
+              {studioArea === 'enhancer'
+                ? 'Stable Image Ultra'
+                : permissions.canManageSecrets
                 ? activeProviderStatus
                   ? PROVIDER_DETAILS[activeProviderStatus.provider].label
                   : 'AI sağlayıcısı seçin'
@@ -392,6 +492,71 @@ export default function StudioPage() {
                   ))}
                 </select>
               </label>
+
+              <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <label
+                      htmlFor="studio-enhancement-instruction"
+                      className="text-sm font-bold text-white"
+                    >
+                      İyileştirme talimatı
+                    </label>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      Hazır bir seçenek kullanın veya metni ihtiyacınıza göre düzenleyin.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {enhancementInstruction.length.toLocaleString('tr-TR')} / 10.000
+                  </span>
+                </div>
+
+                <div
+                  className="mt-4 flex flex-wrap gap-2"
+                  aria-label="Hazır iyileştirme talimatları"
+                >
+                  {STUDIO_ENHANCEMENT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      aria-pressed={selectedPresetId === preset.id}
+                      title={preset.description}
+                      onClick={() => selectEnhancementPreset(preset)}
+                      className={`rounded-full border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
+                        selectedPresetId === preset.id
+                          ? 'border-emerald-300/50 bg-emerald-300/15 text-emerald-100'
+                          : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500 hover:text-white'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  ref={instructionRef}
+                  id="studio-enhancement-instruction"
+                  value={enhancementInstruction}
+                  maxLength={10_000}
+                  rows={8}
+                  onChange={(event) => {
+                    setEnhancementInstruction(event.target.value);
+                    if (
+                      STUDIO_ENHANCEMENT_PRESETS.find(
+                        (preset) => preset.id === selectedPresetId
+                      )?.prompt !== event.target.value
+                    ) {
+                      setSelectedPresetId('custom');
+                    }
+                  }}
+                  placeholder="Görselde nasıl bir iyileştirme istediğinizi yazın…"
+                  className="mt-4 min-h-44 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/15"
+                />
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  Kaynak görsel image-to-image olarak işlenir. Düşük dönüşüm gücü, mimariyi ve mevcut nesneleri korumaya yardımcı olur.
+                </p>
+              </div>
+
               <div
                 role="button"
                 tabIndex={0}
@@ -444,24 +609,11 @@ export default function StudioPage() {
                     <p className="mt-1 text-xs leading-5 text-rose-100/80">{errorMessage}</p>
                   </div>
                 </div>
-                {permissions.canManageSecrets ? (
-                  <button
-                    type="button"
-                    onClick={openSettings}
-                    className="shrink-0 rounded-lg border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                  >
-                    API ayarlarını aç
-                  </button>
-                ) : (
-                  <p className="text-xs text-rose-100">
-                    AI bağlantısını şirket patronunuz kontrol edebilir.
-                  </p>
-                )}
               </div>
             )}
 
             <div className="mt-7 flex flex-col items-center justify-between gap-4 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] p-4 sm:flex-row sm:px-5">
-              <div className="flex items-center gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> API anahtarınız sadece tek seferlik görselinizi oluşturmak için sunucuda kullanılır. Tarayıcıya gönderilmez.</div>
+              <div className="flex items-center gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> Stability API anahtarı yalnızca sunucuda kullanılır ve hiçbir zaman tarayıcıya gönderilmez.</div>
               <button type="button" onClick={startProcessing} disabled={!files.length || isProcessing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 px-5 py-3.5 text-sm font-extrabold text-emerald-950 shadow-lg shadow-emerald-500/15 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto">
                 {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 AI ile iyileştir <ArrowRight className="h-4 w-4" />
@@ -476,7 +628,21 @@ export default function StudioPage() {
                 <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Portföye hazır görselleriniz.</h1>
                 <p className="mt-2 text-sm text-slate-400">İyileştirilmiş sonucu inceleyin veya tüm görselleri tek ZIP dosyası halinde indirin.</p>
               </div>
-              {zipUrl && <a href={zipUrl} download="Jasmine_Studio_AI_Iyilestirilmis.zip" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200"><Download className="h-4 w-4" /> Tümünü ZIP indir</a>}
+              {results.length > 0 && (
+                <button
+                  type="button"
+                  onClick={downloadAllResults}
+                  disabled={isPreparingZip}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isPreparingZip ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {isPreparingZip ? 'ZIP hazırlanıyor…' : 'Tümünü ZIP indir'}
+                </button>
+              )}
             </div>
 
             {activePhoto ? (
@@ -488,7 +654,7 @@ export default function StudioPage() {
                 <div className="flex flex-col p-5 sm:p-7">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">Seçili görsel</p>
                   <h2 className="mt-2 break-all text-xl font-extrabold text-white">{activePhoto.name}</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">Işık, renk dengesi, netlik ve genel sunum kalitesi portföy yayın standardına göre yeniden işlendi.</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-400">Stable Image Ultra; ışık, renk dengesi, netlik ve genel sunum kalitesini seçtiğiniz talimata göre yeniden işledi.</p>
                   {activeOriginal && <div className="mt-6 overflow-hidden rounded-xl border border-white/10"><img src={activeOriginal.url} alt="İşlem öncesi" className="aspect-[16/10] w-full object-cover" /><p className="border-t border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-300">İşlem öncesi</p></div>}
                   <a href={activePhoto.downloadUrl} download={activePhoto.name} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm font-extrabold text-emerald-200 transition hover:bg-emerald-300/20"><Download className="h-4 w-4" /> Bu görseli indir</a>
                 </div>
@@ -590,7 +756,7 @@ export default function StudioPage() {
       </Dialog>
       )}
 
-      {isProcessing && <div className="fixed inset-0 z-50 grid place-items-center bg-[#07120f]/80 px-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-3xl border border-emerald-300/20 bg-slate-950 p-7 text-center shadow-2xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-300/15 text-emerald-300"><Loader2 className="h-8 w-8 animate-spin" /></div><h2 className="mt-5 text-xl font-extrabold text-white">Görselleriniz işleniyor</h2><p className="mt-2 text-sm leading-6 text-slate-400">{status}</p><div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-teal-400 transition-all duration-500" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs font-bold text-emerald-300">%{progress}</p></div></div>}
+      {isProcessing && <div className="fixed inset-0 z-50 grid place-items-center bg-[#07120f]/80 px-4 backdrop-blur-sm"><div role="status" aria-live="polite" className="w-full max-w-md rounded-3xl border border-emerald-300/20 bg-slate-950 p-7 text-center shadow-2xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-300/15 text-emerald-300"><Loader2 className="h-8 w-8 animate-spin" /></div><h2 className="mt-5 text-xl font-extrabold text-white">Görselleriniz işleniyor</h2><p className="mt-2 text-sm leading-6 text-slate-400">{status}</p><div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-teal-400 transition-all duration-500" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs font-bold text-emerald-300">%{progress}</p></div></div>}
     </div>
   );
 }
