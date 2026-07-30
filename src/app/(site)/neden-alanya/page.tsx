@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { Sun, Plane, TrendingUp, ShieldCheck, Sparkles } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Neden Alanya? | Jasmine Nano Proje Pazarlama",
+  title: "Neden Alanya? | Business CEO AI",
   description: "Alanya'da gayrimenkul yatırımının avantajları ve yaşam rehberi.",
 };
 

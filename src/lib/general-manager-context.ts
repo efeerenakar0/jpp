@@ -1,6 +1,7 @@
 import 'server-only';
 
 import prisma from './prisma';
+import { resolveWorkspaceBrand } from './business-ceo-brand';
 
 export type ManagerPrincipal = {
   accountId: string;
@@ -382,7 +383,7 @@ export async function getGeneralManagerContext(principal: ManagerPrincipal) {
   return {
     generatedAt: new Date().toISOString(),
     company: {
-      name: principal.companyName,
+      name: resolveWorkspaceBrand(principal.companyName),
       principalName: principal.displayName,
       principalType: principal.type,
     },

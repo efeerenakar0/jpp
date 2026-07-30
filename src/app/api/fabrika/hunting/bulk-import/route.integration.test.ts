@@ -78,7 +78,7 @@ describe('POST /api/fabrika/hunting/bulk-import', () => {
     const formData = new FormData();
     formData.set(
       'file',
-      new File([zip.toBuffer()], 'jasmine_portfoy_paketi.zip', {
+      new File([new Uint8Array(zip.toBuffer())], 'jasmine_portfoy_paketi.zip', {
         type: 'application/zip',
       })
     );

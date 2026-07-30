@@ -244,7 +244,7 @@ export default function CommandCenter() {
     <div className="space-y-6 pb-8">
       <PageHeader
         eyebrow="Operasyon görünümü"
-        title={`${context?.company.name || 'Jasmine Group'} Komuta Merkezi`}
+        title={`${context?.company.name || 'Business CEO AI'} Komuta Merkezi`}
         description="Portföy, müşteri iletişimi, pazarlama ve üretim operasyonlarını tek bir çalışma alanından yönetin."
         icon={Crown}
         actions={
@@ -324,7 +324,7 @@ export default function CommandCenter() {
               </span>
               <div>
                 <h2 id="general-manager-title" className="text-sm font-semibold text-white">
-                  Dijital Genel Müdür
+                  CEO Copilot
                 </h2>
                 <p className="mt-0.5 text-xs text-emerald-400">
                   Asistan ile aynı {provider?.provider || 'AI'} · şirket kapsamlı veri
@@ -368,7 +368,7 @@ export default function CommandCenter() {
             role="log"
             aria-live="polite"
             aria-relevant="additions text"
-            aria-label="Dijital Genel Müdür mesajları"
+            aria-label="CEO Copilot mesajları"
             className="custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-slate-950/30 p-4 sm:p-5"
           >
             {chatLoading ? (
@@ -413,7 +413,7 @@ export default function CommandCenter() {
                     }`}
                   >
                     <div className={`mb-1.5 flex items-center gap-2 text-[10px] font-semibold ${isPatron ? 'justify-end text-emerald-300' : 'text-slate-400'}`}>
-                      <span>{isPatron ? message.authorName || 'Ekip üyesi' : 'Dijital Genel Müdür'}</span>
+                      <span>{isPatron ? message.authorName || 'Ekip üyesi' : 'CEO Copilot'}</span>
                       {!isPatron && message.provider && (
                         <span className="rounded border border-slate-700 px-1.5 py-0.5 font-normal text-slate-500">
                           {message.provider === 'RULE_ENGINE' ? 'Doğrulanmış yedek' : message.provider}
@@ -432,7 +432,7 @@ export default function CommandCenter() {
               );
             })}
             {isSending && (
-              <div className="flex max-w-[90%] gap-2.5" aria-label="Dijital Genel Müdür yanıt hazırlıyor">
+              <div className="flex max-w-[90%] gap-2.5" aria-label="CEO Copilot yanıt hazırlıyor">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300">
                   <Crown className="h-4 w-4" />
                 </span>

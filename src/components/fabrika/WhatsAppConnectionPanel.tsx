@@ -258,7 +258,7 @@ export default function WhatsAppConnectionPanel() {
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-400">
                 WhatsApp uygulamasını telefonda kullanmaya devam edebilirsiniz.
-                Jasmine ayrı bir bağlı cihaz olarak çalışır.
+                Business CEO AI ayrı bir bağlı cihaz olarak çalışır.
               </p>
             </div>
             {!connected && (

@@ -7,8 +7,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-serif" });
 
 export const metadata: Metadata = {
-  title: "Jasmine Proje Pazarlama | Alanya'nın İlk ve Tek Proje Pazarlama Firması",
-  description: "Alanya'da inşaat firmaları ve emlakçılar arasında köprü kuran ilk ve tek proje pazarlama firması. Lüks projeler, yatırım danışmanlığı.",
+  title: "Business CEO AI | Akıllı Gayrimenkul Operasyon Sistemi",
+  description: "Portföy, müşteri, iletişim, pazarlama ve iş operasyonlarını yapay zekâ destekli tek bir çalışma alanında yönetin.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
 };
 

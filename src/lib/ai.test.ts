@@ -122,7 +122,7 @@ describe('AI router', () => {
   it('reports both configured providers without exposing credentials', () => {
     expect(sharedAssistantAIStatus()).toEqual({
       configured: true,
-      provider: 'Jasmine AI Router',
+      provider: 'Business CEO AI Router',
       model: 'GPT-OSS 120B · Qwen 3.6 · Cloudflare Qwen3',
       providers: {
         groq: true,

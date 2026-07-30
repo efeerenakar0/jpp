@@ -1262,7 +1262,7 @@ export default function WorkspacePage({
                               <p className="mt-2 text-[10px] text-slate-600">
                                 {activity.actorMember?.name ||
                                   (activity.type === 'AI_SCORE_UPDATED'
-                                    ? 'Jasmine AI'
+                                    ? 'Business CEO AI'
                                     : 'Sistem')}
                               </p>
                             </div>

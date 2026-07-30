@@ -81,7 +81,7 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
       'OpenAI Platform hesabınıza giriş yapın.',
       'Sol menüden ilgili proje alanını seçin ve API Keys sayfasını açın.',
       '+ Create new secret key düğmesine basın.',
-      'Anahtara Jasmine Studio gibi anlaşılır bir ad verin.',
+      'Anahtara Business CEO AI Studio gibi anlaşılır bir ad verin.',
       'Oluşan anahtarı hemen kopyalayın; OpenAI bu anahtarı daha sonra tekrar tam olarak göstermez.',
       'Bu ekrandaki API anahtarı alanına yapıştırıp ayarları kaydedin.',
     ],
@@ -569,7 +569,7 @@ export default function StudioPage() {
                 <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Portföye hazır görselleriniz.</h1>
                 <p className="mt-2 text-sm text-slate-400">İyileştirilmiş sonucu inceleyin veya tüm görselleri tek ZIP dosyası halinde indirin.</p>
               </div>
-              {zipUrl && <a href={zipUrl} download="Jasmine_Studio_AI_Iyilestirilmis.zip" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200"><Download className="h-4 w-4" /> Tümünü ZIP indir</a>}
+              {zipUrl && <a href={zipUrl} download="Business_CEO_AI_Studio_Iyilestirilmis.zip" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200"><Download className="h-4 w-4" /> Tümünü ZIP indir</a>}
             </div>
 
             {activePhoto ? (

@@ -420,7 +420,7 @@ export async function POST(request: Request) {
 
     if (input.action === 'sync-google') {
       const result = await syncCompanyGoogleCalendar(companyAccountId);
-      message = `${result.pulledCount} Google kaydı alındı, ${result.pushedCount} Jasmine kaydı gönderildi.`;
+      message = `${result.pulledCount} Google kaydı alındı, ${result.pushedCount} Business CEO AI kaydı gönderildi.`;
     }
 
     return NextResponse.json({

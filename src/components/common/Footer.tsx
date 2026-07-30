@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { siteContent } from "@/data/site-content";
-import { Building2, Mail, MapPin, Phone, Sparkles, Cpu } from "lucide-react";
+import { Mail, MapPin, Phone, Sparkles } from "lucide-react";
+import BusinessCeoMark from "@/components/fabrika/BusinessCeoMark";
 
 export default function Footer() {
   return (
@@ -10,24 +11,11 @@ export default function Footer() {
           {/* Brand Column - Stitch Design */}
           <div className="space-y-6">
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-2xl blur-sm opacity-70 group-hover:opacity-100 transition-opacity" />
-                <div className="relative w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center border border-white/10">
-                  <Building2 className="w-5 h-5 text-cyan-400" />
-                </div>
-              </div>
-              <div>
-                <span className="font-serif text-2xl font-black bg-gradient-to-r from-white via-cyan-200 to-amber-400 bg-clip-text text-transparent">
-                  Jasmine
-                </span>
-                <span className="text-[9px] tracking-[0.25em] text-cyan-400 uppercase font-black block -mt-1">
-                  Nano Proje Pazarlama
-                </span>
-              </div>
+              <BusinessCeoMark />
             </Link>
 
             <p className="text-xs leading-relaxed text-slate-400 font-medium">
-              Alanya ve Akdeniz bölgesinde lüks inşaat projeleri ile uluslararası gayrimenkul yatırımcılarını Google Gemini ve Meta Cloud API otonom yapay zeka altyapısıyla buluşturan lider kurum.
+              Gayrimenkul şirketlerinin portföy, müşteri, iletişim, pazarlama ve ekip operasyonlarını yapay zekâ destekli tek bir yönetim alanında birleştiren işletim sistemi.
             </p>
 
             <div className="flex gap-4 text-xs font-bold text-slate-400">
@@ -49,7 +37,7 @@ export default function Footer() {
               <li><Link href="/projeler" className="hover:text-cyan-400 transition-colors">Öne Çıkan Projeler</Link></li>
               <li><Link href="/is-ortakligi" className="hover:text-cyan-400 transition-colors">Acente & Emlakçı Portalı</Link></li>
               <li><Link href="/sss" className="hover:text-cyan-400 transition-colors">Sık Sorulan Sorular</Link></li>
-              <li><Link href="/fabrika" className="hover:text-cyan-400 transition-colors font-bold text-cyan-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> AI Yapay Zeka Fabrikası</Link></li>
+              <li><Link href="/fabrika" className="hover:text-cyan-400 transition-colors font-bold text-cyan-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> CEO Workspace</Link></li>
             </ul>
           </div>
 
@@ -100,7 +88,7 @@ export default function Footer() {
         {/* Bottom Copyright */}
         <div className="border-t border-slate-900 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-slate-500 text-center md:text-left font-semibold">
-            &copy; {new Date().getFullYear()} Jasmine Nano Proje Pazarlama. Tüm hakları saklıdır.
+            &copy; {new Date().getFullYear()} Business CEO AI. Tüm hakları saklıdır.
           </p>
           <div className="flex gap-6 text-xs text-slate-500 font-semibold">
             <Link href="/gizlilik-politikasi" className="hover:text-white transition-colors">Gizlilik Politikası</Link>

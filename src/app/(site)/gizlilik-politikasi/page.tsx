@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
         
         <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">1. Giriş</h2>
         <p className="mb-4">
-          Jasmine Proje Pazarlama ("Şirket", "Biz", "Bize" veya "Bizi") olarak gizliliğinize saygı duyuyor ve kişisel verilerinizi korumaya önem veriyoruz. Bu Gizlilik Politikası, web sitemizi ziyaret ettiğinizde kişisel verilerinizi nasıl topladığımızı, kullandığımızı ve koruduğumuzu açıklamaktadır.
+          Business CEO AI ("Şirket", "Biz", "Bize" veya "Bizi") olarak gizliliğinize saygı duyuyor ve kişisel verilerinizi korumaya önem veriyoruz. Bu Gizlilik Politikası, web sitemizi ziyaret ettiğinizde kişisel verilerinizi nasıl topladığımızı, kullandığımızı ve koruduğumuzu açıklamaktadır.
         </p>
 
         <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">2. Toplanan Veriler</h2>

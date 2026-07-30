@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 let memoryProfile: any = {
   id: 'profile_default',
-  companyName: 'Jasmine Group',
+  companyName: 'Business CEO AI',
   strengths: ['Gelişmiş Alanya Portföy Ağı', 'Yabancı İkamet ve Vatandaşlık Uzmanlığı', 'Ücretsiz Drone ve VIP Servis'],
   uniquePoints: ['Sadece Bize Özel Yatırımcı Ağı', 'Hızlı ve Güvenilir Satış'],
   serviceAreas: ['Alanya', 'Mahmutlar', 'Kargıcak', 'Oba', 'Kleopatra'],

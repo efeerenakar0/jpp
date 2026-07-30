@@ -7,6 +7,7 @@ import {
   FabrikaSessionProvider,
   type FabrikaClientSession,
 } from './FabrikaSessionContext';
+import { resolveWorkspaceBrand } from '@/lib/business-ceo-brand';
 
 interface FabrikaAppShellProps {
   children: React.ReactNode;
@@ -25,7 +26,7 @@ export default function FabrikaAppShell({
 
   return (
     <FabrikaSessionProvider value={session}>
-      <div className="flex h-dvh min-h-0 overflow-hidden bg-slate-950 text-slate-100">
+      <div className="business-ceo-shell flex h-dvh min-h-0 overflow-hidden bg-[#07101d] text-slate-100">
         <a
           href="#fabrika-main"
           className="sr-only z-[100] rounded-md bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
@@ -34,7 +35,7 @@ export default function FabrikaAppShell({
         </a>
 
         <FabrikaSidebar
-          companyName={account.companyName}
+          companyName={resolveWorkspaceBrand(account.companyName)}
           mobileOpen={mobileNavigationOpen}
           onMobileClose={() => setMobileNavigationOpen(false)}
           principalType={session.principalType}
@@ -46,10 +47,10 @@ export default function FabrikaAppShell({
           <FabrikaTopbar onOpenNavigation={() => setMobileNavigationOpen(true)} />
           <main
             id="fabrika-main"
-            className="min-h-0 flex-1 overflow-y-auto bg-slate-950"
+            className="business-ceo-main min-h-0 flex-1 overflow-y-auto bg-[#07101d]"
             tabIndex={-1}
           >
-            <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+            <div className="mx-auto w-full max-w-[1760px] px-4 py-5 sm:px-6 sm:py-6 lg:px-7 lg:py-7">
               {children}
             </div>
           </main>

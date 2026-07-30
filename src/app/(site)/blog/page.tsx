@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Calendar } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Blog & Haberler | Jasmine Proje Pazarlama",
+  title: "Blog & Haberler | Business CEO AI",
   description: "Alanya gayrimenkul sektörü, yatırım tavsiyeleri ve güncel piyasa analizleri.",
 };
 

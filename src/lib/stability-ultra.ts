@@ -137,7 +137,7 @@ export async function enhanceWithStableImageUltra({
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: 'image/*',
-      'stability-client-id': 'Jasmine AI Studio',
+      'stability-client-id': 'Business CEO AI Studio',
       'stability-client-version': '2.0',
     },
     body,

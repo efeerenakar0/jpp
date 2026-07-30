@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     <footer style="background-color: #1f2937; color: white; text-align: center; padding: 20px;">
         <p>&copy; 2026 ${companyName || 'Emlak Firması'}. Tüm Hakları Saklıdır.</p>
-        <p>Altyapı: Jasmine Group Yazılımcı Modülü</p>
+        <p>Altyapı: Business CEO AI Yazılımcı Modülü</p>
     </footer>
 </body>
 </html>

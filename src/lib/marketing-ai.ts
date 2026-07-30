@@ -94,7 +94,7 @@ async function callOpenRouter(
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://jpp-ufeb.vercel.app',
-      'X-Title': 'Jasmine AI Pazarlamacı',
+      'X-Title': 'Business CEO AI Pazarlamacı',
     },
     body: JSON.stringify({
       model,

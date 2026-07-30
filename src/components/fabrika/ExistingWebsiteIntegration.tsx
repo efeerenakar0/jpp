@@ -277,7 +277,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
     );
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'jasmine-codex-entegrasyon-promptu.txt';
+    anchor.download = 'business-ceo-ai-entegrasyon-promptu.txt';
     anchor.click();
     URL.revokeObjectURL(url);
   }

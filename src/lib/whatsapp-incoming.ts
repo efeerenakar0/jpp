@@ -511,7 +511,7 @@ export async function processIncomingWhatsAppMessage(
     input.text
   );
   const systemPrompt = PROMPTS.customerAssistant({
-    companyName: config?.companyName || 'Jasmine Group',
+    companyName: config?.companyName || 'Business CEO AI',
     availableListings:
       'Doğrulanmış kayıtlar ayrı JSON veri paketindeki verifiedListings alanındadır.',
     conversationHistory:

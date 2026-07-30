@@ -26,7 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* Sidebar */}
       <aside className="w-64 bg-primary-950 text-white flex flex-col hidden md:flex">
         <div className="p-6">
-          <h2 className="text-2xl font-serif font-bold text-gold-400">Jasmine CMS</h2>
+          <h2 className="text-2xl font-serif font-bold text-gold-400">Business CEO AI CMS</h2>
           <p className="text-xs text-gray-400">Yönetim Paneli</p>
         </div>
         <nav className="flex-1 px-4 space-y-2">

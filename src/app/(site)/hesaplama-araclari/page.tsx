@@ -3,7 +3,7 @@ import ROICalculator from "@/components/calculators/ROICalculator";
 import CurrencyConverter from "@/components/calculators/CurrencyConverter";
 
 export const metadata = {
-  title: "Hesaplama Araçları | Jasmine Proje Pazarlama"
+  title: "Hesaplama Araçları | Business CEO AI"
 };
 
 export default function CalculatorsPage() {
