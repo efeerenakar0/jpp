@@ -4,22 +4,27 @@ import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 're
 import {
   Aperture,
   AlertCircle,
-  ArrowRight,
   Check,
   CheckCircle2,
   Download,
   ExternalLink,
+  History,
   Home,
   ImagePlus,
   KeyRound,
   Loader2,
+  Maximize2,
+  Minus,
+  Plus,
   RefreshCw,
+  Settings2,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   UploadCloud,
+  WandSparkles,
   X,
 } from 'lucide-react';
-import PageHeader from '@/components/fabrika/PageHeader';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import PosterMaker from '@/components/fabrika/PosterMaker';
 import {
@@ -34,10 +39,12 @@ import { Input } from '@/components/ui/input';
 import {
   DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
   STUDIO_ENHANCEMENT_PRESETS,
+  STUDIO_NEGATIVE_PROMPT,
   type StudioEnhancementPreset,
   type StudioEnhancementPresetId,
 } from '@/lib/studio-enhancement';
 import toast from 'react-hot-toast';
+import styles from './studio.module.css';
 
 type StudioScreen = 'upload' | 'results';
 
@@ -307,7 +314,6 @@ export default function StudioPage() {
   const selectedProviderStatus = providerStatuses.find(
     (statusItem) => statusItem.provider === provider
   );
-  const activeProviderStatus = providerStatuses.find((statusItem) => statusItem.active);
   const selectedWorkspaceProperty = workspaceProperties.find(
     (property) => property.id === selectedPropertyId
   );
@@ -545,7 +551,7 @@ export default function StudioPage() {
       const archiveUrl = URL.createObjectURL(archive);
       const anchor = document.createElement('a');
       anchor.href = archiveUrl;
-      anchor.download = 'Jasmine_Studio_AI_Iyilestirilmis.zip';
+      anchor.download = 'Business_CEO_AI_Studio_Iyilestirilmis.zip';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -707,58 +713,91 @@ export default function StudioPage() {
     }
   };
 
+  const eligiblePropertyMedia = propertyMedia.filter(
+    (item) =>
+      item.mediaType === 'PHOTO' &&
+      item.variantType !== 'CREATIVE' &&
+      item.usageRightsStatus !== 'RESTRICTED'
+  );
+  const selectedPropertyMedia = eligiblePropertyMedia.filter((item) =>
+    selectedSourceMediaIds.includes(item.id)
+  );
+  const sourceCandidates = [
+    ...selectedPropertyMedia.map((item) => ({
+      id: item.id,
+      url: item.url,
+      name: item.fileName,
+      kind: 'portfolio' as const,
+    })),
+    ...filePreviews.map(({ file, url }) => ({
+      id: `${file.name}-${file.lastModified}`,
+      url,
+      name: file.name,
+      kind: 'upload' as const,
+    })),
+  ];
+  const activeSourceUrl = activePhoto?.sourceUrl || sourceCandidates[0]?.url || '';
+  const activeOutputUrl = activePhoto?.previewUrl || activeSourceUrl;
+  const totalSelected = files.length + selectedSourceMediaIds.length;
+  const completedItems = batchItems.filter(
+    (item) => item.status === 'COMPLETED' || item.status === 'ATTACHED'
+  ).length;
+  const recentVisuals = results.length
+    ? results.map((result) => ({
+        id: result.itemId,
+        url: result.previewUrl,
+        name: result.name,
+        downloadUrl: result.downloadUrl,
+      }))
+    : propertyMedia
+        .filter((item) => item.variantType === 'ENHANCED')
+        .map((item) => ({
+          id: item.id,
+          url: item.url,
+          name: item.fileName,
+          downloadUrl: item.url,
+        }));
+
   return (
-    <div className="space-y-6 overflow-x-hidden pb-8 text-slate-100">
-      <PageHeader
-        eyebrow="Görsel operasyonu"
-        title="Stüdyo"
-        description={studioArea === 'enhancer'
-          ? 'Portföy fotoğraflarını profesyonel yayın standardına göre iyileştirin ve indirilebilir çıktılar hazırlayın.'
-          : 'Gayrimenkul görsellerinizden şirket kimliğinize uygun reklam posterleri ve paylaşım metinleri oluşturun.'}
-        icon={Aperture}
-        actions={
-          <>
-            <div role="tablist" aria-label="Stüdyo çalışma alanları" className="flex rounded-lg border border-slate-700 bg-slate-900 p-1">
-              <button type="button" role="tab" aria-selected={studioArea === 'enhancer'} onClick={() => setStudioArea('enhancer')} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${studioArea === 'enhancer' ? 'bg-emerald-400/15 text-emerald-200' : 'text-slate-400 hover:text-white'}`}>Resim iyileştirici</button>
-              <button type="button" role="tab" aria-selected={studioArea === 'poster'} onClick={() => setStudioArea('poster')} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${studioArea === 'poster' ? 'bg-emerald-400/15 text-emerald-200' : 'text-slate-400 hover:text-white'}`}>Poster yapıcı</button>
-            </div>
-            {studioArea === 'poster' && permissions.canManageSecrets && (
-              <button
-                type="button"
-                onClick={openSettings}
-                className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-              >
-                <KeyRound className="h-3.5 w-3.5" /> API ayarları
-              </button>
-            )}
-            <span className="hidden items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-300 sm:inline-flex">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-300" />{' '}
-              {studioArea === 'enhancer'
-                ? 'Stable Image Ultra'
-                : permissions.canManageSecrets
-                ? activeProviderStatus
-                  ? PROVIDER_DETAILS[activeProviderStatus.provider].label
-                  : 'AI sağlayıcısı seçin'
-                : 'Şirket AI sağlayıcısı'}
-            </span>
-            {studioArea === 'enhancer' && screen === 'results' && (
-              <button
-                type="button"
-                onClick={resetStudio}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800"
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Yeni yükleme
-              </button>
-            )}
-          </>
-        }
-      />
+    <div className={styles.page}>
+      <header className={styles.hero}>
+        <div>
+          <p className={styles.eyebrow}>M5 · Görsel üretim</p>
+          <h1>Stüdyo</h1>
+          <p>Emlak görsellerinizi profesyonelce iyileştirin, en yüksek kaliteyi yakalayın</p>
+          <p>ve kampanyalarınıza hazır etkileyici posterler oluşturun.</p>
+        </div>
+        <div className={styles.heroActions}>
+          <button
+            type="button"
+            onClick={() => screen === 'results' ? resetStudio() : document.getElementById('studio-recent')?.scrollIntoView({ behavior: 'smooth' })}
+            className={styles.secondaryButton}
+          >
+            {screen === 'results' ? <RefreshCw /> : <History />}
+            {screen === 'results' ? 'Yeni çalışma' : 'Geçmiş'}
+          </button>
+          {permissions.canManageSecrets && (
+            <button type="button" onClick={openSettings} className={styles.secondaryButton}>
+              <Settings2 /> API ayarları
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div role="tablist" aria-label="Stüdyo çalışma alanları" className={styles.studioTabs}>
+        <button type="button" role="tab" aria-selected={studioArea === 'enhancer'} onClick={() => setStudioArea('enhancer')}>
+          <Sparkles /> Resim İyileştirici
+        </button>
+        <button type="button" role="tab" aria-selected={studioArea === 'poster'} onClick={() => setStudioArea('poster')}>
+          <ImagePlus /> Poster Yapıcı
+        </button>
+      </div>
 
 
-      <main>
-        {studioArea === 'poster' ? <PosterMaker /> : screen === 'upload' ? (
-          <section className="mx-auto max-w-4xl">
-            <div className="mb-7 text-center">
+      <main className={styles.studioBody}>
+        {studioArea === 'poster' ? <section className={styles.posterWorkspace}><PosterMaker /></section> : screen === 'upload' ? (
+          <section className={styles.enhancerWorkspace}>
+            <div className={styles.hiddenIntro}>
               <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300">
                 <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-300 text-[10px] text-emerald-950">1</span>
                 Görselleri yükleyin
@@ -769,8 +808,36 @@ export default function StudioPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 sm:p-5">
-              <label className="mb-4 flex flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-950/50 p-3 sm:flex-row sm:items-center sm:justify-between" htmlFor="studio-property">
+            <div className={styles.controlPanel}>
+              <div className={styles.panelHeading}>
+                <div><b>Görseller</b><span>{totalSelected} seçili kaynak</span></div>
+                <button type="button" onClick={() => fileInputRef.current?.click()}><Plus /> Görsel ekle</button>
+              </div>
+              <input ref={fileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleFileChange} />
+              <div className={styles.sourceThumbs}>
+                {sourceCandidates.slice(0, 3).map((item, index) => (
+                  <div key={item.id} data-active={index === 0}>
+                    {/* Local object URLs and tenant media URLs require a native image element. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.url} alt={item.name} />
+                    {index === 0 && <span><Check /></span>}
+                  </div>
+                ))}
+                {!sourceCandidates.length && (
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className={styles.emptyThumb}>
+                    <UploadCloud /><span>Görsel seçin</span>
+                  </button>
+                )}
+              </div>
+
+              <div className={styles.selectedOriginal}>
+                <span>Seçili görsel (orijinal)</span>
+                {activeSourceUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={activeSourceUrl} alt="Seçili orijinal kaynak" />
+                ) : <div><ImagePlus /><small>Karşılaştırma için bir fotoğraf ekleyin</small></div>}
+              </div>
+              <label className={styles.propertySelect} htmlFor="studio-property">
                 <span className="flex items-center gap-2 text-xs text-slate-300">
                   <Home className="h-4 w-4 text-emerald-400" />
                   Bu görseller bir portföye mi ait?
@@ -793,7 +860,7 @@ export default function StudioPage() {
               </label>
 
               {selectedPropertyId && (
-                <section className="mb-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4">
+                <section className={styles.propertyMedia}>
                   {selectedWorkspaceProperty && (
                     <div className="mb-4 flex flex-col gap-2 rounded-lg border border-cyan-300/15 bg-slate-950/45 p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
@@ -912,7 +979,7 @@ export default function StudioPage() {
                 </section>
               )}
 
-              <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5">
+              <div className={styles.instructionPanel}>
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <label
@@ -983,9 +1050,8 @@ export default function StudioPage() {
                 onKeyDown={(event) => event.key === 'Enter' && fileInputRef.current?.click()}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={handleDrop}
-                className="group cursor-pointer rounded-lg border border-dashed border-emerald-500/35 bg-emerald-500/5 px-5 py-12 text-center transition-colors hover:border-emerald-400 hover:bg-emerald-500/10 sm:px-10"
+                className={styles.dropZone}
               >
-                <input ref={fileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleFileChange} />
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-emerald-500 text-emerald-950">
                   <UploadCloud className="h-8 w-8 stroke-[2.5]" />
                 </div>
@@ -995,7 +1061,7 @@ export default function StudioPage() {
               </div>
 
               {filePreviews.length > 0 && (
-                <div className="px-2 pb-2 pt-5 sm:px-3">
+                <div className={styles.uploadedFiles}>
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-sm font-bold text-white">Yüklenecek fotoğraflar <span className="text-emerald-300">({files.length})</span></p>
                     <button type="button" onClick={() => setFiles([])} className="text-xs font-bold text-slate-400 transition hover:text-white">Tümünü kaldır</button>
@@ -1015,12 +1081,105 @@ export default function StudioPage() {
                   </div>
                 </div>
               )}
+
+              <div className={styles.strengthControl}>
+                <div><span>Güç (Strength)</span><b>0.3</b></div>
+                <input aria-label="Dönüşüm gücü" type="range" min="0" max="1" step="0.1" value="0.3" readOnly />
+                <div><small>Yapıyı koru</small><small>Daha yaratıcı</small></div>
+              </div>
+
+              <div className={styles.controlFooter}>
+                <span><ShieldCheck /> API anahtarı yalnızca sunucuda kullanılır.</span>
+                <button type="button" onClick={startProcessing} disabled={!totalSelected || isProcessing}>
+                  {isProcessing ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+                  {totalSelected || 0} görseli iyileştir
+                </button>
+              </div>
             </div>
+
+            <section className={styles.comparePanel} aria-label="Önce ve sonra karşılaştırması">
+              <div className={styles.compareCanvas}>
+                {activeSourceUrl ? (
+                  <>
+                    {/* Tenant media and generated result URLs require native image elements. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={activeSourceUrl} alt="Orijinal görsel" className={styles.originalImage} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={activeOutputUrl} alt="İyileştirilmiş görsel" className={styles.enhancedImage} />
+                    <span className={styles.originalLabel}>Orijinal</span>
+                    <span className={styles.enhancedLabel}>{activePhoto ? 'İyileştirilmiş' : 'Önizleme'}</span>
+                    <i className={styles.compareDivider}><b>‹ ›</b></i>
+                  </>
+                ) : (
+                  <div className={styles.emptyCompare}>
+                    <Aperture />
+                    <h2>Karşılaştırma alanı</h2>
+                    <p>Bir portföy fotoğrafı seçtiğinizde orijinal ve iyileştirilmiş görüntü burada yan yana açılır.</p>
+                  </div>
+                )}
+              </div>
+              <div className={styles.zoomBar}>
+                <button type="button" aria-label="Uzaklaştır"><Minus /></button>
+                <span>45%</span>
+                <button type="button" aria-label="Yakınlaştır"><Plus /></button>
+                <button type="button">Sığdır</button>
+                <button type="button" aria-label="Tam ekran"><Maximize2 /></button>
+              </div>
+              {results.length > 1 && (
+                <div className={styles.resultStrip}>
+                  {results.map((result, index) => (
+                    <button key={result.itemId} type="button" data-active={activeResult === index} onClick={() => setActiveResult(index)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={result.previewUrl} alt={result.name} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <aside className={styles.rightRail}>
+              <section className={styles.statusCard} aria-live="polite">
+                <div className={styles.railTitle}><span>İş durumu</span><b>Stable Image Ultra</b></div>
+                <div className={styles.statusRow}><span>Kuyruk ilerlemesi</span><b>{completedItems || (isProcessing ? 1 : 0)} / {batchItems.length || totalSelected || 0}</b></div>
+                <div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div>
+                <div className={styles.statusRow}><span>Durum</span><b>{isProcessing ? 'İşleniyor' : activePhoto ? 'Tamamlandı' : 'Hazır'}</b></div>
+                <div className={styles.statusRow}><span>Kullanılan kredi</span><b>{completedItems} / {batchItems.length || totalSelected || 0}</b></div>
+                {status && <p>{status}</p>}
+              </section>
+
+              <section className={styles.safetyCard}>
+                <div className={styles.railTitle}><span>Gerçekçilik &amp; güvenlik</span><SlidersHorizontal /></div>
+                {[
+                  ['Mimariyi koru', 'Düşük 0.3 dönüşüm gücü'],
+                  ['Nesne ekleme', 'Negative prompt ile engelli'],
+                  ['Yazı / filigran', 'Temiz pazarlama çıktısı'],
+                ].map(([title, note]) => (
+                  <div key={title}><CheckCircle2 /><p><b>{title}</b><span>{note}</span></p></div>
+                ))}
+                <details><summary>Negative prompt</summary><p>{STUDIO_NEGATIVE_PROMPT}</p></details>
+              </section>
+
+              <section className={styles.downloadCard}>
+                <div className={styles.railTitle}><span>İndirme seçenekleri</span><Download /></div>
+                {activePhoto ? (
+                  <>
+                    <a href={activePhoto.downloadUrl} download={activePhoto.name}><span>Yüksek çözünürlük</span><Download /></a>
+                    <a href={activePhoto.downloadUrl} download={activePhoto.name}><span>Web için görsel</span><Download /></a>
+                  </>
+                ) : (
+                  <><button type="button" disabled>Yüksek çözünürlük</button><button type="button" disabled>Web için görsel</button></>
+                )}
+                <button type="button" onClick={downloadAllResults} disabled={!results.length || isPreparingZip || !selectedResultItemIds.length}>
+                  {isPreparingZip ? <Loader2 className="animate-spin" /> : <Download />} Pazarlama paketi (ZIP)
+                </button>
+                <p><ShieldCheck /> Çıktılar renk profili ve boyut standartlarına uygun hazırlanır.</p>
+              </section>
+            </aside>
 
             {errorMessage && (
               <div
                 role="alert"
-                className="mt-5 flex flex-col gap-4 rounded-xl border border-rose-400/25 bg-rose-400/10 p-4 sm:flex-row sm:items-start sm:justify-between"
+                className={styles.errorBanner}
               >
                 <div className="flex gap-3">
                   <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-300" />
@@ -1035,7 +1194,7 @@ export default function StudioPage() {
             {batchItems.length > 0 && screen === 'upload' && (
               <section
                 aria-live="polite"
-                className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4"
+                className={styles.batchPanel}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -1097,17 +1256,10 @@ export default function StudioPage() {
               </section>
             )}
 
-            <div className="mt-7 flex flex-col items-center justify-between gap-4 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] p-4 sm:flex-row sm:px-5">
-              <div className="flex items-center gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> Stability API anahtarı yalnızca sunucuda kullanılır ve hiçbir zaman tarayıcıya gönderilmez.</div>
-              <button type="button" onClick={startProcessing} disabled={(!files.length && !selectedSourceMediaIds.length) || isProcessing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 px-5 py-3.5 text-sm font-extrabold text-emerald-950 shadow-lg shadow-emerald-500/15 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto">
-                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {files.length + selectedSourceMediaIds.length} görseli AI ile iyileştir <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
           </section>
         ) : (
-          <section>
-            <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+          <section className={styles.resultsWorkspace}>
+            <div className={styles.resultsHeader}>
               <div>
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-bold text-emerald-200"><CheckCircle2 className="h-4 w-4" /> İşlem tamamlandı</div>
                 <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Portföye hazır görselleriniz.</h1>
@@ -1238,7 +1390,7 @@ export default function StudioPage() {
             )}
 
             {activePhoto ? (
-              <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/50 shadow-2xl shadow-black/30 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className={styles.resultsCompare}>
                 <div className="relative min-h-[22rem] bg-black">
                   {/* The result is a short-lived generated Blob/remote URL. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1270,7 +1422,7 @@ export default function StudioPage() {
             ) : <div className="rounded-3xl border border-rose-400/30 bg-rose-400/10 p-6 text-sm text-rose-100">İşlenmiş görseller alınamadı. Lütfen yeni bir işlem başlatın.</div>}
 
             {results.length > 1 && (
-              <div className="mt-6">
+              <div className={styles.otherResults}>
                 <p className="mb-3 text-sm font-bold text-white">Diğer sonuçlar</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                   {results.map((result, index) => {
@@ -1328,6 +1480,26 @@ export default function StudioPage() {
           </section>
         )}
       </main>
+
+      {studioArea === 'enhancer' && (
+        <section id="studio-recent" className={styles.recentWorks}>
+          <div className={styles.recentHeader}><div><h2>Son çalışmalar</h2><p>İyileştirilmiş görsellerinizi yeniden açın veya indirin.</p></div><span>{recentVisuals.length} çalışma</span></div>
+          <div className={styles.recentGrid}>
+            {recentVisuals.slice(0, 4).map((item, index) => (
+              <article key={item.id}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.url} alt={item.name} />
+                <div><span>{new Date().toLocaleDateString('tr-TR')}</span><b>{selectedWorkspaceProperty?.title || item.name}</b><small>İyileştirildi</small></div>
+                <button type="button" onClick={() => { setStudioArea('enhancer'); if (results[index]) { setActiveResult(index); setScreen('results'); } }}>Karşılaştır</button>
+                <a href={item.downloadUrl} download={item.name}><Download /> İndir</a>
+              </article>
+            ))}
+            {!recentVisuals.length && (
+              <div className={styles.emptyRecent}><ImagePlus /><span>İlk iyileştirme çalışmanız tamamlandığında burada görünecek.</span></div>
+            )}
+          </div>
+        </section>
+      )}
 
       {permissions.canManageSecrets && (
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

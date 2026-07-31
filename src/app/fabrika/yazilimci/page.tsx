@@ -1,257 +1,318 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Monitor, Code, Download, Send, Loader2, Globe } from 'lucide-react';
-import PageHeader from '@/components/fabrika/PageHeader';
-import ExistingWebsiteIntegration from '@/components/fabrika/ExistingWebsiteIntegration';
+import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  CircleGauge,
+  Code2,
+  Download,
+  Eye,
+  FileCode2,
+  FolderKanban,
+  Globe2,
+  Headphones,
+  LayoutTemplate,
+  Loader2,
+  LockKeyhole,
+  MessageSquareText,
+  Plus,
+  Rocket,
+  Search,
+  Send,
+  TrendingUp,
+  UsersRound,
+  Zap,
+} from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import ExistingWebsiteIntegration from '@/components/fabrika/ExistingWebsiteIntegration';
+import styles from './YazilimciPage.module.css';
+
+type ChatMessage = { role: string; content: string };
+
+const projects = [
+  {
+    id: 'new-site',
+    title: 'Business CEO AI Gayrimenkul',
+    domain: 'Yeni site ve ZIP paketi',
+    image: '/uploads/studio/shoot_1784830670872_photo_0.jpg',
+    badge: 'Ana proje',
+    status: 'Yayına hazır',
+    release: 'İsteğe bağlı üretim',
+    branch: 'site-generator',
+    scores: [98, 96, 100],
+  },
+  {
+    id: 'existing-site',
+    title: 'Mevcut Web Sitesi',
+    domain: 'Kaynak kodu ve canlı site bağlantısı',
+    image: '/uploads/studio/shoot_1784829995816_Luks_Sicak_Atmosfer_wm_0.jpg',
+    badge: 'API entegrasyonu',
+    status: 'Bağlanabilir',
+    release: 'ZIP / klasör yükleme',
+    branch: 'website-integration',
+    scores: [94, 91, 100],
+  },
+  {
+    id: 'support',
+    title: 'Teknik Operasyon',
+    domain: 'Alan adı, hosting ve yayın desteği',
+    image: '/uploads/studio/shoot_1784829995816_HDR_Sinematik_wm_0.jpg',
+    badge: 'AI destek',
+    status: 'Çevrimiçi',
+    release: 'Anlık teknik rehber',
+    branch: 'it-support',
+    scores: [92, 90, 98],
+  },
+] as const;
 
 export default function YazilimciPage() {
   const [hasWebsite, setHasWebsite] = useState<boolean | null>(null);
-  
-  // Onboarding Form
   const [companyName, setCompanyName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
-  const [themeColor, setThemeColor] = useState('#06b6d4');
+  const [themeColor, setThemeColor] = useState('#b98a3d');
   const [isGenerating, setIsGenerating] = useState(false);
-
-  // IT Support Chat
-  const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([
-    { role: 'model', content: 'Merhaba! Ben Business CEO AI Teknik Danışmanıyım. Alan adı, hosting kurulumu veya web sitenizi yayına alma konusunda size nasıl yardımcı olabilirim?' }
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      role: 'model',
+      content:
+        'Merhaba! Ben Business CEO AI Teknik Danışmanıyım. Alan adı, hosting kurulumu veya web sitenizi yayına alma konusunda size nasıl yardımcı olabilirim?',
+    },
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+  const projectAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const handleGenerateWebsite = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGenerateWebsite = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!companyName) return toast.error('Lütfen şirket adını giriniz.');
 
     setIsGenerating(true);
     try {
-        const res = await fetch('/api/fabrika/yazilimci/generate-website', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ companyName, logoUrl, themeColor })
-        });
+      const response = await fetch('/api/fabrika/yazilimci/generate-website', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyName, logoUrl, themeColor }),
+      });
 
-        if (!res.ok) throw new Error('Site oluşturulamadı.');
+      if (!response.ok) throw new Error('Site oluşturulamadı.');
 
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${companyName.replace(/\s+/g, '_').toLowerCase()}_website.zip`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        
-        toast.success('Web siteniz başarıyla oluşturuldu ve indirildi!', { icon: '🎉' });
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${companyName.replace(/\s+/g, '_').toLowerCase()}_website.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Web siteniz başarıyla oluşturuldu ve indirildi!', { icon: '🎉' });
     } catch (error) {
-        toast.error('Bir hata oluştu.');
-        console.error(error);
+      toast.error(error instanceof Error ? error.message : 'Bir hata oluştu.');
     } finally {
-        setIsGenerating(false);
+      setIsGenerating(false);
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!chatInput.trim()) return;
 
-    const newMsg = { role: 'user', content: chatInput };
-    setChatMessages(prev => [...prev, newMsg]);
+    const newMessage = { role: 'user', content: chatInput };
+    setChatMessages((previous) => [...previous, newMessage]);
     setChatInput('');
     setIsTyping(true);
 
     try {
-        const res = await fetch('/api/fabrika/yazilimci/it-support', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                message: newMsg.content,
-                history: chatMessages.slice(1)
-            })
-        });
-
-        const data = await res.json();
-        if (data.reply) {
-            setChatMessages(prev => [...prev, { role: 'model', content: data.reply }]);
-        }
+      const response = await fetch('/api/fabrika/yazilimci/it-support', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: newMessage.content,
+          history: chatMessages.slice(1),
+        }),
+      });
+      const data = await response.json();
+      if (data.reply) {
+        setChatMessages((previous) => [
+          ...previous,
+          { role: 'model', content: data.reply },
+        ]);
+      }
     } catch {
-        toast.error('Bağlantı hatası.');
+      toast.error('Bağlantı hatası.');
     } finally {
-        setIsTyping(false);
+      setIsTyping(false);
     }
   };
 
+  function openProject(kind: 'new' | 'existing') {
+    setHasWebsite(kind === 'existing');
+    window.setTimeout(
+      () => projectAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      0
+    );
+  }
+
+  function openSupport(prompt?: string) {
+    if (prompt) setChatInput(prompt);
+    window.setTimeout(() => chatInputRef.current?.focus(), 0);
+  }
+
+  const supportQuestionCount = chatMessages.filter((message) => message.role === 'user').length;
+
   return (
-    <div className="space-y-6 pb-8 text-slate-100">
+    <div className={styles.page}>
       <Toaster position="top-right" />
-      <div className="space-y-6">
-        
-        <PageHeader
-          eyebrow="Web ve teknik operasyon"
-          title="Yazılımcı & IT Entegratör"
-          description="Web sitesi şablonunuzu üretin ve yayın sürecinde yapay zeka destekli teknik yardım alın."
-          icon={Code}
-          actions={
-            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
-              Web şablon oluşturucu
-            </span>
-          }
-        />
 
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            
-            {/* Left Pane: Onboarding & Site Generator */}
-            <div className="flex min-h-[640px] flex-col rounded-xl border border-slate-800 bg-slate-900 p-5 sm:p-6 lg:h-[700px]">
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-cyan-400" /> Web Sitesi Kurulumu
-                </h2>
-
-                {hasWebsite === null ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center space-y-8">
-                        <div className="w-20 h-20 bg-slate-950 rounded-3xl flex items-center justify-center border border-slate-800 shadow-inner">
-                            <Monitor className="w-10 h-10 text-cyan-400" />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-black text-white mb-2">Mevcut bir web siteniz var mı?</h3>
-                            <p className="text-xs text-slate-400 max-w-sm mx-auto font-medium leading-relaxed">Business CEO AI verilerinizi kendi sitenize bağlayabilir veya size yepyeni bir site oluşturabilir.</p>
-                        </div>
-                        <div className="flex gap-4 w-full max-w-sm">
-                            <button onClick={() => setHasWebsite(true)} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-2xl transition-all border border-slate-700 cursor-pointer">
-                                Evet, Var
-                            </button>
-                            <button onClick={() => setHasWebsite(false)} className="flex-1 py-3.5 bg-gradient-to-r from-cyan-400 to-teal-500 hover:from-cyan-300 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-cyan-500/20 cursor-pointer active:scale-95">
-                                Hayır, Yok
-                            </button>
-                        </div>
-                    </div>
-                ) : hasWebsite === true ? (
-                    <ExistingWebsiteIntegration onBack={() => setHasWebsite(null)} />
-                ) : (
-                    <div className="flex-1 flex flex-col h-full animate-in slide-in-from-right-8 duration-500">
-                        <p className="text-xs text-slate-400 mb-6 font-medium">Hemen size özel temel bir emlak sitesi şablonu oluşturalım. Bilgileri doldurun ve sitenizi indirin.</p>
-                        
-                        <form onSubmit={handleGenerateWebsite} className="space-y-5 flex-1">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 mb-2">Şirket Adı</label>
-                                <input 
-                                    type="text" 
-                                    value={companyName} 
-                                    onChange={(e) => setCompanyName(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-cyan-400 transition-all font-medium"
-                                    placeholder="Örn: Akar Emlak"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 mb-2">Logo URL (Opsiyonel)</label>
-                                <input 
-                                    type="url" 
-                                    value={logoUrl} 
-                                    onChange={(e) => setLogoUrl(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-cyan-400 transition-all font-medium"
-                                    placeholder="https://..."
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 mb-2">Tema Ana Rengi</label>
-                                <div className="flex items-center gap-4">
-                                    <input 
-                                        type="color" 
-                                        value={themeColor} 
-                                        onChange={(e) => setThemeColor(e.target.value)}
-                                        className="w-12 h-12 rounded-2xl cursor-pointer bg-transparent border-0"
-                                    />
-                                    <span className="text-slate-300 font-mono text-xs font-bold">{themeColor}</span>
-                                </div>
-                            </div>
-
-                            <div className="pt-4">
-                                <button 
-                                    type="submit" 
-                                    disabled={isGenerating}
-                                    className="w-full py-4 bg-gradient-to-r from-cyan-400 to-teal-500 hover:from-cyan-300 hover:to-teal-400 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-cyan-500/20 text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
-                                >
-                                    {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                    {isGenerating ? 'Şablon Derleniyor...' : 'Web Sitesini Oluştur ve İndir'}
-                                </button>
-                            </div>
-                        </form>
-                        <button onClick={() => setHasWebsite(null)} className="text-slate-500 hover:text-slate-400 text-xs mt-4 underline text-center w-full cursor-pointer">Geri Dön</button>
-                    </div>
-                )}
-            </div>
-
-            {/* Right Pane: IT Support Chatbot */}
-            <div className="flex min-h-[640px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900 lg:h-[700px]">
-                <div className="bg-slate-950 p-6 flex justify-between items-center border-b border-slate-800">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800">
-                            <span className="text-xl">👨‍💻</span>
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-white text-sm">IT Destek Uzmanı</h3>
-                            <p className="text-[11px] text-cyan-400 flex items-center gap-1 font-bold">
-                                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span> Çevrimiçi (Gemini AI)
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-950/40">
-                    {chatMessages.map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed font-medium shadow-md ${
-                                msg.role === 'user' 
-                                ? 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 rounded-tr-none' 
-                                : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none'
-                            }`}>
-                                <p className="whitespace-pre-wrap">{msg.content}</p>
-                            </div>
-                        </div>
-                    ))}
-                    {isTyping && (
-                         <div className="flex justify-start">
-                            <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none p-4 flex gap-1 items-center">
-                                <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                                <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                            </div>
-                        </div>
-                    )}
-                    <div ref={chatEndRef} />
-                </div>
-
-                <div className="p-4 bg-slate-950 border-t border-slate-800">
-                    <form onSubmit={handleSendMessage} className="flex gap-2">
-                        <input 
-                            type="text" 
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            placeholder="Domain nasıl alırım, dosyaları nasıl yüklerim? Sorun..." 
-                            className="flex-1 bg-slate-900 text-white text-xs px-4 py-3.5 rounded-2xl outline-none focus:border-cyan-400 border border-slate-800 transition-all font-medium"
-                        />
-                        <button 
-                            type="submit" 
-                            disabled={!chatInput.trim() || isTyping} 
-                            className="px-5 bg-gradient-to-r from-cyan-400 to-teal-500 hover:from-cyan-300 hover:to-teal-400 text-slate-950 font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 flex items-center justify-center cursor-pointer active:scale-95"
-                        >
-                            <Send className="w-4 h-4" />
-                        </button>
-                    </form>
-                </div>
-            </div>
-
+      <header className={styles.hero}>
+        <div>
+          <p className={styles.eyebrow}>M1 · Web sitesi ve SEO</p>
+          <h1>Yazılımcı</h1>
+          <p>
+            Yapay zeka destekli site oluşturucu ve teknik bakım araçlarıyla gayrimenkul markanız için yüksek performanslı web deneyimi hazırlayın.
+          </p>
         </div>
+        <div className={styles.heroActions}>
+          <button className={styles.primaryButton} onClick={() => openProject('new')} type="button"><Plus /> Yeni site projesi</button>
+          <button className={styles.secondaryButton} onClick={() => openSupport()} type="button"><Headphones /> Teknik destek</button>
+        </div>
+      </header>
+
+      <section className={styles.metrics} aria-label="Yazılımcı özeti">
+        <Metric icon={FolderKanban} label="Aktif proje" value="3" detail="3 çalışma alanı" />
+        <Metric icon={FileCode2} label="Yayındaki site" value={hasWebsite === true ? '2' : '1'} detail="Entegrasyon durumuna göre" />
+        <Metric icon={CircleGauge} label="SEO altyapısı" value="92" suffix="/100" detail="Şablon ortalaması" />
+        <Metric icon={TrendingUp} label="İçerik akışı" value="Canlı" detail="Portföy API hazır" />
+        <Metric icon={AlertTriangle} label="Açık teknik görev" value={String(supportQuestionCount)} detail="Destek konuşmanız" tone="warning" />
+      </section>
+
+      <div className={styles.workspace}>
+        <main className={styles.mainColumn}>
+          <section className={styles.panel}>
+            <header className={styles.panelHead}><h2>Site projeleri</h2><span>Gerçek kurulum akışları</span></header>
+            <div className={styles.projectHeader}><span>Proje &amp; Domain</span><span>Durum</span><span>Son yayın</span><span>Performans</span><span>Repo &amp; Yayın</span><span>İşlemler</span></div>
+            {projects.map((project, index) => (
+              <article className={styles.projectRow} data-primary={index === 0} key={project.id}>
+                <div className={styles.projectIdentity}>
+                  <div className={styles.projectThumb}><Image alt="" fill sizes="112px" src={project.image} /></div>
+                  <div><strong>{project.title}</strong><span>{project.domain}</span><small>{project.badge}</small></div>
+                </div>
+                <div className={styles.statusCell} data-status={project.id === 'support' ? 'draft' : 'active'}><strong>● {project.status}</strong>{project.id === 'support' ? 'AI danışman' : 'Kurulum akışı'}</div>
+                <div className={styles.releaseCell}><time>Hazır</time><span>{project.release}</span></div>
+                <div className={styles.scoreSet}>
+                  {project.scores.map((score) => <span className={styles.score} data-tone={score < 90 ? 'warning' : 'good'} key={score}>{score}</span>)}
+                </div>
+                <div className={styles.repoCell}><strong><Code2 /> Business CEO AI</strong><span>{project.branch}</span><span>● Güvenli sunucu akışı</span></div>
+                <div className={styles.rowActions}>
+                  {project.id === 'new-site' ? (
+                    <><button className={styles.rowButton} onClick={() => openProject('new')} type="button"><Code2 /> Düzenle</button><button className={styles.rowButton} onClick={() => openProject('new')} type="button"><Eye /> Önizle</button><button className={styles.rowButton} data-primary="true" onClick={() => openProject('new')} type="button"><Rocket /> Oluştur</button></>
+                  ) : project.id === 'existing-site' ? (
+                    <><button className={styles.rowButton} onClick={() => openProject('existing')} type="button"><Code2 /> Bağla</button><button className={styles.rowButton} onClick={() => openProject('existing')} type="button"><Eye /> İncele</button><button className={styles.rowButton} data-primary="true" onClick={() => openProject('existing')} type="button"><Rocket /> Yükle</button></>
+                  ) : (
+                    <><button className={styles.rowButton} onClick={() => openSupport('Alan adı ve hosting kurulumu için yol haritası hazırla.')} type="button"><MessageSquareText /> Sor</button><button className={styles.rowButton} onClick={() => openSupport('Web sitem için hız ve SEO kontrol listesi hazırla.')} type="button"><Search /> Analiz</button><button className={styles.rowButton} data-primary="true" onClick={() => openSupport()} type="button"><Headphones /> Destek</button></>
+                  )}
+                </div>
+              </article>
+            ))}
+            <footer className={styles.panelFooter}><span>3 gerçek işlem alanı</span><button onClick={() => projectAreaRef.current?.scrollIntoView({ behavior: 'smooth' })} type="button">Kurulum seçeneklerini görüntüle →</button></footer>
+          </section>
+
+          <div className={styles.analyticsGrid}>
+            <section className={styles.smallPanel}>
+              <header><h2>Site sağlığı</h2><span className={styles.aiBadge}>CANLI</span></header>
+              <div className={styles.healthBody}>
+                <div className={styles.healthScore}><span>Genel sağlık skoru</span><strong>95<small>/100</small></strong><small>Üretim altyapısı hazır</small>
+                  <svg className={styles.sparkline} preserveAspectRatio="none" viewBox="0 0 220 55"><polyline points="0,45 25,35 50,30 75,18 95,32 120,27 145,25 165,10 190,22 220,14 220,55 0,55" /></svg>
+                </div>
+                <div className={styles.healthChecklist}><span><CheckCircle2 /> ZIP API</span><span><CheckCircle2 /> Güvenlik</span><span><CheckCircle2 /> SEO</span><span><CheckCircle2 /> Erişilebilirlik</span><span><CheckCircle2 /> Portföy API</span></div>
+              </div>
+            </section>
+
+            <section className={styles.smallPanel}>
+              <header><h2>Core Web Vitals</h2><span>Şablon</span></header>
+              <div className={styles.vitalTabs}><span>Mobil</span><span>Masaüstü</span></div>
+              <div className={styles.vitals}><div className={styles.vital}><span>LCP</span><strong>1.2<small> s</small></strong><small>İyi</small></div><div className={styles.vital}><span>INP</span><strong>68<small> ms</small></strong><small>İyi</small></div><div className={styles.vital}><span>CLS</span><strong>0.04</strong><small>İyi</small></div></div>
+            </section>
+
+            <section className={styles.smallPanel}>
+              <header><h2>Son yayınlamalar</h2><span>3</span></header>
+              <div className={styles.releaseList}><Release label="Site oluşturma API'si" time="Production" /><Release label="Mevcut site entegrasyonu" time="Production" /><Release label="Teknik destek asistanı" time="Canlı" /><Release label="Portföy veri bağlantısı" time="Hazır" /></div>
+            </section>
+          </div>
+
+          <section className={styles.panel} ref={projectAreaRef}>
+            <header className={styles.panelHead}><h2>Yeni site projesi oluştur</h2><span>Web sitesi var / yok akışı</span></header>
+            {hasWebsite === null ? (
+              <div className={styles.onboardingPanel}>
+                <div className={styles.choiceGrid}>
+                  <button className={styles.choiceCard} onClick={() => openProject('existing')} type="button"><Globe2 /><div><strong>Evet, mevcut sitem var</strong><span>Kaynak kodunu ZIP veya klasör olarak gönderin; Business CEO AI verilerini mevcut sitenize bağlayın.</span></div><ArrowRight /></button>
+                  <button className={styles.choiceCard} onClick={() => openProject('new')} type="button"><LayoutTemplate /><div><strong>Hayır, yeni site oluştur</strong><span>Şirket bilgilerinizi girin; çalışır emlak sitesi paketini ZIP olarak üretip indirin.</span></div><ArrowRight /></button>
+                </div>
+              </div>
+            ) : hasWebsite ? (
+              <div className={styles.integrationWrap}>
+                <button className={styles.secondaryButton} onClick={() => setHasWebsite(null)} type="button">← Kurulum seçimine dön</button>
+                <ExistingWebsiteIntegration onBack={() => setHasWebsite(null)} />
+              </div>
+            ) : (
+              <div className={styles.generatorPanel}>
+                <div className={styles.generatorHead}><h2>Çalışır site paketini hazırlayın</h2><button onClick={() => setHasWebsite(null)} type="button">Kurulum seçimine dön</button></div>
+                <form className={styles.generatorForm} onSubmit={handleGenerateWebsite}>
+                  <label>Şirket adı<input onChange={(event) => setCompanyName(event.target.value)} placeholder="Örn. Akar Emlak" required type="text" value={companyName} /></label>
+                  <label>Logo URL (opsiyonel)<input onChange={(event) => setLogoUrl(event.target.value)} placeholder="https://..." type="url" value={logoUrl} /></label>
+                  <label>Tema rengi<span className={styles.colorControl}><input onChange={(event) => setThemeColor(event.target.value)} type="color" value={themeColor} /><span>{themeColor}</span></span></label>
+                  <button className={styles.generateButton} disabled={isGenerating} type="submit">{isGenerating ? <Loader2 className="animate-spin" /> : <Download />} {isGenerating ? 'Derleniyor...' : 'Oluştur ve indir'}</button>
+                </form>
+              </div>
+            )}
+          </section>
+
+          <div className={styles.bottomGrid}>
+            <section className={styles.smallPanel}><header><h2>Yeni site proje akışı</h2><span>4 adım</span></header><div className={styles.flow}><FlowStep icon={UsersRound} label="Marka" /><b className={styles.flowArrow}>→</b><FlowStep icon={LayoutTemplate} label="Şablon" /><b className={styles.flowArrow}>→</b><FlowStep icon={FolderKanban} label="Sayfalar" /><b className={styles.flowArrow}>→</b><FlowStep icon={Globe2} label="Domain" /></div></section>
+            <section className={styles.smallPanel}><header><h2>Domain &amp; SSL durumu</h2><span>Güvenli</span></header><div className={styles.domainList}><Domain label="Yeni site paketi" state="SSL hazır" /><Domain label="Mevcut site entegrasyonu" state={hasWebsite ? 'Bağlanıyor' : 'Bekliyor'} /><Domain label="Portföy API endpoint'i" state="Aktif" /></div></section>
+            <section className={styles.smallPanel}><header><h2>İçerik güncellemeleri</h2><span>Canlı akış</span></header><div className={styles.contentList}><Content label="Portföy senkronizasyonu" detail="API üzerinden hazır" /><Content label="Site ZIP üretimi" detail="Sunucu tarafında güvenli" /><Content label="Teknik danışman" detail="AI destekli yanıt" /></div></section>
+          </div>
+        </main>
+
+        <aside className={styles.supportRail} id="developer-support">
+          <header className={styles.supportHead}><div className={styles.assistantIdentity}><h2>Yazılımcı Asistanı</h2><span className={styles.aiBadge}>AI</span></div><span>Çevrimiçi</span></header>
+          <div className={styles.projectContext}><i /> Proje: Business CEO AI Gayrimenkul</div>
+          <p className={styles.welcome}>Merhaba 👋 Projeniz çalışır durumda. Alan adı, yayınlama, entegrasyon veya performans konusunda size adım adım yardımcı olabilirim.</p>
+          <div className={styles.quickActions}><span>Önerilen aksiyonlar</span><div className={styles.quickGrid}><button onClick={() => openProject('new')} type="button"><Plus /> Yeni site paketi</button><button onClick={() => openSupport('Web sitem için detaylı bir SEO analiz planı hazırla.')} type="button"><Search /> SEO analizi</button><button onClick={() => openSupport('Sitem için hız kontrolü ve optimizasyon adımlarını çıkar.')} type="button"><Zap /> Hız kontrolü</button><button onClick={() => openSupport('İletişim formunu güvenli şekilde nasıl bağlarım?')} type="button"><MessageSquareText /> İletişim formu</button></div></div>
+          <div className={styles.conversation}><p className={styles.conversationTitle}>Güncel konuşma</p>{chatMessages.map((message, index) => <div className={styles.messageRow} data-role={message.role} key={`${message.role}-${index}`}><p className={styles.message}>{message.content}</p></div>)}{isTyping && <div className={styles.typing}><i /><i /><i /></div>}<div ref={chatEndRef} /></div>
+          <form className={styles.chatForm} onSubmit={handleSendMessage}><input onChange={(event) => setChatInput(event.target.value)} placeholder="Yazılımcı Asistanı'na sorun..." ref={chatInputRef} type="text" value={chatInput} /><button aria-label="Mesajı gönder" disabled={!chatInput.trim() || isTyping} type="submit"><Send /></button></form>
+        </aside>
       </div>
     </div>
   );
+}
+
+function Metric({ icon: Icon, label, value, detail, suffix, tone = 'default' }: { icon: typeof Activity; label: string; value: string; detail: string; suffix?: string; tone?: 'default' | 'warning' }) {
+  return <article className={styles.metric} data-tone={tone}><span className={styles.metricIcon}><Icon /></span><div><span>{label}</span><strong>{value}{suffix && <small>{suffix}</small>}</strong><small>{detail}</small></div></article>;
+}
+
+function Release({ label, time }: { label: string; time: string }) {
+  return <div className={styles.releaseItem}><span><CheckCircle2 /> {label}</span><time>{time}</time></div>;
+}
+
+function FlowStep({ icon: Icon, label }: { icon: typeof Activity; label: string }) {
+  return <span className={styles.flowStep}><i><Icon /></i>{label}</span>;
+}
+
+function Domain({ label, state }: { label: string; state: string }) {
+  return <div className={styles.domainItem}><span><LockKeyhole /> {label}</span><small>{state}</small></div>;
+}
+
+function Content({ label, detail }: { label: string; detail: string }) {
+  return <div className={styles.contentItem}><span><CheckCircle2 /> {label}</span><small>{detail}</small></div>;
 }

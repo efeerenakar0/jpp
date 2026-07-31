@@ -10,24 +10,26 @@ import {
 import {
   BadgeCheck,
   CheckCircle2,
-  CircleX,
   Crosshair,
+  Database,
   Download,
   FileArchive,
+  Gem,
   Layers,
   Loader2,
+  PhoneCall,
   Puzzle,
   RefreshCw,
+  SearchCheck,
   ShieldCheck,
   Sparkles,
   UploadCloud,
+  UserRoundCheck,
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import AvciV2Workspace from '@/components/fabrika/avci-v2/AvciV2Workspace';
-import FilterBar from '@/components/fabrika/FilterBar';
-import PageHeader from '@/components/fabrika/PageHeader';
-import StatCard from '@/components/fabrika/StatCard';
 import StatusBoard from '@/components/fabrika/StatusBoard';
+import styles from './avci.module.css';
 
 type HuntingListing = {
   id: string;
@@ -197,7 +199,7 @@ export default function AvciPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className={styles.page}>
       <Toaster
         position="bottom-right"
         toastOptions={{
@@ -209,99 +211,163 @@ export default function AvciPage() {
         }}
       />
 
-      <PageHeader
-        actions={
-          <button
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-medium text-slate-200 transition hover:bg-slate-800"
-            onClick={() => void fetchListings()}
-            type="button"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${loadingBoard ? 'animate-spin' : ''}`}
-            />
-            Yenile
-          </button>
-        }
-        description="İzinli kaynaklardan ilanları kuyrukla zenginleştirin; telefon, izin ve insan onayı kontrollerini tamamlamadan iletişim başlatmayın."
-        eyebrow="M2 · GÜVENLİ PORTFÖY KEŞFİ"
-        icon={Crosshair}
-        title="Avcı v2"
-      />
+      <header className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <p className={styles.eyebrow}>M2 · GÜVENLİ PORTFÖY KEŞFİ</p>
+          <div className={styles.titleRow}>
+            <span className={styles.titleIcon} aria-hidden="true">
+              <Crosshair />
+            </span>
+            <div>
+              <h1>Avcı v2</h1>
+              <p>
+                Yasal olarak izin verilen ilan kaynaklarını içe aktarın,
+                veriyi zenginleştirin ve iletişim öncesinde insan onayından
+                geçirin.
+              </p>
+            </div>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard
-          icon={Layers}
-          label="Toplam kayıt"
-          status="success"
-          value={counts.total}
-        />
-        <StatCard
-          icon={Sparkles}
-          label="Sıcak pazarlık"
-          status="warning"
-          value={counts.yellow}
-        />
-        <StatCard
-          icon={BadgeCheck}
-          label="Satış yetkisi"
-          status="success"
-          value={counts.authorized}
-        />
-        <StatCard
-          icon={CheckCircle2}
-          label="Portföye katıldı"
-          status="success"
-          value={counts.green}
-        />
-        <StatCard icon={CircleX} label="Pasif / elendi" value={counts.red} />
-      </div>
-
-      <FilterBar label="Avcı çalışma alanı">
-        <div
-          aria-label="Avcı görünümü"
-          className="flex flex-wrap gap-1.5"
-          role="tablist"
-        >
-          {[
-            {
-              id: 'kesif' as const,
-              label: 'Keşif ve ilan detayları',
-              icon: Crosshair,
-            },
-            {
-              id: 'pano' as const,
-              label: 'Satış yetkisi panosu',
-              icon: Layers,
-            },
-            {
-              id: 'eklenti' as const,
-              label: 'Tarayıcı eklentisi',
-              icon: Puzzle,
-            },
-          ].map(({ id, label, icon: Icon }) => (
+        <div className={styles.heroOperations}>
+          <div className={styles.planRow}>
+            <span className={styles.paidBadge}>
+              <Gem aria-hidden="true" /> Ücretli modül
+            </span>
+            <span className={styles.planBadge}>
+              Plan: Growth <i aria-hidden="true" /> Aktif
+            </span>
             <button
-              aria-selected={activeView === id}
-              className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition ${
-                activeView === id
-                  ? 'bg-emerald-500 text-emerald-950'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
-              }`}
-              key={id}
-              onClick={() => setActiveView(id)}
-              role="tab"
+              className={styles.refreshButton}
+              onClick={() => void fetchListings()}
               type="button"
             >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
+              <RefreshCw
+                className={loadingBoard ? 'animate-spin' : ''}
+                aria-hidden="true"
+              />
+              Yenile
             </button>
-          ))}
-        </div>
-      </FilterBar>
+          </div>
 
-      {activeView === 'kesif' && <AvciV2Workspace />}
+          <div className={styles.pipeline} aria-label="Avcı veri işleme hattı">
+            {[
+              { icon: Database, label: 'Kaynak', value: counts.total },
+              { icon: SearchCheck, label: 'Detay', value: counts.yellow },
+              {
+                icon: ShieldCheck,
+                label: 'Doğrulama',
+                value: counts.authorized,
+              },
+              {
+                icon: UserRoundCheck,
+                label: 'İnsan onayı',
+                value: counts.green,
+              },
+            ].map((step, index) => (
+              <div className={styles.pipelineStep} key={step.label}>
+                <span className={styles.pipelineIcon}>
+                  <step.icon aria-hidden="true" />
+                </span>
+                <span>
+                  <small>{step.label}</small>
+                  <strong>{step.value}</strong>
+                </span>
+                {index < 3 && <i aria-hidden="true" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <section className={styles.metrics} aria-label="Avcı özet metrikleri">
+        {[
+          {
+            icon: Layers,
+            label: 'Toplanan ilan',
+            value: counts.total,
+            tone: 'neutral',
+          },
+          {
+            icon: Sparkles,
+            label: 'İnceleme bekleyen',
+            value: counts.yellow,
+            tone: 'warning',
+          },
+          {
+            icon: PhoneCall,
+            label: 'İletişime hazır',
+            value: counts.authorized,
+            tone: 'success',
+          },
+          {
+            icon: BadgeCheck,
+            label: 'Satış yetkisi',
+            value: counts.authorized,
+            tone: 'success',
+          },
+          {
+            icon: CheckCircle2,
+            label: 'Portföye katıldı',
+            value: counts.green,
+            tone: 'info',
+          },
+        ].map((metric) => (
+          <article
+            className={styles.metricCard}
+            data-tone={metric.tone}
+            key={metric.label}
+          >
+            <span className={styles.metricIcon}>
+              <metric.icon aria-hidden="true" />
+            </span>
+            <span>
+              <small>{metric.label}</small>
+              <strong>{metric.value}</strong>
+            </span>
+          </article>
+        ))}
+      </section>
+
+      <nav className={styles.tabs} aria-label="Avcı çalışma alanı">
+        {[
+          {
+            id: 'kesif' as const,
+            label: 'Keşif ve ilanlar',
+            icon: Crosshair,
+          },
+          {
+            id: 'pano' as const,
+            label: 'Satış yetkisi panosu',
+            icon: Layers,
+          },
+          {
+            id: 'eklenti' as const,
+            label: 'Tarayıcı eklentisi',
+            icon: Puzzle,
+          },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            aria-current={activeView === id ? 'page' : undefined}
+            className={activeView === id ? styles.activeTab : styles.tab}
+            key={id}
+            onClick={() => setActiveView(id)}
+            type="button"
+          >
+            <Icon aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {activeView === 'kesif' && (
+        <div className={styles.discoveryWorkspace}>
+          <AvciV2Workspace />
+        </div>
+      )}
 
       {activeView === 'pano' && (
-        <div className="space-y-4">
+        <div className={styles.boardWorkspace}>
           <div className="flex items-start gap-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 text-xs leading-5 text-sky-200">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
             Durum panosu portföy sürecini yönetir. Telefon bilgisi burada
@@ -321,7 +387,7 @@ export default function AvciPage() {
       )}
 
       {activeView === 'eklenti' && (
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 sm:p-7">
+        <section className={`${styles.extensionWorkspace} rounded-xl border border-slate-800 bg-slate-900 p-5 sm:p-7`}>
           <div className="mx-auto max-w-4xl">
             <div className="flex items-start gap-3">
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2.5">

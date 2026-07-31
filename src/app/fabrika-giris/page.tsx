@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import {
   ArrowRight,
-  BriefcaseBusiness,
   Crown,
   ShieldCheck,
+  Sparkles,
   UserRound,
 } from 'lucide-react';
 import BusinessCeoMark from '@/components/fabrika/BusinessCeoMark';
@@ -14,7 +14,7 @@ const accountTypes = [
     description:
       'Şirket, ekip, abonelik, entegrasyonlar ve tüm operasyonları yönetin.',
     href: '/fabrika-giris/patron',
-    icon: BriefcaseBusiness,
+    icon: Crown,
   },
   {
     title: 'Çalışan girişi',
@@ -41,11 +41,8 @@ export default function FabrikaGirisPage() {
         <div className="w-full max-w-4xl rounded-[28px] border border-[#c99a57]/30 bg-[#0b1625]/90 p-6 shadow-[0_40px_120px_rgba(0,0,0,.48)] backdrop-blur-xl sm:p-10 lg:p-12">
           <div className="mx-auto max-w-xl text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center text-[#e9bd79]">
-              <Crown className="h-7 w-7" aria-hidden="true" />
+              <Sparkles className="h-7 w-7" aria-hidden="true" />
             </span>
-            <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.26em] text-[#c99a57]">
-              Business CEO AI
-            </p>
             <h1 className="mt-3 font-serif text-3xl font-semibold tracking-wide text-[#f6f1e8] sm:text-5xl">
               Hesap türünüzü seçin
             </h1>
