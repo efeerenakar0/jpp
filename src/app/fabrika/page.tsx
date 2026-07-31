@@ -272,7 +272,7 @@ export default function CommandCenter() {
 
       <DigitalManagerOperations />
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 2xl:grid-cols-[minmax(0,1.55fr)_minmax(25rem,.72fr)]">
         <NotificationPanel
           title="Kritik operasyon akışı"
           description="Müdahale veya karar gerektiren olaylar"

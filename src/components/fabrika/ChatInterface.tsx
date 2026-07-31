@@ -201,8 +201,8 @@ export default function ChatInterface({
   };
 
   return (
-    <section className="flex flex-col h-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
-      <header className="px-4 sm:px-6 py-3.5 bg-slate-900/80 border-b border-slate-800 shrink-0">
+    <section className="ceo-chat-interface flex h-full flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+      <header className="ceo-chat-header shrink-0 border-b border-slate-800 bg-slate-900/80 px-4 py-3.5 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 shrink-0">
@@ -240,9 +240,9 @@ export default function ChatInterface({
                   aiEnabled: !aiEnabled,
                 }).catch(() => {});
               }}
-              className={`min-h-10 px-3 rounded-xl border text-xs font-semibold flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-rose-400 ${
+              className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-emerald-400 ${
                 aiEnabled
-                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
                   : 'bg-blue-500/10 border-blue-500/30 text-blue-300'
               }`}
               aria-pressed={!aiEnabled}
@@ -283,7 +283,7 @@ export default function ChatInterface({
                 value={tagDraft}
                 onChange={(event) => setTagDraft(event.target.value)}
                 placeholder="Örn. Sıcak müşteri"
-                className="min-w-0 flex-1 h-9 bg-slate-950 border border-slate-700 rounded-lg px-3 text-xs text-white focus-visible:ring-2 focus-visible:ring-rose-400 outline-none"
+                className="h-9 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
               />
               <button
                 type="submit"
@@ -297,7 +297,7 @@ export default function ChatInterface({
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-200"
+                    className="inline-flex items-center gap-1 rounded-md border border-[#c99a57]/25 bg-[#c99a57]/10 px-2 py-1 text-[10px] text-[#e9bd79]"
                   >
                     {tag}
                     <button
@@ -327,7 +327,7 @@ export default function ChatInterface({
                 value={notesDraft}
                 onChange={(event) => setNotesDraft(event.target.value)}
                 placeholder="Bütçe, tercih veya takip notu…"
-                className="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white resize-none focus-visible:ring-2 focus-visible:ring-rose-400 outline-none"
+                className="min-w-0 flex-1 resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
               />
               <button
                 type="button"
@@ -380,7 +380,7 @@ export default function ChatInterface({
                     isOutbound
                       ? isHuman
                         ? 'bg-blue-600 border-blue-400/30'
-                        : 'bg-gradient-to-br from-rose-500 to-pink-600 border-pink-500/30'
+                        : 'border-emerald-400/30 bg-gradient-to-br from-emerald-500 to-emerald-700'
                       : 'bg-slate-800 border-slate-700'
                   }`}
                 >
@@ -399,7 +399,7 @@ export default function ChatInterface({
                     isOutbound
                       ? isHuman
                         ? 'bg-blue-600/90 text-white rounded-tr-sm'
-                        : 'bg-rose-600/90 text-white rounded-tr-sm'
+                        : 'rounded-tr-sm border border-emerald-400/20 bg-emerald-800/90 text-white'
                       : 'bg-slate-800/90 border border-slate-700 text-slate-100 rounded-tl-sm'
                   }`}
                 >
@@ -441,13 +441,13 @@ export default function ChatInterface({
             onChange={(event) => setInput(event.target.value)}
             placeholder="Müşteriye manuel mesaj yazın…"
             disabled={isProcessing}
-            className="flex-1 min-h-11 bg-slate-950 border border-slate-700 rounded-xl px-4 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-rose-400 outline-none"
+            className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-emerald-400"
           />
           <button
             type="submit"
             disabled={!input.trim() || isProcessing}
             aria-label="Mesajı gönder"
-            className="min-w-11 min-h-11 bg-gradient-to-r from-rose-500 to-pink-600 disabled:opacity-50 text-white rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/20 focus-visible:ring-2 focus-visible:ring-white"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-emerald-950 shadow-lg shadow-emerald-950/30 focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50"
           >
             {isProcessing ? (
               <Clock className="w-5 h-5 animate-pulse" />
