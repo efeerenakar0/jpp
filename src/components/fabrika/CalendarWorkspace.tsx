@@ -286,7 +286,7 @@ export default function CalendarWorkspace() {
       setSelectedTask(null);
       toast.success(data.message || successMessage || 'Takvim güncellendi.');
       if (data.syncWarning) {
-        toast.warning(`Jasmine kaydetti; Google bekliyor: ${data.syncWarning}`);
+        toast.warning(`Business CEO AI kaydetti; Google bekliyor: ${data.syncWarning}`);
       }
       return true;
     } catch (error) {
@@ -730,7 +730,7 @@ export default function CalendarWorkspace() {
                             >
                               {task.calendarSource === 'GOOGLE'
                                 ? 'Google'
-                                : 'Jasmine'}
+                                : 'Business CEO AI'}
                             </span>
                           </div>
                           {(task.contact || task.property || task.assignedMember) && (
@@ -812,7 +812,7 @@ export default function CalendarWorkspace() {
                 {calendar.permissions.canManageSecrets && (
                   <ConfirmDialog
                     confirmLabel="Bağlantıyı kaldır"
-                    description="Google erişimi iptal edilir. Mevcut Jasmine kayıtları silinmez ve yerel takvimde kalır."
+                    description="Google erişimi iptal edilir. Mevcut Business CEO AI kayıtları silinmez ve yerel takvimde kalır."
                     destructive
                     onConfirm={disconnectGoogle}
                     title="Google Calendar bağlantısı kaldırılsın mı?"
@@ -1179,7 +1179,7 @@ function EventDialog({
             {task && (
               <ConfirmDialog
                 confirmLabel="Kaydı sil"
-                description="Bu kayıt Jasmine takviminden ve bağlıysa Google Calendar’dan silinir. Bu işlem geri alınamaz."
+                description="Bu kayıt Business CEO AI takviminden ve bağlıysa Google Calendar’dan silinir. Bu işlem geri alınamaz."
                 destructive
                 onConfirm={async () => {
                   await onDelete(task.id);

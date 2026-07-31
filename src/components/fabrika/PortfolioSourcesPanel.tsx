@@ -110,8 +110,8 @@ const sourceMeta: Record<
   }
 > = {
   JASMINE_API: {
-    label: 'Jasmine site API',
-    short: 'Jasmine tarafından hazırlanan siteler için doğrudan bağlantı.',
+    label: 'Business CEO AI site API',
+    short: 'Business CEO AI ile hazırlanan siteler için doğrudan bağlantı.',
     defaultPath: '/api/jasmine/portfolios',
     icon: Network,
   },
@@ -477,7 +477,7 @@ export default function PortfolioSourcesPanel({
               <EmptyState
                 icon={Database}
                 title="Henüz web kaynağı yok"
-                description="Jasmine API, WordPress, sitemap veya JSON-LD bağlantısı ekleyin."
+                description="Business CEO AI API, WordPress, sitemap veya JSON-LD bağlantısı ekleyin."
               />
             ) : (
               sourcesData.sources.map((source) => {

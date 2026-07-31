@@ -1,6 +1,6 @@
 'use client';
 
-import { Menu, Radio, Search } from 'lucide-react';
+import { CalendarDays, Menu, Radio, Search } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 
@@ -26,10 +26,10 @@ interface FabrikaTopbarProps {
 
 export default function FabrikaTopbar({ onOpenNavigation }: FabrikaTopbarProps) {
   const pathname = usePathname();
-  const title = pageNames[pathname] ?? 'Fabrika';
+  const title = pageNames[pathname] ?? 'CEO Workspace';
 
   return (
-    <header className="relative z-40 flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-4 sm:px-6 lg:px-8">
+    <header className="relative z-40 flex h-[76px] shrink-0 items-center justify-between border-b border-[#243247] bg-[#08111f]/95 px-4 backdrop-blur-xl sm:px-6 lg:px-7">
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
@@ -40,8 +40,8 @@ export default function FabrikaTopbar({ onOpenNavigation }: FabrikaTopbarProps) 
           <Menu className="h-5 w-5" />
         </button>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{title}</p>
-          <p className="hidden text-xs text-slate-500 sm:block">Jasmine AI operasyon paneli</p>
+          <p className="truncate font-serif text-[15px] font-semibold tracking-wide text-[#f6f1e8]">{title}</p>
+          <p className="hidden text-[11px] text-slate-500 sm:block">Business CEO AI · Executive workspace</p>
         </div>
       </div>
 
@@ -56,6 +56,10 @@ export default function FabrikaTopbar({ onOpenNavigation }: FabrikaTopbarProps) 
           <span>Panelde ara</span>
           <kbd className="ml-3 rounded border border-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">⌘K</kbd>
         </button>
+        <div className="hidden items-center gap-2 text-[11px] text-slate-400 xl:flex">
+          <CalendarDays className="h-3.5 w-3.5 text-[#c99a57]" />
+          {new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
+        </div>
         <div className="hidden items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 sm:flex">
           <Radio className="h-3.5 w-3.5" />
           Sistemler çalışıyor

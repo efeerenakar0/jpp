@@ -382,7 +382,7 @@ export default function AvciPage() {
                   </span>
                   <div>
                     <h3 className="text-sm font-semibold text-white">
-                      Jasmine Avcı eklentisini kurun
+                      Business CEO AI Avcı eklentisini kurun
                     </h3>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
                       Paketi indirin, ZIP&apos;i klasöre çıkarın ve Chrome

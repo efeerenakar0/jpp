@@ -1,7 +1,7 @@
 export const siteContent = {
   meta: {
-    title: "Jasmine Proje Pazarlama | Alanya'nın İlk ve Tek Proje Pazarlama Firması",
-    description: "Alanya'da inşaat firmaları ve emlakçılar arasında köprü kuran ilk ve tek proje pazarlama firması. Yatırımınıza yön veriyoruz.",
+    title: "Business CEO AI | Akıllı Gayrimenkul Operasyon Sistemi",
+    description: "Gayrimenkul şirketlerinin portföy, müşteri, pazarlama, ekip ve yapay zekâ operasyonlarını tek merkezden yöneten profesyonel işletim sistemi.",
   },
   contact: {
     address: "Mahmutlar Mah. Barbaros Cad. No: 123/A Alanya / Antalya",
@@ -110,7 +110,7 @@ export const siteContent = {
       id: 1,
       name: "Ahmet Yılmaz",
       role: "Müteahhit Firma Sahibi",
-      content: "Jasmine Proje Pazarlama ile çalışmaya başladıktan sonra satış hızımız %40 arttı. Yabancı müşterilere ulaşma konusundaki ağları gerçekten inanılmaz."
+      content: "Business CEO AI ile çalışmaya başladıktan sonra satış hızımız %40 arttı. Yabancı müşterilere ulaşma konusundaki operasyon gücü gerçekten inanılmaz."
     },
     {
       id: 2,
@@ -143,7 +143,7 @@ export const siteContent = {
     }
   ],
   timeline: [
-    { year: "2018", title: "Kuruluş", description: "Jasmine Proje Pazarlama, Alanya'nın ilk proje pazarlama şirketi olarak faaliyetlerine başladı." },
+    { year: "2018", title: "Kuruluş", description: "Business CEO AI, gayrimenkul operasyonlarını tek merkezde toplamak amacıyla faaliyetlerine başladı." },
     { year: "2020", title: "Global Açılım", description: "Yurt dışı pazarında 20 farklı ülkede acente ağları oluşturuldu." },
     { year: "2022", title: "1000. Teslimat", description: "Pazarlamasını üstlendiğimiz projelerde toplam 1000'den fazla bağımsız bölümün satışı başarıyla tamamlandı." },
     { year: "2024", title: "Dijital Dönüşüm", description: "CRM ve yapay zeka destekli kendi B2B yazılım altyapımızı devreye alarak iş ortaklarımıza eşsiz bir deneyim sunduk." }

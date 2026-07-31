@@ -141,7 +141,7 @@ function requestStableImageUltra({
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: 'image/*',
-      'stability-client-id': 'Jasmine AI Studio',
+      'stability-client-id': 'Business CEO AI Studio',
       'stability-client-version': '2.1',
     },
     body: ultraRequestBody({

@@ -1,19 +1,41 @@
 .root {
   --radius: 0.75rem;
-  --fabrika-surface: #0f172a;
-  --fabrika-surface-muted: #111c30;
-  --fabrika-border: #1e293b;
-  --fabrika-primary: #10b981;
+  --ceo-ink: #07101d;
+  --ceo-sidebar: #08111f;
+  --ceo-surface: #101b2b;
+  --ceo-surface-raised: #132033;
+  --ceo-surface-soft: #0b1726;
+  --ceo-border: #29384d;
+  --ceo-border-soft: #213047;
+  --ceo-pearl: #f6f1e8;
+  --ceo-muted: #92a0b4;
+  --ceo-gold: #c99a57;
+  --ceo-gold-bright: #e9bd79;
+  --ceo-emerald: #35c98b;
+  --ceo-danger: #ef6b6f;
+  --fabrika-surface: var(--ceo-surface);
+  --fabrika-surface-muted: var(--ceo-surface-raised);
+  --fabrika-border: var(--ceo-border);
+  --fabrika-primary: var(--ceo-emerald);
   color-scheme: dark;
   font-family: var(--font-sans);
+  background:
+    radial-gradient(circle at 78% 8%, rgb(53 201 139 / 0.055), transparent 24rem),
+    radial-gradient(circle at 8% 90%, rgb(201 154 87 / 0.05), transparent 30rem),
+    var(--ceo-ink);
 }
 
 .root :global(h1),
 .root :global(h2),
 .root :global(h3),
 .root :global(.font-heading) {
-  font-family: var(--font-sans) !important;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.018em;
+}
+
+.root :global(h1),
+.root :global(.business-ceo-display) {
+  font-family: var(--font-serif), Georgia, serif !important;
+  letter-spacing: 0.01em;
 }
 
 .root :global(.glass-card),
@@ -21,7 +43,7 @@
 .root :global(.glass-card-gold) {
   background: var(--fabrika-surface) !important;
   border-color: var(--fabrika-border) !important;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2) !important;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 0.16) !important;
   backdrop-filter: none !important;
 }
 
@@ -38,6 +60,39 @@
   border-radius: 0.75rem !important;
 }
 
+.root :global(.bg-slate-950),
+.root :global(.bg-slate-950\/80),
+.root :global(.bg-slate-950\/60),
+.root :global(.bg-slate-950\/50),
+.root :global(.bg-slate-950\/30) {
+  background-color: var(--ceo-surface-soft) !important;
+}
+
+.root :global(.bg-slate-900),
+.root :global(.bg-slate-900\/90),
+.root :global(.bg-slate-900\/80),
+.root :global(.bg-slate-900\/60) {
+  background-color: var(--ceo-surface) !important;
+}
+
+.root :global(.bg-slate-800) {
+  background-color: var(--ceo-surface-raised) !important;
+}
+
+.root :global(.border-slate-800),
+.root :global(.border-slate-700) {
+  border-color: var(--ceo-border) !important;
+}
+
+.root :global(.text-white),
+.root :global(.text-slate-100) {
+  color: var(--ceo-pearl) !important;
+}
+
+.root :global(.text-slate-400) {
+  color: var(--ceo-muted) !important;
+}
+
 .root :global(.backdrop-blur-xl),
 .root :global(.backdrop-blur-2xl),
 .root :global(.backdrop-blur-3xl) {
@@ -51,32 +106,83 @@
 .root :global([class*="text-cyan-"]),
 .root :global([class*="text-blue-"]),
 .root :global([class*="text-purple-"]) {
-  color: #34d399 !important;
+  color: var(--ceo-emerald) !important;
 }
 
 .root :global([class*="bg-cyan-"]),
 .root :global([class*="bg-blue-"]),
 .root :global([class*="bg-purple-"]) {
-  background-color: rgb(16 185 129 / 0.1) !important;
+  background-color: rgb(53 201 139 / 0.1) !important;
 }
 
 .root :global([class*="border-cyan-"]),
 .root :global([class*="border-blue-"]),
 .root :global([class*="border-purple-"]) {
-  border-color: rgb(16 185 129 / 0.25) !important;
+  border-color: rgb(53 201 139 / 0.25) !important;
 }
 
 .root :global([class*="from-cyan-"]),
 .root :global([class*="from-blue-"]),
 .root :global([class*="from-purple-"]) {
   background-image: none !important;
-  background-color: #10b981 !important;
+  background-color: var(--ceo-emerald) !important;
 }
 
 .root :global(input),
 .root :global(textarea),
 .root :global(select) {
   min-height: 2.5rem;
+  border-color: var(--ceo-border);
+  background-color: #0a1423;
+}
+
+.root :global(table) {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.root :global(thead) {
+  background: #0b1625;
+}
+
+.root :global(tbody tr) {
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.root :global(tbody tr:hover) {
+  background: rgb(201 154 87 / 0.04);
+}
+
+.root :global(.business-ceo-main section.rounded-xl.border),
+.root :global(.business-ceo-main article.rounded-xl.border),
+.root :global(.business-ceo-main div.rounded-xl.border) {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.018),
+    0 18px 44px rgb(0 0 0 / 0.13);
+}
+
+.root :global(.business-ceo-main thead th) {
+  color: #aab6c8;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.root :global(.business-ceo-main [role="tablist"]) {
+  border-color: var(--ceo-border);
+  background: #0a1524;
+}
+
+.root :global(.business-ceo-main [role="tab"][data-state="active"]) {
+  border-color: rgb(201 154 87 / 0.34);
+  background: rgb(201 154 87 / 0.1);
+  color: var(--ceo-gold-bright);
+}
+
+.root :global(.custom-scrollbar) {
+  scrollbar-color: rgb(201 154 87 / 0.35) transparent;
+  scrollbar-width: thin;
 }
 
 .root :global(input:focus-visible),
@@ -84,7 +190,7 @@
 .root :global(select:focus-visible),
 .root :global(button:focus-visible),
 .root :global(a:focus-visible) {
-  outline: 2px solid var(--fabrika-primary);
+  outline: 2px solid var(--ceo-gold-bright);
   outline-offset: 2px;
 }
 
@@ -96,6 +202,25 @@
 .root :global(.animate-float),
 .root :global(.animate-pulse-glow) {
   animation: none !important;
+}
+
+.root :global(.business-ceo-main) {
+  scrollbar-gutter: stable;
+}
+
+.root :global(.business-ceo-main)::before {
+  content: '';
+  position: fixed;
+  inset: 76px 0 auto 18rem;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(201 154 87 / 0.28), transparent);
+}
+
+@media (max-width: 1023px) {
+  .root :global(.business-ceo-main)::before {
+    inset-inline-start: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

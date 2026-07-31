@@ -1889,7 +1889,7 @@ model WhatsAppConfig {
   businessAccountId          String?
   verifyToken                String          @default("configure-in-environment")
   geminiApiKey               String?         @db.Text
-  companyName                String?         @default("Jasmine Group")
+  companyName                String?         @default("Business CEO AI")
   assistantName              String?         @default("Efe")
   serviceCity                String?         @default("Alanya")
   companyAddress             String?         @db.Text

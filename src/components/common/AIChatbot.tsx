@@ -5,7 +5,7 @@ import { MessageSquare, X, Send } from "lucide-react";
 export default function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'ai', content: string}[]>([
-    { role: 'ai', content: 'Merhaba! Ben Jasmine AI Asistanı. Size nasıl yardımcı olabilirim?' }
+    { role: 'ai', content: 'Merhaba! Ben Business CEO AI Asistanı. Size nasıl yardımcı olabilirim?' }
   ]);
   const [input, setInput] = useState("");
 
@@ -35,7 +35,7 @@ export default function AIChatbot() {
       {isOpen ? (
         <div className="bg-white rounded-lg shadow-xl w-80 h-96 flex flex-col overflow-hidden border border-gray-200">
           <div className="bg-primary-900 text-white p-3 flex justify-between items-center">
-            <span className="font-medium">Jasmine AI Asistan</span>
+            <span className="font-medium">Business CEO AI Asistan</span>
             <button onClick={() => setIsOpen(false)}><X className="w-5 h-5" /></button>
           </div>
           <div className="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col gap-3">

@@ -107,7 +107,7 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
       'OpenAI Platform hesabınıza giriş yapın.',
       'Sol menüden ilgili proje alanını seçin ve API Keys sayfasını açın.',
       '+ Create new secret key düğmesine basın.',
-      'Anahtara Jasmine Studio gibi anlaşılır bir ad verin.',
+      'Anahtara Business CEO AI Studio gibi anlaşılır bir ad verin.',
       'Oluşan anahtarı hemen kopyalayın; OpenAI bu anahtarı daha sonra tekrar tam olarak göstermez.',
       'Bu ekrandaki API anahtarı alanına yapıştırıp ayarları kaydedin.',
     ],

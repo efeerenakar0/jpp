@@ -51,7 +51,7 @@ export default function OnboardingWizard() {
     setLoading(true);
     try {
       const payload = {
-        companyName: formData.companyName || 'Jasmine Group',
+        companyName: formData.companyName || 'Business CEO AI',
         strengths: (formData.strengths || 'Lüks Gayrimenkul, Hızlı Satış').split(',').map((s) => s.trim()).filter(Boolean),
         uniquePoints: (formData.uniquePoints || 'Yatırımcı Ağı, VIP Hizmet').split(',').map((s) => s.trim()).filter(Boolean),
         serviceAreas: (formData.serviceAreas || 'Alanya, Mahmutlar, Oba').split(',').map((s) => s.trim()).filter(Boolean),
@@ -125,7 +125,7 @@ export default function OnboardingWizard() {
                   name="companyName"
                   value={formData.companyName}
                   onChange={handleChange}
-                  placeholder="Örn: Jasmine Real Estate"
+                  placeholder="Örn: Akar Real Estate"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:border-amber-500 outline-none transition-all"
                 />
               </div>

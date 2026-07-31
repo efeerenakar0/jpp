@@ -4,7 +4,7 @@ import { siteContent } from "@/data/site-content";
 import { Sparkles } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "İletişim | Jasmine Nano Proje Pazarlama",
+  title: "İletişim | Business CEO AI",
   description: "Alanya'daki ofisimizle iletişime geçin, gayrimenkul yatırımlarınızı planlayalım.",
 };
 
@@ -38,7 +38,7 @@ export default function ContactPage() {
           allowFullScreen={false}
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
-          title="Jasmine Proje Pazarlama Konum"
+          title="Business CEO AI Konum"
         ></iframe>
       </section>
     </div>

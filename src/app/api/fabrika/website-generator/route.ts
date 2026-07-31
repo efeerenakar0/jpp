@@ -131,7 +131,7 @@ export async function POST(request: Request) {
         </div>
         <div style="margin-top: 30px; border-top: 1px solid #444; padding-top: 20px;">
             <p>&copy; ${new Date().getFullYear()} ${companyName}. Tüm hakları saklıdır.</p>
-            <p style="font-size: 0.8rem; color: #777;">Powered by Jasmine AI Factory</p>
+            <p style="font-size: 0.8rem; color: #777;">Powered by Business CEO AI</p>
         </div>
     </footer>
 </body>

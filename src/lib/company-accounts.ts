@@ -10,6 +10,7 @@ import {
   type CompanyAccount,
 } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { businessCeoBrand } from '@/lib/business-ceo-brand';
 
 const BCRYPT_ROUNDS = 12;
 const LEGACY_JASMINE_SLUG = 'jasmine-group';
@@ -223,6 +224,12 @@ export async function ensureLegacyJasmineAccount(): Promise<CompanyAccount | nul
   });
 
   if (existing?.accessKeyHash && existing.verificationCodeHash) {
+    if (existing.companyName === 'Jasmine Group') {
+      return prisma.companyAccount.update({
+        where: { id: existing.id },
+        data: { companyName: businessCeoBrand.productName },
+      });
+    }
     return existing;
   }
 
@@ -243,7 +250,7 @@ export async function ensureLegacyJasmineAccount(): Promise<CompanyAccount | nul
       workspaceEnabled: true,
     },
     create: {
-      companyName: 'Jasmine Group',
+      companyName: businessCeoBrand.productName,
       slug: LEGACY_JASMINE_SLUG,
       ownerName: 'Efe Eren',
       status: CompanyAccountStatus.ACTIVE,

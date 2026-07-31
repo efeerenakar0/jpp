@@ -62,7 +62,7 @@ export default function PlatformAdminLoginPage() {
                 <Building2 className="h-7 w-7" aria-hidden="true" />
               </div>
               <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">
-                Jasmine AI Platform
+                Business CEO AI Platform
               </p>
               <h1 className="mt-4 max-w-md text-4xl font-black leading-tight text-white">
                 Şirketleri ve abonelikleri tek merkezden yönetin.
@@ -85,7 +85,7 @@ export default function PlatformAdminLoginPage() {
                 <Building2 className="h-6 w-6" aria-hidden="true" />
               </div>
               <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
-                Jasmine AI Platform
+                Business CEO AI Platform
               </p>
             </div>
 

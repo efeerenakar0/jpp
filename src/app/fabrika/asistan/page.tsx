@@ -99,7 +99,7 @@ export default function AsistanPage() {
     businessAccountId: '',
     verifyToken: '',
     geminiApiKey: '',
-    companyName: 'Jasmine Group',
+    companyName: 'Business CEO AI',
     assistantName: 'Efe',
     serviceCity: 'Alanya',
     companyAddress: '',
@@ -592,7 +592,7 @@ export default function AsistanPage() {
                     rows={2}
                     value={configForm.companyAddress}
                     onChange={(e) => setConfigForm({ ...configForm, companyAddress: e.target.value })}
-                    placeholder="Örn: Mahmutlar Mah. Barbaros Cad. Jasmine Towers No:12 Alanya/Antalya"
+                    placeholder="Örn: Mahmutlar Mah. Barbaros Cad. Business Plaza No:12 Alanya/Antalya"
                     className="w-full bg-slate-950 text-white text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none resize-none custom-scrollbar"
                   />
                 </div>
@@ -619,7 +619,7 @@ export default function AsistanPage() {
                       type="text"
                       value={configForm.companyName}
                       onChange={(e) => setConfigForm({ ...configForm, companyName: e.target.value })}
-                      placeholder="Jasmine Group"
+                      placeholder="Business CEO AI"
                       className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
                     />
                   </div>

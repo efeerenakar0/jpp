@@ -235,7 +235,7 @@ export async function renderDocumentDocx({
     creator: companyName,
     title: rendered.title,
     subject: rendered.documentNumber,
-    description: 'Jasmine AI Belge Merkezi tarafından oluşturulmuştur.',
+    description: 'Business CEO AI Belge Merkezi tarafından oluşturulmuştur.',
     styles: {
       default: {
         document: {

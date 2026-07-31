@@ -2,8 +2,8 @@ import { Metadata } from "next";
 import Timeline from "@/components/about/Timeline";
 
 export const metadata: Metadata = {
-  title: "Hakkımızda | Jasmine Nano Proje Pazarlama",
-  description: "Alanya'nın ilk ve tek proje pazarlama firması Jasmine'in hikayesi, vizyonu ve ekibi.",
+  title: "Hakkımızda | Business CEO AI",
+  description: "Business CEO AI'ın gayrimenkul operasyonlarını yapay zekâ ile birleştiren vizyonunu ve ekibini tanıyın.",
 };
 
 const team = [
@@ -36,7 +36,7 @@ export default function AboutPage() {
               <h2 className="text-3xl font-serif font-black text-white">Alanya&apos;nın İlk Proje Pazarlama Firması</h2>
               <div className="space-y-4 text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
                 <p>
-                  Jasmine Proje Pazarlama, inşaat sektöründeki pazarlama boşluğunu doldurmak üzere kurulan Alanya&apos;nın <span className="font-bold text-cyan-300 underline underline-offset-4">ilk ve tek</span> otonom proje pazarlama şirketidir.
+                  Business CEO AI, gayrimenkul sektöründeki operasyon boşluğunu doldurmak üzere geliştirilen <span className="font-bold text-cyan-300 underline underline-offset-4">yapay zekâ destekli</span> iş yönetim sistemidir.
                 </p>
                 <p>
                   Müteahhit firmaların yüksek kaliteli projeler üretmesine rağmen satış ve pazarlamada yaşadığı zorlukları görerek yola çıktık. Amacımız, projenin çizim aşamasından itibaren satış ve pazarlamasını uçtan uca yönetmektir.

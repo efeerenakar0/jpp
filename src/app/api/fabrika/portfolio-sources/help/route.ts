@@ -14,11 +14,11 @@ const helpSchema = z.object({
 
 const guides: Record<(typeof PORTFOLIO_SOURCE_TYPES)[number], string> = {
   JASMINE_API:
-    'Jasmine tarafından hazırlanan sitenizde /api/jasmine/portfolios adresini kullanın. Site anahtar gerektiriyorsa portföy kaynak formundaki API anahtarı alanına anahtarı girin. Ardından Kaynağı eşitle düğmesine basın.',
+    'Business CEO AI tarafından hazırlanan sitenizde /api/jasmine/portfolios adresini kullanın. Site anahtar gerektiriyorsa portföy kaynak formundaki API anahtarı alanına anahtarı girin. Ardından Kaynağı eşitle düğmesine basın.',
   WORDPRESS:
     'WordPress yönetiminde portföylerin hangi içerik türünde tutulduğunu kontrol edin. Çoğu sitede yalnızca ana site adresi yeterlidir. Özel içerik türü varsa /wp-json/wp/v2/icerik-turu?per_page=50&_embed=1 yolunu Kaynak yolu alanına yazın.',
   SITEMAP:
-    'Tarayıcıda siteadresiniz.com/sitemap.xml adresini açın. İlan sayfaları listeleniyorsa site adresini ve gerekirse sitemap yolunu kaydedin. Jasmine ilk 16 ilan sayfasındaki JSON-LD ve sayfa meta bilgilerini önizlemeye alır.',
+    'Tarayıcıda siteadresiniz.com/sitemap.xml adresini açın. İlan sayfaları listeleniyorsa site adresini ve gerekirse sitemap yolunu kaydedin. Business CEO AI ilk 16 ilan sayfasındaki JSON-LD ve sayfa meta bilgilerini önizlemeye alır.',
   HTML:
     'Tek bir ilan veya portföy liste sayfası için tam web adresini girin. Sayfada RealEstateListing, Residence veya Product türünde JSON-LD bulunması en iyi sonucu verir; yoksa başlık, açıklama ve görsel meta etiketleri okunur.',
 };
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
           {
             role: 'system',
             content:
-              'Sen Jasmine Fabrika portföy bağlantı uzmanısın. Yalnızca verilen doğrulanmış kurulum bilgisini kullan. Kullanıcıya kısa, numaralı ve teknik olmayan Türkçe adımlar ver. API anahtarı veya parola isteme.',
+              'Sen Business CEO AI portföy bağlantı uzmanısın. Yalnızca verilen doğrulanmış kurulum bilgisini kullan. Kullanıcıya kısa, numaralı ve teknik olmayan Türkçe adımlar ver. API anahtarı veya parola isteme.',
           },
           {
             role: 'user',

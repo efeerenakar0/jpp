@@ -1,11 +1,11 @@
 {
-  "name": "Jasmine Proje Pazarlama",
-  "short_name": "Jasmine",
-  "description": "Alanya'nın lider gayrimenkul pazarlama firması.",
+  "name": "Business CEO AI",
+  "short_name": "Business CEO",
+  "description": "Yapay zekâ destekli gayrimenkul operasyon sistemi.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#303d1c",
+  "background_color": "#07101d",
+  "theme_color": "#07101d",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",

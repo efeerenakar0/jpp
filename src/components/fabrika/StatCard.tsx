@@ -16,13 +16,13 @@ export default function StatCard({
   status = 'default',
 }: StatCardProps) {
   const statusClasses = {
-    default: 'border-slate-800 bg-slate-900 text-slate-300',
-    success: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300',
-    warning: 'border-amber-500/25 bg-amber-500/5 text-amber-300',
+    default: 'border-[#29384d] bg-[#101b2b] text-slate-300',
+    success: 'border-emerald-500/25 bg-[#0d1d25] text-emerald-300',
+    warning: 'border-[#c99a57]/35 bg-[#1c1a19] text-[#e9bd79]',
   };
 
   return (
-    <section className={`rounded-xl border p-4 ${statusClasses[status]}`}>
+    <section className={`group rounded-xl border p-4 shadow-[0_16px_38px_rgba(0,0,0,0.12)] transition-colors hover:border-[#c99a57]/35 ${statusClasses[status]}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-slate-400">{label}</p>

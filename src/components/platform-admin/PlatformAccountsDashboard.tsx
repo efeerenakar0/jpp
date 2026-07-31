@@ -310,7 +310,7 @@ export default function PlatformAccountsDashboard() {
             </div>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
-                Jasmine AI Platform
+                Business CEO AI Platform
               </p>
               <h1 className="mt-1 text-2xl font-black text-white sm:text-3xl">
                 Şirket ve abonelik yönetimi

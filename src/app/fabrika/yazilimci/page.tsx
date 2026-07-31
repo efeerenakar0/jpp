@@ -17,7 +17,7 @@ export default function YazilimciPage() {
 
   // IT Support Chat
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([
-    { role: 'model', content: 'Merhaba! Ben Jasmine Group IT Destek Uzmanıyım. Alan adı (domain) satın alma, hosting kurulumu veya web sitenizi yayına alma konusunda size nasıl yardımcı olabilirim?' }
+    { role: 'model', content: 'Merhaba! Ben Business CEO AI Teknik Danışmanıyım. Alan adı, hosting kurulumu veya web sitenizi yayına alma konusunda size nasıl yardımcı olabilirim?' }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -122,7 +122,7 @@ export default function YazilimciPage() {
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-white mb-2">Mevcut bir web siteniz var mı?</h3>
-                            <p className="text-xs text-slate-400 max-w-sm mx-auto font-medium leading-relaxed">Jasmine Fabrikası verilerinizi kendi sitenize bağlayabilir veya size yepyeni bir site oluşturabiliriz.</p>
+                            <p className="text-xs text-slate-400 max-w-sm mx-auto font-medium leading-relaxed">Business CEO AI verilerinizi kendi sitenize bağlayabilir veya size yepyeni bir site oluşturabilir.</p>
                         </div>
                         <div className="flex gap-4 w-full max-w-sm">
                             <button onClick={() => setHasWebsite(true)} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-2xl transition-all border border-slate-700 cursor-pointer">
@@ -147,7 +147,7 @@ export default function YazilimciPage() {
                                     value={companyName} 
                                     onChange={(e) => setCompanyName(e.target.value)}
                                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-cyan-400 transition-all font-medium"
-                                    placeholder="Örn: Jasmine Emlak"
+                                    placeholder="Örn: Akar Emlak"
                                     required
                                 />
                             </div>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
+import {
   Crown, 
   Code2, 
   Crosshair, 
@@ -11,7 +11,6 @@ import {
   Aperture,
   ChevronLeft,
   ChevronRight,
-  Building2,
   LogOut,
   X,
   Users,
@@ -24,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { primaryModuleDefinitions } from '@/lib/fabrika-primary-modules';
+import BusinessCeoMark from './BusinessCeoMark';
 
 const primaryModulePresentation = {
   'Komuta Merkezi': {
@@ -93,7 +93,7 @@ interface FabrikaSidebarProps {
 export default function FabrikaSidebar({
   mobileOpen = false,
   onMobileClose,
-  companyName = 'Jasmine AI',
+  companyName = 'Business CEO AI',
   profileName = 'Patron',
   principalType = 'OWNER',
   hunterEnabled = false,
@@ -124,24 +124,16 @@ export default function FabrikaSidebar({
     <aside
       className={`
         fixed inset-y-0 left-0 z-50 flex h-full w-72 flex-col
-        border-r border-slate-800 bg-[#07101f]
+        border-r border-[#243247] bg-[#08111f]
         transition-transform duration-200 ease-out lg:relative lg:z-20 lg:translate-x-0
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         ${collapsed ? 'lg:w-20' : 'lg:w-72'}
       `}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between border-b border-slate-800 px-4">
+      <div className="flex h-[76px] items-center justify-between border-b border-[#243247] px-4">
         <Link href="/fabrika" className="flex items-center gap-3" onClick={onMobileClose}>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
-            <Building2 className="h-[18px] w-[18px] text-emerald-400" />
-          </div>
-          {!collapsed && (
-            <div className="overflow-hidden">
-              <h2 className="truncate text-sm font-semibold leading-tight tracking-tight text-white">{companyName}</h2>
-              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-400">Fabrika</p>
-            </div>
-          )}
+          <BusinessCeoMark compact={collapsed} />
         </Link>
         <button
           type="button"
@@ -154,7 +146,7 @@ export default function FabrikaSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="custom-scrollbar flex-1 overflow-y-auto px-3 py-4" aria-label="Fabrika modülleri">
+      <nav className="custom-scrollbar flex-1 overflow-y-auto px-3 py-5" aria-label="Business CEO AI modülleri">
         <div className="space-y-1">
         {primaryModules.map((item) => {
           const isActive = pathname === item.href || 
@@ -192,8 +184,8 @@ export default function FabrikaSidebar({
                 group relative flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5
                 transition-colors duration-150
                 ${isActive 
-                  ? 'border-emerald-500/20 bg-emerald-500/10 text-white'
-                  : 'border-transparent text-slate-400 hover:border-slate-800 hover:bg-slate-900 hover:text-slate-100'
+                  ? 'border-[#c99a57]/30 bg-[#c99a57]/10 text-white'
+                  : 'border-transparent text-slate-400 hover:border-[#29384d] hover:bg-[#111d2d] hover:text-slate-100'
                 }
               `}
               aria-current={isActive ? 'page' : undefined}
@@ -201,14 +193,14 @@ export default function FabrikaSidebar({
             >
               {/* Active indicator */}
               {isActive && (
-                <div className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-emerald-400" />
+                <div className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r-full bg-[#d7a85f]" />
               )}
               
               {/* Icon */}
               <div className={`
                 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors
                 ${isActive 
-                  ? 'border-emerald-500/20 bg-emerald-500/15 text-emerald-300'
+                  ? 'border-[#c99a57]/30 bg-[#c99a57]/10 text-[#e9bd79]'
                   : 'border-slate-800 bg-slate-900 text-slate-500 group-hover:text-slate-300'
                 }
               `}>
@@ -241,8 +233,8 @@ export default function FabrikaSidebar({
         <div className="my-4 border-t border-slate-800 pt-3">
           {!collapsed && (
             <div className="mb-2 flex items-center justify-between px-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-400">
-                Emlak operasyon paketi
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#c99a57]">
+                Yönetim araçları
               </p>
               <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-300">
                 Yeni
@@ -266,7 +258,7 @@ export default function FabrikaSidebar({
                 group relative flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5
                 transition-colors duration-150
                 ${isActive
-                  ? 'border-emerald-500/20 bg-emerald-500/10 text-white'
+                  ? 'border-[#c99a57]/30 bg-[#c99a57]/10 text-white'
                   : 'border-transparent text-slate-400 hover:border-slate-800 hover:bg-slate-900 hover:text-slate-100'
                 }
               `}
@@ -274,12 +266,12 @@ export default function FabrikaSidebar({
               title={collapsed ? item.name : undefined}
             >
               {isActive && (
-                <div className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-emerald-400" />
+                <div className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r-full bg-[#d7a85f]" />
               )}
               <div className={`
                 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors
                 ${isActive
-                  ? 'border-emerald-500/20 bg-emerald-500/15 text-emerald-300'
+                  ? 'border-[#c99a57]/30 bg-[#c99a57]/10 text-[#e9bd79]'
                   : 'border-slate-800 bg-slate-900 text-slate-500 group-hover:text-slate-300'
                 }
               `}>
@@ -312,7 +304,7 @@ export default function FabrikaSidebar({
       </button>
 
       {/* Bottom Profile Section */}
-      <div className={`border-t border-slate-800 p-4 ${collapsed ? 'text-center' : ''}`}>
+      <div className={`border-t border-[#243247] bg-[#07101c] p-4 ${collapsed ? 'text-center' : ''}`}>
         {!collapsed && (
           <div className="flex items-center justify-between gap-3 px-2">
             <div className="flex items-center gap-3">
@@ -351,6 +343,11 @@ export default function FabrikaSidebar({
           </button>
         )}
       </div>
+      {!collapsed && companyName !== 'Business CEO AI' && (
+        <p className="absolute bottom-[74px] left-5 max-w-[220px] truncate text-[10px] font-medium uppercase tracking-[0.14em] text-slate-600">
+          {companyName} çalışma alanı
+        </p>
+      )}
     </aside>
     </>
   );

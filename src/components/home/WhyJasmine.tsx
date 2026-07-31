@@ -23,7 +23,7 @@ export default function WhyJasmine() {
               
               <img 
                 src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=800" 
-                alt="Jasmine Proje Pazarlama Ekibi" 
+                alt="Business CEO AI Ekibi"
                 className="w-full h-auto object-cover rounded-3xl shadow-2xl border border-slate-800"
               />
               
@@ -50,11 +50,11 @@ export default function WhyJasmine() {
             </span>
 
             <h2 className="text-3xl md:text-5xl font-serif font-black text-white leading-tight">
-              Neden Jasmine Proje Pazarlama?
+              Neden Business CEO AI?
             </h2>
 
             <p className="text-sm md:text-base text-slate-300 leading-relaxed font-medium">
-              Biz sıradan bir emlak ofisi değiliz. Biz, kaliteli müteahhit projeleri ile global gayrimenkul yatırımcıları arasında köprü kuran Alanya&apos;nın <span className="font-black text-cyan-300 underline underline-offset-4">ilk ve tek otonom proje pazarlama şirketiyiz</span>.
+              Business CEO AI; portföy, müşteri, ekip ve pazarlama operasyonlarını tek merkezde birleştiren <span className="font-black text-cyan-300 underline underline-offset-4">yapay zekâ destekli gayrimenkul işletim sistemidir</span>.
             </p>
             
             <ul className="space-y-4 pt-2">

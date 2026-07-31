@@ -4,7 +4,7 @@ import Link from "next/link";
 import { MapPin, Bed, Maximize, Heart, Sparkles, Filter, Search } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Projelerimiz | Jasmine Nano Proje Pazarlama",
+  title: "Projelerimiz | Business CEO AI",
   description: "Alanya ve Akdeniz bölgesindeki en seçkin lüks konut ve villa projelerini keşfedin.",
 };
 

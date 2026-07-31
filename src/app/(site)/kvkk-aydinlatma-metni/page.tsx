@@ -9,7 +9,7 @@ export default function KVKKPage() {
         </div>
         
         <p className="mb-4">
-          6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, Jasmine Proje Pazarlama ("Şirket") olarak, veri sorumlusu sıfatıyla kişisel verilerinizi hangi amaçlarla işleyeceğimiz, kime ve hangi amaçla aktarabileceğimiz, kişisel veri toplamanın yöntemi ve hukuki sebebi ile haklarınız konusunda sizi bilgilendirmek isteriz.
+          6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, Business CEO AI ("Şirket") olarak, veri sorumlusu sıfatıyla kişisel verilerinizi hangi amaçlarla işleyeceğimiz, kime ve hangi amaçla aktarabileceğimiz, kişisel veri toplamanın yöntemi ve hukuki sebebi ile haklarınız konusunda sizi bilgilendirmek isteriz.
         </p>
 
         <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">Kişisel Verilerin İşlenme Amaçları</h2>

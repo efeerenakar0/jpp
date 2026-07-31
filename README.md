@@ -1,6 +1,6 @@
-# Jasmine Proje Pazarlama - Phase 3 (Production & Pazarlama Otomasyonu)
+# Business CEO AI — Gayrimenkul Operasyon Sistemi
 
-Bu proje, Jasmine Proje Pazarlama için tam kapsamlı, prodüksiyona hazır, SEO optimizasyonlu, PWA destekli ve pazarlama otomasyonları (WhatsApp, CRM, E-Posta, AI Chatbot) entegre edilmiş Next.js uygulamasıdır.
+Business CEO AI; SEO, PWA, WhatsApp, CRM, pazarlama, belge ve yapay zekâ operasyonlarını tek çalışma alanında birleştiren Next.js uygulamasıdır.
 
 ## 🚀 Yeni Eklenen NPM Paketleri (Phase 2 & 3)
 - \`prisma\` & \`@prisma/client\` (v5.21.1) - Veritabanı ORM.

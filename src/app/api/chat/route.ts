@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   console.log("Chatbot message received:", message);
   
   // Mock Anthropic/OpenAI call
-  const reply = "Merhaba! Jasmine Proje Pazarlama AI asistanıyım. Size projelerimiz, fiyatlar ve Alanya bölgesindeki yatırımlar hakkında nasıl yardımcı olabilirim? (Mock Yanıt)";
+  const reply = "Merhaba! Business CEO AI asistanıyım. Size portföyler, fiyatlar ve gayrimenkul operasyonlarınız hakkında nasıl yardımcı olabilirim? (Mock Yanıt)";
   
   return NextResponse.json({ reply });
 }

@@ -1,5 +1,5 @@
 /**
- * Jasmine AI Router
+ * Business CEO AI Router
  * Groq is the low-latency primary provider. Cloudflare Workers AI is an
  * independent fallback so customer-facing automations do not depend on one API.
  */
@@ -24,7 +24,7 @@ export function sharedAssistantAIStatus() {
   );
   return {
     configured: groq || cloudflare,
-    provider: 'Jasmine AI Router',
+    provider: 'Business CEO AI Router',
     model: 'GPT-OSS 120B · Qwen 3.6 · Cloudflare Qwen3',
     providers: { groq, cloudflare },
   };
@@ -144,7 +144,7 @@ function formatMessages(
   const validSystemPrompt =
     systemPrompt && systemPrompt.trim().length > 0
       ? systemPrompt.trim()
-      : "Sen Jasmine Group emlak kıdemli danışmanı Efe'sin. Yalnızca doğrulanmış portföy bilgilerini kullanarak doğal ve yardımsever yanıtlar ver.";
+      : "Sen Business CEO AI emlak kıdemli danışmanısın. Yalnızca doğrulanmış portföy bilgilerini kullanarak doğal ve yardımsever yanıtlar ver.";
   const formattedMessages: ChatMessage[] = [
     { role: 'system', content: validSystemPrompt },
     ...conversationMessages

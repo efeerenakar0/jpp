@@ -301,7 +301,7 @@ export default function MarketingPage() {
   const aiLabel = data?.ai.configured && data.ai.active
     ? `OpenRouter · ${data.ai.model}`
     : data?.ai.fallbackAvailable
-      ? 'Jasmine AI Router · Groq + Cloudflare'
+      ? 'Business CEO AI Router · Groq + Cloudflare'
       : 'Akıllı kural motoru';
 
   return (
