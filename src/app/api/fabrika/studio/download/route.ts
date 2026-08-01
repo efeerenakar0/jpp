@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getOrCreateSession } from '@/lib/studio-store';
 import JSZip from 'jszip';
+import {
+  FabrikaSessionError,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
+    await requireFabrikaPrincipal();
     const searchParams = new URL(request.url).searchParams;
     const shootId = searchParams.get('shootId');
     const format = searchParams.get('format');
@@ -49,8 +54,8 @@ export async function GET(request: Request) {
     }
     folder?.file(
       'Studyo_Raporu.txt',
-      `JASMINE GROUP DİJİTAL FOTOĞRAF STÜDYOSU
-İşlem Motoru  : ${session.aiProvider === 'GEMINI' ? 'Google Gemini' : 'OpenAI GPT Image'}
+`JASMINE GROUP DİJİTAL FOTOĞRAF STÜDYOSU
+İşlem Motoru  : ${session.aiProvider === 'STABILITY' ? 'Stability AI' : session.aiProvider === 'GEMINI' ? 'Google Gemini' : 'OpenAI GPT Image'}
 Model          : ${session.aiModel || 'Varsayılan model'}
 İşlem          : Portföy görselleri için ışık, renk, netlik ve genel kalite iyileştirmesi
 İşlem Tarihi  : ${new Date().toLocaleString('tr-TR')}
@@ -71,6 +76,9 @@ Model          : ${session.aiModel || 'Varsayılan model'}
       },
     });
   } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
     console.error('[Studio Download Error]:', error);
     return NextResponse.json({ error: 'İndirme dosyası oluşturulamadı.' }, { status: 500 });
   }

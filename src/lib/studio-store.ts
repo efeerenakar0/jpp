@@ -10,6 +10,7 @@ interface StudioSession {
   photos: Array<{
     name: string;
     buffer: Buffer;
+    mimeType: string;
   }>;
   processed: Record<string, {
     hdrPhotos: Array<{ name: string; buffer: Buffer }>;
