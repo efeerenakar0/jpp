@@ -3,11 +3,12 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 import { isHunterEnabled } from '@/lib/company-accounts';
+import { businessCeoBrand } from '@/lib/business-ceo-brand';
 import styles from './fabrika-ui.module.css';
 
 export const metadata = {
-  title: 'Jasmine AI Fabrikası | Yapay Zeka Kontrol Paneli',
-  description: 'Jasmine Group Yapay Zeka Fabrikası — Emlak ofisinizi otonom bir dijital fabrikaya dönüştürün.',
+  title: `${businessCeoBrand.productName} | Akıllı Operasyon Paneli`,
+  description: `${businessCeoBrand.productName} — şirketinizi müşteri, portföy, pazarlama ve yapay zekâ operasyonlarıyla tek merkezden yönetin.`,
 };
 
 export default async function FabrikaLayout({ children }: { children: React.ReactNode }) {

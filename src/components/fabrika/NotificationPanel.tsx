@@ -15,7 +15,7 @@ export default function NotificationPanel({
   children,
 }: NotificationPanelProps) {
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+    <section className="ceo-notification-panel overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
       <div className="flex items-center justify-between gap-4 border-b border-slate-800 px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold text-white">{title}</h2>

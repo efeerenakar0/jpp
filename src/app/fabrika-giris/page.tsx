@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import {
   ArrowRight,
-  BriefcaseBusiness,
-  Building2,
+  Crown,
   ShieldCheck,
+  Sparkles,
   UserRound,
 } from 'lucide-react';
+import BusinessCeoMark from '@/components/fabrika/BusinessCeoMark';
 
 const accountTypes = [
   {
@@ -13,7 +14,7 @@ const accountTypes = [
     description:
       'Şirket, ekip, abonelik, entegrasyonlar ve tüm operasyonları yönetin.',
     href: '/fabrika-giris/patron',
-    icon: BriefcaseBusiness,
+    icon: Crown,
   },
   {
     title: 'Çalışan girişi',
@@ -26,22 +27,27 @@ const accountTypes = [
 
 export default function FabrikaGirisPage() {
   return (
-    <main className="min-h-screen bg-[#080d17] px-5 py-10 text-slate-100">
-      <section className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-3xl items-center">
-        <div className="w-full">
+    <main className="relative min-h-screen overflow-hidden bg-[#06101d] px-5 py-8 text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_80%,rgba(201,154,87,0.16),transparent_30rem),radial-gradient(circle_at_82%_18%,rgba(34,197,130,0.1),transparent_34rem)]" />
+      <div className="absolute inset-y-0 right-0 hidden w-[38%] bg-[linear-gradient(90deg,#06101d_0%,transparent_55%),linear-gradient(180deg,rgba(6,16,29,.2),rgba(6,16,29,.92)),url('/uploads/studio/shoot_1784830670872_photo_0.jpg')] bg-cover bg-center opacity-55 lg:block" />
+      <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#c99a57]/50 to-transparent" />
+
+      <div className="relative mx-auto max-w-[1480px]">
+        <div className="mb-8 flex items-center justify-between">
+          <BusinessCeoMark />
+          <p className="hidden text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500 sm:block">Güvenli şirket erişimi</p>
+        </div>
+        <section className="flex min-h-[calc(100vh-8rem)] items-center justify-center">
+        <div className="w-full max-w-4xl rounded-[28px] border border-[#c99a57]/30 bg-[#0b1625]/90 p-6 shadow-[0_40px_120px_rgba(0,0,0,.48)] backdrop-blur-xl sm:p-10 lg:p-12">
           <div className="mx-auto max-w-xl text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-400/25 bg-emerald-400/10">
-              <Building2 className="h-6 w-6 text-emerald-300" aria-hidden="true" />
+            <span className="mx-auto flex h-12 w-12 items-center justify-center text-[#e9bd79]">
+              <Sparkles className="h-7 w-7" aria-hidden="true" />
             </span>
-            <p className="mt-5 text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">
-              Jasmine AI Fabrikası
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-3 font-serif text-3xl font-semibold tracking-wide text-[#f6f1e8] sm:text-5xl">
               Hesap türünüzü seçin
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Size verilen giriş bilgileriyle şirketinizin güvenli çalışma
-              alanına bağlanın.
+            <p className="mt-4 text-sm leading-6 text-slate-400 sm:text-base">
+              Şirketinizin güvenli yönetim çalışma alanına bağlanın.
             </p>
           </div>
 
@@ -50,21 +56,21 @@ export default function FabrikaGirisPage() {
               const Icon = accountType.icon;
               return (
                 <Link
-                  className="group rounded-2xl border border-slate-800 bg-slate-950/80 p-6 transition-colors hover:border-emerald-400/40 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  className="group rounded-2xl border border-[#344258] bg-[#101b2b]/90 p-6 text-center transition duration-200 hover:-translate-y-0.5 hover:border-[#c99a57]/60 hover:bg-[#142136] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9bd79]"
                   href={accountType.href}
                   key={accountType.href}
                 >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 transition-colors group-hover:border-emerald-400/30 group-hover:text-emerald-300">
+                  <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#c99a57]/60 bg-[#c99a57]/5 text-[#e9bd79] transition-colors group-hover:bg-[#c99a57]/10">
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <h2 className="mt-5 text-lg font-semibold text-white">
+                  <h2 className="mt-5 font-serif text-xl font-semibold text-[#f6f1e8]">
                     {accountType.title}
                   </h2>
                   <p className="mt-2 min-h-12 text-sm leading-6 text-slate-400">
                     {accountType.description}
                   </p>
-                  <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-300">
-                    Giriş ekranını aç
+                  <span className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200 transition group-hover:bg-emerald-500/25">
+                    {accountType.title.replace('girişi', 'olarak devam et')}
                     <ArrowRight
                       className="h-4 w-4 transition-transform group-hover:translate-x-1"
                       aria-hidden="true"
@@ -75,18 +81,18 @@ export default function FabrikaGirisPage() {
             })}
           </div>
 
-          <div className="mx-auto mt-6 flex max-w-xl items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+          <div className="mx-auto mt-8 flex max-w-2xl items-center justify-center gap-3 border-t border-[#29384d] pt-6">
             <ShieldCheck
-              className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300"
+              className="h-5 w-5 shrink-0 text-[#e9bd79]"
               aria-hidden="true"
             />
             <p className="text-xs leading-5 text-slate-400">
-              Her kullanıcı yalnızca kendi şirketinin verilerine ve hesabına
-              tanımlanan yetkilere erişebilir. Oturumlar 12 saat sonra kapanır.
+              Her kullanıcı yalnızca yetkili olduğu şirket verilerine erişebilir.
             </p>
           </div>
         </div>
       </section>
+      </div>
     </main>
   );
 }

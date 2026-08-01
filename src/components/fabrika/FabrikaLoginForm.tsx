@@ -5,11 +5,12 @@ import { FormEvent, useState } from 'react';
 import {
   ArrowLeft,
   BriefcaseBusiness,
-  Building2,
+  Crown,
   KeyRound,
   Loader2,
   UserRound,
 } from 'lucide-react';
+import BusinessCeoMark from './BusinessCeoMark';
 
 type LoginVariant = 'owner' | 'employee';
 
@@ -90,8 +91,12 @@ export default function FabrikaLoginForm({
   }
 
   return (
-    <main className="min-h-screen bg-[#080d17] px-5 py-10 text-slate-100">
-      <section className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-md items-center">
+    <main className="relative min-h-screen overflow-hidden bg-[#06101d] px-5 py-8 text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_80%,rgba(201,154,87,0.16),transparent_30rem),radial-gradient(circle_at_82%_18%,rgba(34,197,130,0.1),transparent_34rem)]" />
+      <div className="relative mx-auto flex max-w-[1480px] items-center justify-between">
+        <BusinessCeoMark />
+      </div>
+      <section className="relative mx-auto flex min-h-[calc(100vh-6rem)] max-w-md items-center">
         <div className="w-full">
           <Link
             className="mb-5 inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
@@ -101,17 +106,17 @@ export default function FabrikaLoginForm({
             Hesap türüne dön
           </Link>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/85 p-7 shadow-2xl shadow-black/30 sm:p-8">
+          <div className="rounded-[24px] border border-[#c99a57]/30 bg-[#0b1625]/92 p-7 shadow-[0_40px_100px_rgba(0,0,0,.45)] backdrop-blur-xl sm:p-8">
             <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-400/25 bg-emerald-400/10">
-                <Icon className="h-6 w-6 text-emerald-300" aria-hidden="true" />
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#c99a57]/35 bg-[#c99a57]/10">
+                <Icon className="h-6 w-6 text-[#e9bd79]" aria-hidden="true" />
               </span>
               <div>
-                <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">
-                  <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  Jasmine Fabrika
+                <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#c99a57]">
+                  <Crown className="h-3.5 w-3.5" aria-hidden="true" />
+                  Business CEO AI
                 </p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">
+                <h1 className="mt-1 font-serif text-2xl font-semibold tracking-wide text-[#f6f1e8]">
                   {config.title}
                 </h1>
               </div>

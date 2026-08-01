@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { callAI } from '@/lib/ai';
 
-const SYSTEM_PROMPT = `Sen Jasmine Group'un IT destek uzmanısın. 
+const SYSTEM_PROMPT = `Sen Business CEO AI'ın teknik destek uzmanısın.
 Kullanıcıya domain satın alma, hosting kurulumu ve cPanel üzerinden dosya yükleme işlemlerini adım adım, çok basit bir dille anlat.
 Sadece IT, barındırma, sunucu, domain ve web sitesi kurulumu ile ilgili sorulara cevap ver.
 Cevaplarını kısa, öz ve Markdown formatında ver.`;

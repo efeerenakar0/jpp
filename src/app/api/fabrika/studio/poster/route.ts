@@ -332,7 +332,7 @@ export async function POST(request: Request) {
       headers: {
         Authorization: `Bearer ${stabilityApiKey}`,
         Accept: 'image/*',
-        'stability-client-id': 'Jasmine AI Studio',
+        'stability-client-id': 'Business CEO AI Studio',
         'stability-client-user-id': principal.account.id.slice(-18),
         'stability-client-version': '1.0',
       },

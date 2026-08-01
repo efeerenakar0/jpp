@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!project) return { title: "Proje Bulunamadı" };
   
   return {
-    title: `${project.name} | Jasmine Proje Pazarlama`,
+    title: `${project.name} | Business CEO AI`,
     description: project.shortDescription,
   };
 }

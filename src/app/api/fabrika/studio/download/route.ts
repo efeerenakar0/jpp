@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Geçersiz indirme biçimi.' }, { status: 400 });
     }
 
-    const folderName = 'Jasmine_Studio_AI_Iyilestirilmis';
+    const folderName = 'Business_CEO_AI_Studio_Iyilestirilmis';
     const zip = new JSZip();
     const folder = zip.folder(folderName);
     for (const photo of photos) {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     }
     folder?.file(
       'Studyo_Raporu.txt',
-`JASMINE GROUP DİJİTAL FOTOĞRAF STÜDYOSU
+`BUSINESS CEO AI DİJİTAL FOTOĞRAF STÜDYOSU
 İşlem Motoru  : ${session.aiProvider === 'STABILITY' ? 'Stability AI' : session.aiProvider === 'GEMINI' ? 'Google Gemini' : 'OpenAI GPT Image'}
 Model          : ${session.aiModel || 'Varsayılan model'}
 İşlem          : Portföy görselleri için ışık, renk, netlik ve genel kalite iyileştirmesi

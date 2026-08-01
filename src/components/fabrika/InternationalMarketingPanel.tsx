@@ -130,7 +130,7 @@ export default function InternationalMarketingPanel({
               <h2 className="font-semibold text-white">Yurt dışı ilan merkezi</h2>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
                 Aktif portföyünüzü ülkenin diline ve seçilen portalın yayın
-                biçimine göre hazırlar. Jasmine sizin yerinize dış platformda
+                biçimine göre hazırlar. Business CEO AI sizin yerinize dış platformda
                 hesap açmaz veya ödeme yapmaz; son yayın kontrolü sizdedir.
               </p>
             </div>

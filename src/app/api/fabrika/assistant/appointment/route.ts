@@ -33,14 +33,14 @@ function buildAppointmentMessage(
 
   switch (action) {
     case 'cancel':
-      return `Merhaba ${appointment.customerName}, ${date} saat ${time} için planlanan Jasmine Group randevunuz iptal edildi. Yeni bir zaman belirlemek isterseniz bize yazabilirsiniz.`;
+      return `Merhaba ${appointment.customerName}, ${date} saat ${time} için planlanan Business CEO AI randevunuz iptal edildi. Yeni bir zaman belirlemek isterseniz bize yazabilirsiniz.`;
     case 'reschedule':
-      return `Merhaba ${appointment.customerName}, Jasmine Group randevunuz ${date} saat ${time} olarak güncellendi. Görüşmek üzere.`;
+      return `Merhaba ${appointment.customerName}, Business CEO AI randevunuz ${date} saat ${time} olarak güncellendi. Görüşmek üzere.`;
     case 'remind':
-      return `Merhaba ${appointment.customerName}, ${date} saat ${time} için Jasmine Group randevunuzu hatırlatmak isteriz. Görüşmek üzere.`;
+      return `Merhaba ${appointment.customerName}, ${date} saat ${time} için Business CEO AI randevunuzu hatırlatmak isteriz. Görüşmek üzere.`;
     case 'approve':
     case 'resend':
-      return `Merhaba ${appointment.customerName}, ${date} saat ${time} için randevu talebiniz Jasmine Group tarafından onaylandı. Görüşmek üzere.`;
+      return `Merhaba ${appointment.customerName}, ${date} saat ${time} için randevu talebiniz Business CEO AI tarafından onaylandı. Görüşmek üzere.`;
   }
 }
 

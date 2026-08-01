@@ -45,6 +45,7 @@ import {
   classifyStaleWhatsAppDispatch,
   classifyWhatsAppDispatchFailure,
 } from '@/lib/whatsapp-outbox-policy';
+import { wahaRecoveryAction } from '@/lib/whatsapp-connection-policy';
 import { requireContactPolicyApproval } from '@/lib/hunting-v2/contact-service';
 
 export type WhatsAppProvider = 'WAHA' | 'EVOLUTION' | 'META';
@@ -175,6 +176,20 @@ function createWahaWebhook(url: string): WahaWebhook {
   };
 }
 
+async function recoverWahaSession(
+  sessionName: string,
+  session: WahaSession
+) {
+  const recoveryAction = wahaRecoveryAction(session.status);
+  if (recoveryAction === 'restart') {
+    return restartWahaSession(sessionName);
+  }
+  if (recoveryAction === 'start') {
+    return startWahaSession(sessionName);
+  }
+  return session;
+}
+
 function existingWahaWebhook(
   session: WahaSession,
   companyAccountId: string,
@@ -241,11 +256,7 @@ export async function prepareWahaConnection(companyAccountId: string) {
     });
   }
 
-  if (session.status === 'FAILED') {
-    session = await restartWahaSession(sessionName);
-  } else if (session.status === 'STOPPED') {
-    session = await startWahaSession(sessionName);
-  }
+  session = await recoverWahaSession(sessionName, session);
   if (session.status === 'STARTING') {
     await new Promise((resolve) => setTimeout(resolve, 1_000));
     session = (await getWahaSession(sessionName)) || session;
@@ -296,10 +307,14 @@ export async function refreshWahaConnection(companyAccountId: string) {
   }
 
   try {
-    const session = await getWahaSession(config.evolutionInstanceName);
+    let session = await getWahaSession(config.evolutionInstanceName);
     if (!session) {
-      throw new Error('WAHA şirket oturumu bulunamadı.');
+      return prepareWahaConnection(companyAccountId);
     }
+    session = await recoverWahaSession(
+      config.evolutionInstanceName,
+      session
+    );
     const connectionStatus = wahaConnectionStatus(session.status);
     const phone = connectedPhone(session);
     const updated = await prisma.whatsAppConfig.update({

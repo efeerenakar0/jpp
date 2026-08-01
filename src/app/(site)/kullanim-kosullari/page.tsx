@@ -14,17 +14,17 @@ export default function TermsOfUse() {
 
         <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">1. İçerik ve Telif Hakları</h2>
         <p className="mb-4">
-          Sitede yer alan tüm metinler, görseller, logolar ve diğer içerikler Jasmine Proje Pazarlama'ya aittir veya lisanslı olarak kullanılmaktadır. İzinsiz kopyalanamaz, çoğaltılamaz ve ticari amaçla kullanılamaz.
+          Sitede yer alan tüm metinler, görseller, logolar ve diğer içerikler Business CEO AI'a aittir veya lisanslı olarak kullanılmaktadır. İzinsiz kopyalanamaz, çoğaltılamaz ve ticari amaçla kullanılamaz.
         </p>
 
         <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">2. Sorumluluk Reddi</h2>
         <p className="mb-4">
-          Sitede yer alan projeler, fiyatlar ve kat planları bilgilendirme amaçlıdır. Jasmine Proje Pazarlama, önceden haber vermeksizin projelerde ve fiyatlarda değişiklik yapma hakkını saklı tutar. Kesin bilgi için satış ofisimizle iletişime geçilmelidir.
+          Sitede yer alan projeler, fiyatlar ve kat planları bilgilendirme amaçlıdır. Business CEO AI, önceden haber vermeksizin projelerde ve fiyatlarda değişiklik yapma hakkını saklı tutar. Kesin bilgi için satış ofisimizle iletişime geçilmelidir.
         </p>
 
         <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">3. Dış Bağlantılar</h2>
         <p className="mb-4">
-          Web sitemizden üçüncü taraf sitelere verilen bağlantılardaki içeriklerden Jasmine Proje Pazarlama sorumlu tutulamaz.
+          Web sitemizden üçüncü taraf sitelere verilen bağlantılardaki içeriklerden Business CEO AI sorumlu tutulamaz.
         </p>
       </div>
     </div>

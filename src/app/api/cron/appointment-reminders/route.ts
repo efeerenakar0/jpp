@@ -68,7 +68,7 @@ export async function GET(request: Request) {
       }
       const content = `Merhaba ${appointment.customerName}, ${formatDate(
         appointment.proposedDate!
-      )} saat ${appointment.proposedTime} için Jasmine Group randevunuzu hatırlatmak isteriz. Görüşmek üzere.`;
+      )} saat ${appointment.proposedTime} için Business CEO AI randevunuzu hatırlatmak isteriz. Görüşmek üzere.`;
       const delivery = await sendAssistantWhatsAppMessage({
         companyAccountId: appointment.conversation.companyAccountId,
         to: appointment.customerPhone,

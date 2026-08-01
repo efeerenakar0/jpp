@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Platform Yönetimi | Jasmine AI',
+  title: 'Platform Yönetimi | Business CEO AI',
   description:
-    'Jasmine AI şirket hesapları, erişim ve abonelik yönetim paneli.',
+    'Business CEO AI şirket hesapları, erişim ve abonelik yönetim paneli.',
 };
 
 export default function PlatformAdminRootLayout({

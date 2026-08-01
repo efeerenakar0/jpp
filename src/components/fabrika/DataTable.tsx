@@ -28,7 +28,7 @@ export default function DataTable<T>({
   caption,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+    <div className="ceo-data-table overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
       <Table>
         {caption && <caption className="sr-only">{caption}</caption>}
         <TableHeader>

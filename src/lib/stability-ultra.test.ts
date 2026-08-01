@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import {
+  SAFE_STUDIO_RETRY_PROMPT,
   STABLE_IMAGE_ULTRA_ENDPOINT,
   StabilityUltraError,
   enhanceWithStableImageUltra,
@@ -80,6 +81,77 @@ describe('Stable Image Ultra studio enhancer', () => {
       status: 503,
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('retries a moderated prompt once with a short conservative prompt', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            name: 'content_moderation',
+            errors: ['Request was flagged'],
+          }),
+          {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(Uint8Array.from([255, 216, 255, 217]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/jpeg' },
+        })
+      );
+    global.fetch = fetchMock;
+
+    await expect(
+      enhanceWithStableImageUltra({
+        image: Buffer.from([255, 216, 255, 217]),
+        mimeType: 'image/jpeg',
+        prompt: DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
+      })
+    ).resolves.toMatchObject({
+      mimeType: 'image/jpeg',
+      extension: 'jpg',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retryBody = fetchMock.mock.calls[1]?.[1]?.body as FormData;
+    expect(retryBody.get('prompt')).toBe(SAFE_STUDIO_RETRY_PROMPT);
+    expect(retryBody.get('negative_prompt')).toBeNull();
+    expect(retryBody.get('image')).toBeInstanceOf(Blob);
+    expect(retryBody.get('strength')).toBe('0.3');
+  });
+
+  it('returns a content rejection only after the conservative retry is also moderated', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          name: 'content_moderation',
+          errors: ['Request was flagged'],
+        }),
+        {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    );
+    global.fetch = fetchMock;
+
+    await expect(
+      enhanceWithStableImageUltra({
+        image: Buffer.from([255, 216, 255, 217]),
+        mimeType: 'image/jpeg',
+        prompt: DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
+      })
+    ).rejects.toMatchObject({
+      code: 'CONTENT_REJECTED',
+      status: 422,
+      providerStatus: 403,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it.each([

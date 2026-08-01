@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, X, Building2, Sparkles, Phone, ArrowUpRight, Cpu, Zap } from "lucide-react";
+import { Menu, X, Sparkles, Phone, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import BusinessCeoMark from "@/components/fabrika/BusinessCeoMark";
 
 const NAV_LINKS = [
   { name: "Ana Sayfa", href: "/" },
@@ -40,20 +41,7 @@ export default function Header() {
       <div className="container mx-auto px-4 md:px-6 flex items-center justify-between">
         {/* Brand Logo - Stitch Glass Design */}
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative">
-            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 via-amber-400 to-rose-500 rounded-2xl blur-sm opacity-70 group-hover:opacity-100 transition-opacity" />
-            <div className="relative w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center border border-white/10">
-              <Building2 className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform" />
-            </div>
-          </div>
-          <div>
-            <span className="font-serif text-2xl font-black bg-gradient-to-r from-white via-cyan-200 to-amber-400 bg-clip-text text-transparent tracking-tight">
-              Jasmine
-            </span>
-            <span className="text-[9px] tracking-[0.25em] text-cyan-400 uppercase font-black block -mt-1">
-              Nano Proje Pazarlama
-            </span>
-          </div>
+          <BusinessCeoMark />
         </Link>
 
         {/* Desktop Nav - Google Stitch Inspired */}
@@ -74,7 +62,7 @@ export default function Header() {
             href="/fabrika"
             className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 px-4.5 py-2.5 rounded-2xl text-xs font-black shadow-lg shadow-cyan-500/20 transition-all cursor-pointer active:scale-95 uppercase tracking-wider"
           >
-            <Sparkles className="w-3.5 h-3.5" /> AI Fabrikası
+            <Sparkles className="w-3.5 h-3.5" /> CEO Workspace
           </Link>
 
           <Link

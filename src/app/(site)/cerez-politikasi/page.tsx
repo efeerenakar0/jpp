@@ -9,7 +9,7 @@ export default function CookiePolicy() {
         </div>
         
         <p className="mb-4">
-          Jasmine Proje Pazarlama web sitesi olarak ziyaretçilerimizin deneyimini iyileştirmek, site kullanımını analiz etmek ve kişiselleştirilmiş içerik sunmak için çerezler (cookies) kullanmaktayız.
+          Business CEO AI web sitesi olarak ziyaretçilerimizin deneyimini iyileştirmek, site kullanımını analiz etmek ve kişiselleştirilmiş içerik sunmak için çerezler (cookies) kullanmaktayız.
         </p>
 
         <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4">Çerez Nedir?</h2>

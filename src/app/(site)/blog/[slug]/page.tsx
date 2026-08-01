@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { blogPosts } from "../page";
+import { blogPosts } from "../blog-posts";
 import { Calendar, User, Share2 } from "lucide-react";
 import Link from "next/link";
 
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!post) return { title: "Yazı Bulunamadı" };
   
   return {
-    title: `${post.title} | Jasmine Proje Pazarlama Blog`,
+    title: `${post.title} | Business CEO AI Blog`,
     description: post.excerpt,
   };
 }
@@ -44,7 +44,7 @@ export default async function BlogPostPage({ params }: Props) {
             </h1>
             <div className="flex items-center justify-center gap-6 text-gray-500 text-sm">
               <span className="flex items-center gap-2"><Calendar className="w-4 h-4"/> {post.date}</span>
-              <span className="flex items-center gap-2"><User className="w-4 h-4"/> Jasmine Editör Ekibi</span>
+              <span className="flex items-center gap-2"><User className="w-4 h-4"/> Business CEO AI Editör Ekibi</span>
             </div>
           </div>
 

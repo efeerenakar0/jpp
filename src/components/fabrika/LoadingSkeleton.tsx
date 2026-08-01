@@ -6,7 +6,7 @@ interface LoadingSkeletonProps {
 
 export default function LoadingSkeleton({ rows = 4 }: LoadingSkeletonProps) {
   return (
-    <div className="space-y-3" role="status" aria-label="İçerik yükleniyor">
+    <div className="ceo-loading-state space-y-3" role="status" aria-label="İçerik yükleniyor">
       {Array.from({ length: rows }).map((_, index) => (
         <div key={index} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4">
           <Skeleton className="h-10 w-10 shrink-0 rounded-lg bg-slate-800" />

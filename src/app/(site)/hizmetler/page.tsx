@@ -3,7 +3,7 @@ import { siteContent } from "@/data/site-content";
 import { BarChart, Building, PenTool, Megaphone, Users, Database, Sparkles } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Hizmetlerimiz | Jasmine Nano Proje Pazarlama",
+  title: "Hizmetlerimiz | Business CEO AI",
   description: "İnşaat firmaları ve müteahhitler için A'dan Z'ye uçtan uca proje pazarlama hizmetleri.",
 };
 
