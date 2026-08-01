@@ -16,22 +16,25 @@ export default function StatCard({
   status = 'default',
 }: StatCardProps) {
   const statusClasses = {
-    default: 'border-[#29384d] bg-[#101b2b] text-slate-300',
-    success: 'border-emerald-500/25 bg-[#0d1d25] text-emerald-300',
-    warning: 'border-[#c99a57]/35 bg-[#1c1a19] text-[#e9bd79]',
+    default: 'border-[#2b3b50] text-slate-300',
+    success: 'border-emerald-500/25 text-emerald-300',
+    warning: 'border-[#c99a57]/35 text-[#e9bd79]',
   };
 
   return (
-    <section className={`group rounded-xl border p-4 shadow-[0_16px_38px_rgba(0,0,0,0.12)] transition-colors hover:border-[#c99a57]/35 ${statusClasses[status]}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-slate-400">{label}</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{value}</p>
-          {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+    <section
+      className={`ceo-stat-card group relative min-h-[104px] overflow-hidden rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c99a57]/45 ${statusClasses[status]}`}
+      data-status={status}
+    >
+      <div className="relative z-10 flex h-full items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#91a1b5]">{label}</p>
+          <p className="mt-2 text-[1.7rem] font-semibold leading-none tracking-tight text-[#f8f4ec]">{value}</p>
+          {hint && <p className="mt-2 truncate text-[11px] text-[#718198]">{hint}</p>}
         </div>
         {Icon && (
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-current/15 bg-current/10">
-            <Icon className="h-4 w-4" aria-hidden="true" />
+          <span className="ceo-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-current/20 bg-current/10">
+            <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
         )}
       </div>

@@ -346,6 +346,7 @@ enum AiProvider {
   OPENAI
   GEMINI
   OPENROUTER
+  STABILITY
 }
 
 enum CompanyMemberRole {
@@ -386,6 +387,50 @@ enum CrmPropertyStatus {
   SOLD
   RENTED
   ARCHIVED
+}
+
+enum PropertyMediaType {
+  PHOTO
+  POSTER
+  MARKETING_ASSET
+}
+
+enum PropertyMediaSource {
+  MANUAL_UPLOAD
+  HUNTER
+  STUDIO_ENHANCED
+  POSTER
+}
+
+enum PropertyMediaVariant {
+  ORIGINAL
+  ENHANCED
+  CREATIVE
+}
+
+enum MediaUsageRightsStatus {
+  CONFIRMED
+  UNVERIFIED
+  RESTRICTED
+}
+
+enum StudioBatchStatus {
+  PENDING
+  UPLOADING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+  ATTACHED
+}
+
+enum StudioBatchItemStatus {
+  PENDING
+  UPLOADING
+  PROCESSING
+  COMPLETED
+  FAILED
+  ATTACHED
 }
 
 enum CrmDealStage {
@@ -663,6 +708,8 @@ model CompanyAccount {
   contactPolicyDecisions      ContactPolicyDecision[]
   huntedOutreachApprovals     HuntedOutreachApproval[]
   websiteIntegrations         WebsiteIntegration[]
+  propertyMedia               CrmPropertyMedia[]
+  studioBatches               StudioBatch[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -822,6 +869,8 @@ model CompanyMember {
   activities    CrmActivity[]
   notifications Notification[]
   commitments   OperationalCommitment[]
+  createdMedia  CrmPropertyMedia[]
+  studioBatches StudioBatch[]
 
   @@unique([companyAccountId, email])
   @@index([companyAccountId, active])
@@ -901,11 +950,119 @@ model CrmProperty {
   activities      CrmActivity[]
   portfolioImport PortfolioImportItem?
   adCampaigns     AdCampaign[]
+  media           CrmPropertyMedia[]
+  studioBatches   StudioBatch[]
 
   @@unique([companyAccountId, sourceListingId])
   @@index([companyAccountId, status])
   @@index([ownerContactId])
   @@index([assignedMemberId])
+}
+
+model CrmPropertyMedia {
+  id                String                 @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount         @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyId        String
+  property          CrmProperty            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  url               String                 @db.Text
+  storageKey        String?
+  fileName          String
+  mimeType          String
+  width             Int?
+  height            Int?
+  byteSize          Int?
+  sortOrder         Int                    @default(0)
+  isCover           Boolean                @default(false)
+  mediaType         PropertyMediaType      @default(PHOTO)
+  source            PropertyMediaSource    @default(MANUAL_UPLOAD)
+  variantType       PropertyMediaVariant   @default(ORIGINAL)
+  parentMediaId     String?
+  parentMedia       CrmPropertyMedia?      @relation("PropertyMediaVariants", fields: [parentMediaId], references: [id], onDelete: SetNull)
+  variants          CrmPropertyMedia[]     @relation("PropertyMediaVariants")
+  prompt            String?                @db.Text
+  aiProvider        String?
+  aiModel           String?
+  usageRightsStatus MediaUsageRightsStatus @default(CONFIRMED)
+  fingerprint       String?
+  provenance        Json?
+  createdByMemberId String?
+  createdByMember   CompanyMember?         @relation(fields: [createdByMemberId], references: [id], onDelete: SetNull)
+  archivedAt        DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  sourceBatchItems   StudioBatchItem[] @relation("StudioSourceMedia")
+  attachedBatchItems StudioBatchItem[] @relation("StudioAttachedMedia")
+
+  @@unique([companyAccountId, propertyId, fingerprint])
+  @@index([companyAccountId, propertyId, archivedAt, sortOrder])
+  @@index([propertyId, isCover, archivedAt])
+  @@index([parentMediaId])
+}
+
+model StudioBatch {
+  id                String            @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyId        String?
+  property          CrmProperty?      @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  prompt            String            @db.Text
+  preset            String?
+  provider          String
+  model             String
+  status            StudioBatchStatus @default(PENDING)
+  createdByMemberId String?
+  createdByMember   CompanyMember?    @relation(fields: [createdByMemberId], references: [id], onDelete: SetNull)
+  idempotencyKey    String
+  errorSummary      String?           @db.Text
+  startedAt         DateTime?
+  completedAt       DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  items StudioBatchItem[]
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, createdAt])
+  @@index([propertyId, createdAt])
+  @@index([status, expiresAt])
+}
+
+model StudioBatchItem {
+  id                 String                @id @default(cuid())
+  batchId            String
+  batch              StudioBatch           @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sourceMediaId      String?
+  sourceMedia        CrmPropertyMedia?     @relation("StudioSourceMedia", fields: [sourceMediaId], references: [id], onDelete: SetNull)
+  originalUrl        String                @db.Text
+  originalStorageKey String?
+  originalFileName   String
+  originalMimeType   String
+  originalWidth      Int?
+  originalHeight     Int?
+  originalByteSize   Int?
+  outputUrl          String?               @db.Text
+  outputStorageKey   String?
+  outputFileName     String?
+  outputMimeType     String?
+  outputWidth        Int?
+  outputHeight       Int?
+  outputByteSize     Int?
+  sortOrder          Int                   @default(0)
+  status             StudioBatchItemStatus @default(PENDING)
+  errorMessage       String?               @db.Text
+  attachedMediaId    String?
+  attachedMedia      CrmPropertyMedia?     @relation("StudioAttachedMedia", fields: [attachedMediaId], references: [id], onDelete: SetNull)
+  fingerprint        String
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@unique([batchId, fingerprint])
+  @@index([batchId, status, sortOrder])
+  @@index([sourceMediaId])
+  @@index([attachedMediaId])
 }
 
 model CrmDeal {

@@ -18,6 +18,8 @@ import {
 } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
+  Activity,
+  Bell,
   CalendarCheck2,
   CalendarDays,
   CheckCircle2,
@@ -26,6 +28,7 @@ import {
   Clock3,
   Cloud,
   CloudOff,
+  MoreHorizontal,
   Loader2,
   MapPin,
   Plus,
@@ -34,12 +37,13 @@ import {
   UserRound,
   Video,
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import ConfirmDialog from '@/components/fabrika/ConfirmDialog';
 import EmptyState from '@/components/fabrika/EmptyState';
 import PageHeader from '@/components/fabrika/PageHeader';
 import StatCard from '@/components/fabrika/StatCard';
+import styles from './CalendarWorkspace.module.css';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -159,6 +163,25 @@ function eventTime(task: CalendarTask) {
   return `${format(start, 'HH:mm')}${end ? `–${format(end, 'HH:mm')}` : ''}`;
 }
 
+function eventDuration(task: CalendarTask) {
+  const start = toDate(task.dueAt);
+  const end = toDate(task.endAt);
+  if (!start || !end) return task.allDay ? 'Tüm gün' : '—';
+  const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000));
+  if (minutes >= 60) return `${Math.round((minutes / 60) * 10) / 10} sa`;
+  return `${minutes} dk`;
+}
+
+const taskColors: Record<TaskType, string> = {
+  CALL: '#26cc92',
+  MESSAGE: '#8b5cf6',
+  MEETING: '#3b82f6',
+  VIEWING: '#a855f7',
+  FOLLOW_UP: '#e5a62f',
+  DOCUMENT: '#ef6b32',
+  OTHER: '#e5a62f',
+};
+
 function inputDate(value: string | null, allDay: boolean) {
   if (!value) return '';
   const date = new Date(value);
@@ -184,9 +207,10 @@ function TaskPill({
 }) {
   return (
     <button
-      className={`flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[11px] transition hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${typeStyles[task.type]} ${
-        task.status === 'COMPLETED' ? 'opacity-55' : ''
-      }`}
+      className={styles.taskPill}
+      data-compact={compact}
+      data-status={task.status}
+      data-type={task.type}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(task);
@@ -195,15 +219,11 @@ function TaskPill({
       type="button"
     >
       {!compact && (
-        <span className="shrink-0 font-mono text-[10px] opacity-75">
+        <span className={styles.taskTime}>
           {eventTime(task)}
         </span>
       )}
-      <span
-        className={`min-w-0 truncate font-medium ${
-          task.status === 'COMPLETED' ? 'line-through' : ''
-        }`}
-      >
+      <span className={styles.taskTitle}>
         {task.title}
       </span>
       {task.calendarSource === 'GOOGLE' && (
@@ -416,6 +436,341 @@ export default function CalendarWorkspace() {
             { locale: tr }
           )}`
         : format(cursor, 'd MMMM yyyy, EEEE', { locale: tr });
+
+  const todayAgenda = tasks
+    .filter(
+      (task) =>
+        task.status === 'OPEN' &&
+        task.dueAt &&
+        isSameDay(new Date(task.dueAt), new Date())
+    )
+    .sort(
+      (a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime()
+    );
+  const completedCount = tasks.filter((task) => task.status === 'COMPLETED').length;
+  const completionRate = tasks.length
+    ? Math.round((completedCount / tasks.length) * 100)
+    : 0;
+  const memberWorkloads = calendar.members
+    .map((member) => ({
+      id: member.id,
+      name: member.name || 'Ekip üyesi',
+      count: tasks.filter(
+        (task) =>
+          task.status === 'OPEN' && task.assignedMember?.id === member.id
+      ).length,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+  const workloadMax = Math.max(1, ...memberWorkloads.map((member) => member.count));
+  const exactCalendarReady = Array.isArray(calendar.tasks);
+
+  if (exactCalendarReady) {
+    return (
+      <div className={styles.page}>
+        <header className={styles.hero}>
+          <div>
+            <p className={styles.eyebrow}>Görev ve randevu</p>
+            <h1>Takvim</h1>
+            <p>
+              Gösterim, arama, sözleşme, takip ve ekip görevlerinizi tek takvimde koordine edin.
+            </p>
+          </div>
+          <div className={styles.heroActions}>
+            <button className={styles.primaryAction} onClick={() => openNew()} type="button">
+              <Plus /> Yeni etkinlik
+            </button>
+            {calendar.google.connected ? (
+              <button
+                className={styles.secondaryAction}
+                disabled={saving}
+                onClick={() =>
+                  postAction(
+                    { action: 'sync-google' },
+                    'Google Calendar senkronu tamamlandı.'
+                  )
+                }
+                type="button"
+              >
+                <RefreshCw className={saving ? 'animate-spin' : ''} />
+                Google Takvim&apos;i eşitle
+              </button>
+            ) : calendar.permissions.canManageSecrets && calendar.google.configured ? (
+              <a className={styles.secondaryAction} href="/api/fabrika/calendar/google/connect">
+                <Cloud /> Google Takvim&apos;i bağla
+              </a>
+            ) : calendar.permissions.canManageSecrets ? (
+              <button className={styles.secondaryAction} disabled type="button">
+                <CloudOff /> Google kurulumu bekliyor
+              </button>
+            ) : null}
+            <span className={styles.liveStatus}>
+              {calendar.google.connected ? 'Canlı senkronizasyon' : 'Business CEO AI takvimi'}
+            </span>
+          </div>
+        </header>
+
+        <section className={styles.metrics} aria-label="Takvim özeti">
+          <CalendarMetric icon={CalendarDays} label="Bugün" value={calendar.metrics.today} />
+          <CalendarMetric icon={Activity} label="Bu hafta" value={calendar.metrics.nextSevenDays} />
+          <CalendarMetric
+            icon={Clock3}
+            label="Geciken görev"
+            tone={calendar.metrics.overdue > 0 ? 'warning' : 'default'}
+            value={calendar.metrics.overdue}
+          />
+          <CalendarMetric icon={UserRound} label="Randevu" value={calendar.metrics.appointments} />
+          <article className={styles.metric}>
+            <span
+              aria-hidden="true"
+              className={styles.completionRing}
+              style={{ '--progress': `${completionRate * 3.6}deg` } as CSSProperties}
+            />
+            <div><span>Tamamlanma</span><strong>%{completionRate}</strong></div>
+          </article>
+        </section>
+
+        <div className={styles.workGrid}>
+          <div className={styles.primaryColumn}>
+            <section className={styles.card}>
+              <div className={styles.toolbar}>
+                <div className={styles.toolbarGroup}>
+                  <button aria-label="Önceki tarih aralığı" onClick={() => moveCursor(-1)} type="button"><ChevronLeft /></button>
+                  <button aria-label="Sonraki tarih aralığı" onClick={() => moveCursor(1)} type="button"><ChevronRight /></button>
+                  <button data-wide="true" onClick={() => setCursor(startOfDay(new Date()))} type="button">Bugün</button>
+                  <strong className={styles.toolbarTitle}>{title}</strong>
+                </div>
+                <div className={styles.viewSwitch} aria-label="Takvim görünümü">
+                  {(['week', 'month', 'day'] as CalendarView[]).map((value) => (
+                    <button
+                      data-active={view === value}
+                      key={value}
+                      onClick={() => setView(value)}
+                      type="button"
+                    >
+                      {value === 'week' ? 'Hafta' : value === 'month' ? 'Ay' : 'Gün'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {view === 'month' && (
+                <div className={styles.calendarScroll}>
+                  <div className={styles.monthGrid}>
+                    <div className={styles.weekHeader}>
+                      {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((day) => <span key={day}>{day}</span>)}
+                    </div>
+                    <div className={styles.monthBody}>
+                      {monthDays.map((day) => {
+                        const dayTasks = tasks.filter(
+                          (task) => task.dueAt && isSameDay(new Date(task.dueAt), day)
+                        );
+                        const today = isSameDay(day, new Date());
+                        return (
+                          <div
+                            className={styles.dayCell}
+                            data-outside={!isSameMonth(day, cursor)}
+                            data-today={today}
+                            key={day.toISOString()}
+                          >
+                            <button
+                              aria-label={`${format(day, 'd MMMM', { locale: tr })} tarihine kayıt ekle`}
+                              className={styles.dayNumber}
+                              data-today={today}
+                              onClick={() => openNew(day)}
+                              type="button"
+                            >
+                              {format(day, 'd')}
+                            </button>
+                            <div className={styles.dayEvents}>
+                              {dayTasks.slice(0, 3).map((task) => (
+                                <TaskPill compact key={task.id} onSelect={openTask} task={task} />
+                              ))}
+                              {dayTasks.length > 3 && <span className={styles.moreCount}>+{dayTasks.length - 3} kayıt daha</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {view === 'week' && (
+                <div className={styles.calendarScroll}>
+                  <div className={styles.weekView}>
+                    {weekDays.map((day) => {
+                      const dayTasks = tasks.filter(
+                        (task) => task.dueAt && isSameDay(new Date(task.dueAt), day)
+                      );
+                      return (
+                        <div className={styles.weekDay} key={day.toISOString()}>
+                          <button onClick={() => { setCursor(day); setView('day'); }} type="button">
+                            {format(day, 'EEE', { locale: tr })}<strong>{format(day, 'd')}</strong>
+                          </button>
+                          <div className={styles.weekTasks}>
+                            {dayTasks.map((task) => <TaskPill key={task.id} onSelect={openTask} task={task} />)}
+                            <button className={styles.addSmall} onClick={() => openNew(day)} type="button">+ Ekle</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {view === 'day' && (
+                <div className={styles.dayView}>
+                  {tasks.filter((task) => task.dueAt && isSameDay(new Date(task.dueAt), cursor)).length ? (
+                    <div className={styles.timeline}>
+                      {tasks
+                        .filter((task) => task.dueAt && isSameDay(new Date(task.dueAt), cursor))
+                        .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime())
+                        .map((task) => (
+                          <div className={styles.timelineItem} key={task.id}>
+                            <time>{eventTime(task).split('–')[0]}</time><i />
+                            <article>
+                              <button onClick={() => openTask(task)} type="button">
+                                <h3>{task.title}</h3>
+                                <p>{typeLabels[task.type]} · {eventTime(task)} · {task.assignedMember?.name || 'Atanmadı'}</p>
+                              </button>
+                            </article>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      action={<Button onClick={() => openNew(cursor)}><Plus /> Kayıt ekle</Button>}
+                      description="Bu güne ait görev, randevu veya gösterim bulunmuyor."
+                      icon={CalendarDays}
+                      title="Gün boş"
+                    />
+                  )}
+                </div>
+              )}
+
+              <footer className={styles.legend}>
+                {([
+                  ['MEETING', 'Randevu'], ['VIEWING', 'Gösterim'], ['CALL', 'Arama'],
+                  ['DOCUMENT', 'Sözleşme'], ['FOLLOW_UP', 'Görev'],
+                ] as Array<[TaskType, string]>).map(([type, label]) => (
+                  <span key={type}><i style={{ '--dot': taskColors[type] } as CSSProperties} />{label}</span>
+                ))}
+              </footer>
+            </section>
+
+            {calendar.metrics.overdue > 0 && (
+              <section className={styles.overdueBanner}>
+                <div><Clock3 /><p><strong>Geciken görevler</strong><span>{calendar.metrics.overdue} görev süresi geçti. Detayları görüntüleyip tamamlayın.</span></p></div>
+                <button onClick={() => { setCursor(startOfDay(new Date())); setView('day'); }} type="button">Gecikenleri gör →</button>
+              </section>
+            )}
+          </div>
+
+          <aside className={styles.rightColumn}>
+            <section className={`${styles.card} ${styles.agendaCard}`}>
+              <header className={styles.sectionHead}><h2>Bugünün ajandası</h2><span className={styles.countBadge}>{todayAgenda.length} etkinlik</span></header>
+              <div className={styles.agendaList}>
+                {todayAgenda.length ? todayAgenda.slice(0, 6).map((task) => (
+                  <article className={styles.agendaItem} key={task.id}>
+                    <time className={styles.agendaTime}>
+                      <i className={styles.agendaDot} style={{ '--dot': taskColors[task.type] } as CSSProperties} />
+                      {eventTime(task).split('–')[0]}<small>{eventDuration(task)}</small>
+                    </time>
+                    <div className={styles.agendaInfo}>
+                      <strong>{task.title}</strong>
+                      <span>{task.assignedMember?.name || task.contact?.name || 'Sorumlu atanmamış'}</span>
+                      <a href={task.property ? '/fabrika/portfoyler' : '/fabrika/crm'}>{task.property ? `Portföy · ${task.property.title}` : task.contact ? `CRM · ${task.contact.name}` : typeLabels[task.type]}</a>
+                    </div>
+                    <div className={styles.agendaActions}>
+                      <button aria-label="Tamamla" onClick={() => postAction({ action: 'toggle-event', id: task.id, completed: true })} type="button"><CheckCircle2 /></button>
+                      <button aria-label="Düzenle" onClick={() => openTask(task)} type="button"><MoreHorizontal /></button>
+                    </div>
+                  </article>
+                )) : <p className={styles.emptyCompact}>Bugün için açık etkinlik bulunmuyor.</p>}
+              </div>
+              <button className={styles.cardFooter} onClick={() => { setCursor(startOfDay(new Date())); setView('day'); }} type="button">Günün tamamını görüntüle →</button>
+            </section>
+
+            <div className={styles.miniGrid}>
+              <section className={styles.smallCard}>
+                <header><h2>Yaklaşanlar</h2><span className={styles.countBadge}>{upcoming.length}</span></header>
+                <div className={styles.compactList}>
+                  {upcoming.slice(0, 5).map((task) => (
+                    <button key={task.id} onClick={() => openTask(task)} type="button">
+                      <i style={{ '--dot': taskColors[task.type] } as CSSProperties} />
+                      <span><strong>{format(new Date(task.dueAt!), 'd MMM HH:mm', { locale: tr })}</strong>{task.title}</span>
+                    </button>
+                  ))}
+                  {!upcoming.length && <p className={styles.emptyCompact}>Yaklaşan kayıt yok.</p>}
+                </div>
+              </section>
+
+              <section className={styles.smallCard}>
+                <header><h2>Takım iş yükü</h2><span className={styles.countBadge}>{memberWorkloads.length}</span></header>
+                <div className={styles.workloadList}>
+                  {memberWorkloads.map((member) => (
+                    <div className={styles.workloadRow} key={member.id}>
+                      <span>{member.name}</span><progress max={workloadMax} value={member.count} /><small>{member.count} iş</small>
+                    </div>
+                  ))}
+                  {!memberWorkloads.length && <p className={styles.emptyCompact}>Ekip üyesi bulunmuyor.</p>}
+                </div>
+              </section>
+            </div>
+
+            <div className={styles.miniGrid}>
+              <section className={styles.smallCard}>
+                <header><h2>Hatırlatıcı ayarları</h2><Bell /></header>
+                <label className={styles.settingsLabel}>Hatırlatma süresi
+                  <select defaultValue="15"><option value="15">15 dakika önce</option><option value="30">30 dakika önce</option><option value="60">1 saat önce</option></select>
+                </label>
+              </section>
+
+              <section className={styles.smallCard}>
+                <header><h2>Google Takvim etkinlikleri</h2>{calendar.google.connected ? <Cloud /> : <CloudOff />}</header>
+                <div className={styles.googleStatus}>
+                  <strong>{calendar.google.connected ? 'Senkronize edildi' : 'Bağlantı bekleniyor'}</strong>
+                  {calendar.google.lastSyncedAt ? `Son senkron: ${format(new Date(calendar.google.lastSyncedAt), 'd MMM yyyy HH:mm', { locale: tr })}` : 'Etkinlikler şu anda Business CEO AI takviminde tutuluyor.'}
+                </div>
+                <div className={styles.googleButtons}>
+                  {calendar.google.connected ? (
+                    <>
+                      <button disabled={saving} onClick={() => postAction({ action: 'sync-google' })} type="button"><RefreshCw /> Şimdi eşitle</button>
+                      {calendar.permissions.canManageSecrets && (
+                        <ConfirmDialog
+                          confirmLabel="Bağlantıyı kaldır"
+                          description="Google erişimi iptal edilir. Mevcut Business CEO AI kayıtları silinmez."
+                          destructive
+                          onConfirm={disconnectGoogle}
+                          title="Google Calendar bağlantısı kaldırılsın mı?"
+                          trigger={<button type="button"><CloudOff /> Bağlantıyı kaldır</button>}
+                        />
+                      )}
+                    </>
+                  ) : calendar.permissions.canManageSecrets && calendar.google.configured ? (
+                    <a href="/api/fabrika/calendar/google/connect"><Cloud /> Google ile bağlan</a>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+          </aside>
+        </div>
+
+        <EventDialog
+          calendar={calendar}
+          defaultDate={defaultDate}
+          key={`${selectedTask?.id || 'new'}-${defaultDate?.toISOString() || ''}`}
+          onClose={() => { setDialogOpen(false); setSelectedTask(null); }}
+          onDelete={(id) => postAction({ action: 'delete-event', id })}
+          onSubmit={postAction}
+          open={dialogOpen}
+          saving={saving}
+          task={selectedTask}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-8">
@@ -963,6 +1318,25 @@ export default function CalendarWorkspace() {
         task={selectedTask}
       />
     </div>
+  );
+}
+
+function CalendarMetric({
+  icon: Icon,
+  label,
+  value,
+  tone = 'default',
+}: {
+  icon: typeof CalendarDays;
+  label: string;
+  value: number;
+  tone?: 'default' | 'warning';
+}) {
+  return (
+    <article className={styles.metric} data-tone={tone}>
+      <span className={styles.metricIcon}><Icon /></span>
+      <div><span>{label}</span><strong>{value}</strong></div>
+    </article>
   );
 }
 

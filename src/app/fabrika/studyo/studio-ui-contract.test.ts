@@ -23,6 +23,6 @@ describe('studio UI contract', () => {
     expect(posterMakerSource).toContain("from '@/lib/property-media-selection';");
     expect(posterMakerSource).toContain('selectedPosterSources');
     expect(posterMakerSource).toContain('savePosterToProperty');
-    expect(posterMakerSource).toContain("data.append('mediaIds'");
+    expect(posterMakerSource).toContain("'mediaIdsJson'");
   });
 });

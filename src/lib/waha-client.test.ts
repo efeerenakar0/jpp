@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import {
+  checkWahaHealth,
   createWahaSession,
   getWahaQrCode,
   restartWahaSession,
@@ -131,5 +132,36 @@ describe('WAHA API client', () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toBe('http://127.0.0.1:3000/api/sessions/jasmine-acme/restart');
     expect(options.method).toBe('POST');
+  });
+
+  it('explains that a 404 health response means the gateway is unavailable', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response('Not Found', { status: 404 })
+    );
+
+    await expect(checkWahaHealth()).rejects.toMatchObject({
+      message:
+        'WhatsApp bağlantı sunucusuna ulaşılamıyor. WAHA gateway kapalı veya yayın adresi erişilemiyor.',
+      status: 404,
+      code: 'WAHA_GATEWAY_UNAVAILABLE',
+    });
+  });
+
+  it('does not expose provider details for an authentication failure', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: 'Invalid api key: secret-provider-detail',
+        }),
+        { status: 401 }
+      )
+    );
+
+    await expect(checkWahaHealth()).rejects.toMatchObject({
+      message:
+        'WhatsApp gateway kimlik doğrulaması başarısız. Sunucu anahtarı eşleşmiyor.',
+      status: 401,
+      code: 'WAHA_AUTHENTICATION_FAILED',
+    });
   });
 });

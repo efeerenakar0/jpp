@@ -8,77 +8,92 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/fabrika-session', () => ({
-  FabrikaSessionError: class MockFabrikaSessionError extends Error {},
+  FabrikaSessionError: class FabrikaSessionError extends Error {},
   requireFabrikaPrincipal: mocks.requireFabrikaPrincipal,
 }));
 
 vi.mock('@/lib/stability-ultra', () => ({
-  StabilityUltraError: class MockStabilityUltraError extends Error {},
+  StabilityUltraError: class StabilityUltraError extends Error {
+    constructor(
+      readonly code: string,
+      readonly status: number
+    ) {
+      super(code);
+    }
+  },
   enhanceWithStableImageUltra: mocks.enhanceWithStableImageUltra,
 }));
 
 vi.mock('@/lib/studio-enhancement', () => ({
-  DEFAULT_STUDIO_ENHANCEMENT_PROMPT: 'Varsayılan yeniden üretim talimatı',
-}));
-
-vi.mock('@/lib/studio-store', () => ({
-  getOrCreateSession: vi.fn(),
+  DEFAULT_STUDIO_ENHANCEMENT_PROMPT: 'Varsayılan iyileştirme talimatı',
 }));
 
 import { POST } from './route';
 
-function directProcessRequest(type = 'image/jpeg') {
-  const form = new FormData();
-  form.append(
-    'photo',
-    new File([Uint8Array.from([255, 216, 255, 217])], 'salon.jpg', {
-      type,
-    })
-  );
-  form.append('prompt', 'Bu salonu lüks bir emlak çekimi olarak baştan oluştur.');
-  return new Request('https://app.test/api/fabrika/studio/process', {
-    method: 'POST',
-    body: form,
-  });
-}
-
-describe('direct Stable Image Ultra processing route', () => {
+describe('POST /api/fabrika/studio/process', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireFabrikaPrincipal.mockResolvedValue({
+      type: 'OWNER',
       account: { id: 'company-a' },
+      member: null,
     });
     mocks.enhanceWithStableImageUltra.mockResolvedValue({
-      buffer: Buffer.from([255, 216, 0, 255, 217]),
+      buffer: Buffer.from([255, 216, 255, 217]),
       mimeType: 'image/jpeg',
       extension: 'jpg',
     });
   });
 
-  it('processes one uploaded image and returns the generated image bytes directly', async () => {
-    const response = await POST(directProcessRequest());
+  it('görseli aynı multipart isteğinde işler ve sonucu doğrudan döndürür', async () => {
+    const formData = new FormData();
+    formData.set(
+      'photo',
+      new File([Uint8Array.from([255, 216, 255, 217])], 'salon.png', {
+        type: 'image/png',
+      })
+    );
+    formData.set('prompt', 'Işığı doğal biçimde düzelt.');
+
+    const response = await POST(
+      new Request('https://app.test/api/fabrika/studio/process', {
+        method: 'POST',
+        body: formData,
+      })
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('image/jpeg');
-    expect(response.headers.get('x-studio-filename')).toBe(
-      'salon_AI_yeniden_olusturuldu.jpg'
-    );
+    expect(
+      decodeURIComponent(response.headers.get('x-studio-file-name') || '')
+    ).toBe('salon_AI_iyilestirilmis.jpg');
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-      Uint8Array.from([255, 216, 0, 255, 217])
+      Uint8Array.from([255, 216, 255, 217])
     );
     expect(mocks.enhanceWithStableImageUltra).toHaveBeenCalledWith({
       image: Buffer.from([255, 216, 255, 217]),
-      mimeType: 'image/jpeg',
-      prompt: 'Bu salonu lüks bir emlak çekimi olarak baştan oluştur.',
+      mimeType: 'image/png',
+      prompt: 'Işığı doğal biçimde düzelt.',
     });
   });
 
-  it('rejects unsupported image formats before calling the provider', async () => {
-    const response = await POST(directProcessRequest('image/gif'));
-    const body = await response.json();
+  it('görsel bulunmadığında kullanıcı dostu hata döndürür', async () => {
+    const formData = new FormData();
+    formData.set('prompt', 'Işığı doğal biçimde düzelt.');
+
+    const response = await POST(
+      new Request('https://app.test/api/fabrika/studio/process', {
+        method: 'POST',
+        body: formData,
+      })
+    );
 
     expect(response.status).toBe(400);
-    expect(body.code).toBe('INVALID_IMAGE');
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      code: 'INVALID_IMAGE',
+      error: expect.stringContaining('fotoğraf'),
+    });
     expect(mocks.enhanceWithStableImageUltra).not.toHaveBeenCalled();
   });
 });

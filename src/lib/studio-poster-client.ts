@@ -26,16 +26,15 @@ export async function resolvePosterBackground({
 }): Promise<ResolvedPosterBackground> {
   try {
     const result = await request();
-    if (
-      mode === 'creative' &&
-      !result.fallbackUsed &&
-      result.backgroundDataUrl
-    ) {
+    if (result.backgroundDataUrl) {
       return {
         backgroundUrl: result.backgroundDataUrl,
-        effectiveMode: 'creative',
-        fallbackUsed: false,
-        warning: null,
+        effectiveMode:
+          mode === 'creative' && !result.fallbackUsed
+            ? 'creative'
+            : 'faithful',
+        fallbackUsed: Boolean(result.fallbackUsed),
+        warning: result.warning || null,
         logoDataUrl: result.logoDataUrl || null,
       };
     }

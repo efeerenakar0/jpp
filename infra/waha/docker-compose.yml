@@ -2,8 +2,8 @@ name: jasmine-waha
 
 services:
   waha:
-    image: devlikeapro/waha@sha256:8f3a7b11310594b973a588b2f7de061864c83532ae2cdff43280db0402bead29
-    restart: unless-stopped
+    image: devlikeapro/waha@sha256:ee94669b8b007f8108d2e93dc8ce1af78743919823bc6748facab35d8cc2c26c
+    restart: always
     environment:
       WAHA_API_KEY: ${WAHA_API_KEY:?WAHA_API_KEY gerekli}
       WAHA_DASHBOARD_ENABLED: "false"
@@ -28,9 +28,24 @@ services:
       start_period: 30s
     networks: [private, edge]
 
+  session-watchdog:
+    image: node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+    restart: always
+    depends_on:
+      waha:
+        condition: service_healthy
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY:?WAHA_API_KEY gerekli}
+      WAHA_INTERNAL_URL: http://waha:3000
+      WAHA_WATCHDOG_INTERVAL_MS: "15000"
+    command: ["node", "/app/session-watchdog.mjs"]
+    volumes:
+      - ./session-watchdog.mjs:/app/session-watchdog.mjs:ro
+    networks: [private]
+
   caddy:
     image: caddy:2.8.4-alpine
-    restart: unless-stopped
+    restart: always
     depends_on:
       waha:
         condition: service_healthy
@@ -48,7 +63,7 @@ services:
 
   outbox-worker:
     image: curlimages/curl:8.12.1
-    restart: unless-stopped
+    restart: always
     environment:
       JASMINE_OUTBOX_URL: ${JASMINE_OUTBOX_URL:?JASMINE_OUTBOX_URL gerekli}
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET gerekli}

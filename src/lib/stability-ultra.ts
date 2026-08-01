@@ -8,6 +8,9 @@ export const STABLE_IMAGE_ULTRA_ENDPOINT =
 
 export const STUDIO_IMAGE_TO_IMAGE_STRENGTH = 0.82;
 
+export const SAFE_STUDIO_RETRY_PROMPT =
+  'Enhance this real estate photograph with natural light, accurate colors and crisp professional photography. Preserve the existing property, architecture, camera angle and composition.';
+
 const MAX_IMAGE_BYTES = 9 * 1024 * 1024;
 const MAX_RESULT_BYTES = 25 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 90_000;
@@ -204,6 +207,7 @@ export async function generateWithStableImageUltra({
   }
 
   if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
     throw providerError(response.status);
   }
 
@@ -242,11 +246,28 @@ export async function enhanceWithStableImageUltra({
   mimeType: string;
   prompt: string;
 }) {
-  return generateWithStableImageUltra({
-    image,
-    mimeType,
-    prompt,
-    negativePrompt: STUDIO_NEGATIVE_PROMPT,
-    strength: STUDIO_IMAGE_TO_IMAGE_STRENGTH,
-  });
+  try {
+    return await generateWithStableImageUltra({
+      image,
+      mimeType,
+      prompt,
+      negativePrompt: STUDIO_NEGATIVE_PROMPT,
+      strength: STUDIO_IMAGE_TO_IMAGE_STRENGTH,
+    });
+  } catch (error) {
+    if (
+      !(error instanceof StabilityUltraError) ||
+      error.code !== 'CONTENT_REJECTED' ||
+      prompt.trim() === SAFE_STUDIO_RETRY_PROMPT
+    ) {
+      throw error;
+    }
+
+    return generateWithStableImageUltra({
+      image,
+      mimeType,
+      prompt: SAFE_STUDIO_RETRY_PROMPT,
+      strength: STUDIO_IMAGE_TO_IMAGE_STRENGTH,
+    });
+  }
 }

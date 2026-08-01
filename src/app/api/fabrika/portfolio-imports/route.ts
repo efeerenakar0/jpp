@@ -10,6 +10,7 @@ import {
   requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
+import { importHuntedListingMedia } from '@/lib/property-media';
 import prisma from '@/lib/prisma';
 
 const reviewSchema = z.discriminatedUnion('action', [
@@ -166,6 +167,16 @@ export async function PATCH(request: Request) {
             status: HuntingStatus.GREEN,
             syncedToSite: true,
           },
+        });
+        await importHuntedListingMedia({
+          tx,
+          actor: {
+            companyAccountId: principal.account.id,
+            memberId: principal.member?.id ?? null,
+          },
+          propertyId: saved.id,
+          huntedListingId: item.huntedListingId,
+          fallbackImageUrl: item.imageUrl,
         });
       }
       await tx.crmActivity.create({

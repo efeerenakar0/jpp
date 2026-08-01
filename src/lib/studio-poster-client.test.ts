@@ -44,7 +44,7 @@ describe('poster client fallback', () => {
     });
   });
 
-  it('uses the local photo and faithful label when the provider falls back', async () => {
+  it('uses the server-provided original photo and faithful label when the provider falls back', async () => {
     const request = vi.fn().mockResolvedValue({
       backgroundDataUrl: 'data:image/jpeg;base64,fallback-copy',
       fallbackUsed: true,
@@ -59,7 +59,7 @@ describe('poster client fallback', () => {
         request,
       })
     ).resolves.toEqual({
-      backgroundUrl: 'blob:local-property-photo',
+      backgroundUrl: 'data:image/jpeg;base64,fallback-copy',
       effectiveMode: 'faithful',
       fallbackUsed: true,
       warning: 'Sağlayıcı kullanılamadı.',

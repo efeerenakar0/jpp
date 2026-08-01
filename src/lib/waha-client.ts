@@ -86,6 +86,59 @@ function normalizeStatus(value: unknown): WahaSessionStatus {
   }
 }
 
+function createWahaResponseError(status: number, data: unknown) {
+  const knownFailures: Record<number, { message: string; code: string }> = {
+    401: {
+      message:
+        'WhatsApp gateway kimlik doğrulaması başarısız. Sunucu anahtarı eşleşmiyor.',
+      code: 'WAHA_AUTHENTICATION_FAILED',
+    },
+    403: {
+      message:
+        'WhatsApp gateway erişimi reddedildi. Sunucu anahtarı veya ağ iznini kontrol edin.',
+      code: 'WAHA_ACCESS_DENIED',
+    },
+    404: {
+      message:
+        'WhatsApp bağlantı sunucusuna ulaşılamıyor. WAHA gateway kapalı veya yayın adresi erişilemiyor.',
+      code: 'WAHA_GATEWAY_UNAVAILABLE',
+    },
+    502: {
+      message:
+        'WhatsApp bağlantı sunucusu geçici olarak kullanılamıyor. Birkaç saniye sonra yeniden deneyin.',
+      code: 'WAHA_GATEWAY_UNAVAILABLE',
+    },
+    503: {
+      message:
+        'WhatsApp bağlantı sunucusu geçici olarak kullanılamıyor. Birkaç saniye sonra yeniden deneyin.',
+      code: 'WAHA_GATEWAY_UNAVAILABLE',
+    },
+    504: {
+      message:
+        'WhatsApp bağlantı sunucusu zamanında yanıt vermedi. Birkaç saniye sonra yeniden deneyin.',
+      code: 'WAHA_GATEWAY_TIMEOUT',
+    },
+  };
+  const known = knownFailures[status];
+  const record = data as
+    | { message?: string; error?: string; detail?: string }
+    | null;
+  const providerMessage =
+    record?.message || record?.error || record?.detail || '';
+  const message =
+    known?.message ||
+    (status >= 500
+      ? 'WhatsApp bağlantı sunucusunda geçici bir hata oluştu.'
+      : providerMessage || `WAHA API isteği başarısız (${status}).`);
+  const error = new Error(message);
+
+  Object.assign(error, {
+    status,
+    code: known?.code || 'WAHA_REQUEST_FAILED',
+  });
+  return error;
+}
+
 async function wahaRequest<T>(
   path: string,
   options: WahaRequestOptions = {}
@@ -132,23 +185,22 @@ async function wahaRequest<T>(
     }
 
     if (!response.ok) {
-      const record = data as
-        | { message?: string; error?: string; detail?: string }
-        | null;
-      const error = new Error(
-        record?.message ||
-          record?.error ||
-          record?.detail ||
-          `WAHA API isteği başarısız (${response.status}).`
-      );
-      Object.assign(error, { status: response.status });
-      throw error;
+      throw createWahaResponseError(response.status, data);
     }
 
     return data as T;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('WAHA API zaman aşımına uğradı.');
+    }
+    if (error instanceof TypeError) {
+      const connectionError = new Error(
+        'WhatsApp bağlantı sunucusuna ağ bağlantısı kurulamadı.'
+      );
+      Object.assign(connectionError, {
+        code: 'WAHA_NETWORK_ERROR',
+      });
+      throw connectionError;
     }
     throw error;
   } finally {

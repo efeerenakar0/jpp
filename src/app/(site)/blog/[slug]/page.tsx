@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { blogPosts } from "../page";
+import { blogPosts } from "../blog-posts";
 import { Calendar, User, Share2 } from "lucide-react";
 import Link from "next/link";
 
