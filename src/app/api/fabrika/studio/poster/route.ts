@@ -5,6 +5,8 @@ import {
   FabrikaSessionError,
   requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
+import { generateStudioPosterBackground } from '@/lib/studio-image-provider';
+import { STUDIO_IMAGE_TO_IMAGE_STRENGTH } from '@/lib/stability-ultra';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,6 +15,13 @@ export const runtime = 'nodejs';
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_BYTES = 9 * 1024 * 1024;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+const POSTER_NEGATIVE_PROMPT =
+  'text, letters, numbers, logo, watermark, people, redesigned property, changed architecture, new pool, altered facade, inaccurate building, distorted geometry, low resolution';
 
 function stringValue(value: FormDataEntryValue | null, maximum = 500) {
   return typeof value === 'string' ? value.trim().slice(0, maximum) : '';
@@ -56,7 +65,7 @@ function posterPrompt(input: {
     .join(', ');
 
   return [
-    'Make a conservative, photorealistic real-estate photography enhancement from the supplied property photo.',
+    'Use the supplied property photo as a reference and recreate the scene from scratch as a high-detail, photorealistic real-estate hero image.',
     'Preserve the exact architecture, facade, rooms, landscape, pool, materials, camera angle and realistic proportions. Do not invent, remove or redesign any part of the property.',
     'Only improve natural lighting, color balance, clarity and editorial presentation while keeping clean negative space for a marketing overlay.',
     'Do not add any text, letters, numbers, logos, watermarks, people, sale signs or brand marks.',
@@ -151,7 +160,13 @@ export async function POST(request: Request) {
     if (!files.length) {
       return NextResponse.json({ error: 'Poster için en az bir görsel yükleyin.' }, { status: 400 });
     }
-    if (files.some((file) => !file.type.startsWith('image/') || file.size > MAX_PHOTO_BYTES)) {
+    if (
+      files.some(
+        (file) =>
+          !SUPPORTED_IMAGE_TYPES.has(file.type) ||
+          file.size > MAX_PHOTO_BYTES
+      )
+    ) {
       return NextResponse.json(
         { error: 'Görseller JPG, PNG veya WEBP olmalı ve her biri 9 MB altında kalmalıdır.' },
         { status: 400 }
@@ -161,7 +176,10 @@ export async function POST(request: Request) {
     const logo = form.get('logo');
     let logoDataUrl: string | null = principal.account.brandLogoData || null;
     if (logo instanceof File && logo.size > 0) {
-      if (!logo.type.startsWith('image/') || logo.size > MAX_LOGO_BYTES) {
+      if (
+        !SUPPORTED_IMAGE_TYPES.has(logo.type) ||
+        logo.size > MAX_LOGO_BYTES
+      ) {
         return NextResponse.json({ error: 'Logo bir görsel olmalı ve 2 MB altında kalmalıdır.' }, { status: 400 });
       }
       logoDataUrl = dataUrl(Buffer.from(await logo.arrayBuffer()), imageMime(logo));
@@ -188,64 +206,41 @@ export async function POST(request: Request) {
         stringValue(form.get('highlight3'), 120),
       ],
     };
+    const heroBuffer = Buffer.from(await hero.arrayBuffer());
+    const heroMimeType = imageMime(hero);
 
     if (mode === 'faithful') {
       return NextResponse.json({
         success: true,
         mode,
-        backgroundDataUrl: dataUrl(Buffer.from(await hero.arrayBuffer()), imageMime(hero)),
+        backgroundDataUrl: dataUrl(heroBuffer, heroMimeType),
+        backgroundSource: 'canvas',
+        fallbackUsed: false,
         logoDataUrl,
       });
     }
 
-    const stabilityApiKey = process.env.STABILITY_API_KEY?.trim();
-    if (!stabilityApiKey) {
-      return NextResponse.json(
-        { error: 'Kreatif poster motoru henüz yapılandırılmadı. Yönetici STABILITY_API_KEY değişkenini eklemelidir.' },
-        { status: 503 }
-      );
-    }
-
-    const body = new FormData();
-    body.append('prompt', posterPrompt(input));
-    body.append('image', new Blob([await hero.arrayBuffer()], { type: imageMime(hero) }), hero.name || 'property.jpg');
-    body.append('strength', '0.55');
-    body.append('negative_prompt', 'text, letters, numbers, logo, watermark, people, redesigned property, changed architecture, new pool, altered facade, inaccurate building, low resolution');
-    body.append('output_format', 'jpeg');
-
-    const response = await fetch('https://api.stability.ai/v2beta/stable-image/generate/ultra', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stabilityApiKey}`,
-        Accept: 'image/*',
-        'stability-client-id': 'Business CEO AI Studio',
-        'stability-client-user-id': principal.account.id.slice(-18),
-        'stability-client-version': '1.0',
-      },
-      body,
-      cache: 'no-store',
+    const background = await generateStudioPosterBackground({
+      image: heroBuffer,
+      mimeType: heroMimeType,
+      prompt: posterPrompt(input),
+      negativePrompt: POSTER_NEGATIVE_PROMPT,
+      strength: STUDIO_IMAGE_TO_IMAGE_STRENGTH,
+      clientUserId: principal.account.id.slice(-18),
     });
 
-    if (!response.ok) {
-      const providerError = await response.text().catch(() => '');
-      const retryable = response.status === 429 || response.status >= 500;
-      return NextResponse.json(
-        {
-          error: retryable
-            ? 'Poster motoru şu an yoğun. Birkaç saniye sonra yeniden deneyin.'
-            : 'Poster üretilemedi. Stability API bakiyesini, anahtarı ve yüklenen görseli kontrol edin.',
-          providerStatus: response.status,
-          details: process.env.NODE_ENV === 'development' ? providerError.slice(0, 300) : undefined,
-        },
-        { status: retryable ? 503 : 422 }
-      );
-    }
-
-    const result = Buffer.from(await response.arrayBuffer());
     return NextResponse.json({
       success: true,
       mode,
-      backgroundDataUrl: dataUrl(result, response.headers.get('content-type') || 'image/jpeg'),
+      backgroundDataUrl: dataUrl(background.buffer, background.mimeType),
+      backgroundSource: background.source,
+      fallbackUsed: background.fallbackUsed,
+      fallbackCode: background.fallbackCode,
+      provider: background.provider,
+      providerModel: background.model,
+      warning: background.fallbackUsed
+        ? 'AI görsel üretimi tamamlanamadı; mevcut fotoğraf güvenli kanvas poster şablonunda kullanıldı.'
+        : undefined,
       logoDataUrl,
     });
   } catch (error) {
