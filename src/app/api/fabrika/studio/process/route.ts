@@ -18,6 +18,13 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 300;
 
+const MAX_DIRECT_IMAGE_BYTES = 9 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
 const processRequestSchema = z.object({
   shootId: z.string().trim().min(1).max(120),
   prompt: z.string().trim().min(1).max(10_000).optional(),
@@ -40,9 +47,64 @@ function safeBaseName(name: string, index: number) {
   return normalized || `gorsel_${index + 1}`;
 }
 
+async function processDirectUpload(request: Request) {
+  const form = await request.formData();
+  const photo = form.get('photo');
+  const promptValue = form.get('prompt');
+  const prompt =
+    typeof promptValue === 'string' && promptValue.trim()
+      ? promptValue.trim()
+      : DEFAULT_STUDIO_ENHANCEMENT_PROMPT;
+
+  if (
+    !(photo instanceof File) ||
+    photo.size === 0 ||
+    photo.size > MAX_DIRECT_IMAGE_BYTES ||
+    !SUPPORTED_IMAGE_TYPES.has(photo.type) ||
+    prompt.length > 10_000
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        code: 'INVALID_IMAGE',
+        error:
+          'Görsel JPG, PNG veya WEBP olmalı, 9 MB altında kalmalı ve talimat 10.000 karakteri geçmemelidir.',
+      },
+      { status: 400 }
+    );
+  }
+
+  const processed = await enhanceWithStableImageUltra({
+    image: Buffer.from(await photo.arrayBuffer()),
+    mimeType: photo.type,
+    prompt,
+  });
+  const resultName = `${safeBaseName(photo.name, 0)}_AI_yeniden_olusturuldu.${processed.extension}`;
+
+  return new Response(new Uint8Array(processed.buffer), {
+    status: 200,
+    headers: {
+      'Content-Type': processed.mimeType,
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(resultName)}`,
+      'Cache-Control': 'no-store',
+      'X-Studio-Filename': encodeURIComponent(resultName),
+      'X-Studio-Provider': 'Stable Image Ultra',
+    },
+  });
+}
+
 export async function POST(request: Request) {
   try {
     await requireFabrikaPrincipal();
+
+    if (
+      request.headers
+        .get('content-type')
+        ?.toLowerCase()
+        .startsWith('multipart/form-data')
+    ) {
+      return await processDirectUpload(request);
+    }
 
     const payload = processRequestSchema.safeParse(
       await request.json().catch(() => null)
