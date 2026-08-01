@@ -1,38 +1,19 @@
 import 'server-only';
 
 import { STUDIO_NEGATIVE_PROMPT } from './studio-enhancement';
-import { detectStudioImageMimeType } from './studio-image-format';
 
 export const STABLE_IMAGE_ULTRA_ENDPOINT =
   'https://api.stability.ai/v2beta/stable-image/generate/ultra';
 
-export const STUDIO_IMAGE_TO_IMAGE_STRENGTH = 0.82;
+export const STUDIO_IMAGE_TO_IMAGE_STRENGTH = 0.3;
 
 const MAX_IMAGE_BYTES = 9 * 1024 * 1024;
 const MAX_RESULT_BYTES = 25 * 1024 * 1024;
-const DEFAULT_TIMEOUT_MS = 90_000;
-const MIN_TIMEOUT_MS = 5_000;
-const MAX_TIMEOUT_MS = 180_000;
 const SUPPORTED_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
 ]);
-
-export type StabilityUltraGenerationInput = {
-  image: Buffer;
-  mimeType: string;
-  prompt: string;
-  negativePrompt?: string;
-  strength?: number;
-  clientUserId?: string;
-};
-
-export type StabilityUltraGenerationResult = {
-  buffer: Buffer;
-  mimeType: string;
-  extension: string;
-};
 
 export type StabilityUltraErrorCode =
   | 'MISSING_KEY'
@@ -113,95 +94,55 @@ function extensionForMimeType(mimeType: string) {
   return 'jpg';
 }
 
-function requestTimeoutMs() {
-  const configured = Number(process.env.STABILITY_API_TIMEOUT_MS);
-  if (!Number.isFinite(configured)) return DEFAULT_TIMEOUT_MS;
-  return Math.min(
-    Math.max(Math.trunc(configured), MIN_TIMEOUT_MS),
-    MAX_TIMEOUT_MS
-  );
-}
-
-export async function generateWithStableImageUltra({
+export async function enhanceWithStableImageUltra({
   image,
   mimeType,
   prompt,
-  negativePrompt,
-  strength,
-  clientUserId,
-}: StabilityUltraGenerationInput): Promise<StabilityUltraGenerationResult> {
+}: {
+  image: Buffer;
+  mimeType: string;
+  prompt: string;
+}) {
   const apiKey = process.env.STABILITY_API_KEY?.trim();
   if (!apiKey) {
     throw new StabilityUltraError('MISSING_KEY', 503);
   }
 
   const safePrompt = prompt.trim();
-  const safeNegativePrompt = negativePrompt?.trim() || '';
-  if (
-    !safePrompt ||
-    safePrompt.length > 10_000 ||
-    safeNegativePrompt.length > 10_000 ||
-    (strength !== undefined &&
-      (!Number.isFinite(strength) || strength < 0 || strength > 1))
-  ) {
+  if (!safePrompt || safePrompt.length > 10_000) {
     throw new StabilityUltraError('INVALID_PROMPT', 400);
   }
 
-  const detectedMimeType = detectStudioImageMimeType(image);
   if (
     image.length === 0 ||
     image.length > MAX_IMAGE_BYTES ||
-    !SUPPORTED_IMAGE_TYPES.has(mimeType) ||
-    !detectedMimeType
+    !SUPPORTED_IMAGE_TYPES.has(mimeType)
   ) {
     throw new StabilityUltraError('INVALID_IMAGE', 400);
   }
 
   const body = new FormData();
   body.append('prompt', safePrompt);
-  if (safeNegativePrompt) {
-    body.append('negative_prompt', safeNegativePrompt);
-  }
+  body.append('negative_prompt', STUDIO_NEGATIVE_PROMPT);
   body.append(
     'image',
-    new Blob([new Uint8Array(image)], { type: detectedMimeType }),
-    `property.${extensionForMimeType(detectedMimeType)}`
+    new Blob([new Uint8Array(image)], { type: mimeType }),
+    `property.${extensionForMimeType(mimeType)}`
   );
-  if (strength !== undefined) {
-    body.append('strength', String(strength));
-  }
+  body.append('strength', String(STUDIO_IMAGE_TO_IMAGE_STRENGTH));
   body.append('output_format', 'jpeg');
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${apiKey}`,
-    Accept: 'image/*',
-    'stability-client-id': 'Business CEO AI Studio',
-    'stability-client-version': '2.0',
-  };
-  const safeClientUserId = clientUserId?.trim().slice(0, 256);
-  if (safeClientUserId) {
-    headers['stability-client-user-id'] = safeClientUserId;
-  }
-
-  const abortController = new AbortController();
-  const timeout = setTimeout(
-    () => abortController.abort(),
-    requestTimeoutMs()
-  );
-  let response: Response;
-  try {
-    response = await fetch(STABLE_IMAGE_ULTRA_ENDPOINT, {
-      method: 'POST',
-      headers,
-      body,
-      cache: 'no-store',
-      signal: abortController.signal,
-    });
-  } catch {
-    throw new StabilityUltraError('PROVIDER_UNAVAILABLE', 503);
-  } finally {
-    clearTimeout(timeout);
-  }
+  const response = await fetch(STABLE_IMAGE_ULTRA_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'image/*',
+      'stability-client-id': 'Business CEO AI Studio',
+      'stability-client-version': '2.0',
+    },
+    body,
+    cache: 'no-store',
+  });
 
   if (!response.ok) {
     throw providerError(response.status);
@@ -214,8 +155,7 @@ export async function generateWithStableImageUltra({
     .toLowerCase();
   const result = Buffer.from(await response.arrayBuffer());
   if (
-    !resultMimeType ||
-    !SUPPORTED_IMAGE_TYPES.has(resultMimeType) ||
+    !resultMimeType?.startsWith('image/') ||
     result.length === 0 ||
     result.length > MAX_RESULT_BYTES
   ) {
@@ -231,22 +171,4 @@ export async function generateWithStableImageUltra({
     mimeType: resultMimeType,
     extension: extensionForMimeType(resultMimeType),
   };
-}
-
-export async function enhanceWithStableImageUltra({
-  image,
-  mimeType,
-  prompt,
-}: {
-  image: Buffer;
-  mimeType: string;
-  prompt: string;
-}) {
-  return generateWithStableImageUltra({
-    image,
-    mimeType,
-    prompt,
-    negativePrompt: STUDIO_NEGATIVE_PROMPT,
-    strength: STUDIO_IMAGE_TO_IMAGE_STRENGTH,
-  });
 }

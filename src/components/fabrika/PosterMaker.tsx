@@ -16,9 +16,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
-import { PosterStudioPreview } from '@/components/fabrika/PosterStudioPreview';
-import { prepareInstagramShare } from '@/lib/instagram-sharing';
-import { resolvePosterBackground } from '@/lib/studio-poster-client';
 
 type PosterFormat = 'post' | 'story';
 type PosterMode = 'faithful' | 'creative';
@@ -554,8 +551,6 @@ export default function PosterMaker() {
   const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const latestPreviewRef = useRef<HTMLDivElement>(null);
-  const renderedResultCountRef = useRef(0);
 
   const photoPreviews = useMemo(
     () => photos.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -571,14 +566,6 @@ export default function PosterMaker() {
 
   useEffect(() => () => photoPreviews.forEach(({ url }) => URL.revokeObjectURL(url)), [photoPreviews]);
   useEffect(() => () => { if (logoFile && logoPreview) URL.revokeObjectURL(logoPreview); }, [logoFile, logoPreview]);
-  useEffect(() => {
-    if (results.length > renderedResultCountRef.current) {
-      window.requestAnimationFrame(() => {
-        latestPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      });
-    }
-    renderedResultCountRef.current = results.length;
-  }, [results.length]);
 
   useEffect(() => {
     void (async () => {
@@ -664,58 +651,36 @@ export default function PosterMaker() {
     }
     setIsCreating(true);
     try {
-      const background = await resolvePosterBackground({
-        mode: form.mode,
-        localBackgroundUrl: orderedPhotoPreviews[0].url,
-        request: async () => {
-          const data = new FormData();
-          data.append('photos', orderedPhotoPreviews[0].file);
-          if (logoFile) data.append('logo', logoFile);
-          data.append('companyName', form.companyName);
-          data.append('propertyId', form.propertyId);
-          data.append('location', form.location);
-          data.append('roomCount', form.roomCount);
-          data.append('propertyType', form.propertyType);
-          data.append('area', form.area);
-          data.append('price', form.price);
-          data.append('details', form.details);
-          data.append('highlight1', form.highlight1);
-          data.append('highlight2', form.highlight2);
-          data.append('highlight3', form.highlight3);
-          data.append('format', form.format);
-          data.append('mode', form.mode);
-          data.append('rememberLogo', String(rememberLogo && permissions.canManageSecrets));
-          const response = await fetch('/api/fabrika/studio/poster', {
-            method: 'POST',
-            body: data,
-          });
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(body.error || 'Poster servisine ulaşılamadı.');
-          }
-          return body;
-        },
-      });
-      const effectiveForm: PosterForm = {
-        ...form,
-        mode: background.effectiveMode,
-      };
+      const data = new FormData();
+      orderedPhotoPreviews.forEach(({ file }) => data.append('photos', file));
+      if (logoFile) data.append('logo', logoFile);
+      data.append('companyName', form.companyName);
+      data.append('propertyId', form.propertyId);
+      data.append('location', form.location);
+      data.append('roomCount', form.roomCount);
+      data.append('propertyType', form.propertyType);
+      data.append('area', form.area);
+      data.append('price', form.price);
+      data.append('details', form.details);
+      data.append('highlight1', form.highlight1);
+      data.append('highlight2', form.highlight2);
+      data.append('highlight3', form.highlight3);
+      data.append('format', form.format);
+      data.append('mode', form.mode);
+      data.append('rememberLogo', String(rememberLogo && permissions.canManageSecrets));
+      const response = await fetch('/api/fabrika/studio/poster', { method: 'POST', body: data });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Poster üretilemedi.');
       const previewUrl = await createFinalPoster({
-        backgroundUrl: background.backgroundUrl,
+        backgroundUrl: body.backgroundDataUrl,
         photoUrls: orderedPhotoPreviews.map((item) => item.url),
-        logoUrl: background.logoDataUrl || logoPreview,
-        form: effectiveForm,
+        logoUrl: body.logoDataUrl || logoPreview,
+        form,
       });
       const name = form.posterName.trim() || `Portföy posteri ${results.length + 1}`;
-      setResults((current) => [{ id: crypto.randomUUID(), name, previewUrl, fingerprint, brief: { ...effectiveForm } }, ...current]);
-      if (background.logoDataUrl) setSavedLogoUrl(background.logoDataUrl);
-      if (background.fallbackUsed) {
-        toast(background.warning || 'AI görseli üretilemedi; mevcut fotoğraf kanvas posterinde kullanıldı.', {
-          icon: '↩️',
-        });
-      } else {
-        toast.success('Posteriniz hazır. Şimdi buna özel kampanya metinleri üretebilirsiniz.');
-      }
+      setResults((current) => [{ id: crypto.randomUUID(), name, previewUrl, fingerprint, brief: { ...form } }, ...current]);
+      if (body.logoDataUrl) setSavedLogoUrl(body.logoDataUrl);
+      toast.success('Posteriniz hazır. Şimdi buna özel kampanya metinleri üretebilirsiniz.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Poster üretilemedi.');
     } finally {
@@ -755,36 +720,6 @@ export default function PosterMaker() {
       toast.success(`${label} kopyalandı.`);
     } catch {
       toast.error('Kopyalama başarısız oldu. Metni seçip manuel kopyalayabilirsiniz.');
-    }
-  };
-
-  const shareOnInstagram = async (result: PosterResult) => {
-    const outcome = await prepareInstagramShare(
-      {
-        caption: result.instagram || '',
-        posterName: result.name,
-        posterUrl: result.previewUrl,
-      },
-      {
-        openInstagram: (url) => {
-          window.open(url, '_blank', 'noopener,noreferrer');
-        },
-        downloadPoster: (url, filename) => {
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-        },
-        copyCaption: (caption) => navigator.clipboard.writeText(caption),
-      },
-    );
-
-    if (outcome.captionCopied) {
-      toast.success('Poster indirildi, açıklama kopyalandı ve Instagram açıldı. Yeni gönderi oluşturup posteri seçin.');
-    } else {
-      toast.error('Poster indirildi ve Instagram açıldı; açıklama otomatik kopyalanamadı.');
     }
   };
 
@@ -873,20 +808,10 @@ export default function PosterMaker() {
           {photoPreviews.length > 0 && <><p className="mt-4 text-xs font-semibold text-slate-300">Ana görseli seçin</p><div className="mt-2 grid grid-cols-3 gap-2">{photoPreviews.map(({ file, url }, index) => <div key={`${file.name}-${file.lastModified}`} className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${heroIndex === index ? 'border-amber-300 ring-2 ring-amber-300/40' : 'border-slate-700'}`}><button type="button" onClick={() => setHeroIndex(index)} className="h-full w-full" aria-pressed={heroIndex === index} aria-label={`${file.name} ana görsel olarak seç`}><img src={url} alt={file.name} className="h-full w-full object-cover" />{heroIndex === index && <span className="absolute bottom-1.5 left-1.5 rounded bg-amber-300 px-1.5 py-1 text-[10px] font-bold text-amber-950">ANA GÖRSEL</span>}</button><button type="button" onClick={(event) => { event.stopPropagation(); removePhoto(index); }} className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500" aria-label={`${file.name} görselini kaldır`}><X className="h-3.5 w-3.5" /></button></div>)}</div></>}
           <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçek fotoğraflı modda seçtiğiniz ana görsel ve galeri fotoğrafları değiştirilmeden profesyonel şablona yerleştirilir.' : 'Kreatif modda yalnızca seçtiğiniz ana görsel Stable Image Ultra ile yeniden yorumlanır; diğer gerçek fotoğraflar galeri bölümünde aynen korunur.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
           <button type="button" onClick={createPoster} disabled={isCreating || !photos.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
-          {results[0] && (
-            <div ref={latestPreviewRef} tabIndex={-1}>
-              <PosterStudioPreview
-                name={results[0].name}
-                previewUrl={results[0].previewUrl}
-                format={results[0].brief.format}
-                mode={results[0].brief.mode}
-              />
-            </div>
-          )}
         </div>
       </div>
 
-      {results.length > 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold text-white">Oluşturulan posterler</h2><p className="mt-1 text-sm text-slate-400">Her postere özel, ayrı kampanya metinleri üretebilirsiniz.</p></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> {results.length} hazır</span></div><div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((result) => <article key={result.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"><div className="relative"><img src={result.previewUrl} alt={result.name} className="w-full object-cover" style={{ aspectRatio: result.brief.format === 'story' ? '9 / 16' : '4 / 5' }} />{result.brief.mode === 'creative' ? <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">TEMSİLİ AI GÖRSELİ</span> : <span className="absolute left-3 top-3 rounded-full border border-sky-200/20 bg-slate-950/90 px-2 py-1 text-[10px] font-bold text-sky-100">GERÇEK FOTOĞRAFLAR</span>}</div><div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="text-sm font-bold text-white">{result.name}</h3><a href={result.previewUrl} download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200" aria-label="Posteri indir"><Download className="h-4 w-4" /></a></div><button type="button" onClick={() => createCampaign(result.id)} disabled={result.campaignLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50">{result.campaignLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI ile reklam kampanyası oluştur</button>{result.whatsapp && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp mesajı</p><button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.whatsapp}</p></div>}{result.instagram && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200"><Share2 className="h-3.5 w-3.5" /> Instagram açıklaması</p><button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.instagram}</p><button type="button" onClick={() => shareOnInstagram(result)} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"><Share2 className="h-3.5 w-3.5" /> Instagram için hazırla</button></div>}</div></article>)}</div></div>}
+      {results.length > 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold text-white">Oluşturulan posterler</h2><p className="mt-1 text-sm text-slate-400">Her postere özel, ayrı kampanya metinleri üretebilirsiniz.</p></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> {results.length} hazır</span></div><div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{results.map((result) => <article key={result.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"><div className="relative"><img src={result.previewUrl} alt={result.name} className="w-full object-cover" style={{ aspectRatio: result.brief.format === 'story' ? '9 / 16' : '4 / 5' }} />{result.brief.mode === 'creative' ? <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">TEMSİLİ AI GÖRSELİ</span> : <span className="absolute left-3 top-3 rounded-full border border-sky-200/20 bg-slate-950/90 px-2 py-1 text-[10px] font-bold text-sky-100">GERÇEK FOTOĞRAFLAR</span>}</div><div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="text-sm font-bold text-white">{result.name}</h3><a href={result.previewUrl} download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200" aria-label="Posteri indir"><Download className="h-4 w-4" /></a></div><button type="button" onClick={() => createCampaign(result.id)} disabled={result.campaignLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50">{result.campaignLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI ile reklam kampanyası oluştur</button>{result.whatsapp && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp mesajı</p><button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.whatsapp}</p></div>}{result.instagram && <div className="rounded-lg border border-slate-800 bg-slate-900 p-3"><div className="flex items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200"><Share2 className="h-3.5 w-3.5" /> Instagram açıklaması</p><button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"><Copy className="h-3 w-3" /> Kopyala</button></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">{result.instagram}</p><a href="https://www.instagram.com/create/select/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"><Share2 className="h-3.5 w-3.5" /> Instagram’da paylaşımı aç</a></div>}</div></article>)}</div></div>}
     </section>
   );
 }

@@ -12,7 +12,7 @@ describe('studio enhancement prompts', () => {
       'profesyonel, tam kare bir kamerayla'
     );
     expect(DEFAULT_STUDIO_ENHANCEMENT_PROMPT).toContain(
-      'baştan yeniden oluştur'
+      'yapısını değiştirme'
     );
   });
 

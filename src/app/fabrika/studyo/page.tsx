@@ -35,7 +35,6 @@ import {
   type StudioEnhancementPreset,
   type StudioEnhancementPresetId,
 } from '@/lib/studio-enhancement';
-import { prepareStudioImageUpload } from '@/lib/studio-client-image';
 import toast from 'react-hot-toast';
 
 type StudioScreen = 'upload' | 'results';
@@ -135,12 +134,6 @@ export default function StudioPage() {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
-  const generatedObjectUrlsRef = useRef<string[]>([]);
-
-  const releaseGeneratedObjectUrls = () => {
-    generatedObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    generatedObjectUrlsRef.current = [];
-  };
 
   const filePreviews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -150,10 +143,6 @@ export default function StudioPage() {
   useEffect(() => {
     return () => filePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
   }, [filePreviews]);
-
-  useEffect(() => {
-    return () => releaseGeneratedObjectUrls();
-  }, []);
 
   useEffect(() => {
     async function loadProperties() {
@@ -289,75 +278,36 @@ export default function StudioPage() {
 
     setIsProcessing(true);
     setErrorMessage('');
-    setProgress(5);
-    setStatus('Fotoğraflar Stable Image Ultra için hazırlanıyor…');
+    setProgress(12);
+    setStatus('Fotoğraflar güvenli olarak stüdyoya yükleniyor…');
 
     try {
-      releaseGeneratedObjectUrls();
-      const processedResults: StudioResult[] = [];
-      const processedBlobs: Array<{ name: string; blob: Blob }> = [];
+      const formData = new FormData();
+      files.forEach((file) => formData.append('photos', file));
+      const uploadResponse = await fetch('/api/fabrika/studio/upload', { method: 'POST', body: formData });
+      const uploadData = await uploadResponse.json();
+      if (!uploadResponse.ok) throw new Error(uploadData.error || 'Fotoğraflar yüklenemedi.');
 
-      for (const [index, file] of files.entries()) {
-        setProgress(Math.round(8 + (index / files.length) * 75));
-        setStatus(
-          `Stable Image Ultra ${index + 1}/${files.length}: görseli baştan yeniden oluşturuyor…`
-        );
-        const preparedFile = await prepareStudioImageUpload(file);
-        const formData = new FormData();
-        formData.append('photo', preparedFile);
-        formData.append('prompt', safeInstruction);
-
-        const processResponse = await fetch('/api/fabrika/studio/process', {
-          method: 'POST',
-          body: formData,
-        });
-        if (!processResponse.ok) {
-          const errorData = await processResponse.json().catch(() => null);
-          throw new Error(
-            errorData?.error ||
-              `Görsel ${index + 1} Stable Image Ultra ile üretilemedi.`
-          );
-        }
-        const resultMimeType = processResponse.headers.get('content-type') || '';
-        if (!resultMimeType.startsWith('image/')) {
-          throw new Error('Stable Image Ultra geçerli bir görsel döndürmedi.');
-        }
-
-        const blob = await processResponse.blob();
-        const encodedName = processResponse.headers.get('x-studio-filename');
-        let name = `${file.name.replace(/\.[^/.]+$/, '')}_AI_yeniden_olusturuldu.jpg`;
-        if (encodedName) {
-          try {
-            name = decodeURIComponent(encodedName);
-          } catch {
-            // The safe local filename remains available.
-          }
-        }
-        const objectUrl = URL.createObjectURL(blob);
-        generatedObjectUrlsRef.current.push(objectUrl);
-        processedResults.push({
-          name,
-          previewUrl: objectUrl,
-          downloadUrl: objectUrl,
-        });
-        processedBlobs.push({ name, blob });
-      }
-
-      if (!processedResults.length) {
+      setProgress(38);
+      setStatus('Stable Image Ultra, özgün yapıyı koruyarak ışık, renk ve detayları iyileştiriyor…');
+      const processResponse = await fetch('/api/fabrika/studio/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shootId: uploadData.shootId,
+          prompt: safeInstruction,
+        }),
+      });
+      const processData = await processResponse.json();
+      if (!processResponse.ok) throw new Error(processData.error || 'Görseller işlenemedi.');
+      if (!processData.results?.length) {
         throw new Error('Stable Image Ultra geçerli bir görsel döndürmedi. Lütfen yeniden deneyin.');
       }
 
-      setProgress(88);
-      setStatus('İndirilebilir görseller ve ZIP dosyası hazırlanıyor…');
-      const JSZip = (await import('jszip')).default;
-      const zip = new JSZip();
-      processedBlobs.forEach(({ name, blob }) => zip.file(name, blob));
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const nextZipUrl = URL.createObjectURL(zipBlob);
-      generatedObjectUrlsRef.current.push(nextZipUrl);
-
-      setResults(processedResults);
-      setZipUrl(nextZipUrl);
+      setProgress(100);
+      setStatus('İndirilebilir görseller hazırlanıyor…');
+      setResults(processData.results ?? []);
+      setZipUrl(processData.zipUrl ?? '');
       setActiveResult(0);
       setScreen('results');
       if (selectedPropertyId) {
@@ -367,17 +317,15 @@ export default function StudioPage() {
           body: JSON.stringify({
             action: 'record-studio-output',
             propertyId: selectedPropertyId,
-            resultCount: processedResults.length,
+            resultCount: processData.processedCount,
           }),
         });
         if (!linkResponse.ok) {
           toast.error('Görseller hazırlandı ancak portföy aktivitesine eklenemedi.');
         }
       }
-      setProgress(100);
-      toast.success(`${processedResults.length} fotoğraf Stable Image Ultra ile yeniden oluşturuldu.`);
+      toast.success(`${processData.processedCount} fotoğrafınız iyileştirildi.`);
     } catch (error) {
-      releaseGeneratedObjectUrls();
       const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
       setErrorMessage(message);
       setProgress(0);
@@ -389,7 +337,6 @@ export default function StudioPage() {
   };
 
   const resetStudio = () => {
-    releaseGeneratedObjectUrls();
     setScreen('upload');
     setFiles([]);
     setResults([]);
@@ -547,7 +494,7 @@ export default function StudioPage() {
                   className="mt-4 min-h-44 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/15"
                 />
                 <p className="mt-2 text-xs leading-5 text-slate-500">
-                  Kaynak görsel referans olarak kullanılır; Stable Image Ultra yüksek dönüşüm gücüyle sahneyi yeni piksellerle baştan oluşturur.
+                  Kaynak görsel image-to-image olarak işlenir. Düşük dönüşüm gücü, mimariyi ve mevcut nesneleri korumaya yardımcı olur.
                 </p>
               </div>
 
@@ -628,13 +575,13 @@ export default function StudioPage() {
             {activePhoto ? (
               <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/50 shadow-2xl shadow-black/30 lg:grid-cols-[1.15fr_0.85fr]">
                 <div className="relative min-h-[22rem] bg-black">
-                  <img src={activePhoto.previewUrl} alt={`${activePhoto.name} yeniden oluşturulmuş`} className="h-full max-h-[39rem] min-h-[22rem] w-full object-contain" />
-                  <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-300 px-3 py-1.5 text-xs font-extrabold text-emerald-950"><Sparkles className="h-3.5 w-3.5" /> AI yeniden oluşturdu</div>
+                  <img src={activePhoto.previewUrl} alt={`${activePhoto.name} iyileştirilmiş`} className="h-full max-h-[39rem] min-h-[22rem] w-full object-contain" />
+                  <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-300 px-3 py-1.5 text-xs font-extrabold text-emerald-950"><Sparkles className="h-3.5 w-3.5" /> AI iyileştirildi</div>
                 </div>
                 <div className="flex flex-col p-5 sm:p-7">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">Seçili görsel</p>
                   <h2 className="mt-2 break-all text-xl font-extrabold text-white">{activePhoto.name}</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">Stable Image Ultra kaynak fotoğrafı referans alıp sahneyi seçtiğiniz talimata göre yeni piksellerle yeniden üretti.</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-400">Stable Image Ultra; ışık, renk dengesi, netlik ve genel sunum kalitesini seçtiğiniz talimata göre yeniden işledi.</p>
                   {activeOriginal && <div className="mt-6 overflow-hidden rounded-xl border border-white/10"><img src={activeOriginal.url} alt="İşlem öncesi" className="aspect-[16/10] w-full object-cover" /><p className="border-t border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-300">İşlem öncesi</p></div>}
                   <a href={activePhoto.downloadUrl} download={activePhoto.name} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm font-extrabold text-emerald-200 transition hover:bg-emerald-300/20"><Download className="h-4 w-4" /> Bu görseli indir</a>
                 </div>
