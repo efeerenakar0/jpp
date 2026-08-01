@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
-  Activity,
   Aperture,
   Bell,
   Bot,
@@ -14,18 +14,16 @@ import {
   MessageCircle,
   Send,
   AlertTriangle,
-  Users,
-  Kanban,
-  CalendarDays,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import EmptyState from '@/components/fabrika/EmptyState';
-import DigitalManagerOperations from '@/components/fabrika/DigitalManagerOperations';
 import NotificationPanel from '@/components/fabrika/NotificationPanel';
 import PageHeader from '@/components/fabrika/PageHeader';
-import StatCard from '@/components/fabrika/StatCard';
 
 type Notification = {
   id: string;
@@ -34,6 +32,7 @@ type Notification = {
   type: string;
   createdAt: string;
   read: boolean;
+  link?: string | null;
 };
 
 type ChatMessage = {
@@ -119,6 +118,16 @@ const getNotificationStyles = (type: string) => {
   }
 };
 
+const notificationSource = (type: string) => {
+  if (type === 'APPOINTMENT_REQUEST') return 'Takvim';
+  if (type === 'NEW_CUSTOMER_MESSAGE') return 'Asistan';
+  if (type === 'GREEN_LISTING') return 'Portföyler';
+  if (type === 'WEBSITE_GENERATED') return 'Yazılımcı';
+  if (type === 'AD_COPY_READY') return 'Pazarlamacı';
+  if (type === 'STUDIO_READY') return 'Stüdyo';
+  return 'Sistem';
+};
+
 export default function CommandCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -128,6 +137,7 @@ export default function CommandCenter() {
   const [context, setContext] = useState<OperationalContext | null>(null);
   const [suggestions, setSuggestions] = useState<ManagerSuggestion[]>([]);
   const [provider, setProvider] = useState<ManagerProvider | null>(null);
+  const [whatsAppConnected, setWhatsAppConnected] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const lastMessageIdRef = useRef<string | null>(null);
   const stickToBottomRef = useRef(true);
@@ -153,6 +163,19 @@ export default function CommandCenter() {
         if (chatData.provider) {
           setProvider(chatData.provider);
         }
+      }
+      const whatsAppRes = await fetch('/api/fabrika/whatsapp/connection', {
+        cache: 'no-store',
+      });
+      if (whatsAppRes.ok) {
+        const whatsAppData = (await whatsAppRes.json()) as {
+          connectionStatus?: string;
+          platformEnabled?: boolean;
+        };
+        setWhatsAppConnected(
+          whatsAppData.platformEnabled !== false &&
+            ['CONNECTED', 'WORKING'].includes(whatsAppData.connectionStatus || '')
+        );
       }
       setChatLoading(false);
 
@@ -243,42 +266,18 @@ export default function CommandCenter() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
-        eyebrow="Operasyon görünümü"
+        eyebrow="Günlük çalışma alanı"
         title={`${context?.company.name || 'Jasmine Group'} Komuta Merkezi`}
-        description="Portföy, müşteri iletişimi, pazarlama ve üretim operasyonlarını tek bir çalışma alanından yönetin."
+        description="Önce müdahale gerektiren işleri görün; ardından şirket verileriniz hakkında Dijital Genel Müdür'e sorun."
         icon={Crown}
-        actions={
-          <>
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
-              <Bot className="h-3.5 w-3.5" />
-              {provider?.configured
-                ? `${provider.provider} · ${provider.model}`
-                : 'Doğrulanmış kural motoru'}
-            </span>
-            <span className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300">
-              Politika ve onay korumalı
-            </span>
-          </>
-        }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="CRM müşterisi" value={context?.metrics.crmContacts || 0} icon={Users} status="success" />
-        <StatCard label="Aktif portföy" value={context?.metrics.activeCrmProperties || 0} icon={Activity} />
-        <StatCard label="Açık satış fırsatı" value={context?.metrics.openDeals || 0} icon={Kanban} status="success" />
-        <StatCard label="Geciken görev" value={context?.metrics.overdueTasks || 0} icon={Clock} status="warning" />
-        <StatCard label="Yaklaşan randevu" value={context?.metrics.upcomingTasks || 0} icon={CalendarDays} status="success" />
-      </div>
-
-      <DigitalManagerOperations />
-
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-        <NotificationPanel
-          title="Kritik operasyon akışı"
-          description="Müdahale veya karar gerektiren olaylar"
-          count={notifications.length}
-        >
-          <div className="custom-scrollbar max-h-[32rem] space-y-2 overflow-y-auto">
+      <NotificationPanel
+        title="Kritik operasyon akışı"
+        description="Yalnızca karar veya müdahale gerektiren olaylar"
+        count={notifications.length}
+      >
+        <div className="custom-scrollbar max-h-[26rem] space-y-2 overflow-y-auto">
             {notifications.length === 0 ? (
               <EmptyState
                 icon={Bell}
@@ -288,32 +287,77 @@ export default function CommandCenter() {
             ) : (
               notifications.map((notification) => {
                 const { icon: Icon, color, bg } = getNotificationStyles(notification.type);
-                return (
+                const source = notificationSource(notification.type);
+                const article = (
                   <article
                     key={notification.id}
-                    className="flex gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3 transition-colors hover:border-slate-700"
+                    className="flex gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-4 transition-colors hover:border-slate-700"
                   >
                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${bg}`}>
                       <Icon className={`h-4 w-4 ${color}`} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <h3 className="text-xs font-semibold text-white">{notification.title}</h3>
-                        <time className="flex shrink-0 items-center gap-1 text-[10px] text-slate-500">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-semibold text-white">{notification.title}</h3>
+                          <span className="rounded-md border border-slate-700 px-2 py-0.5 text-xs text-slate-400">
+                            {source}
+                          </span>
+                        </div>
+                        <time className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
                           <Clock className="h-3 w-3" />
                           {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: tr })}
                         </time>
                       </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-400">{notification.message}</p>
+                      <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                        <p className="text-sm leading-6 text-slate-400">{notification.message}</p>
+                        {notification.link && (
+                          <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-emerald-300">
+                            Kaydı aç <ArrowRight className="h-4 w-4" />
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </article>
                 );
+                return notification.link ? (
+                  <Link href={notification.link} key={notification.id}>
+                    {article}
+                  </Link>
+                ) : article;
               })
             )}
-          </div>
-        </NotificationPanel>
+        </div>
+      </NotificationPanel>
 
-        <section
+      {context?.company.principalType === 'OWNER' ? (
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5" aria-labelledby="setup-checklist-title">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div><h2 id="setup-checklist-title" className="text-base font-semibold text-white">Başlangıç kontrol listesi</h2><p className="mt-1 text-sm text-slate-400">Temel bağlantıları tamamladığınızda sistem tüm modüller arasında canlı çalışır.</p></div>
+            <span className="text-sm font-semibold text-emerald-300">{[
+              context.metrics.activeCrmProperties > 0,
+              context.metrics.crmContacts > 0,
+              context.calendar.google.connected,
+              whatsAppConnected,
+            ].filter(Boolean).length}/4 tamamlandı</span>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { done: context.metrics.activeCrmProperties > 0, label: 'İlk portföyü yayınla', href: '/fabrika/portfoyler' },
+              { done: context.metrics.crmContacts > 0, label: 'Müşteri kaydı oluştur', href: '/fabrika/crm' },
+              { done: context.calendar.google.connected, label: 'Google Takvim’i bağla', href: '/fabrika/takvim' },
+              { done: whatsAppConnected, label: 'WhatsApp’ı bağla', href: '/fabrika/whatsapp' },
+            ].map((item) => (
+              <Link key={item.label} href={item.href} className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 text-sm text-slate-200 transition hover:border-emerald-500/30">
+                {item.done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" /> : <Circle className="h-4 w-4 shrink-0 text-slate-600" />}
+                <span className={item.done ? 'text-slate-400 line-through' : ''}>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section
           aria-labelledby="general-manager-title"
           className="flex h-[42rem] max-h-[calc(100vh-6rem)] min-h-[34rem] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
         >
@@ -473,8 +517,7 @@ export default function CommandCenter() {
               Yanıtlar şirketinizin doğrulanmış kayıtlarıyla sınırlıdır; değişiklikler ilgili modülde insan onayı gerektirir.
             </p>
           </form>
-        </section>
-      </div>
+      </section>
     </div>
   );
 }

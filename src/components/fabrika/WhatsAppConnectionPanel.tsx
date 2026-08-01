@@ -11,15 +11,12 @@ import {
   Power,
   QrCode,
   RefreshCw,
-  Send,
-  ShieldCheck,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import PageHeader from '@/components/fabrika/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 type Status = {
   provider: 'WAHA';
@@ -30,6 +27,7 @@ type Status = {
   lastConnectedAt: string | null;
   lastHealthCheckAt: string | null;
   lastError: string | null;
+  platformEnabled: boolean;
   autoReplyEnabled: boolean;
   allowFirstContact: boolean;
   dailyMessageLimit: number;
@@ -51,6 +49,7 @@ const emptyStatus: Status = {
   lastConnectedAt: null,
   lastHealthCheckAt: null,
   lastError: null,
+  platformEnabled: true,
   autoReplyEnabled: true,
   allowFirstContact: false,
   dailyMessageLimit: 80,
@@ -170,30 +169,6 @@ export default function WhatsAppConnectionPanel() {
     }
   }
 
-  async function saveSettings(next: Partial<Status>) {
-    const updated = { ...status, ...next };
-    setStatus(updated);
-    try {
-      const response = await fetch('/api/fabrika/whatsapp/connection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'settings',
-          autoReplyEnabled: updated.autoReplyEnabled,
-          allowFirstContact: updated.allowFirstContact,
-          dailyMessageLimit: updated.dailyMessageLimit,
-        }),
-      });
-      const data = (await response.json()) as Status & { error?: string };
-      if (!response.ok) throw new Error(data.error || 'Ayar kaydedilemedi.');
-      setStatus((current) => ({ ...current, ...data }));
-      toast.success('WhatsApp güvenlik ayarları kaydedildi.');
-    } catch (error) {
-      await loadStatus().catch(() => null);
-      toast.error(error instanceof Error ? error.message : 'Ayar kaydedilemedi.');
-    }
-  }
-
   async function disconnect() {
     if (!window.confirm('Bu şirket telefonunun WhatsApp bağlantısı kapatılsın mı?')) {
       return;
@@ -248,7 +223,7 @@ export default function WhatsAppConnectionPanel() {
         }
       />
 
-      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <div>
         <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -264,7 +239,7 @@ export default function WhatsAppConnectionPanel() {
             {!connected && (
               <Button
                 className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-                disabled={working || loading}
+                disabled={working || loading || !status.platformEnabled}
                 onClick={prepare}
               >
                 {working ? (
@@ -276,6 +251,12 @@ export default function WhatsAppConnectionPanel() {
               </Button>
             )}
           </div>
+
+          {!status.platformEnabled ? (
+            <div className="mt-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+              WhatsApp otomasyonu platform yöneticisi tarafından geçici olarak durduruldu.
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="mt-5 h-56 animate-pulse rounded-xl bg-slate-800/70" />
@@ -359,93 +340,7 @@ export default function WhatsAppConnectionPanel() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-white">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            Güvenlik ve otomasyon
-          </h2>
-          <div className="mt-5 space-y-4">
-            <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-              <span>
-                <span className="block text-sm font-medium text-slate-100">AI otomatik yanıt</span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">Asistan yeni müşteri mesajlarına onaylı şirket verileriyle yanıt verir.</span>
-              </span>
-              <input
-                aria-label="AI otomatik yanıt"
-                checked={status.autoReplyEnabled}
-                className="mt-1 h-4 w-4 accent-emerald-500"
-                onChange={(event) => saveSettings({ autoReplyEnabled: event.target.checked })}
-                type="checkbox"
-              />
-            </label>
-            <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-              <span>
-                <span className="block text-sm font-medium text-slate-100">Avcı ilk temas gönderimi</span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">Daha önce yazmayan ilan sahiplerine mesaj izni. Düşük limit ve insan onayı önerilir.</span>
-              </span>
-              <input
-                aria-label="Avcı ilk temas gönderimi"
-                checked={status.allowFirstContact}
-                className="mt-1 h-4 w-4 accent-emerald-500"
-                onChange={(event) => saveSettings({ allowFirstContact: event.target.checked })}
-                type="checkbox"
-              />
-            </label>
-            <label className="block rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-              <span className="text-sm font-medium text-slate-100">Günlük güvenli gönderim limiti</span>
-              <Input
-                className="mt-3 border-slate-700 bg-slate-900 text-white"
-                max={500}
-                min={5}
-                onBlur={(event) =>
-                  saveSettings({
-                    dailyMessageLimit: Math.max(5, Math.min(500, Number(event.target.value) || 80)),
-                  })
-                }
-                onChange={(event) =>
-                  setStatus((current) => ({
-                    ...current,
-                    dailyMessageLimit: Number(event.target.value),
-                  }))
-                }
-                type="number"
-                value={status.dailyMessageLimit}
-              />
-            </label>
-          </div>
-        </section>
       </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          {
-            icon: Send,
-            label: 'Kuyrukta',
-            value: status.queue?.QUEUED || 0,
-            detail: 'Bağlantı gelince yeniden denenir',
-          },
-          {
-            icon: CheckCircle2,
-            label: 'Gönderildi',
-            value: (status.queue?.SENT || 0) + (status.queue?.DELIVERED || 0),
-            detail: 'Kayıtlı başarılı gönderim',
-          },
-          {
-            icon: AlertTriangle,
-            label: 'Başarısız',
-            value: status.queue?.FAILED || 0,
-            detail: 'Yeniden inceleme gereken',
-          },
-        ].map((item) => (
-          <div key={item.label} className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-            <item.icon className="h-4 w-4 text-emerald-400" />
-            <p className="mt-3 text-2xl font-semibold text-white">{item.value}</p>
-            <p className="mt-1 text-sm font-medium text-slate-300">{item.label}</p>
-            <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
-          </div>
-        ))}
-      </div>
-
     </div>
   );
 }

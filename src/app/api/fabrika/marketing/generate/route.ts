@@ -1,4 +1,4 @@
-import { CrmPropertyStatus, NotificationType } from '@prisma/client';
+import { AdPlatform, CrmPropertyStatus, NotificationType } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
@@ -12,6 +12,10 @@ import {
   deterministicCampaign,
   parseGeneratedCampaign,
 } from '@/lib/marketing-content';
+import {
+  marketingChannelGuidance,
+  normalizeMarketingChannels,
+} from '@/lib/marketing-channels';
 
 const requestSchema = z
   .object({
@@ -23,6 +27,7 @@ const requestSchema = z
     tone: z.enum(['professional', 'warm', 'premium']).default('professional'),
     posterTemplate: z.enum(['SIGNATURE', 'EDITORIAL', 'BOLD']).default('SIGNATURE'),
     targetUrl: z.string().url().max(1000).optional().or(z.literal('')),
+    channels: z.array(z.nativeEnum(AdPlatform)).max(12).optional(),
   })
   .superRefine((value, context) => {
     if (value.type === 'listing' && !value.propertyId && !value.listingId) {
@@ -45,6 +50,7 @@ export async function POST(request: Request) {
       );
     }
     const input = parsed.data;
+    const channels = normalizeMarketingChannels(input.channels);
     const propertyId = input.propertyId || input.listingId;
     const property =
       input.type === 'listing' && propertyId
@@ -70,13 +76,26 @@ export async function POST(request: Request) {
       audience: input.audience,
       tone: input.tone,
       targetUrl: input.targetUrl || null,
+      channels,
     });
+    const channelInstructions = channels
+      .map((channel) => `- ${channel}: ${marketingChannelGuidance(channel)}`)
+      .join('\n');
+    const copyTemplate = channels.map((channel) => ({
+      platform: channel,
+      headline: '...',
+      body: '...',
+      callToAction: '...',
+      targetUrl: input.targetUrl || '',
+    }));
     const prompt = `Sen deneyimli bir gayrimenkul pazarlama direktörüsün.
 Firma: ${principal.account.companyName}
 Kampanya türü: ${input.type}
 Amaç: ${input.objective}
 Hedef kitle: ${input.audience}
 Ton: ${input.tone}
+Seçilen kanallar ve kuralları:
+${channelInstructions}
 Portföy: ${JSON.stringify(property ? {
   title: property.title,
   referenceCode: property.referenceCode,
@@ -87,14 +106,11 @@ Portföy: ${JSON.stringify(property ? {
   description: property.description,
 } : null)}
 
-Doğrulanmamış özellik, indirim, getiri, teslim tarihi veya hukuki vaat uydurma.
-Google başlıklarını 30, açıklamalarını 90 karaktere yakın tut. WhatsApp mesajı izinli alıcılara uygun, kısa ve doğal olsun.
+Doğrulanmamış özellik, indirim, getiri, teslim tarihi veya hukuki vaat uydurma. Yalnızca seçilen kanallar için tam birer içerik üret.
+Google Ads içeriğinde headline alanını {"headline1":"...","headline2":"...","headline3":"..."}, body alanını {"description1":"...","description2":"..."} biçiminde JSON string olarak ver.
+Instagram içeriğinde body alanını {"caption":"...","hashtags":["#..."]} biçiminde JSON string olarak ver.
 Yalnızca şu JSON'u döndür:
-{"name":"...","description":"...","posterHeadline":"...","posterSubline":"...","posterCta":"...","adCopies":[
-{"platform":"GOOGLE_ADS","headline":"{\\"headline1\\":\\"...\\",\\"headline2\\":\\"...\\",\\"headline3\\":\\"...\\"}","body":"{\\"description1\\":\\"...\\",\\"description2\\":\\"...\\"}","callToAction":"...","targetUrl":"${input.targetUrl || ''}"},
-{"platform":"INSTAGRAM","headline":"...","body":"{\\"caption\\":\\"...\\",\\"hashtags\\":[\\"#...\\"]}","callToAction":"...","targetUrl":"${input.targetUrl || ''}"},
-{"platform":"WHATSAPP","headline":"...","body":"...","callToAction":"...","targetUrl":"${input.targetUrl || ''}"}
-]}`;
+{"name":"...","description":"...","posterHeadline":"...","posterSubline":"...","posterCta":"...","adCopies":${JSON.stringify(copyTemplate)}}`;
     const aiResult = await callCompanyMarketingAI(principal.account.id, [
       { role: 'system', content: 'Yanıtın yalnızca geçerli JSON olsun.' },
       { role: 'user', content: prompt },
@@ -146,7 +162,7 @@ Yalnızca şu JSON'u döndür:
       companyAccountId: principal.account.id,
       type: NotificationType.AD_COPY_READY,
       title: 'Kampanya seti hazır',
-      message: `${campaign.name} için üç kanal metni ve poster şablonu hazırlandı.`,
+      message: `${campaign.name} için ${channels.length} kanal metni ve poster şablonu hazırlandı.`,
       link: '/fabrika/pazarlamaci',
       important: false,
       dedupeKey: `ad-campaign-ready:${campaign.id}`,

@@ -326,8 +326,8 @@ export default function PropertyMediaLibrary({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[92vh] max-w-6xl overflow-hidden border-slate-700 bg-slate-950 p-0 text-slate-100">
-          <DialogHeader className="border-b border-slate-800 px-5 py-4 sm:px-6">
+        <DialogContent className="flex h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none border-slate-700 bg-slate-950 p-0 text-slate-100 sm:h-[min(90dvh,56rem)] sm:w-[min(94vw,72rem)] sm:rounded-xl">
+          <DialogHeader className="shrink-0 border-b border-slate-800 px-5 py-4 pr-14 sm:px-6">
             <DialogTitle className="flex items-center gap-2 text-white">
               <Images className="h-5 w-5 text-emerald-300" />
               {propertyTitle} · Medya kütüphanesi
@@ -338,7 +338,7 @@ export default function PropertyMediaLibrary({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="custom-scrollbar overflow-y-auto px-5 py-4 sm:px-6">
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <input
                 ref={inputRef}
@@ -524,7 +524,7 @@ export default function PropertyMediaLibrary({
             )}
           </div>
 
-          <DialogFooter className="flex-col gap-2 border-t border-slate-800 bg-slate-950 px-5 py-4 sm:flex-row sm:px-6">
+          <DialogFooter className="shrink-0 flex-col gap-2 border-t border-slate-800 bg-slate-950 px-5 py-4 sm:flex-row sm:px-6">
             <Button
               disabled={!selectedIds.length || busyAction === 'archive'}
               onClick={() => setPendingArchive(true)}

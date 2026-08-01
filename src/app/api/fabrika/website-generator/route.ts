@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { NotificationType } from '@prisma/client';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import { buildWebsiteIntegrationPrompt } from '@/lib/website-integration';
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
         email,
         address,
         templateId,
+        companyAccountId: principal.account.id,
+        promptTemplate: buildWebsiteIntegrationPrompt({
+          companyName,
+          apiBaseUrl: new URL(request.url).origin,
+        }),
         status: 'generating'
       }
     });

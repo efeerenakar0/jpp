@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Copy, Camera, MessageCircle, MonitorPlay, ExternalLink } from 'lucide-react';
+import { Check, Copy, Camera, MessageCircle, MonitorPlay, ExternalLink, Megaphone } from 'lucide-react';
+import type { AdPlatform } from '@prisma/client';
+import { marketingChannelLabel } from '@/lib/marketing-channels';
 
 interface AdCopyCardProps {
   id?: string;
-  platform: 'GOOGLE_ADS' | 'INSTAGRAM' | 'WHATSAPP';
+  platform: AdPlatform;
   headline: string;
   body: string;
   callToAction?: string | null;
@@ -31,7 +33,14 @@ export default function AdCopyCard({
     setTimeout(() => setCopiedSection(null), 2000);
   };
 
-  const platformConfig = {
+  const platformConfig: Partial<Record<AdPlatform, {
+    icon: typeof Megaphone;
+    color: string;
+    bg: string;
+    border: string;
+    title: string;
+    guide: string;
+  }>> = {
     GOOGLE_ADS: {
       icon: MonitorPlay,
       color: 'text-blue-400',
@@ -58,7 +67,14 @@ export default function AdCopyCard({
     }
   };
 
-  const config = platformConfig[platform];
+  const config = platformConfig[platform] || {
+    icon: Megaphone,
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/20',
+    title: marketingChannelLabel(platform),
+    guide: `${marketingChannelLabel(platform)} yayın ekranında başlık ve metin alanlarına yapıştırın.`,
+  };
   const Icon = config.icon;
 
   const renderGoogleAds = () => {
@@ -165,6 +181,38 @@ export default function AdCopyCard({
     );
   };
 
+  const renderGeneric = () => (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <span className="mb-1 block text-xs text-slate-500">Başlık</span>
+            <p className="text-sm font-medium text-slate-100">{headline}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleCopy(headline, 'generic-headline')}
+            aria-label="Başlığı kopyala"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            {copiedSection === 'generic-headline' ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+      <div className="relative rounded-lg border border-slate-800 bg-slate-950/70 p-3 pr-11">
+        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-300">{body}</p>
+        <button
+          type="button"
+          onClick={() => handleCopy(body, 'generic-body')}
+          aria-label="Metni kopyala"
+          className="absolute right-2 top-2 rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        >
+          {copiedSection === 'generic-body' ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className={`flex flex-col overflow-hidden rounded-xl border ${config.border} bg-slate-900`}>
       <div className={`flex items-center justify-between border-b border-slate-800 p-4 ${config.bg}`}>
@@ -190,6 +238,7 @@ export default function AdCopyCard({
         {platform === 'GOOGLE_ADS' && renderGoogleAds()}
         {platform === 'INSTAGRAM' && renderInstagram()}
         {platform === 'WHATSAPP' && renderWhatsApp()}
+        {!['GOOGLE_ADS', 'INSTAGRAM', 'WHATSAPP'].includes(platform) && renderGeneric()}
         
         {targetUrl && (
           <a

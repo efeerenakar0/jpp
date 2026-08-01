@@ -19,12 +19,6 @@ export const dynamic = 'force-dynamic';
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('prepare') }),
   z.object({ action: z.literal('refresh') }),
-  z.object({
-    action: z.literal('settings'),
-    autoReplyEnabled: z.boolean(),
-    allowFirstContact: z.boolean(),
-    dailyMessageLimit: z.number().int().min(5).max(500),
-  }),
 ]);
 
 function handleError(error: unknown) {
@@ -82,16 +76,9 @@ export async function POST(request: Request) {
         await refreshCompanyWhatsAppConnection(principal.account.id)
       );
     }
-    const config = await ensureCompanyWhatsAppConfig(principal.account.id);
-    const updated = await prisma.whatsAppConfig.update({
-      where: { id: config.id },
-      data: {
-        autoReplyEnabled: parsed.data.autoReplyEnabled,
-        allowFirstContact: parsed.data.allowFirstContact,
-        dailyMessageLimit: parsed.data.dailyMessageLimit,
-      },
-    });
-    return NextResponse.json(serializeCompanyWhatsAppStatus(updated));
+    return NextResponse.json(
+      await refreshCompanyWhatsAppConnection(principal.account.id)
+    );
   } catch (error) {
     return handleError(error);
   }

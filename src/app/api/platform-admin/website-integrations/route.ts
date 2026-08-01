@@ -43,6 +43,8 @@ function safeIntegration<
 >(integration: T) {
   const { apiKeyLookup: _lookup, sourceBlobPathname: _pathname, ...safe } =
     integration;
+  void _lookup;
+  void _pathname;
   return safe;
 }
 
@@ -50,20 +52,31 @@ export async function GET() {
   if (!(await requirePlatformAdmin())) return unauthorized();
 
   try {
-    const integrations = await prisma.websiteIntegration.findMany({
-      include: {
-        companyAccount: {
-          select: {
-            id: true,
-            companyName: true,
-            slug: true,
-            ownerName: true,
-            ownerEmail: true,
+    const [integrations, generatedSites] = await Promise.all([
+      prisma.websiteIntegration.findMany({
+        include: {
+          companyAccount: {
+            select: {
+              id: true,
+              companyName: true,
+              slug: true,
+              ownerName: true,
+              ownerEmail: true,
+            },
           },
         },
-      },
-      orderBy: [{ status: 'asc' }, { submittedAt: 'desc' }],
-    });
+        orderBy: [{ status: 'asc' }, { submittedAt: 'desc' }],
+      }),
+      prisma.generatedWebsite.findMany({
+        include: {
+          companyAccount: {
+            select: { id: true, companyName: true, slug: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -71,6 +84,7 @@ export async function GET() {
         ...safeIntegration(integration),
         downloadUrl: `/api/platform-admin/website-integrations/${integration.id}/download`,
       })),
+      generatedSites,
     });
   } catch (error) {
     console.error('[Platform website integrations GET error]', error);

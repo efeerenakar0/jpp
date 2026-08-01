@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Aperture,
   AlertCircle,
@@ -13,8 +13,8 @@ import {
   ImagePlus,
   KeyRound,
   Loader2,
+  MoveHorizontal,
   RefreshCw,
-  ShieldCheck,
   Sparkles,
   UploadCloud,
   X,
@@ -80,6 +80,16 @@ type StudioBatchItem = {
   attachedMediaId: string | null;
 };
 
+type StudioBatchSummary = {
+  id: string;
+  status: 'PENDING' | 'UPLOADING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'PARTIAL' | 'ATTACHED';
+  createdAt: string;
+  expiresAt: string | null;
+  property: { id: string; title: string; location: string | null } | null;
+  items: Array<{ id: string; status: StudioBatchItem['status'] }>;
+  _count: { items: number };
+};
+
 type ProviderStatus = {
   provider: StudioProvider;
   configured: boolean;
@@ -132,14 +142,47 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
   },
 };
 
+function ImageComparison({ before, after, name }: { before: string; after: string; name: string }) {
+  const [position, setPosition] = useState(50);
+  return (
+    <div className="relative min-h-[24rem] overflow-hidden bg-black" aria-label="İşlem öncesi ve sonrası karşılaştırması">
+      {/* These URLs are tenant-owned Blob/object URLs and cannot use next/image. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={after} alt={`${name} işlem sonrası`} className="absolute inset-0 h-full w-full object-contain" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={before}
+        alt={`${name} işlem öncesi`}
+        className="absolute inset-0 h-full w-full object-contain"
+        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+      />
+      <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${position}%` }}>
+        <span className="absolute left-1/2 top-1/2 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/70 bg-slate-950 text-white shadow-lg">
+          <MoveHorizontal className="h-5 w-5" />
+        </span>
+      </div>
+      <span className="pointer-events-none absolute left-3 top-3 rounded-md bg-slate-950/80 px-2 py-1 text-xs font-semibold text-white">Önce</span>
+      <span className="pointer-events-none absolute right-3 top-3 rounded-md bg-emerald-500 px-2 py-1 text-xs font-semibold text-emerald-950">Sonra</span>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        value={position}
+        onChange={(event) => setPosition(Number(event.target.value))}
+        className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0"
+        aria-label="Karşılaştırma çizgisini hareket ettir"
+      />
+    </div>
+  );
+}
+
 export default function StudioPage() {
   const { permissions } = useFabrikaSession();
   const [studioArea, setStudioArea] = useState<'enhancer' | 'poster'>('enhancer');
+  const [enhancerSourceMode, setEnhancerSourceMode] = useState<'manual' | 'property'>('manual');
   const [screen, setScreen] = useState<StudioScreen>('upload');
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState<StudioResult[]>([]);
   const [isPreparingZip, setIsPreparingZip] = useState(false);
@@ -158,6 +201,7 @@ export default function StudioPage() {
   const [requestedMediaIds, setRequestedMediaIds] = useState<string[]>([]);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [batchItems, setBatchItems] = useState<StudioBatchItem[]>([]);
+  const [recentBatches, setRecentBatches] = useState<StudioBatchSummary[]>([]);
   const [selectedResultItemIds, setSelectedResultItemIds] = useState<string[]>([]);
   const [isAttaching, setIsAttaching] = useState(false);
   const [selectedPresetId, setSelectedPresetId] =
@@ -167,6 +211,29 @@ export default function StudioPage() {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
+
+  const loadRecentBatches = useCallback(async () => {
+    try {
+      const response = await fetch('/api/fabrika/studio/batches', {
+        cache: 'no-store',
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setRecentBatches((data.batches || []) as StudioBatchSummary[]);
+      }
+    } catch {
+      // A temporary refresh error must not interrupt the active Studio form.
+    }
+  }, []);
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void loadRecentBatches(), 0);
+    const interval = window.setInterval(loadRecentBatches, 10_000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+    };
+  }, [loadRecentBatches]);
 
   const filePreviews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -211,7 +278,10 @@ export default function StudioPage() {
         .map((id) => id.trim())
         .filter(Boolean);
       if (area === 'poster') setStudioArea('poster');
-      if (propertyId) setSelectedPropertyId(propertyId);
+      if (propertyId) {
+        setSelectedPropertyId(propertyId);
+        setEnhancerSourceMode('property');
+      }
       if (mediaIds.length) setRequestedMediaIds(mediaIds);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -370,6 +440,61 @@ export default function StudioPage() {
     }
   };
 
+  const applyBatchResult = useCallback((batch: { id: string; status: string; items: StudioBatchItem[] }) => {
+    const items = batch.items || [];
+    setBatchId(batch.id);
+    setBatchItems(items);
+    const completed = items
+      .filter(
+        (item) =>
+          item.outputUrl &&
+          item.outputFileName &&
+          (item.status === 'COMPLETED' || item.status === 'ATTACHED')
+      )
+      .map((item) => ({
+        itemId: item.id,
+        name: item.outputFileName!,
+        previewUrl: item.outputUrl!,
+        downloadUrl: item.outputUrl!,
+        sourceUrl: item.originalUrl,
+        attachedMediaId: item.attachedMediaId,
+      }));
+    if (completed.length) {
+      setResults(completed);
+      setSelectedResultItemIds(completed.map((item) => item.itemId));
+    }
+    return completed;
+  }, []);
+
+  const openBatch = useCallback(async (targetBatchId: string, openResults = true) => {
+    const response = await fetch(
+      `/api/fabrika/studio/batches/${encodeURIComponent(targetBatchId)}`,
+      { cache: 'no-store' }
+    );
+    const data = await response.json();
+    if (!response.ok || !data.success || !data.batch) {
+      throw new Error(data.error || 'Stüdyo çalışması yüklenemedi.');
+    }
+    const completed = applyBatchResult(data.batch);
+    if (openResults && completed.length) {
+      setActiveResult(0);
+      setScreen('results');
+    }
+    return data.batch as { id: string; status: string; items: StudioBatchItem[] };
+  }, [applyBatchResult]);
+
+  useEffect(() => {
+    if (!batchId || screen === 'results') return;
+    const poll = window.setInterval(() => {
+      void openBatch(batchId, false).then((batch) => {
+        if (['COMPLETED', 'PARTIAL', 'FAILED', 'ATTACHED'].includes(batch.status)) {
+          void loadRecentBatches();
+        }
+      }).catch(() => {});
+    }, 5_000);
+    return () => window.clearInterval(poll);
+  }, [batchId, loadRecentBatches, openBatch, screen]);
+
   const startProcessing = async () => {
     if (!files.length && !selectedSourceMediaIds.length) {
       toast.error('Bilgisayarınızdan veya portföyden en az bir fotoğraf seçin.');
@@ -389,8 +514,6 @@ export default function StudioPage() {
 
     setIsProcessing(true);
     setErrorMessage('');
-    setProgress(5);
-    setStatus('Görseller kalıcı Stüdyo işlemine yükleniyor…');
 
     try {
       const formData = new FormData();
@@ -411,114 +534,15 @@ export default function StudioPage() {
       setBatchId(nextBatchId);
       const batchItems = (created.batch.items || []) as StudioBatchItem[];
       setBatchItems(batchItems);
-      const failures: string[] = [];
-
-      for (const [index, item] of batchItems.entries()) {
-        setBatchItems((current) =>
-          current.map((candidate) =>
-            candidate.id === item.id
-              ? { ...candidate, status: 'PROCESSING', errorMessage: null }
-              : candidate
-          )
-        );
-        setProgress(Math.round(10 + (index / batchItems.length) * 85));
-        setStatus(
-          `Stable Image Ultra, ${index + 1}/${batchItems.length} fotoğrafı özgün yapıyı koruyarak iyileştiriyor…`
-        );
-        try {
-          const response = await fetch(
-            `/api/fabrika/studio/batches/${encodeURIComponent(nextBatchId)}/items/${encodeURIComponent(item.id)}/process`,
-            { method: 'POST' }
-          );
-          const data = await response.json();
-          if (!response.ok || !data.success) {
-            failures.push(data.error || `${item.originalFileName} işlenemedi.`);
-            setBatchItems((current) =>
-              current.map((candidate) =>
-                candidate.id === item.id
-                  ? {
-                      ...candidate,
-                      status: 'FAILED',
-                      errorMessage:
-                        data.error || `${item.originalFileName} işlenemedi.`,
-                    }
-                  : candidate
-              )
-            );
-          } else {
-            setBatchItems((current) =>
-              current.map((candidate) =>
-                candidate.id === item.id ? data.item : candidate
-              )
-            );
-          }
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : `${item.originalFileName} işlenemedi.`;
-          failures.push(message);
-          setBatchItems((current) =>
-            current.map((candidate) =>
-              candidate.id === item.id
-                ? { ...candidate, status: 'FAILED', errorMessage: message }
-                : candidate
-            )
-          );
-        }
-      }
-
-      const batchResponse = await fetch(
-        `/api/fabrika/studio/batches/${encodeURIComponent(nextBatchId)}`,
-        { cache: 'no-store' }
+      setFiles([]);
+      setSelectedSourceMediaIds([]);
+      await loadRecentBatches();
+      toast.success(
+        `${batchItems.length} görsel arka plan sırasına alındı. Son çalışmalar bölümünden takip edebilirsiniz.`
       );
-      const batchData = await batchResponse.json();
-      if (!batchResponse.ok || !batchData.success) {
-        throw new Error(batchData.error || 'Stüdyo sonuçları yüklenemedi.');
-      }
-      const refreshedItems = batchData.batch.items as StudioBatchItem[];
-      setBatchItems(refreshedItems);
-      const completed = refreshedItems
-        .filter(
-          (item) =>
-            item.outputUrl &&
-            item.outputFileName &&
-            (item.status === 'COMPLETED' || item.status === 'ATTACHED')
-        )
-        .map((item) => ({
-          itemId: item.id,
-          name: item.outputFileName!,
-          previewUrl: item.outputUrl!,
-          downloadUrl: item.outputUrl!,
-          sourceUrl: item.originalUrl,
-          attachedMediaId: item.attachedMediaId,
-        }));
-      if (!completed.length) {
-        throw new Error(
-          failures[0] ||
-            batchData.batch.errorSummary ||
-            'Hiçbir görsel iyileştirilemedi.'
-        );
-      }
-      setProgress(100);
-      setStatus('Kalıcı ve indirilebilir görseller hazır.');
-      setResults(completed);
-      setSelectedResultItemIds(completed.map((item) => item.itemId));
-      setActiveResult(0);
-      setScreen('results');
-      if (failures.length) {
-        setErrorMessage(
-          `${completed.length} görsel hazır, ${failures.length} görsel başarısız. Başarısız görselleri yeniden deneyebilirsiniz.`
-        );
-        toast.error(`${failures.length} görsel işlenemedi; başarılı sonuçlar korundu.`);
-      } else {
-        toast.success(`${completed.length} fotoğrafınız iyileştirildi.`);
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
       setErrorMessage(message);
-      setProgress(0);
-      setStatus('');
       toast.error(message);
     } finally {
       setIsProcessing(false);
@@ -569,16 +593,12 @@ export default function StudioPage() {
     setBatchItems([]);
     setSelectedResultItemIds([]);
     setActiveResult(0);
-    setProgress(0);
     setErrorMessage('');
     setSelectedPresetId('professional-camera');
     setEnhancementInstruction(DEFAULT_STUDIO_ENHANCEMENT_PROMPT);
   };
 
   const activePhoto = results[activeResult];
-  const activeOriginal = activePhoto
-    ? { url: activePhoto.sourceUrl }
-    : undefined;
 
   const attachSelectedResults = async (makeCover = false) => {
     if (!batchId || !selectedPropertyId || !selectedResultItemIds.length) return;
@@ -770,10 +790,38 @@ export default function StudioPage() {
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 sm:p-5">
+              <fieldset className="mb-4">
+                <legend className="mb-2 text-sm font-semibold text-white">Görsel kaynağı</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    aria-pressed={enhancerSourceMode === 'manual'}
+                    onClick={() => {
+                      setEnhancerSourceMode('manual');
+                      changeSelectedProperty('');
+                    }}
+                    className={`rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${enhancerSourceMode === 'manual' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-700 bg-slate-950'}`}
+                  >
+                    <span className="block text-sm font-semibold text-white">Manuel görsel yükle</span>
+                    <span className="mt-1 block text-xs text-slate-400">Bilgisayarınızdan fotoğraf seçin.</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={enhancerSourceMode === 'property'}
+                    onClick={() => setEnhancerSourceMode('property')}
+                    className={`rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${enhancerSourceMode === 'property' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-700 bg-slate-950'}`}
+                  >
+                    <span className="block text-sm font-semibold text-white">Portföyden seç</span>
+                    <span className="mt-1 block text-xs text-slate-400">Kayıtlı portföy fotoğraflarını kullanın.</span>
+                  </button>
+                </div>
+              </fieldset>
+
+              {enhancerSourceMode === 'property' && (
               <label className="mb-4 flex flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-950/50 p-3 sm:flex-row sm:items-center sm:justify-between" htmlFor="studio-property">
                 <span className="flex items-center gap-2 text-xs text-slate-300">
                   <Home className="h-4 w-4 text-emerald-400" />
-                  Bu görseller bir portföye mi ait?
+                  Portföy seçin
                 </span>
                 <select
                   id="studio-property"
@@ -783,7 +831,7 @@ export default function StudioPage() {
                   }
                   className="min-w-0 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
                 >
-                  <option value="">Portföysüz devam et</option>
+                  <option value="">Portföy seçin</option>
                   {workspaceProperties.map((property) => (
                     <option key={property.id} value={property.id}>
                       {property.title}{property.location ? ` · ${property.location}` : ''}
@@ -791,8 +839,9 @@ export default function StudioPage() {
                   ))}
                 </select>
               </label>
+              )}
 
-              {selectedPropertyId && (
+              {enhancerSourceMode === 'property' && selectedPropertyId && (
                 <section className="mb-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4">
                   {selectedWorkspaceProperty && (
                     <div className="mb-4 flex flex-col gap-2 rounded-lg border border-cyan-300/15 bg-slate-950/45 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1032,73 +1081,7 @@ export default function StudioPage() {
               </div>
             )}
 
-            {batchItems.length > 0 && screen === 'upload' && (
-              <section
-                aria-live="polite"
-                className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">
-                      Görsel işlem durumu
-                    </h3>
-                    <p className="mt-1 text-xs text-slate-400">{status}</p>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-200">
-                    %{progress}
-                  </span>
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-emerald-300 transition-[width]"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {batchItems.map((item) => {
-                    const label =
-                      item.status === 'COMPLETED' ||
-                      item.status === 'ATTACHED'
-                        ? 'Hazır'
-                        : item.status === 'FAILED'
-                          ? 'Başarısız'
-                          : item.status === 'PROCESSING'
-                            ? 'İşleniyor'
-                            : item.status === 'UPLOADING'
-                              ? 'Yükleniyor'
-                              : 'Bekliyor';
-                    return (
-                      <li
-                        key={item.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
-                      >
-                        <span className="truncate text-xs text-slate-300">
-                          {item.originalFileName}
-                        </span>
-                        <span
-                          className={`shrink-0 text-[10px] font-bold ${
-                            item.status === 'FAILED'
-                              ? 'text-rose-300'
-                              : item.status === 'COMPLETED' ||
-                                  item.status === 'ATTACHED'
-                                ? 'text-emerald-300'
-                                : 'text-amber-200'
-                          }`}
-                        >
-                          {item.status === 'PROCESSING' && (
-                            <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
-                          )}
-                          {label}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            )}
-
-            <div className="mt-7 flex flex-col items-center justify-between gap-4 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] p-4 sm:flex-row sm:px-5">
-              <div className="flex items-center gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /> Stability API anahtarı yalnızca sunucuda kullanılır ve hiçbir zaman tarayıcıya gönderilmez.</div>
+            <div className="mt-7 flex justify-end">
               <button type="button" onClick={startProcessing} disabled={(!files.length && !selectedSourceMediaIds.length) || isProcessing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 px-5 py-3.5 text-sm font-extrabold text-emerald-950 shadow-lg shadow-emerald-500/15 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto">
                 {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {files.length + selectedSourceMediaIds.length} görseli AI ile iyileştir <ArrowRight className="h-4 w-4" />
@@ -1238,31 +1221,12 @@ export default function StudioPage() {
             )}
 
             {activePhoto ? (
-              <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/50 shadow-2xl shadow-black/30 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="relative min-h-[22rem] bg-black">
-                  {/* The result is a short-lived generated Blob/remote URL. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={activePhoto.previewUrl} alt={`${activePhoto.name} iyileştirilmiş`} className="h-full max-h-[39rem] min-h-[22rem] w-full object-contain" />
-                  <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-300 px-3 py-1.5 text-xs font-extrabold text-emerald-950"><Sparkles className="h-3.5 w-3.5" /> AI iyileştirildi</div>
-                </div>
+              <div className="grid overflow-hidden rounded-xl border border-slate-800 bg-slate-950/50 lg:grid-cols-[1.35fr_0.65fr]">
+                <ImageComparison before={activePhoto.sourceUrl} after={activePhoto.previewUrl} name={activePhoto.name} />
                 <div className="flex flex-col p-5 sm:p-7">
-                  <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">Seçili görsel</p>
-                  <h2 className="mt-2 break-all text-xl font-extrabold text-white">{activePhoto.name}</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">Stable Image Ultra; ışık, renk dengesi, netlik ve genel sunum kalitesini seçtiğiniz talimata göre yeniden işledi.</p>
-                  {activeOriginal && (
-                    <div className="mt-6 overflow-hidden rounded-xl border border-white/10">
-                      {/* The original may be a local object URL or tenant Blob URL. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={activeOriginal.url}
-                        alt="İşlem öncesi"
-                        className="aspect-[16/10] w-full object-cover"
-                      />
-                      <p className="border-t border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-300">
-                        İşlem öncesi
-                      </p>
-                    </div>
-                  )}
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Karşılaştırma</p>
+                  <h2 className="mt-2 break-all text-lg font-semibold text-white">{activePhoto.name}</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-400">Ortadaki çizgiyi sürükleyerek orijinal ve iyileştirilmiş görseli aynı kadrajda karşılaştırın.</p>
                   {activePhoto.attachedMediaId && <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-bold text-emerald-200"><CheckCircle2 className="h-4 w-4" /> Portföye eklendi</div>}
                   <a href={activePhoto.downloadUrl} download={activePhoto.name} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm font-extrabold text-emerald-200 transition hover:bg-emerald-300/20"><Download className="h-4 w-4" /> Bu görseli indir</a>
                 </div>
@@ -1328,6 +1292,88 @@ export default function StudioPage() {
           </section>
         )}
       </main>
+
+      {studioArea === 'enhancer' && (
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Son çalışmalar</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                İşlemler arka planda devam eder. Kaynaklar ve sonuçlar 7 gün saklanır, ardından otomatik silinir.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadRecentBatches()}
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 text-sm font-medium text-slate-200 hover:bg-slate-800"
+            >
+              <RefreshCw className="h-4 w-4" /> Yenile
+            </button>
+          </div>
+          {recentBatches.length ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {recentBatches.map((batch) => {
+                const done = batch.items.filter((item) =>
+                  ['COMPLETED', 'ATTACHED', 'FAILED'].includes(item.status)
+                ).length;
+                const completed = batch.items.filter((item) =>
+                  ['COMPLETED', 'ATTACHED'].includes(item.status)
+                ).length;
+                const percent = batch.items.length
+                  ? Math.round((done / batch.items.length) * 100)
+                  : 0;
+                const terminal = ['COMPLETED', 'PARTIAL', 'FAILED', 'ATTACHED'].includes(batch.status);
+                return (
+                  <article key={batch.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">
+                          {batch.property?.title || 'Portföysüz görsel çalışması'}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {new Date(batch.createdAt).toLocaleString('tr-TR')} · {batch._count.items} görsel
+                        </p>
+                      </div>
+                      <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${
+                        batch.status === 'FAILED'
+                          ? 'bg-rose-500/10 text-rose-300'
+                          : terminal
+                            ? 'bg-emerald-500/10 text-emerald-300'
+                            : 'bg-amber-500/10 text-amber-200'
+                      }`}>
+                        {batch.status === 'FAILED' ? 'Başarısız' : terminal ? 'Hazır' : 'İşleniyor'}
+                      </span>
+                    </div>
+                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-full rounded-full bg-emerald-400 transition-[width]" style={{ width: `${percent}%` }} />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+                      <span>{completed} hazır · {done}/{batch.items.length} tamamlandı</span>
+                      <span>%{percent}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openBatch(batch.id, true).catch((error) =>
+                          toast.error(error instanceof Error ? error.message : 'Çalışma açılamadı.')
+                        )
+                      }
+                      className="mt-4 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!completed}
+                    >
+                      {completed ? 'Sonuçları aç' : 'Arka planda işleniyor'}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-4 rounded-lg border border-dashed border-slate-700 p-6 text-center text-sm text-slate-500">
+              Henüz bir görsel çalışması yok.
+            </p>
+          )}
+        </section>
+      )}
 
       {permissions.canManageSecrets && (
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -1419,7 +1465,6 @@ export default function StudioPage() {
       </Dialog>
       )}
 
-      {isProcessing && <div className="fixed inset-0 z-50 grid place-items-center bg-[#07120f]/80 px-4 backdrop-blur-sm"><div role="status" aria-live="polite" className="w-full max-w-md rounded-3xl border border-emerald-300/20 bg-slate-950 p-7 text-center shadow-2xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-300/15 text-emerald-300"><Loader2 className="h-8 w-8 animate-spin" /></div><h2 className="mt-5 text-xl font-extrabold text-white">Görselleriniz işleniyor</h2><p className="mt-2 text-sm leading-6 text-slate-400">{status}</p><div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-teal-400 transition-all duration-500" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs font-bold text-emerald-300">%{progress}</p></div></div>}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Monitor, Code, Download, Send, Loader2, Globe } from 'lucide-react';
+import { Monitor, Code, Download, Send, Loader2, Globe, PlugZap, Sparkles } from 'lucide-react';
 import PageHeader from '@/components/fabrika/PageHeader';
 import ExistingWebsiteIntegration from '@/components/fabrika/ExistingWebsiteIntegration';
 import toast, { Toaster } from 'react-hot-toast';
@@ -50,7 +50,7 @@ export default function YazilimciPage() {
         a.click();
         a.remove();
         
-        toast.success('Web siteniz başarıyla oluşturuldu ve indirildi!', { icon: '🎉' });
+        toast.success('Site paketi ve Codex entegrasyon promptu hazırlandı.');
     } catch (error) {
         toast.error('Bir hata oluştu.');
         console.error(error);
@@ -97,72 +97,68 @@ export default function YazilimciPage() {
         <PageHeader
           eyebrow="Web ve teknik operasyon"
           title="Yazılımcı & IT Entegratör"
-          description="Web sitesi şablonunuzu üretin ve yayın sürecinde yapay zeka destekli teknik yardım alın."
+          description="Yeni bir site projesi başlatın veya mevcut sitenizi Jasmine portföyleriyle güvenli ve çift yönlü eşitleyin."
           icon={Code}
           actions={
             <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
-              Web şablon oluşturucu
+              Website Connector v1
             </span>
           }
         />
 
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="space-y-5">
             
             {/* Left Pane: Onboarding & Site Generator */}
-            <div className="flex min-h-[640px] flex-col rounded-xl border border-slate-800 bg-slate-900 p-5 sm:p-6 lg:h-[700px]">
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-cyan-400" /> Web Sitesi Kurulumu
+            <div className="flex min-h-[520px] flex-col rounded-xl border border-slate-800 bg-slate-900 p-5 sm:p-8">
+                <h2 className="mb-2 flex items-center gap-3 text-2xl font-bold text-white">
+                    <Globe className="h-6 w-6 text-emerald-400" /> Yeni site projesi oluştur
                 </h2>
+                <p className="mb-7 max-w-3xl text-sm leading-6 text-slate-400">Şirketiniz için canlı portföylerle uyumlu yeni bir site paketi hazırlayın veya çalışan sitenizin kaynak kodunu güvenli bağlantı için gönderin.</p>
 
                 {hasWebsite === null ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center space-y-8">
-                        <div className="w-20 h-20 bg-slate-950 rounded-3xl flex items-center justify-center border border-slate-800 shadow-inner">
-                            <Monitor className="w-10 h-10 text-cyan-400" />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-black text-white mb-2">Mevcut bir web siteniz var mı?</h3>
-                            <p className="text-xs text-slate-400 max-w-sm mx-auto font-medium leading-relaxed">Jasmine Fabrikası verilerinizi kendi sitenize bağlayabilir veya size yepyeni bir site oluşturabiliriz.</p>
-                        </div>
-                        <div className="flex gap-4 w-full max-w-sm">
-                            <button onClick={() => setHasWebsite(true)} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-2xl transition-all border border-slate-700 cursor-pointer">
-                                Evet, Var
-                            </button>
-                            <button onClick={() => setHasWebsite(false)} className="flex-1 py-3.5 bg-gradient-to-r from-cyan-400 to-teal-500 hover:from-cyan-300 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-cyan-500/20 cursor-pointer active:scale-95">
-                                Hayır, Yok
-                            </button>
-                        </div>
+                    <div className="grid flex-1 gap-4 lg:grid-cols-2">
+                        <button onClick={() => setHasWebsite(false)} className="group flex min-h-64 flex-col items-start justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-7 text-left transition hover:border-emerald-400 hover:bg-emerald-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+                          <span className="rounded-xl bg-emerald-500/15 p-3 text-emerald-300"><Sparkles className="h-7 w-7" /></span>
+                          <span><strong className="block text-xl text-white">Sıfırdan yeni site hazırla</strong><span className="mt-2 block max-w-md text-sm leading-6 text-slate-400">Tema, şirket adı ve logoyla başlangıç paketini; Codex promptunu ve canlı portföy bağlantı planını birlikte oluşturur.</span></span>
+                          <span className="text-sm font-semibold text-emerald-300">Yeni projeyi başlat →</span>
+                        </button>
+                        <button onClick={() => setHasWebsite(true)} className="group flex min-h-64 flex-col items-start justify-between rounded-2xl border border-slate-700 bg-slate-950/50 p-7 text-left transition hover:border-slate-500 hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+                          <span className="rounded-xl bg-slate-800 p-3 text-slate-200"><PlugZap className="h-7 w-7" /></span>
+                          <span><strong className="block text-xl text-white">Mevcut siteyi bağla</strong><span className="mt-2 block max-w-md text-sm leading-6 text-slate-400">Kaynak kodu ve hosting bilgisinden şirkete özel, sürümlü ve imzalı Website Connector paketi üretir.</span></span>
+                          <span className="text-sm font-semibold text-slate-200">Bağlantı bilgilerini gir →</span>
+                        </button>
                     </div>
                 ) : hasWebsite === true ? (
                     <ExistingWebsiteIntegration onBack={() => setHasWebsite(null)} />
                 ) : (
-                    <div className="flex-1 flex flex-col h-full animate-in slide-in-from-right-8 duration-500">
-                        <p className="text-xs text-slate-400 mb-6 font-medium">Hemen size özel temel bir emlak sitesi şablonu oluşturalım. Bilgileri doldurun ve sitenizi indirin.</p>
+                    <div className="flex-1 animate-in slide-in-from-right-8 duration-300">
+                        <div className="mb-6 flex items-center gap-3"><Monitor className="h-6 w-6 text-emerald-300"/><div><h3 className="text-lg font-bold text-white">Yeni site bilgileri</h3><p className="text-sm text-slate-400">İndirilen ZIP içinde başlangıç sitesi, kurulum özeti ve Codex entegrasyon promptu bulunur.</p></div></div>
                         
-                        <form onSubmit={handleGenerateWebsite} className="space-y-5 flex-1">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 mb-2">Şirket Adı</label>
+                        <form onSubmit={handleGenerateWebsite} className="grid gap-5 md:grid-cols-2">
+                            <div className="md:col-span-2">
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Şirket adı</label>
                                 <input 
                                     type="text" 
                                     value={companyName} 
                                     onChange={(e) => setCompanyName(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-cyan-400 transition-all font-medium"
+                                    className="min-h-12 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 text-sm text-white outline-none transition focus:border-emerald-400"
                                     placeholder="Örn: Jasmine Emlak"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 mb-2">Logo URL (Opsiyonel)</label>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Logo adresi <span className="font-normal text-slate-500">(isteğe bağlı)</span></label>
                                 <input 
                                     type="url" 
                                     value={logoUrl} 
                                     onChange={(e) => setLogoUrl(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-cyan-400 transition-all font-medium"
+                                    className="min-h-12 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 text-sm text-white outline-none transition focus:border-emerald-400"
                                     placeholder="https://..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 mb-2">Tema Ana Rengi</label>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Tema ana rengi</label>
                                 <div className="flex items-center gap-4">
                                     <input 
                                         type="color" 
@@ -174,24 +170,24 @@ export default function YazilimciPage() {
                                 </div>
                             </div>
 
-                            <div className="pt-4">
+                            <div className="flex items-end">
                                 <button 
                                     type="submit" 
                                     disabled={isGenerating}
-                                    className="w-full py-4 bg-gradient-to-r from-cyan-400 to-teal-500 hover:from-cyan-300 hover:to-teal-400 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-cyan-500/20 text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                                    className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 text-sm font-bold text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
                                 >
                                     {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                    {isGenerating ? 'Şablon Derleniyor...' : 'Web Sitesini Oluştur ve İndir'}
+                                    {isGenerating ? 'Paket hazırlanıyor...' : 'Site paketini ve promptu oluştur'}
                                 </button>
                             </div>
                         </form>
-                        <button onClick={() => setHasWebsite(null)} className="text-slate-500 hover:text-slate-400 text-xs mt-4 underline text-center w-full cursor-pointer">Geri Dön</button>
+                        <button onClick={() => setHasWebsite(null)} className="mt-5 text-sm font-medium text-slate-400 underline hover:text-white">Kurulum türüne dön</button>
                     </div>
                 )}
             </div>
 
             {/* Right Pane: IT Support Chatbot */}
-            <div className="flex min-h-[640px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900 lg:h-[700px]">
+            <div className="flex h-[560px] min-h-[520px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
                 <div className="bg-slate-950 p-6 flex justify-between items-center border-b border-slate-800">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800">
@@ -199,7 +195,7 @@ export default function YazilimciPage() {
                         </div>
                         <div>
                             <h3 className="font-bold text-white text-sm">IT Destek Uzmanı</h3>
-                            <p className="text-[11px] text-cyan-400 flex items-center gap-1 font-bold">
+                            <p className="flex items-center gap-1 text-xs font-medium text-emerald-300">
                                 <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span> Çevrimiçi (Gemini AI)
                             </p>
                         </div>
@@ -211,7 +207,7 @@ export default function YazilimciPage() {
                         <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed font-medium shadow-md ${
                                 msg.role === 'user' 
-                                ? 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 rounded-tr-none' 
+                                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-100 rounded-tr-none'
                                 : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none'
                             }`}>
                                 <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -237,12 +233,12 @@ export default function YazilimciPage() {
                             value={chatInput}
                             onChange={(e) => setChatInput(e.target.value)}
                             placeholder="Domain nasıl alırım, dosyaları nasıl yüklerim? Sorun..." 
-                            className="flex-1 bg-slate-900 text-white text-xs px-4 py-3.5 rounded-2xl outline-none focus:border-cyan-400 border border-slate-800 transition-all font-medium"
+                            className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3.5 text-sm text-white outline-none transition focus:border-emerald-400"
                         />
                         <button 
                             type="submit" 
                             disabled={!chatInput.trim() || isTyping} 
-                            className="px-5 bg-gradient-to-r from-cyan-400 to-teal-500 hover:from-cyan-300 hover:to-teal-400 text-slate-950 font-black rounded-2xl transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 flex items-center justify-center cursor-pointer active:scale-95"
+                            className="flex items-center justify-center rounded-xl bg-emerald-400 px-5 font-bold text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
                         >
                             <Send className="w-4 h-4" />
                         </button>

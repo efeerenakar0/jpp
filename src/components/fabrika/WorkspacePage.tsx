@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Activity,
   BadgeCheck,
@@ -11,10 +12,10 @@ import {
   CircleDollarSign,
   Copy,
   Clock3,
+  Combine,
   ContactRound,
   Edit3,
   ExternalLink,
-  Flame,
   Home,
   ImagePlus,
   Images,
@@ -25,7 +26,9 @@ import {
   MessageSquareText,
   Network,
   Plus,
-  RefreshCw,
+  EyeOff,
+  Megaphone,
+  Rocket,
   Search,
   Settings2,
   Share2,
@@ -107,6 +110,12 @@ type Member = {
   username: string | null;
   lastLoginAt: string | null;
   credentialsUpdatedAt: string | null;
+  monthlyPerformance: {
+    completedTasks: number;
+    openTasks: number;
+    wonDeals: number;
+    newProperties: number;
+  };
 };
 
 type Contact = {
@@ -130,6 +139,7 @@ type Contact = {
   consentStatus: 'UNKNOWN' | 'GRANTED' | 'REVOKED';
   nextActionAt: string | null;
   assignedMember: Pick<Member, 'id' | 'name'> | null;
+  duplicateContactIds: string[];
   updatedAt: string;
 };
 
@@ -347,6 +357,15 @@ const contactTypeLabels: Record<Contact['type'], string> = {
   OTHER: 'Diğer',
 };
 
+const propertyStatusLabels: Record<Property['status'], string> = {
+  DRAFT: 'Yayından kaldırıldı',
+  ACTIVE: 'Yayında',
+  RESERVED: 'Rezerve',
+  SOLD: 'Satıldı',
+  RENTED: 'Kiralandı',
+  ARCHIVED: 'Arşivlendi',
+};
+
 const memberRoleLabels: Record<Member['role'], string> = {
   OWNER: 'Patron',
   MANAGER: 'Yönetici',
@@ -360,25 +379,6 @@ const memberAvailabilityLabels: Record<Member['availability'], string> = {
   ON_LEAVE: 'İzinli',
   OFFLINE: 'Çevrimdışı',
 };
-
-function customerHeat(score: number) {
-  if (score >= 80) {
-    return {
-      label: 'Çok sıcak',
-      className: 'border-rose-500/25 bg-rose-500/10 text-rose-300',
-    };
-  }
-  if (score >= 60) {
-    return {
-      label: 'Sıcak',
-      className: 'border-amber-500/25 bg-amber-500/10 text-amber-300',
-    };
-  }
-  return {
-    label: 'Takipte',
-    className: 'border-sky-500/25 bg-sky-500/10 text-sky-300',
-  };
-}
 
 const fieldClass =
   'h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20';
@@ -491,6 +491,7 @@ export default function WorkspacePage({
   mode: WorkspaceMode;
   initialView?: WorkspaceInitialView;
 }) {
+  const searchParams = useSearchParams();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -498,7 +499,7 @@ export default function WorkspacePage({
   const [memberCredentials, setMemberCredentials] =
     useState<OneTimeMemberCredentials | null>(null);
   const [query, setQuery] = useState('');
-  const [crmFilter, setCrmFilter] = useState<'all' | 'hot' | 'follow-up'>('all');
+  const [crmFilter, setCrmFilter] = useState<'all' | 'follow-up'>('all');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [mediaProperty, setMediaProperty] = useState<Property | null>(null);
@@ -549,6 +550,24 @@ export default function WorkspacePage({
     };
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get('action') !== 'new') return;
+    const timer = window.setTimeout(() => {
+      if (mode === 'crm') setDialog('contact');
+      if (mode === 'portfoyler') setDialog('property');
+      if (mode === 'takvim') setDialog('task');
+      if (mode === 'sirket') setDialog('member');
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [mode, searchParams]);
+
+  useEffect(() => {
+    const contactId = searchParams.get('contactId');
+    if (mode !== 'crm' || !contactId) return;
+    const timer = window.setTimeout(() => setSelectedContactId(contactId), 0);
+    return () => window.clearTimeout(timer);
+  }, [mode, searchParams]);
+
   async function postAction(payload: Record<string, unknown>, successMessage: string) {
     setSaving(true);
     try {
@@ -577,6 +596,35 @@ export default function WorkspacePage({
     }
   }
 
+  async function setPropertyPublication(
+    property: Property,
+    status: 'DRAFT' | 'ACTIVE',
+    offerUndo = true
+  ) {
+    const previousStatus = property.status === 'ACTIVE' ? 'ACTIVE' : 'DRAFT';
+    const success = await postAction(
+      {
+        action: 'set-property-status',
+        id: property.id,
+        status,
+        idempotencyKey: crypto.randomUUID(),
+      },
+      status === 'ACTIVE'
+        ? 'Portföy yayına alındı.'
+        : 'Portföy yayından kaldırıldı.'
+    );
+    if (success && offerUndo) {
+      toast('İşlemi geri almak için 8 saniyeniz var.', {
+        duration: 8000,
+        action: {
+          label: 'Geri al',
+          onClick: () =>
+            void setPropertyPublication(property, previousStatus, false),
+        },
+      });
+    }
+  }
+
   const filteredContacts = useMemo(() => {
     if (!workspace) return [];
     const normalized = query.toLocaleLowerCase('tr-TR');
@@ -586,7 +634,6 @@ export default function WorkspacePage({
         .filter(Boolean)
         .some((value) => value!.toLocaleLowerCase('tr-TR').includes(normalized));
       if (!matchesQuery) return false;
-      if (crmFilter === 'hot') return contact.score >= 60;
       if (crmFilter === 'follow-up') {
         return (
           ['NEW', 'CONTACTED'].includes(contact.stage) ||
@@ -644,7 +691,6 @@ export default function WorkspacePage({
     );
   }
 
-  const hotContactCount = workspace.contacts.filter((contact) => contact.score >= 60).length;
   const followUpContactCount = workspace.contacts.filter(
     (contact) =>
       ['NEW', 'CONTACTED'].includes(contact.stage) ||
@@ -687,22 +733,6 @@ export default function WorkspacePage({
         icon={meta.icon}
         actions={
           <>
-            {mode === 'crm' && crmView === 'customers' && (
-              <Button
-                className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-                disabled={saving}
-                onClick={() =>
-                  postAction(
-                    { action: 'sync-modules' },
-                    'Asistan görüşmeleri CRM ile eşitlendi.'
-                  )
-                }
-                variant="outline"
-              >
-                <RefreshCw className={saving ? 'animate-spin' : ''} />
-                Asistan&apos;dan aktar
-              </Button>
-            )}
             {headerAction && actionLabel && (
               <Button
                 className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
@@ -717,9 +747,8 @@ export default function WorkspacePage({
       />
 
       {mode === 'crm' ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <StatCard label="Tüm müşteriler" value={workspace.metrics.contacts} icon={ContactRound} />
-          <StatCard label="Sıcak takip" value={hotContactCount} icon={Flame} status="warning" />
           <StatCard label="Takip bekliyor" value={followUpContactCount} icon={Clock3} status={followUpContactCount > 0 ? 'warning' : 'default'} />
           <StatCard label="Açık fırsat" value={workspace.metrics.openDeals} icon={Target} status="success" />
         </div>
@@ -830,7 +859,6 @@ export default function WorkspacePage({
             <div className="flex gap-2 overflow-x-auto border-b border-slate-800 bg-slate-950/40 px-4 py-3" aria-label="Müşteri filtreleri">
               {[
                 { value: 'all', label: 'Tümü' },
-                { value: 'hot', label: 'Sıcak takip' },
                 { value: 'follow-up', label: 'Takip bekleyen' },
               ].map((filter) => (
                 <button
@@ -840,7 +868,7 @@ export default function WorkspacePage({
                       : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:text-slate-200'
                   }`}
                   key={filter.value}
-                  onClick={() => setCrmFilter(filter.value as 'all' | 'hot' | 'follow-up')}
+                  onClick={() => setCrmFilter(filter.value as 'all' | 'follow-up')}
                   type="button"
                 >
                   {filter.label}
@@ -852,23 +880,21 @@ export default function WorkspacePage({
                 <EmptyState
                   icon={Users}
                   title="Henüz müşteri yok"
-                  description="İlk müşteriyi ekleyin veya Asistan görüşmelerini üstteki aktar düğmesinden CRM’e alın."
+                  description="İlk müşteriyi ekleyin. Yeni Asistan görüşmeleri CRM ile otomatik eşitlenir."
                 />
               </div>
             ) : (
               <div className="custom-scrollbar max-h-[760px] overflow-auto">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="bg-slate-950/60 text-[11px] uppercase tracking-wide text-slate-500">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-medium">Müşteri</th>
                       <th className="px-4 py-3 font-medium">Aşama</th>
-                      <th className="px-4 py-3 font-medium">Sıcaklık</th>
                       <th className="px-4 py-3 font-medium">Son hareket</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {filteredContacts.map((contact) => {
-                      const heat = customerHeat(contact.score);
                       return (
                         <tr
                           className={`cursor-pointer transition hover:bg-slate-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
@@ -900,22 +926,14 @@ export default function WorkspacePage({
                                 contact.email ||
                                 'İletişim bilgisi yok'}
                             </p>
-                            <p className="mt-1 text-[10px] text-slate-600">
+                            <p className="mt-1 text-xs text-slate-600">
                               {contactTypeLabels[contact.type]} ·{' '}
                               {contact.desiredLocation || 'Bölge yok'}
                             </p>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
+                            <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300">
                               {contactStageLabels[contact.stage]}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium ${heat.className}`}
-                            >
-                              <Flame className="h-3 w-3" />
-                              {heat.label} · {contact.score}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-400">
@@ -936,16 +954,9 @@ export default function WorkspacePage({
                 <div className="border-b border-slate-800 p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
-                          360° müşteri profili
-                        </p>
-                        <span
-                          className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${customerHeat(selectedContact.score).className}`}
-                        >
-                          {customerHeat(selectedContact.score).label}
-                        </span>
-                      </div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
+                        Müşteri ayrıntıları
+                      </p>
                       <h2 className="mt-2 text-2xl font-semibold text-white">
                         {selectedContact.name}
                       </h2>
@@ -956,6 +967,41 @@ export default function WorkspacePage({
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      {workspace.permissions.canManageTeam &&
+                      selectedContact.duplicateContactIds.length > 0 ? (
+                        <Button
+                          aria-label="Yinelenen müşteri kaydını birleştir"
+                          disabled={saving}
+                          onClick={() => {
+                            const duplicate = workspace.contacts.find(
+                              (contact) =>
+                                contact.id ===
+                                selectedContact.duplicateContactIds[0]
+                            );
+                            if (
+                              !duplicate ||
+                              !window.confirm(
+                                `${duplicate.name} kaydı ${selectedContact.name} kaydına birleştirilecek. İlişkili görev, portföy, görüşme ve fırsatlar korunacak. Devam edilsin mi?`
+                              )
+                            ) {
+                              return;
+                            }
+                            void postAction(
+                              {
+                                action: 'merge-contacts',
+                                primaryId: selectedContact.id,
+                                duplicateId: duplicate.id,
+                              },
+                              'Yinelenen müşteri kayıtları birleştirildi.'
+                            );
+                          }}
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Combine className="h-4 w-4" />
+                          Yineleneni birleştir
+                        </Button>
+                      ) : null}
                       <Button
                         aria-label="Müşteri profilini düzenle"
                         onClick={() => setDialog('contact-edit')}
@@ -1043,14 +1089,6 @@ export default function WorkspacePage({
                         [
                           'İstenen bölge',
                           selectedContact.desiredLocation || '—',
-                        ],
-                        ['Oda tercihi', selectedContact.desiredRoomCount || '—'],
-                        [
-                          'Bütçe',
-                          selectedContact.budgetMin ||
-                          selectedContact.budgetMax
-                            ? `${money(selectedContact.budgetMin)} – ${money(selectedContact.budgetMax)}`
-                            : '—',
                         ],
                         [
                           'Danışman',
@@ -1295,12 +1333,18 @@ export default function WorkspacePage({
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {workspace.properties.map((property) => (
+            {workspace.properties.map((property) => {
+              const published = property.status === 'ACTIVE';
+              const publicationCanChange = ['DRAFT', 'ACTIVE'].includes(
+                property.status
+              );
+              return (
               <article
                 className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
+                id={`property-${property.id}`}
                 key={property.id}
               >
-                <div className="flex h-36 items-center justify-center bg-slate-950">
+                <div className="flex h-44 items-center justify-center bg-slate-950">
                   {property.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -1312,36 +1356,62 @@ export default function WorkspacePage({
                     <Home className="h-9 w-9 text-slate-700" />
                   )}
                 </div>
-                <div className="p-4">
+                <div className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h2 className="font-semibold text-white">{property.title}</h2>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <h2 className="text-lg font-semibold leading-6 text-white">{property.title}</h2>
+                      <p className="mt-1 text-sm leading-5 text-slate-400">
                         {property.location || 'Konum yok'} · {property.roomCount || 'Oda bilgisi yok'}
                       </p>
                     </div>
-                    <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300">
-                      {property.status}
+                    <span
+                      className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                        published
+                          ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                          : 'border-slate-700 bg-slate-950 text-slate-400'
+                      }`}
+                    >
+                      {propertyStatusLabels[property.status]}
                     </span>
                   </div>
-                  <p className="mt-4 text-lg font-semibold text-slate-100">
+                  <p className="mt-4 text-xl font-semibold text-slate-100">
                     {money(property.price)}
                   </p>
-                  <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-                    {[
-                      ['Görüntü', property.listingViews],
-                      ['Talep', property.inquiryCount],
-                      ['Gösterim', property.showingCount],
-                      ['Teklif', property.offerCount],
-                    ].map(([label, value]) => (
-                      <div className="rounded-lg bg-slate-950 p-2" key={label}>
-                        <p className="text-sm font-semibold text-white">{value}</p>
-                        <p className="mt-0.5 text-[9px] text-slate-500">{label}</p>
-                      </div>
-                    ))}
+                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                    <Button
+                      className={
+                        published
+                          ? 'border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800'
+                          : 'bg-emerald-500 text-emerald-950 hover:bg-emerald-400'
+                      }
+                      disabled={saving || !publicationCanChange}
+                      onClick={() =>
+                        void setPropertyPublication(
+                          property,
+                          published ? 'DRAFT' : 'ACTIVE'
+                        )
+                      }
+                      type="button"
+                      variant={published ? 'outline' : 'default'}
+                    >
+                      {published ? (
+                        <EyeOff className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Rocket className="mr-2 h-4 w-4" />
+                      )}
+                      {published ? 'Yayından kaldır' : 'Yayına al'}
+                    </Button>
+                    <Button asChild className="border-slate-700 bg-slate-950 text-slate-200 hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200" variant="outline">
+                      <Link
+                        href={`/fabrika/pazarlamaci?propertyId=${encodeURIComponent(property.id)}`}
+                      >
+                        <Megaphone className="mr-2 h-4 w-4" />
+                        Pazarlamada kullan
+                      </Link>
+                    </Button>
                   </div>
                   <Button
-                    className="mt-4 w-full border-slate-700 bg-slate-950 text-slate-200 hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200"
+                    className="mt-2 w-full border-slate-700 bg-slate-950 text-slate-200 hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200"
                     onClick={() => setMediaProperty(property)}
                     type="button"
                     variant="outline"
@@ -1349,7 +1419,7 @@ export default function WorkspacePage({
                     <Images className="mr-2 h-4 w-4" />
                     Fotoğrafları yönet
                   </Button>
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs">
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-sm">
                     <span className="text-slate-500">
                       {property.ownerContact?.name || 'Mülk sahibi atanmadı'}
                     </span>
@@ -1363,7 +1433,8 @@ export default function WorkspacePage({
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )
       )}
@@ -1593,42 +1664,51 @@ export default function WorkspacePage({
       )}
 
       {mode === 'sirket' && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)]">
+        <div className="space-y-5">
           <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">Şirket hesabı</p>
-            <h2 className="mt-2 text-xl font-semibold text-white">{workspace.account.companyName}</h2>
-            <p className="mt-1 text-sm text-slate-400">{workspace.account.ownerName}</p>
-            {workspace.permissions.canViewSubscription ? (
-              <dl className="mt-6 space-y-3">
-                {[
-                  ['Abonelik', workspace.account.subscriptionStatus],
-                  ['Paket', workspace.account.subscriptionPlan],
-                  [
-                    'Bitiş tarihi',
-                    workspace.account.subscriptionEndsAt
-                      ? dateTime(workspace.account.subscriptionEndsAt)
-                      : 'Süresiz',
-                  ],
-                  ['Çalışma alanı', workspace.account.workspaceEnabled ? 'Aktif' : 'Beklemede'],
-                ].map(([label, value]) => (
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 text-sm" key={label}>
-                    <dt className="text-slate-500">{label}</dt>
-                    <dd className="font-medium text-slate-200">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <div className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
-                <p className="text-sm font-semibold text-emerald-200">
-                  Çalışan erişimi
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-400">
+                  Bu ay performansı
                 </p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Operasyon kayıtları ve ekip listesi görünür. Abonelik,
-                  entegrasyon anahtarları ve hesap yönetimi patrona özeldir.
-                </p>
+                <h2 className="mt-1 text-lg font-semibold text-white">
+                  Ekip iş sonuçları
+                </h2>
               </div>
-            )}
+              <p className="text-sm text-slate-500">
+                Tamamlanan görev, kazanılan satış ve yeni portföy kayıtlarından hesaplanır.
+              </p>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {workspace.members.map((member) => (
+                <article
+                  className="rounded-xl border border-slate-800 bg-slate-950/55 p-4"
+                  key={member.id}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate font-semibold text-white">{member.name}</p>
+                    <span className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400">
+                      {memberRoleLabels[member.role]}
+                    </span>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3">
+                    {[
+                      ['Tamamlanan', member.monthlyPerformance.completedTasks],
+                      ['Açık görev', member.monthlyPerformance.openTasks],
+                      ['Kazanılan satış', member.monthlyPerformance.wonDeals],
+                      ['Yeni portföy', member.monthlyPerformance.newProperties],
+                    ].map(([label, value]) => (
+                      <div className="rounded-lg bg-slate-900 p-3" key={label}>
+                        <dt className="text-xs text-slate-500">{label}</dt>
+                        <dd className="mt-1 text-xl font-semibold text-slate-100">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </article>
+              ))}
+            </div>
           </section>
+
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             <div className="flex items-start justify-between gap-3 border-b border-slate-800 p-4">
               <div>

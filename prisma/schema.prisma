@@ -302,7 +302,19 @@ enum OutreachApprovalStatus {
 enum AdPlatform {
   GOOGLE_ADS
   INSTAGRAM
+  FACEBOOK
+  YOUTUBE
+  TIKTOK
+  LINKEDIN
+  X
+  PINTEREST
   WHATSAPP
+  TELEGRAM
+  EMAIL
+  SMS
+  SAHIBINDEN
+  HEPSIEMLAK
+  EMLAKJET
 }
 
 enum CustomerIntent {
@@ -510,6 +522,13 @@ enum OperationEventType {
   HANDOFF_ACCEPTED
   MESSAGE_DELIVERY_FAILED
   CORRECTION_RECEIVED
+  PROPERTY_UPDATED
+  PROPERTY_PUBLISHED
+  PROPERTY_UNPUBLISHED
+  STUDIO_JOB_COMPLETED
+  WEBSITE_SYNC_FAILED
+  WHATSAPP_DISCONNECTED
+  CALENDAR_SYNC_FAILED
 }
 
 enum GeneralManagerActionType {
@@ -708,6 +727,7 @@ model CompanyAccount {
   contactPolicyDecisions      ContactPolicyDecision[]
   huntedOutreachApprovals     HuntedOutreachApproval[]
   websiteIntegrations         WebsiteIntegration[]
+  generatedWebsites           GeneratedWebsite[]
   propertyMedia               CrmPropertyMedia[]
   studioBatches               StudioBatch[]
 
@@ -1591,6 +1611,8 @@ model WebsiteTemplate {
 
 model GeneratedWebsite {
   id           String           @id @default(cuid())
+  companyAccountId String?
+  companyAccount CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   templateId   String?
   template     WebsiteTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   companyName  String
@@ -1601,9 +1623,12 @@ model GeneratedWebsite {
   email        String?
   address      String?
   zipFilePath  String? // Üretilen .zip dosya yolu
+  promptTemplate String         @db.Text
   status       String           @default("pending") // pending, generating, ready, error
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+
+  @@index([companyAccountId, createdAt])
 }
 
 model WebsiteIntegration {
@@ -1631,10 +1656,37 @@ model WebsiteIntegration {
   deliveredAt           DateTime?
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
+  requestNonces         WebsiteRequestNonce[]
+  rateLimitBuckets      WebsiteRateLimitBucket[]
 
   @@unique([companyAccountId, websiteOrigin])
   @@index([companyAccountId, status])
   @@index([status, createdAt])
+}
+
+model WebsiteRequestNonce {
+  id                   String             @id @default(cuid())
+  websiteIntegrationId String
+  websiteIntegration   WebsiteIntegration @relation(fields: [websiteIntegrationId], references: [id], onDelete: Cascade)
+  nonce                String
+  expiresAt            DateTime
+  createdAt            DateTime           @default(now())
+
+  @@unique([websiteIntegrationId, nonce])
+  @@index([expiresAt])
+}
+
+model WebsiteRateLimitBucket {
+  id                   String             @id @default(cuid())
+  websiteIntegrationId String
+  websiteIntegration   WebsiteIntegration @relation(fields: [websiteIntegrationId], references: [id], onDelete: Cascade)
+  bucketStart          DateTime
+  requestCount         Int                @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([websiteIntegrationId, bucketStart])
+  @@index([bucketStart])
 }
 
 // --- Modül 3: Pazarlamacı / Reklam Ekibi ---
@@ -1908,8 +1960,9 @@ model WhatsAppConfig {
   lastConnectedAt            DateTime?
   lastHealthCheckAt          DateTime?
   lastError                  String?         @db.Text
+  platformEnabled            Boolean         @default(true)
   autoReplyEnabled           Boolean         @default(true)
-  allowFirstContact          Boolean         @default(false)
+  allowFirstContact          Boolean         @default(true)
   dailyMessageLimit          Int             @default(80)
   createdAt                  DateTime        @default(now())
   updatedAt                  DateTime        @updatedAt

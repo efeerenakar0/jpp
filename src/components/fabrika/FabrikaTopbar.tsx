@@ -2,7 +2,10 @@
 
 import { Menu, Radio, Search } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import FabrikaCommandPalette from './FabrikaCommandPalette';
 import NotificationBell from './NotificationBell';
+import FabrikaJobIndicator from './FabrikaJobIndicator';
 
 const pageNames: Record<string, string> = {
   '/fabrika': 'Komuta Merkezi',
@@ -27,6 +30,18 @@ interface FabrikaTopbarProps {
 export default function FabrikaTopbar({ onOpenNavigation }: FabrikaTopbarProps) {
   const pathname = usePathname();
   const title = pageNames[pathname] ?? 'Fabrika';
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen((current) => !current);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <header className="relative z-40 flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-4 sm:px-6 lg:px-8">
@@ -46,11 +61,12 @@ export default function FabrikaTopbar({ onOpenNavigation }: FabrikaTopbarProps) 
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
+        <FabrikaJobIndicator />
         <button
           type="button"
+          onClick={() => setCommandOpen(true)}
           className="hidden h-9 items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 text-xs text-slate-400 transition hover:border-slate-700 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 md:flex"
           aria-label="Panelde ara"
-          title="Komut araması yakında"
         >
           <Search className="h-4 w-4" />
           <span>Panelde ara</span>
@@ -62,6 +78,7 @@ export default function FabrikaTopbar({ onOpenNavigation }: FabrikaTopbarProps) 
         </div>
         <NotificationBell />
       </div>
+      <FabrikaCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
     </header>
   );
 }

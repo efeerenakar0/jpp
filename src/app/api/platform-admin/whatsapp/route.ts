@@ -16,6 +16,11 @@ const actionSchema = z.discriminatedUnion('action', [
     action: z.literal('retry'),
     outboxId: z.string().min(1),
   }),
+  z.object({
+    action: z.literal('set-platform-enabled'),
+    companyAccountId: z.string().min(1),
+    enabled: z.boolean(),
+  }),
 ]);
 
 export async function GET() {
@@ -34,6 +39,7 @@ export async function GET() {
         lastConnectedAt: true,
         lastHealthCheckAt: true,
         lastError: true,
+        platformEnabled: true,
         companyAccount: {
           select: { companyName: true, slug: true, status: true },
         },
@@ -77,6 +83,7 @@ export async function GET() {
       lastConnectedAt: config.lastConnectedAt,
       lastHealthCheckAt: config.lastHealthCheckAt,
       lastError: config.lastError,
+      platformEnabled: config.platformEnabled,
       queued: config.companyAccountId
         ? queueMap.get(config.companyAccountId) || 0
         : 0,
@@ -98,6 +105,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         await refreshCompanyWhatsAppConnection(parsed.data.companyAccountId)
       );
+    }
+    if (parsed.data.action === 'set-platform-enabled') {
+      const updated = await prisma.whatsAppConfig.update({
+        where: { companyAccountId: parsed.data.companyAccountId },
+        data: { platformEnabled: parsed.data.enabled },
+      });
+      return NextResponse.json({
+        success: true,
+        platformEnabled: updated.platformEnabled,
+      });
     }
     const outbox = await prisma.whatsAppOutboxMessage.findUnique({
       where: { id: parsed.data.outboxId },

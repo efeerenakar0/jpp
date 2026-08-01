@@ -635,10 +635,10 @@ export default function DocumentWizard({
         <DialogHeader className="border-b border-slate-800 px-4 py-3 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <DialogTitle className="truncate text-base font-semibold text-white">
+              <DialogTitle className="truncate text-lg font-semibold text-white">
                 {title || template?.name || 'Belge hazırlanıyor'}
               </DialogTitle>
-              <DialogDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <DialogDescription className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
                 <span>{document?.documentNumber || 'Belge numarası hazırlanıyor'}</span>
                 {document ? (
                   <span className="rounded bg-slate-800 px-2 py-0.5">
@@ -709,8 +709,8 @@ export default function DocumentWizard({
                   mobilePane === 'form' ? 'flex' : 'hidden'
                 }`}
               >
-                <nav className="hidden w-52 shrink-0 overflow-y-auto border-r border-slate-800 p-3 xl:block">
-                  <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <nav className="hidden w-60 shrink-0 overflow-y-auto border-r border-slate-800 p-4 xl:block">
+                  <p className="px-2 pb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                     Belge adımları
                   </p>
                   <div className="space-y-1">
@@ -719,13 +719,13 @@ export default function DocumentWizard({
                         key={group.id}
                         type="button"
                         onClick={() => setActiveGroup(group.id)}
-                        className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition ${
+                        className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${
                           currentGroup?.id === group.id
                             ? 'bg-emerald-500/12 text-emerald-300'
                             : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
                         }`}
                       >
-                        <span className="flex h-6 w-6 items-center justify-center rounded-md border border-current/20 text-[10px]">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-md border border-current/20 text-xs">
                           {index + 1}
                         </span>
                         <span className="truncate">{group.title}</span>
@@ -750,7 +750,7 @@ export default function DocumentWizard({
 
                   <div className="mb-5 grid gap-3 sm:grid-cols-2">
                     <label className="block">
-                      <span className="mb-1.5 block text-xs font-medium text-slate-300">
+                      <span className="mb-1.5 block text-sm font-medium text-slate-300">
                         Belge adı
                       </span>
                       <input
@@ -766,7 +766,7 @@ export default function DocumentWizard({
                       />
                     </label>
                     <label className="block">
-                      <span className="mb-1.5 block text-xs font-medium text-slate-300">
+                      <span className="mb-1.5 block text-sm font-medium text-slate-300">
                         CRM kişisiyle doldur
                       </span>
                       <select
@@ -823,7 +823,7 @@ export default function DocumentWizard({
                                 : ''
                             }`}
                           >
-                            <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-300">
+                            <span className="mb-1.5 flex items-center gap-1 text-sm font-medium text-slate-300">
                               {field.label}
                               {field.required ? (
                                 <span className="text-rose-400" aria-label="zorunlu">
@@ -844,7 +844,7 @@ export default function DocumentWizard({
                               onChange={(next) => changeField(field, next)}
                             />
                             {field.helpText ? (
-                              <span className="mt-1 block text-[11px] leading-4 text-slate-500">
+                              <span className="mt-1 block text-xs leading-5 text-slate-500">
                                 {field.helpText}
                               </span>
                             ) : null}
@@ -862,7 +862,7 @@ export default function DocumentWizard({
                   <section className="mt-8 border-t border-slate-800 pt-5">
                     <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/7 p-3">
                       <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-                      <div className="text-xs leading-5 text-amber-100/80">
+                      <div className="text-sm leading-6 text-amber-100/80">
                         <p className="font-semibold text-amber-200">
                           {legalStatusLabel(template.legalStatus)}
                         </p>
@@ -874,7 +874,7 @@ export default function DocumentWizard({
                         ) : null}
                       </div>
                     </div>
-                    <details className="mt-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-400">
+                    <details className="mt-3 rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400">
                       <summary className="cursor-pointer font-medium text-slate-300">
                         Resmî kaynaklar ve inceleme tarihi
                       </summary>

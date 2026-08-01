@@ -1,4 +1,8 @@
 import { AdPlatform } from '@prisma/client';
+import {
+  DEFAULT_MARKETING_CHANNELS,
+  marketingChannelLabel,
+} from './marketing-channels';
 
 export type MarketingProperty = {
   id: string;
@@ -53,8 +57,10 @@ export function deterministicCampaign(input: {
   audience: string;
   tone: string;
   targetUrl?: string | null;
+  channels?: AdPlatform[];
 }): GeneratedMarketingCampaign {
   const { companyName, property, objective, audience, targetUrl } = input;
+  const channels = input.channels?.length ? input.channels : DEFAULT_MARKETING_CHANNELS;
   const title = property?.title || `${companyName} ile doğru gayrimenkul kararı`;
   const location = property?.location || 'Bölgenin seçkin gayrimenkulleri';
   const details = [
@@ -78,15 +84,13 @@ export function deterministicCampaign(input: {
     ? [title.slice(0, 30), `${location} Gayrimenkul`.slice(0, 30), 'Detayları Hemen İnceleyin']
     : [`${companyName} Gayrimenkul`.slice(0, 30), 'Doğru Portföyü Birlikte Bulun', 'Uzman Danışmanlık'];
 
-  return {
-    name: campaignName,
-    description: `${baseDescription} Amaç: ${objective}.`,
-    posterHeadline: property ? title : 'Doğru yatırım, doğru danışmanlık',
-    posterSubline: details || location,
-    posterCta: property ? 'DETAYLAR VE RANDEVU' : 'PORTFÖYLERİ KEŞFEDİN',
-    adCopies: [
-      {
-        platform: AdPlatform.GOOGLE_ADS,
+  const genericBody = property
+    ? `${title}\n${location}${details ? ` · ${details}` : ''}\n\n${baseDescription}\n\nGüncel bilgi ve randevu için iletişime geçin.`
+    : `${companyName}\n\n${baseDescription}\n\nGayrimenkul ihtiyacınızı paylaşmak için iletişime geçin.`;
+  const adCopies = channels.map((platform) => {
+    if (platform === AdPlatform.GOOGLE_ADS) {
+      return {
+        platform,
         headline: JSON.stringify({
           headline1: googleHeadlines[0],
           headline2: googleHeadlines[1],
@@ -98,9 +102,11 @@ export function deterministicCampaign(input: {
         }),
         callToAction: 'İncele',
         targetUrl: targetUrl || null,
-      },
-      {
-        platform: AdPlatform.INSTAGRAM,
+      };
+    }
+    if (platform === AdPlatform.INSTAGRAM) {
+      return {
+        platform,
         headline: title,
         body: JSON.stringify({
           caption: instagramCaption,
@@ -108,15 +114,42 @@ export function deterministicCampaign(input: {
         }),
         callToAction: 'Bilgi Al',
         targetUrl: targetUrl || null,
-      },
-      {
-        platform: AdPlatform.WHATSAPP,
+      };
+    }
+    if (platform === AdPlatform.WHATSAPP || platform === AdPlatform.SMS) {
+      return {
+        platform,
         headline: property ? `${title} hakkında bilgi` : `${companyName} portföy danışmanlığı`,
-        body: whatsappBody,
+        body: platform === AdPlatform.SMS ? whatsappBody.slice(0, 320) : whatsappBody,
         callToAction: 'Yanıtla',
         targetUrl: targetUrl || null,
-      },
-    ],
+      };
+    }
+    if (platform === AdPlatform.EMAIL) {
+      return {
+        platform,
+        headline: property ? `${title} | ${location}` : `${companyName} gayrimenkul danışmanlığı`,
+        body: `Merhaba,\n\n${genericBody}\n\nSaygılarımızla,\n${companyName}`,
+        callToAction: 'Detayları incele',
+        targetUrl: targetUrl || null,
+      };
+    }
+    return {
+      platform,
+      headline: `${title} · ${marketingChannelLabel(platform)}`.slice(0, 120),
+      body: genericBody,
+      callToAction: 'Detayları incele',
+      targetUrl: targetUrl || null,
+    };
+  });
+
+  return {
+    name: campaignName,
+    description: `${baseDescription} Amaç: ${objective}.`,
+    posterHeadline: property ? title : 'Doğru yatırım, doğru danışmanlık',
+    posterSubline: details || location,
+    posterCta: property ? 'DETAYLAR VE RANDEVU' : 'PORTFÖYLERİ KEŞFEDİN',
+    adCopies,
   };
 }
 

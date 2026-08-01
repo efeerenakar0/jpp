@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { AdPlatform } from '@prisma/client';
 import {
   Bot,
   CheckCircle2,
@@ -28,6 +29,10 @@ import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
 import PageHeader from '@/components/fabrika/PageHeader';
 import StatCard from '@/components/fabrika/StatCard';
 import type { InternationalMarketingPlan } from '@/lib/international-marketing';
+import {
+  DEFAULT_MARKETING_CHANNELS,
+  MARKETING_CHANNELS,
+} from '@/lib/marketing-channels';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -53,7 +58,7 @@ type Property = {
 
 type AdCopy = {
   id: string;
-  platform: 'GOOGLE_ADS' | 'INSTAGRAM' | 'WHATSAPP';
+  platform: AdPlatform;
   headline: string;
   body: string;
   callToAction: string | null;
@@ -138,8 +143,10 @@ export default function MarketingPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [campaignType, setCampaignType] = useState<'listing' | 'brand'>('listing');
   const [propertyId, setPropertyId] = useState('');
-  const [objective, setObjective] = useState('Nitelikli talep toplama');
   const [audience, setAudience] = useState('Bölgedeki alıcı ve yatırımcılar');
+  const [selectedChannels, setSelectedChannels] = useState<AdPlatform[]>(
+    DEFAULT_MARKETING_CHANNELS
+  );
   const [tone, setTone] = useState('professional');
   const [posterTemplate, setPosterTemplate] = useState('SIGNATURE');
   const [targetUrl, setTargetUrl] = useState('');
@@ -156,7 +163,14 @@ export default function MarketingPage() {
       setData(body);
       setModel(body.ai.model);
       setAiActive(body.ai.active || !body.ai.configured);
-      setPropertyId((current) => current || body.properties[0]?.id || '');
+      const requestedPropertyId = new URL(window.location.href).searchParams.get('propertyId');
+      setPropertyId((current) => {
+        if (requestedPropertyId && body.properties.some((property) => property.id === requestedPropertyId)) {
+          return requestedPropertyId;
+        }
+        if (current && body.properties.some((property) => property.id === current)) return current;
+        return body.properties[0]?.id || '';
+      });
       setExpanded((current) =>
         Object.keys(current).length || !body.campaigns[0]
           ? current
@@ -205,16 +219,16 @@ export default function MarketingPage() {
         body: JSON.stringify({
           type: campaignType,
           propertyId: campaignType === 'listing' ? propertyId : undefined,
-          objective,
           audience,
           tone,
           posterTemplate,
           targetUrl,
+          channels: selectedChannels,
         }),
       });
       const body = (await response.json()) as Campaign & { error?: string };
       if (!response.ok) throw new Error(body.error || 'Kampanya üretilemedi.');
-      toast.success('Kampanya, üç kanal metni ve poster şablonu hazır.');
+      toast.success(`Kampanya, ${selectedChannels.length} kanal metni ve poster şablonuyla hazır.`);
       await fetchData();
       setExpanded((current) => ({ ...current, [body.id]: true }));
     } catch (error) {
@@ -426,10 +440,6 @@ export default function MarketingPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="objective" className="mb-2 block text-xs font-semibold text-slate-400">Kampanya amacı</label>
-                    <Input id="objective" value={objective} onChange={(event) => setObjective(event.target.value)} className={inputClass} />
-                  </div>
-                  <div>
                     <label htmlFor="audience" className="mb-2 block text-xs font-semibold text-slate-400">Hedef kitle</label>
                     <Input id="audience" value={audience} onChange={(event) => setAudience(event.target.value)} className={inputClass} />
                   </div>
@@ -451,6 +461,42 @@ export default function MarketingPage() {
                   </div>
                 </div>
 
+                <fieldset>
+                  <legend className="text-sm font-semibold text-slate-200">Yayın kanalları</legend>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    İçerik hazırlanmasını istediğiniz kanalları tek tek seçin.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {MARKETING_CHANNELS.map((channel) => {
+                      const selected = selectedChannels.includes(channel.id);
+                      return (
+                        <button
+                          key={channel.id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() =>
+                            setSelectedChannels((current) =>
+                              selected
+                                ? current.filter((item) => item !== channel.id)
+                                : [...current, channel.id]
+                            )
+                          }
+                          className={`min-h-9 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                            selected
+                              ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
+                              : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                          }`}
+                        >
+                          {channel.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedChannels.length === 0 && (
+                    <p className="mt-2 text-xs font-medium text-amber-300">En az bir yayın kanalı seçin.</p>
+                  )}
+                </fieldset>
+
                 <div>
                   <label htmlFor="target-url" className="mb-2 block text-xs font-semibold text-slate-400">Hedef sayfa (isteğe bağlı)</label>
                   <Input id="target-url" type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="https://siteniz.com/portfoy/..." className={inputClass} />
@@ -459,12 +505,12 @@ export default function MarketingPage() {
 
               <aside className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-950 p-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">Tek üretimde hazır</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">Seçili kanallar</p>
                   <ul className="mt-4 space-y-3 text-sm text-slate-300">
-                    {['Google Ads başlık ve açıklamaları', 'Instagram metni ve etiketleri', 'İzinli WhatsApp grup mesajı', 'Kare ve hikâye posterleri'].map((item) => (
-                      <li key={item} className="flex gap-2">
+                    {MARKETING_CHANNELS.filter((channel) => selectedChannels.includes(channel.id)).map((channel) => (
+                      <li key={channel.id} className="flex gap-2">
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                        {item}
+                        {channel.label}
                       </li>
                     ))}
                   </ul>
@@ -472,7 +518,7 @@ export default function MarketingPage() {
                 <Button
                   type="button"
                   onClick={generateCampaign}
-                  disabled={generating || (campaignType === 'listing' && !propertyId)}
+                  disabled={generating || selectedChannels.length === 0 || (campaignType === 'listing' && !propertyId)}
                   className="mt-6 min-h-11 bg-emerald-500 font-semibold text-emerald-950 hover:bg-emerald-400"
                 >
                   {generating ? <Loader2 className="animate-spin" /> : <Plus />}

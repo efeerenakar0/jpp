@@ -19,6 +19,7 @@ type Account = {
   connectedProfileName: string | null;
   lastHealthCheckAt: string | null;
   lastError: string | null;
+  platformEnabled: boolean;
   queued: number;
 };
 
@@ -63,7 +64,7 @@ export default function PlatformWhatsAppOverview() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  async function action(payload: Record<string, string>, key: string) {
+  async function action(payload: Record<string, string | boolean>, key: string) {
     setWorking(key);
     setError('');
     try {
@@ -130,17 +131,27 @@ export default function PlatformWhatsAppOverview() {
                     {account.connectionStatus}
                   </span>
                 </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
                   <span>Kuyruk: {account.queued}</span>
-                  <button
-                    className="inline-flex items-center gap-1 text-emerald-300 hover:text-emerald-200 disabled:opacity-50"
-                    disabled={working === account.companyAccountId}
-                    onClick={() => action({ action: 'refresh', companyAccountId: account.companyAccountId }, account.companyAccountId)}
-                    type="button"
-                  >
-                    {working === account.companyAccountId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                    Sağlık kontrolü
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      className={account.platformEnabled ? 'font-medium text-rose-300 hover:text-rose-200' : 'font-medium text-emerald-300 hover:text-emerald-200'}
+                      disabled={working === `toggle-${account.companyAccountId}`}
+                      onClick={() => action({ action: 'set-platform-enabled', companyAccountId: account.companyAccountId, enabled: !account.platformEnabled }, `toggle-${account.companyAccountId}`)}
+                      type="button"
+                    >
+                      {account.platformEnabled ? 'Otomasyonu durdur' : 'Otomasyonu aç'}
+                    </button>
+                    <button
+                      className="inline-flex items-center gap-1 text-emerald-300 hover:text-emerald-200 disabled:opacity-50"
+                      disabled={working === account.companyAccountId}
+                      onClick={() => action({ action: 'refresh', companyAccountId: account.companyAccountId }, account.companyAccountId)}
+                      type="button"
+                    >
+                      {working === account.companyAccountId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      Sağlık kontrolü
+                    </button>
+                  </div>
                 </div>
                 {account.lastError && (
                   <p className="mt-3 line-clamp-2 rounded-lg bg-rose-500/10 p-2 text-xs text-rose-200">

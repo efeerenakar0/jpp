@@ -25,7 +25,7 @@ export default function FabrikaAppShell({
 
   return (
     <FabrikaSessionProvider value={session}>
-      <div className="flex h-dvh min-h-0 overflow-hidden bg-slate-950 text-slate-100">
+      <div className="fabrika-shell flex h-dvh min-h-0 overflow-hidden bg-slate-950 font-sans text-slate-100 [&_button]:font-sans [&_h1]:font-sans [&_h2]:font-sans [&_h3]:font-sans [&_h4]:font-sans [&_input]:font-sans [&_select]:font-sans [&_textarea]:font-sans">
         <a
           href="#fabrika-main"
           className="sr-only z-[100] rounded-md bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"

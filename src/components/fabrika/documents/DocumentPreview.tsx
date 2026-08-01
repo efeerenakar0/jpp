@@ -26,7 +26,7 @@ export default function DocumentPreview({
 
   return (
     <article
-      className="mx-auto min-h-[842px] w-full max-w-[595px] bg-white px-10 py-8 text-[11px] leading-[1.55] text-slate-800 shadow-2xl shadow-black/40 sm:px-12"
+      className="mx-auto min-h-[842px] w-full min-w-[595px] max-w-[720px] bg-white px-10 py-8 text-sm leading-6 text-slate-800 shadow-2xl shadow-black/40 sm:px-12"
       aria-label="Belge canlı önizlemesi"
     >
       <header className="mb-7 flex items-center justify-between border-b border-slate-200 pb-3">
@@ -45,22 +45,22 @@ export default function DocumentPreview({
           )}
           <span className="font-semibold text-emerald-800">{companyName}</span>
         </div>
-        <span className="text-[9px] text-slate-500">
+        <span className="text-xs text-slate-500">
           {rendered.documentNumber}
         </span>
       </header>
 
-      <h2 className="text-center text-xl font-bold tracking-tight text-slate-950">
+      <h2 className="text-center text-2xl font-bold tracking-tight text-slate-950">
         {rendered.title}
       </h2>
-      <p className="mb-6 mt-1 text-center text-[10px] text-slate-500">
+      <p className="mb-6 mt-1 text-center text-xs text-slate-500">
         {rendered.issueLine}
       </p>
 
       <div className="space-y-4">
         {rendered.sections.map((section) => (
           <section key={section.id} className="break-inside-avoid">
-            <h3 className="mb-2 border-l-[3px] border-emerald-600 bg-emerald-50 px-2 py-1.5 text-[12px] font-bold text-emerald-900">
+            <h3 className="mb-2 border-l-[3px] border-emerald-600 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
               {section.heading}
             </h3>
             <div className="space-y-1.5 text-justify">
@@ -73,11 +73,11 @@ export default function DocumentPreview({
       </div>
 
       {rendered.officialFormWarning ? (
-        <p className="mt-5 rounded border border-amber-300 bg-amber-50 p-2.5 text-[10px] text-amber-900">
+        <p className="mt-5 rounded border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
           {rendered.officialFormWarning}
         </p>
       ) : null}
-      <p className="mt-3 rounded border border-slate-200 bg-slate-50 p-2.5 text-[9px] italic text-slate-600">
+      <p className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 text-xs italic leading-5 text-slate-600">
         {rendered.legalNotice}
       </p>
 

@@ -78,6 +78,13 @@ const actionSchema = z.discriminatedUnion('action', [
     id: z.string().trim().min(1),
   }),
   z.object({
+    action: z.literal('merge-contacts'),
+    primaryId: z.string().trim().min(1),
+    duplicateId: z.string().trim().min(1),
+  }).refine((value) => value.primaryId !== value.duplicateId, {
+    message: 'Birleştirilecek kayıtlar farklı olmalıdır.',
+  }),
+  z.object({
     action: z.literal('create-property'),
     title: z.string().trim().min(3).max(180),
     referenceCode: optionalText,
@@ -90,6 +97,12 @@ const actionSchema = z.discriminatedUnion('action', [
     imageUrl: z.string().trim().url().optional().or(z.literal('')),
     ownerContactId: optionalId,
     assignedMemberId: optionalId,
+  }),
+  z.object({
+    action: z.literal('set-property-status'),
+    id: z.string().trim().min(1),
+    status: z.enum(['DRAFT', 'ACTIVE']),
+    idempotencyKey: z.string().trim().min(8).max(160),
   }),
   z.object({
     action: z.literal('create-deal'),
@@ -190,6 +203,11 @@ function forbidden(message = 'Bu işlem yalnızca şirket patronuna açıktır.'
 
 function asNullable(value: string | null | undefined) {
   return value?.trim() || null;
+}
+
+function normalizeWorkspacePhone(value: string | null | undefined) {
+  const digits = value?.replace(/\D/g, '') || '';
+  return digits.length >= 10 ? digits.slice(-10) : null;
 }
 
 function scoreMatch(
@@ -473,6 +491,44 @@ async function getWorkspace(
         (deal.estimatedValue || 0) * ((deal.commissionRate || 0) / 100),
       0
     );
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const membersWithPerformance = members.map((member) => {
+    const completedTasks = tasks.filter(
+      (task) =>
+        task.assignedMemberId === member.id &&
+        task.status === 'COMPLETED' &&
+        task.completedAt &&
+        task.completedAt >= monthStart
+    ).length;
+    const openTasks = tasks.filter(
+      (task) =>
+        task.assignedMemberId === member.id && task.status === 'OPEN'
+    ).length;
+    const wonDeals = deals.filter(
+      (deal) =>
+        deal.assignedMemberId === member.id &&
+        deal.stage === 'WON' &&
+        deal.closedAt &&
+        deal.closedAt >= monthStart
+    ).length;
+    const newProperties = properties.filter(
+      (property) =>
+        property.assignedMemberId === member.id &&
+        property.createdAt >= monthStart
+    ).length;
+
+    return {
+      ...member,
+      monthlyPerformance: {
+        completedTasks,
+        openTasks,
+        wonDeals,
+        newProperties,
+      },
+    };
+  });
   const scoreActivities = new Map<
     string,
     { reasons: string[]; source: 'AI' | 'RULES'; createdAt: Date }
@@ -491,6 +547,19 @@ async function getWorkspace(
         ...parsed,
         createdAt: activity.createdAt,
       });
+    }
+  }
+
+  const phoneContactIds = new Map<string, string[]>();
+  const emailContactIds = new Map<string, string[]>();
+  for (const contact of contacts) {
+    const phoneKey = contact.phoneNormalized || normalizeWorkspacePhone(contact.phone);
+    const emailKey = contact.email?.trim().toLocaleLowerCase('tr-TR') || null;
+    if (phoneKey) {
+      phoneContactIds.set(phoneKey, [...(phoneContactIds.get(phoneKey) || []), contact.id]);
+    }
+    if (emailKey) {
+      emailContactIds.set(emailKey, [...(emailContactIds.get(emailKey) || []), contact.id]);
     }
   }
 
@@ -515,11 +584,19 @@ async function getWorkspace(
       createdAt: account.createdAt,
     },
     permissions,
-    members,
+    members: membersWithPerformance,
     contacts: contacts.map((contact) => {
       const scoreActivity = scoreActivities.get(contact.id);
+      const phoneKey = contact.phoneNormalized || normalizeWorkspacePhone(contact.phone);
+      const emailKey = contact.email?.trim().toLocaleLowerCase('tr-TR') || null;
+      const duplicateContactIds = new Set<string>([
+        ...(phoneKey ? phoneContactIds.get(phoneKey) || [] : []),
+        ...(emailKey ? emailContactIds.get(emailKey) || [] : []),
+      ]);
+      duplicateContactIds.delete(contact.id);
       return {
         ...contact,
+        duplicateContactIds: [...duplicateContactIds],
         scoreReasons: scoreActivity?.reasons || [],
         scoreSource: scoreActivity?.source || null,
         scoreUpdatedAt: scoreActivity?.createdAt || null,
@@ -611,6 +688,7 @@ export async function POST(request: Request) {
           assignedMemberId,
           name: input.name,
           phone: asNullable(input.phone),
+          phoneNormalized: normalizeWorkspacePhone(input.phone),
           email: asNullable(input.email),
           type: input.type,
           stage: input.stage,
@@ -653,6 +731,7 @@ export async function POST(request: Request) {
           assignedMemberId,
           name: input.name,
           phone: asNullable(input.phone),
+          phoneNormalized: normalizeWorkspacePhone(input.phone),
           email: asNullable(input.email),
           type: input.type,
           stage: input.stage,
@@ -760,6 +839,113 @@ export async function POST(request: Request) {
       ]);
     }
 
+    if (input.action === 'merge-contacts') {
+      if (!principal.permissions.canManageTeam) {
+        return forbidden('Müşteri kayıtlarını yalnızca şirket patronu birleştirebilir.');
+      }
+      const primaryId = await ensureOwnedResource('contact', input.primaryId, account.id);
+      const duplicateId = await ensureOwnedResource('contact', input.duplicateId, account.id);
+
+      await prisma.$transaction(async (tx) => {
+        const [primary, duplicate] = await Promise.all([
+          tx.crmContact.findUniqueOrThrow({ where: { id: primaryId! } }),
+          tx.crmContact.findUniqueOrThrow({
+            where: { id: duplicateId! },
+            include: { matches: true },
+          }),
+        ]);
+
+        for (const match of duplicate.matches) {
+          const existing = await tx.crmMatch.findUnique({
+            where: {
+              companyAccountId_contactId_propertyId: {
+                companyAccountId: account.id,
+                contactId: primary.id,
+                propertyId: match.propertyId,
+              },
+            },
+          });
+          if (existing) {
+            await tx.crmMatch.update({
+              where: { id: existing.id },
+              data: {
+                score: Math.max(existing.score, match.score),
+                reasons: [...new Set([...existing.reasons, ...match.reasons])],
+              },
+            });
+            await tx.crmMatch.delete({ where: { id: match.id } });
+          } else {
+            await tx.crmMatch.update({
+              where: { id: match.id },
+              data: { contactId: primary.id },
+            });
+          }
+        }
+
+        await Promise.all([
+          tx.crmProperty.updateMany({ where: { ownerContactId: duplicate.id }, data: { ownerContactId: primary.id } }),
+          tx.crmDeal.updateMany({ where: { contactId: duplicate.id }, data: { contactId: primary.id } }),
+          tx.crmTask.updateMany({ where: { contactId: duplicate.id }, data: { contactId: primary.id } }),
+          tx.crmActivity.updateMany({ where: { contactId: duplicate.id }, data: { contactId: primary.id } }),
+        ]);
+
+        await tx.crmContact.delete({ where: { id: duplicate.id } });
+        await tx.crmContact.update({
+          where: { id: primary.id },
+          data: {
+            phone: primary.phone || duplicate.phone,
+            phoneNormalized:
+              primary.phoneNormalized ||
+              duplicate.phoneNormalized ||
+              normalizeWorkspacePhone(primary.phone || duplicate.phone),
+            email: primary.email || duplicate.email,
+            source: primary.source || duplicate.source,
+            desiredLocation: primary.desiredLocation || duplicate.desiredLocation,
+            desiredRoomCount: primary.desiredRoomCount || duplicate.desiredRoomCount,
+            budgetMin: primary.budgetMin ?? duplicate.budgetMin,
+            budgetMax: primary.budgetMax ?? duplicate.budgetMax,
+            notes: [primary.notes, duplicate.notes]
+              .filter(Boolean)
+              .join('\n\n--- Birleştirilen kayıt ---\n'),
+            tags: [...new Set([...primary.tags, ...duplicate.tags])],
+            score: Math.max(primary.score, duplicate.score),
+            assignedMemberId: primary.assignedMemberId || duplicate.assignedMemberId,
+            sourceConversationId:
+              primary.sourceConversationId || duplicate.sourceConversationId,
+          },
+        });
+        await tx.crmActivity.create({
+          data: {
+            companyAccountId: account.id,
+            contactId: primary.id,
+            actorMemberId: principal.member?.id || null,
+            type: 'CONTACT_MERGED',
+            title: 'Yinelenen müşteri kaydı birleştirildi',
+            description: `${duplicate.name} kaydı ${primary.name} kaydıyla birleştirildi.`,
+            metadata: JSON.stringify({ mergedContactId: duplicate.id }),
+          },
+        });
+        await tx.managerAuditLog.create({
+          data: {
+            companyAccountId: account.id,
+            actorType: principal.type,
+            actorId: principal.member?.id || account.id,
+            operation: 'CRM_CONTACT_MERGE',
+            entityType: 'CrmContact',
+            entityId: primary.id,
+            verifiedContext: {
+              primaryContactId: primary.id,
+              mergedContactId: duplicate.id,
+              movedRelations: ['properties', 'deals', 'tasks', 'matches', 'activities'],
+            },
+            policyDecision: 'OWNER_CONFIRMED',
+            result: 'COMPLETED',
+            completedAt: new Date(),
+          },
+        });
+      });
+    }
+
     if (input.action === 'create-property') {
       const ownerContactId = await ensureOwnedResource(
         'contact',
@@ -815,6 +1001,95 @@ export async function POST(request: Request) {
           title: 'Yeni portföy eklendi',
           description: property.title,
         },
+      });
+    }
+
+    if (input.action === 'set-property-status') {
+      const propertyId = await ensureOwnedResource(
+        'property',
+        input.id,
+        account.id
+      );
+      await prisma.$transaction(async (tx) => {
+        const existingEvent = await tx.operationEvent.findUnique({
+          where: {
+            companyAccountId_idempotencyKey: {
+              companyAccountId: account.id,
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+          select: { id: true },
+        });
+        if (existingEvent) return;
+
+        const previous = await tx.crmProperty.findFirst({
+          where: { id: propertyId!, companyAccountId: account.id },
+          select: { status: true, title: true },
+        });
+        if (!previous) throw new Error('Portföy bulunamadı.');
+
+        await tx.crmProperty.update({
+          where: { id: propertyId! },
+          data: { status: input.status },
+        });
+        const event = await tx.operationEvent.create({
+          data: {
+            companyAccountId: account.id,
+            eventType:
+              input.status === 'ACTIVE'
+                ? 'PROPERTY_PUBLISHED'
+                : 'PROPERTY_UNPUBLISHED',
+            entityType: 'CrmProperty',
+            entityId: propertyId,
+            propertyId,
+            actorType: principal.type,
+            actorId: principal.member?.id || account.id,
+            metadata: {
+              version: 1,
+              previousStatus: previous.status,
+              status: input.status,
+              target: 'FABRIKA_AND_WEBSITE_CONNECTOR',
+            },
+            idempotencyKey: input.idempotencyKey,
+          },
+        });
+        await tx.crmActivity.create({
+          data: {
+            companyAccountId: account.id,
+            propertyId,
+            actorMemberId: principal.member?.id || null,
+            type:
+              input.status === 'ACTIVE'
+                ? 'PROPERTY_PUBLISHED'
+                : 'PROPERTY_UNPUBLISHED',
+            title:
+              input.status === 'ACTIVE'
+                ? 'Portföy yayına alındı'
+                : 'Portföy yayından kaldırıldı',
+            description: previous.title,
+          },
+        });
+        await tx.managerAuditLog.create({
+          data: {
+            companyAccountId: account.id,
+            operationEventId: event.id,
+            actorType: principal.type,
+            actorId: principal.member?.id || account.id,
+            operation:
+              input.status === 'ACTIVE'
+                ? 'PROPERTY_PUBLISH'
+                : 'PROPERTY_UNPUBLISH',
+            entityType: 'CrmProperty',
+            entityId: propertyId,
+            verifiedContext: {
+              previousStatus: previous.status,
+              status: input.status,
+            },
+            policyDecision: 'USER_INITIATED_REVERSIBLE',
+            result: 'COMPLETED',
+            completedAt: new Date(),
+          },
+        });
       });
     }
 

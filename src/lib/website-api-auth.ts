@@ -1,12 +1,17 @@
 import 'server-only';
 
-import type { CompanyAccount, WebsiteIntegration } from '@prisma/client';
+import { timingSafeEqual } from 'node:crypto';
+import { Prisma, type CompanyAccount, type WebsiteIntegration } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import {
   apiKeyFromRequest,
+  createWebsiteRequestSignature,
   createWebsiteApiKeyLookup,
   normalizeWebsiteOrigin,
-  WebsiteApiRateLimiter,
+  WEBSITE_CONNECTOR_MAX_CLOCK_SKEW_MS,
+  WEBSITE_CONNECTOR_VERSION,
+  websiteRequestBodyHash,
+  websiteRequestCanonicalValue,
 } from '@/lib/website-integration';
 
 type WebsiteApiPrincipal = {
@@ -24,16 +29,103 @@ export class WebsiteApiAuthError extends Error {
   }
 }
 
-const globalForWebsiteApi = globalThis as unknown as {
-  websiteApiRateLimiter?: WebsiteApiRateLimiter;
-};
+const WEBSITE_RATE_LIMIT_PER_MINUTE = 120;
 
-const rateLimiter =
-  globalForWebsiteApi.websiteApiRateLimiter ||
-  new WebsiteApiRateLimiter(120, 60_000);
+function safeEqual(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return (
+    leftBuffer.length === rightBuffer.length &&
+    timingSafeEqual(leftBuffer, rightBuffer)
+  );
+}
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForWebsiteApi.websiteApiRateLimiter = rateLimiter;
+async function verifySignedRequest(
+  request: Request,
+  integration: WebsiteIntegration,
+  apiKey: string
+) {
+  const version = request.headers.get('x-jasmine-version')?.trim();
+  const timestamp = request.headers.get('x-jasmine-timestamp')?.trim() || '';
+  const nonce = request.headers.get('x-jasmine-nonce')?.trim() || '';
+  const signature = request.headers.get('x-jasmine-signature')?.trim() || '';
+
+  if (version !== WEBSITE_CONNECTOR_VERSION) {
+    throw new WebsiteApiAuthError(400, 'Website Connector sürümü geçersiz.');
+  }
+  if (!/^\d{10}$/.test(timestamp)) {
+    throw new WebsiteApiAuthError(400, 'İstek zaman damgası geçersiz.');
+  }
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(nonce)) {
+    throw new WebsiteApiAuthError(400, 'İstek kimliği geçersiz.');
+  }
+  if (!/^[A-Za-z0-9_-]{43}$/.test(signature)) {
+    throw new WebsiteApiAuthError(401, 'İstek imzası geçersiz.');
+  }
+
+  const timestampMs = Number(timestamp) * 1000;
+  const now = Date.now();
+  if (Math.abs(now - timestampMs) > WEBSITE_CONNECTOR_MAX_CLOCK_SKEW_MS) {
+    throw new WebsiteApiAuthError(401, 'İstek zaman aşımına uğramış.');
+  }
+
+  const url = new URL(request.url);
+  const bodyHash = websiteRequestBodyHash(await request.clone().arrayBuffer());
+  const canonicalValue = websiteRequestCanonicalValue({
+    method: request.method,
+    pathWithQuery: `${url.pathname}${url.search}`,
+    timestamp,
+    nonce,
+    bodyHash,
+  });
+  const expected = createWebsiteRequestSignature(apiKey, canonicalValue);
+  if (!safeEqual(signature, expected)) {
+    throw new WebsiteApiAuthError(401, 'İstek imzası doğrulanamadı.');
+  }
+
+  const expiresAt = new Date(timestampMs + WEBSITE_CONNECTOR_MAX_CLOCK_SKEW_MS);
+  try {
+    await prisma.websiteRequestNonce.create({
+      data: { websiteIntegrationId: integration.id, nonce, expiresAt },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new WebsiteApiAuthError(409, 'Bu istek daha önce işlendi.');
+    }
+    throw error;
+  }
+
+  const bucketStart = new Date(Math.floor(now / 60_000) * 60_000);
+  const bucket = await prisma.websiteRateLimitBucket.upsert({
+    where: {
+      websiteIntegrationId_bucketStart: {
+        websiteIntegrationId: integration.id,
+        bucketStart,
+      },
+    },
+    create: {
+      websiteIntegrationId: integration.id,
+      bucketStart,
+      requestCount: 1,
+    },
+    update: { requestCount: { increment: 1 } },
+    select: { requestCount: true },
+  });
+  if (bucket.requestCount > WEBSITE_RATE_LIMIT_PER_MINUTE) {
+    throw new WebsiteApiAuthError(429, 'Çok fazla istek gönderildi.');
+  }
+
+  if (Math.random() < 0.02) {
+    void Promise.all([
+      prisma.websiteRequestNonce.deleteMany({ where: { expiresAt: { lt: new Date(now) } } }),
+      prisma.websiteRateLimitBucket.deleteMany({
+        where: { bucketStart: { lt: new Date(now - 24 * 60 * 60 * 1000) } },
+      }),
+    ]).catch(() => undefined);
+  }
 }
 
 export async function requireWebsiteApiPrincipal(
@@ -72,11 +164,7 @@ export async function requireWebsiteApiPrincipal(
     throw new WebsiteApiAuthError(403, 'Bu kaynak için API erişimi kapalı.');
   }
 
-  const forwardedFor = request.headers.get('x-forwarded-for') || 'server';
-  const client = forwardedFor.split(',')[0]?.trim() || 'server';
-  if (!rateLimiter.check(`${integration.id}:${client}`)) {
-    throw new WebsiteApiAuthError(429, 'Çok fazla istek gönderildi.');
-  }
+  await verifySignedRequest(request, integration, apiKey);
 
   return { integration, account };
 }
@@ -157,7 +245,8 @@ export async function websiteApiPreflight(request: Request) {
     headers: {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-API-Key',
+      'Access-Control-Allow-Headers':
+        'Authorization, Content-Type, X-API-Key, X-Jasmine-Version, X-Jasmine-Timestamp, X-Jasmine-Nonce, X-Jasmine-Signature',
       'Access-Control-Max-Age': '3600',
       Vary: 'Origin',
     },

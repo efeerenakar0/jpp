@@ -122,7 +122,7 @@ function TemplateCard({
   onFavorite: () => void;
 }) {
   return (
-    <article className="group flex min-h-64 flex-col rounded-2xl border border-slate-800 bg-slate-900/65 p-5 transition hover:-translate-y-0.5 hover:border-emerald-500/35 hover:bg-slate-900">
+    <article className="group flex min-h-72 flex-col rounded-2xl border border-slate-800 bg-slate-900/65 p-6 transition hover:border-emerald-500/35 hover:bg-slate-900">
       <div className="flex items-start justify-between gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
           <FileText className="h-5 w-5" />
@@ -146,10 +146,10 @@ function TemplateCard({
         </button>
       </div>
       <div className="mt-4 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-400">
           {DOCUMENT_CATEGORY_LABELS[template.category]}
         </p>
-        <h3 className="mt-2 text-base font-semibold leading-6 text-white">
+        <h3 className="mt-2 text-lg font-semibold leading-7 text-white">
           {template.name}
         </h3>
         <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
@@ -157,7 +157,7 @@ function TemplateCard({
         </p>
       </div>
       <div className="mt-5 flex items-center justify-between border-t border-slate-800 pt-4">
-        <div className="text-[11px] text-slate-500">
+        <div className="text-xs text-slate-500">
           <span className="inline-flex items-center gap-1">
             <Clock3 className="h-3.5 w-3.5" />
             ~{template.estimatedMinutes} dk.
@@ -170,7 +170,7 @@ function TemplateCard({
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 transition hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          className="inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/10 hover:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
         >
           Hazırla
           <ChevronRight className="h-4 w-4" />
@@ -189,7 +189,7 @@ function DocumentList({
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/55">
-      <div className="hidden grid-cols-[minmax(250px,2fr)_minmax(160px,1fr)_130px_180px_48px] gap-4 border-b border-slate-800 bg-slate-950/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 md:grid">
+      <div className="hidden grid-cols-[minmax(250px,2fr)_minmax(160px,1fr)_130px_180px_48px] gap-4 border-b border-slate-800 bg-slate-950/40 px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 md:grid">
         <span>Belge</span>
         <span>Şablon</span>
         <span>Durum</span>
@@ -205,19 +205,19 @@ function DocumentList({
             className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-800/45 focus-visible:bg-slate-800/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 md:grid-cols-[minmax(250px,2fr)_minmax(160px,1fr)_130px_180px_48px] md:items-center md:gap-4 md:px-5"
           >
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-white">
+              <span className="block truncate text-base font-semibold text-white">
                 {document.title}
               </span>
               <span className="mt-1 block text-xs text-slate-500">
                 {document.documentNumber} · Sürüm {document.versionNumber}
               </span>
             </span>
-            <span className="truncate text-xs text-slate-400">
+            <span className="truncate text-sm text-slate-400">
               {document.template.name}
             </span>
             <span>
               <span
-                className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold ${
+                className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
                   statusClasses[document.status]
                 }`}
               >
@@ -226,7 +226,7 @@ function DocumentList({
                   : documentStatusLabel(document.status)}
               </span>
             </span>
-            <span className="text-xs text-slate-500">
+            <span className="text-sm text-slate-500">
               {formatDate(document.updatedAt)}
               <span className="mt-0.5 block">· {document.lastEditedByName}</span>
             </span>
@@ -617,40 +617,40 @@ export default function DocumentCenter() {
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="font-semibold text-white">Son belgeler</h2>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-1 text-sm text-slate-500">
                       Kaldığınız işe tek tıklamayla dönün.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setTab('drafts')}
-                    className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
+                    className="min-h-10 rounded-lg px-3 text-sm font-medium text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
                   >
                     Taslakları aç
                   </button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   {recentDocuments.map((document) => (
                     <button
                       key={document.publicId}
                       type="button"
                       onClick={() => openDocument(document)}
-                      className="rounded-xl border border-slate-800 bg-slate-900/45 p-3 text-left transition hover:border-emerald-500/30 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      className="min-h-32 rounded-xl border border-slate-800 bg-slate-900/45 p-4 text-left transition hover:border-emerald-500/30 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       <span className="flex items-center justify-between">
                         <FileText className="h-4 w-4 text-emerald-400" />
                         <span
-                          className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
+                          className={`rounded-full border px-2 py-0.5 text-xs ${
                             statusClasses[document.status]
                           }`}
                         >
                           {documentStatusLabel(document.status)}
                         </span>
                       </span>
-                      <span className="mt-3 block truncate text-xs font-semibold text-white">
+                      <span className="mt-3 block truncate text-sm font-semibold text-white">
                         {document.title}
                       </span>
-                      <span className="mt-1 block text-[10px] text-slate-500">
+                      <span className="mt-1 block text-xs text-slate-500">
                         {formatDate(document.updatedAt)}
                       </span>
                     </button>
@@ -662,10 +662,10 @@ export default function DocumentCenter() {
             <section>
               <div className="mb-3 flex items-end justify-between">
                 <div>
-                  <h2 className="font-semibold text-white">
+                  <h2 className="text-lg font-semibold text-white">
                     Profesyonel Türkçe belge şablonları
                   </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-1 text-sm text-slate-500">
                     {filteredTemplates.length} şablon gösteriliyor.
                   </p>
                 </div>

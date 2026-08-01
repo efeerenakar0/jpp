@@ -40,6 +40,8 @@ function safeIntegration<T extends { apiKeyLookup: string; sourceBlobPathname: s
 ) {
   const { apiKeyLookup: _lookup, sourceBlobPathname: _pathname, ...safe } =
     integration;
+  void _lookup;
+  void _pathname;
   return safe;
 }
 

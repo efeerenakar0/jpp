@@ -3,6 +3,7 @@ import {
   deterministicCampaign,
   parseGeneratedCampaign,
 } from './marketing-content';
+import { DEFAULT_MARKETING_CHANNELS } from './marketing-channels';
 
 const property = {
   id: 'property-1',
@@ -17,7 +18,7 @@ const property = {
 };
 
 describe('marketing content', () => {
-  it('produces a complete three-channel fallback without inventing unavailable data', () => {
+  it('produces the complete default-channel fallback without inventing unavailable data', () => {
     const campaign = deterministicCampaign({
       companyName: 'Jasmine Group',
       property,
@@ -27,11 +28,9 @@ describe('marketing content', () => {
       targetUrl: 'https://example.com/portfoy/1',
     });
 
-    expect(campaign.adCopies.map((copy) => copy.platform).sort()).toEqual([
-      'GOOGLE_ADS',
-      'INSTAGRAM',
-      'WHATSAPP',
-    ]);
+    expect(campaign.adCopies.map((copy) => copy.platform).sort()).toEqual(
+      [...DEFAULT_MARKETING_CHANNELS].sort()
+    );
     expect(campaign.posterHeadline).toContain('Deniz Manzaralı');
     expect(campaign.adCopies.every((copy) => copy.targetUrl?.includes('/portfoy/1'))).toBe(true);
   });
@@ -53,7 +52,7 @@ describe('marketing content', () => {
     );
 
     expect(generated.name).toBe('AI kampanyası');
-    expect(generated.adCopies).toHaveLength(3);
+    expect(generated.adCopies).toHaveLength(DEFAULT_MARKETING_CHANNELS.length);
     expect(generated.adCopies.find((copy) => copy.platform === 'INSTAGRAM')?.body).toBe('Yeni metin');
     expect(generated.adCopies.find((copy) => copy.platform === 'WHATSAPP')?.body).toBeTruthy();
   });

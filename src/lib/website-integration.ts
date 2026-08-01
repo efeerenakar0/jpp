@@ -1,11 +1,11 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 export {
   MAX_SITE_SOURCE_BYTES,
   MAX_SITE_SOURCE_FILES,
   safeWebsiteArchiveName,
   shouldIncludeWebsiteFile,
-} from '@/lib/website-source-files';
+} from './website-source-files';
 
 export const websiteIntegrationStatuses = [
   'PENDING',
@@ -134,6 +134,45 @@ export function apiKeyFromRequest(request: Request) {
   return request.headers.get('x-api-key')?.trim() || null;
 }
 
+export const WEBSITE_CONNECTOR_VERSION = '1';
+export const WEBSITE_CONNECTOR_MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+export function websiteRequestBodyHash(body: ArrayBuffer | Uint8Array | string) {
+  const value =
+    typeof body === 'string'
+      ? body
+      : body instanceof ArrayBuffer
+        ? Buffer.from(new Uint8Array(body))
+        : Buffer.from(body);
+  return createHash('sha256').update(value).digest('hex');
+}
+
+export function websiteRequestCanonicalValue(input: {
+  method: string;
+  pathWithQuery: string;
+  timestamp: string;
+  nonce: string;
+  bodyHash: string;
+}) {
+  return [
+    `v${WEBSITE_CONNECTOR_VERSION}`,
+    input.method.toUpperCase(),
+    input.pathWithQuery,
+    input.timestamp,
+    input.nonce,
+    input.bodyHash,
+  ].join('\n');
+}
+
+export function createWebsiteRequestSignature(
+  apiKey: string,
+  canonicalValue: string
+) {
+  return createHmac('sha256', apiKey.trim())
+    .update(canonicalValue)
+    .digest('base64url');
+}
+
 export function normalizeWebsiteOrigin(websiteUrl: string) {
   return new URL(websiteUrl).origin.toLocaleLowerCase('en-US');
 }
@@ -178,7 +217,11 @@ Güvenlik kuralları:
 - API anahtarını yalnızca sunucu ortam değişkeni JASMINE_PORTFOLIO_API_KEY içinde tut.
 - Anahtarı istemci tarafına, NEXT_PUBLIC_ değişkenine, tarayıcı paketine veya git deposuna kesinlikle yazma.
 - Tarayıcı isteklerini sitenin kendi sunucu route/action katmanından geçir.
-- Sunucu isteklerinde Authorization: Bearer \${process.env.JASMINE_PORTFOLIO_API_KEY} başlığını kullan.
+- Tüm çağrıları Website Connector v1 imzasıyla sunucudan gönder.
+- Her istek için Unix saniyesi olarak X-Jasmine-Timestamp ve kriptografik, tek kullanımlık X-Jasmine-Nonce oluştur.
+- İstek gövdesinin SHA-256 özetini al. Kanonik metni şu sırayla ve satır sonlarıyla oluştur: v1, HTTP metodu, path+query, timestamp, nonce, bodyHash.
+- Kanonik metni JASMINE_PORTFOLIO_API_KEY ile HMAC-SHA256 imzala ve base64url sonucu X-Jasmine-Signature başlığına koy.
+- X-Jasmine-Version: 1 ve Authorization: Bearer \${process.env.JASMINE_PORTFOLIO_API_KEY} başlıklarını da gönder.
 - Hata yanıtlarında anahtarı veya dahili ayrıntıları loglama.
 
 Kullanılacak uçlar:
@@ -215,6 +258,7 @@ Yapılacaklar:
 5. Formları doğrula; yükleniyor, boş durum, hata ve başarı durumlarını tamamla.
 6. Mevcut tasarım dilini ve mobil uyumu koru.
 7. API anahtarının istemci paketine girmediğini kontrol eden test ekle.
-8. Uçtan uca portföy ekleme → listeleme → düzenleme → arşivleme akışını test et.
-9. Değişen dosyaları ve gerekli JASMINE_PORTFOLIO_API_KEY ortam değişkenini README'de açıkça belgeleyip çalışır halde teslim et.`;
+8. İmza üretiminin v1 kanonik formatına uyduğunu ve nonce'ın her istekte değiştiğini test et.
+9. Uçtan uca portföy ekleme → listeleme → düzenleme → arşivleme akışını test et.
+10. Değişen dosyaları ve gerekli JASMINE_PORTFOLIO_API_KEY ortam değişkenini README'de açıkça belgeleyip çalışır halde teslim et.`;
 }

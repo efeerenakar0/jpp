@@ -34,6 +34,10 @@ export async function GET() {
       where: { companyAccountId: principal.account.id },
       include: {
         property: { select: { id: true, title: true, location: true } },
+        items: {
+          select: { id: true, status: true },
+          orderBy: { sortOrder: 'asc' },
+        },
         _count: { select: { items: true } },
       },
       orderBy: { createdAt: 'desc' },

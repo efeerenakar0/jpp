@@ -110,6 +110,7 @@ export function serializeCompanyWhatsAppStatus(config: {
   lastConnectedAt: Date | null;
   lastHealthCheckAt: Date | null;
   lastError: string | null;
+  platformEnabled: boolean;
   autoReplyEnabled: boolean;
   allowFirstContact: boolean;
   dailyMessageLimit: number;
@@ -129,6 +130,7 @@ export function serializeCompanyWhatsAppStatus(config: {
     lastConnectedAt: config.lastConnectedAt,
     lastHealthCheckAt: config.lastHealthCheckAt,
     lastError: config.lastError,
+    platformEnabled: config.platformEnabled,
     autoReplyEnabled: config.autoReplyEnabled,
     allowFirstContact: config.allowFirstContact,
     dailyMessageLimit: config.dailyMessageLimit,
@@ -903,6 +905,9 @@ export async function queueCompanyWhatsAppMessage(input: {
   }
   const config = await ensureCompanyWhatsAppConfig(input.companyAccountId);
   const provider = 'WAHA' as const;
+  if (!config.platformEnabled) {
+    throw new Error('WhatsApp otomasyonu platform yöneticisi tarafından durduruldu.');
+  }
   if (input.firstContact && !config.allowFirstContact) {
     throw new Error(
       'Yeni numaralara ilk temas gönderimi şirket ayarlarında kapalı.'

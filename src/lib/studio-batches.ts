@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
+import { del } from '@vercel/blob';
 import prisma from '@/lib/prisma';
 import {
   fetchOwnedMediaBytes,
@@ -204,6 +205,11 @@ export async function getOwnedStudioBatch(
 }
 
 async function refreshBatchStatus(batchId: string) {
+  const batch = await prisma.studioBatch.findUnique({
+    where: { id: batchId },
+    select: { companyAccountId: true, propertyId: true },
+  });
+  if (!batch) return;
   const items = await prisma.studioBatchItem.findMany({
     where: { batchId },
     select: { status: true, errorMessage: true },
@@ -230,6 +236,32 @@ async function refreshBatchStatus(batchId: string) {
           : null,
     },
   });
+  if (
+    status === 'COMPLETED' ||
+    status === 'FAILED' ||
+    status === 'PARTIAL' ||
+    status === 'ATTACHED'
+  ) {
+    await prisma.operationEvent.upsert({
+      where: {
+        companyAccountId_idempotencyKey: {
+          companyAccountId: batch.companyAccountId,
+          idempotencyKey: `studio-batch-terminal:${batchId}:${status}`,
+        },
+      },
+      create: {
+        companyAccountId: batch.companyAccountId,
+        eventType: 'STUDIO_JOB_COMPLETED',
+        entityType: 'StudioBatch',
+        entityId: batchId,
+        propertyId: batch.propertyId,
+        actorType: 'SYSTEM',
+        metadata: { status, itemCount: items.length },
+        idempotencyKey: `studio-batch-terminal:${batchId}:${status}`,
+      },
+      update: {},
+    });
+  }
 }
 
 export async function processStudioBatchItem(input: {
@@ -306,6 +338,86 @@ export async function processStudioBatchItem(input: {
     await refreshBatchStatus(item.batchId);
     throw error;
   }
+}
+
+export async function processNextStudioBatchItem() {
+  const staleBefore = new Date(Date.now() - 15 * 60 * 1000);
+  const candidate = await prisma.studioBatchItem.findFirst({
+    where: {
+      batch: {
+        expiresAt: { gt: new Date() },
+        status: { in: ['PENDING', 'PROCESSING', 'PARTIAL'] },
+      },
+      OR: [
+        { status: 'PENDING' },
+        { status: 'PROCESSING', updatedAt: { lt: staleBefore } },
+      ],
+    },
+    include: {
+      batch: { select: { id: true, companyAccountId: true, createdByMemberId: true } },
+    },
+    orderBy: [{ batch: { createdAt: 'asc' } }, { sortOrder: 'asc' }],
+  });
+  if (!candidate) return null;
+
+  const claimed = await prisma.studioBatchItem.updateMany({
+    where: {
+      id: candidate.id,
+      ...(candidate.status === 'PENDING'
+        ? { status: 'PENDING' }
+        : { status: 'PROCESSING', updatedAt: { lt: staleBefore } }),
+    },
+    data: { status: 'PROCESSING', errorMessage: null },
+  });
+  if (!claimed.count) return null;
+
+  try {
+    const item = await processStudioBatchItem({
+      actor: {
+        companyAccountId: candidate.batch.companyAccountId,
+        memberId: candidate.batch.createdByMemberId,
+      },
+      batchId: candidate.batch.id,
+      itemId: candidate.id,
+    });
+    return { ok: true as const, batchId: candidate.batch.id, itemId: item.id };
+  } catch (error) {
+    return {
+      ok: false as const,
+      batchId: candidate.batch.id,
+      itemId: candidate.id,
+      error: error instanceof Error ? error.message : 'Görsel işlenemedi.',
+    };
+  }
+}
+
+export async function cleanupExpiredStudioBatches(limit = 25) {
+  const batches = await prisma.studioBatch.findMany({
+    where: { expiresAt: { lte: new Date() } },
+    include: {
+      items: {
+        select: {
+          sourceMediaId: true,
+          originalStorageKey: true,
+          attachedMediaId: true,
+          outputStorageKey: true,
+        },
+      },
+    },
+    orderBy: { expiresAt: 'asc' },
+    take: Math.max(1, Math.min(limit, 100)),
+  });
+  for (const batch of batches) {
+    const disposableKeys = batch.items.flatMap((item) => [
+      !item.sourceMediaId ? item.originalStorageKey : null,
+      !item.attachedMediaId ? item.outputStorageKey : null,
+    ]).filter((value): value is string => Boolean(value));
+    if (disposableKeys.length) {
+      await del(disposableKeys);
+    }
+    await prisma.studioBatch.delete({ where: { id: batch.id } });
+  }
+  return batches.length;
 }
 
 export function studioBatchFingerprint(input: {

@@ -551,18 +551,15 @@ export default function AsistanPage() {
   );
 
   return (
-    <div className="relative space-y-6 overflow-x-hidden pb-8 text-slate-100">
-      {/* Background Ambient Glows */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-rose-600/10 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute top-1/3 right-10 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[140px] pointer-events-none" />
+    <div className="space-y-6 overflow-x-hidden pb-8 text-slate-100">
 
       {/* Settings Modal */}
       {permissions.canManageSecrets && isSettingsOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4">
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4">
+          <div className="relative w-full max-w-xl rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-xl">
             <div className="flex justify-between items-center mb-6 border-b border-slate-800/80 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-600 text-white rounded-2xl shadow-lg shadow-rose-500/25">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-300">
                   <Settings className="w-6 h-6" />
                 </div>
                 <div>
@@ -577,9 +574,9 @@ export default function AsistanPage() {
 
             <form onSubmit={handleSaveConfig} className="space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar pr-1">
               {/* AI & Persona Config Box */}
-              <div className="bg-gradient-to-br from-rose-950/20 via-slate-900 to-slate-950 p-4.5 rounded-2xl border border-rose-500/20 space-y-3 shadow-inner">
+              <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-950/50 p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
                     <Sparkles className="w-4 h-4" /> Yapay Zeka Danışman & Şirket Profili
                   </div>
                 </div>
@@ -894,7 +891,7 @@ export default function AsistanPage() {
                   <button
                     type="submit"
                     disabled={isSavingConfig}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all cursor-pointer"
+                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-emerald-500 px-6 py-2.5 text-xs font-bold text-emerald-950 transition-colors hover:bg-emerald-400"
                   >
                     <Save className="w-4 h-4" /> Ayarları Kaydet
                   </button>
@@ -1051,7 +1048,7 @@ export default function AsistanPage() {
         ) : (
           <div className="grid min-h-[640px] grid-cols-1 gap-4 lg:h-[720px] lg:grid-cols-12">
             {/* Sidebar: Conversation List */}
-            <div className="flex h-full min-h-[30rem] flex-col rounded-xl border border-slate-800 bg-slate-900 p-4 lg:col-span-4">
+            <div className="flex h-full min-h-[30rem] flex-col rounded-xl border border-slate-800 bg-slate-900 p-3 lg:col-span-4">
               {/* Search Bar & Clear Cache */}
               <div className="flex items-center gap-2 mb-3">
                 <div className="relative flex-1">
@@ -1061,7 +1058,7 @@ export default function AsistanPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Müşteri adı veya telefon ile ara..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-rose-500"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
                 <button
@@ -1090,7 +1087,7 @@ export default function AsistanPage() {
                     <div
                       key={conv.id}
                       onClick={() => setSelectedConvId(conv.id)}
-                      className={`group relative rounded-lg border p-4 transition-colors ${
+                      className={`group relative cursor-pointer rounded-lg border p-3 transition-colors ${
                         selectedConvId === conv.id
                           ? 'border-emerald-500/35 bg-emerald-500/10'
                           : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-950'
@@ -1127,7 +1124,7 @@ export default function AsistanPage() {
                           {conv.tags.slice(0, 3).map((tag) => (
                             <span
                               key={tag}
-                              className="px-1.5 py-0.5 text-[9px] rounded bg-purple-500/10 border border-purple-500/20 text-purple-300"
+                              className="rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-300"
                             >
                               {tag}
                             </span>
@@ -1186,8 +1183,8 @@ export default function AsistanPage() {
 
       {/* New Conversation Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4">
+          <div className="relative w-full max-w-md overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold text-white">Yeni Test Sohbeti Başlat</h3>
@@ -1204,7 +1201,7 @@ export default function AsistanPage() {
                       required
                       value={newCustomerName}
                       onChange={e => setNewCustomerName(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-rose-500"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none"
                       placeholder="Örn: Mehmet Yılmaz"
                     />
                   </div>
@@ -1214,7 +1211,7 @@ export default function AsistanPage() {
                       type="text" 
                       value={newCustomerPhone}
                       onChange={e => setNewCustomerPhone(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-rose-500"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none"
                       placeholder="Örn: 905551234567"
                     />
                   </div>
@@ -1230,7 +1227,7 @@ export default function AsistanPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-500/20"
+                    className="rounded-lg bg-emerald-500 px-6 py-2.5 text-xs font-bold text-emerald-950 hover:bg-emerald-400"
                   >
                     Sohbeti Başlat
                   </button>
