@@ -31,7 +31,10 @@ export async function GET() {
   try {
     const principal = await requireFabrikaPrincipal();
     const batches = await prisma.studioBatch.findMany({
-      where: { companyAccountId: principal.account.id },
+      where: {
+        companyAccountId: principal.account.id,
+        expiresAt: { gt: new Date() },
+      },
       include: {
         property: { select: { id: true, title: true, location: true } },
         items: {

@@ -1,38 +1,120 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+import {
+  FabrikaForbiddenError,
+  FabrikaSessionError,
+  requireFabrikaOwner,
+} from '@/lib/fabrika-session';
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
-let memoryProfile: any = {
-  id: 'profile_default',
-  companyName: 'Business CEO AI',
-  strengths: ['Gelişmiş Alanya Portföy Ağı', 'Yabancı İkamet ve Vatandaşlık Uzmanlığı', 'Ücretsiz Drone ve VIP Servis'],
-  uniquePoints: ['Sadece Bize Özel Yatırımcı Ağı', 'Hızlı ve Güvenilir Satış'],
-  serviceAreas: ['Alanya', 'Mahmutlar', 'Kargıcak', 'Oba', 'Kleopatra'],
-  yearsInBusiness: 10,
-  teamSize: 15,
-  extraNotes: 'Alanya bölgesinde lüks konut ve villa uzmanı'
-};
+const onboardingSchema = z.object({
+  companyName: z.string().trim().min(2).max(160),
+  strengths: z.array(z.string().trim().min(1).max(160)).max(12).default([]),
+  uniquePoints: z.array(z.string().trim().min(1).max(160)).max(12).default([]),
+  serviceAreas: z.array(z.string().trim().min(1).max(120)).max(24).default([]),
+  yearsInBusiness: z.coerce.number().int().min(0).max(200).nullable().optional(),
+  teamSize: z.coerce.number().int().min(1).max(10_000).nullable().optional(),
+  extraNotes: z.string().trim().max(2_000).default(''),
+  completed: z.boolean().default(true),
+});
 
-export async function GET() {
-  return NextResponse.json(memoryProfile, { status: 200 });
+function unauthorized(error: unknown) {
+  return NextResponse.json(
+    { success: false, error: 'Bu işlem için patron oturumu gerekli.' },
+    { status: error instanceof FabrikaForbiddenError ? 403 : 401 }
+  );
 }
 
-export async function POST(req: Request) {
+function storedState(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+export async function GET() {
   try {
-    const body = await req.json().catch(() => ({}));
+    const principal = await requireFabrikaOwner();
+    const account = await prisma.companyAccount.findUniqueOrThrow({
+      where: { id: principal.account.id },
+      select: {
+        companyName: true,
+        onboardingState: true,
+        onboardingCompletedAt: true,
+      },
+    });
 
-    if (body) {
-      if (body.companyName) memoryProfile.companyName = body.companyName;
-      if (Array.isArray(body.strengths) && body.strengths.length > 0) memoryProfile.strengths = body.strengths;
-      if (Array.isArray(body.uniquePoints) && body.uniquePoints.length > 0) memoryProfile.uniquePoints = body.uniquePoints;
-      if (Array.isArray(body.serviceAreas) && body.serviceAreas.length > 0) memoryProfile.serviceAreas = body.serviceAreas;
-      if (body.yearsInBusiness) memoryProfile.yearsInBusiness = body.yearsInBusiness;
-      if (body.teamSize) memoryProfile.teamSize = body.teamSize;
-      if (body.extraNotes) memoryProfile.extraNotes = body.extraNotes;
-      memoryProfile.updatedAt = new Date().toISOString();
+    return NextResponse.json({
+      success: true,
+      completed: Boolean(account.onboardingCompletedAt),
+      completedAt: account.onboardingCompletedAt,
+      profile: {
+        companyName: account.companyName,
+        ...(storedState(account.onboardingState) || {}),
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof FabrikaSessionError ||
+      error instanceof FabrikaForbiddenError
+    ) return unauthorized(error);
+    console.error('[Onboarding GET Error]:', error);
+    return NextResponse.json(
+      { success: false, error: 'Kurulum bilgileri yüklenemedi.' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const principal = await requireFabrikaOwner();
+    const parsed = onboardingSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Kurulum bilgilerini kontrol edin.',
+          issues: parsed.error.flatten().fieldErrors,
+        },
+        { status: 400 }
+      );
     }
-  } catch (e) {}
 
-  return NextResponse.json({ success: true, profile: memoryProfile }, { status: 200 });
+    const { completed, companyName, ...profile } = parsed.data;
+    const account = await prisma.companyAccount.update({
+      where: { id: principal.account.id },
+      data: {
+        companyName,
+        onboardingState: profile,
+        onboardingCompletedAt: completed ? new Date() : null,
+      },
+      select: {
+        companyName: true,
+        onboardingState: true,
+        onboardingCompletedAt: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      completed: Boolean(account.onboardingCompletedAt),
+      completedAt: account.onboardingCompletedAt,
+      profile: {
+        companyName: account.companyName,
+        ...(storedState(account.onboardingState) || {}),
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof FabrikaSessionError ||
+      error instanceof FabrikaForbiddenError
+    ) return unauthorized(error);
+    console.error('[Onboarding POST Error]:', error);
+    return NextResponse.json(
+      { success: false, error: 'Kurulum bilgileri kaydedilemedi.' },
+      { status: 500 }
+    );
+  }
 }

@@ -92,8 +92,8 @@
 .completeness progress { accent-color: #4dc879; height: 6px; margin-top: 8px; width: 100%; }
 .propertyActions { display: grid; gap: 7px; margin-top: 9px; }
 .propertyActions a, .propertyActions button { align-items: center; background: rgba(7, 24, 37, .86); border: 1px solid rgba(119, 151, 173, .34); border-radius: 5px; color: #c8d3da; cursor: pointer; display: flex; font-size: 10px; gap: 8px; justify-content: center; min-height: 36px; text-decoration: none; }
-.propertyActions a:first-child { background: linear-gradient(180deg, #48b96f, #328f53); border-color: #66c687; color: #04150b; }
-.propertyActions a:nth-child(2) { border-color: var(--op-border); color: #e3b24b; }
+.propertyActions [data-primary='true'] { background: linear-gradient(180deg, #48b96f, #328f53); border-color: #66c687; color: #04150b; }
+.propertyActions a { border-color: var(--op-border); color: #e3b24b; }
 .propertyActions svg { height: 14px; width: 14px; }
 .emptyRail { align-items: center; color: #71879a; display: flex; flex-direction: column; justify-content: center; min-height: 440px; }
 .emptyRail svg { height: 32px; width: 32px; }
@@ -163,6 +163,22 @@
 .permissions p strong[data-denied='true'] { color: #7c8c99; }
 .pauseButton { background: transparent; border: 1px solid rgba(228, 70, 70, .65); border-radius: 4px; color: #ff6d6d; cursor: pointer; font-size: 9px; margin-top: 11px; min-height: 31px; width: 100%; }
 
+.monthlyPerformancePanel { background: linear-gradient(145deg, rgba(8, 25, 39, .98), rgba(5, 18, 30, .99)); border: 1px solid var(--op-border); border-radius: 7px; overflow: hidden; }
+.monthlyPerformancePanel > header { align-items: center; border-bottom: 1px solid var(--op-line); display: flex; justify-content: space-between; padding: 14px 16px; }
+.monthlyPerformancePanel > header h2 { font-family: Georgia, 'Times New Roman', serif; font-size: 17px; font-weight: 500; margin: 0; }
+.monthlyPerformancePanel > header > span { color: var(--op-muted); font-size: 10px; }
+.monthlyPerformancePanel > div { display: grid; gap: 1px; }
+.monthlyPerformancePanel article { align-items: center; background: rgba(4, 17, 28, .5); display: grid; gap: 12px; grid-template-columns: 34px minmax(130px, 1fr) minmax(340px, 2fr) 52px auto; padding: 12px 16px; }
+.monthlyPerformancePanel article > div > strong, .monthlyPerformancePanel article > div > small { display: block; }
+.monthlyPerformancePanel article > div > strong { color: #edf2f5; font-size: 12px; }
+.monthlyPerformancePanel article > div > small { color: var(--op-muted); font-size: 9px; margin-top: 2px; }
+.monthlyPerformancePanel dl { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0; }
+.monthlyPerformancePanel dl div { border-left: 1px solid var(--op-line); padding-left: 12px; }
+.monthlyPerformancePanel dt { color: var(--op-muted); font-size: 9px; }
+.monthlyPerformancePanel dd { color: #f4f7f8; font-size: 13px; font-weight: 700; margin: 3px 0 0; }
+.monthlyPerformancePanel article > b { color: #68d287; font-size: 14px; text-align: center; }
+.monthlyPerformancePanel article > button { background: transparent; border: 1px solid rgba(119, 151, 173, .34); border-radius: 5px; color: #c8d3da; cursor: pointer; font-size: 9px; min-height: 30px; padding: 0 10px; }
+
 @media (max-width: 1279px) {
   .portfolioSplit, .companySplit { grid-template-columns: minmax(0, 1fr); }
   .propertyRail, .memberRail { width: auto; }
@@ -176,6 +192,8 @@
   .portfolioTable, .teamTable { min-width: 970px; }
   .companyCards { grid-template-columns: 1fr; }
   .reportGrid { grid-template-columns: 1fr; }
+  .monthlyPerformancePanel article { grid-template-columns: 34px minmax(120px, 1fr) 52px auto; }
+  .monthlyPerformancePanel dl { grid-column: 1 / -1; grid-row: 2; }
 }
 
 @media (max-width: 640px) {
@@ -188,6 +206,9 @@
   .teamPanel > header label { width: auto; }
   .reportGrid article { grid-template-columns: 40px minmax(0, 1fr); }
   .reportGrid a { grid-column: 1 / -1; }
+  .monthlyPerformancePanel article { grid-template-columns: 34px minmax(0, 1fr) auto; }
+  .monthlyPerformancePanel article > button { grid-column: 1 / -1; }
+  .monthlyPerformancePanel dl { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

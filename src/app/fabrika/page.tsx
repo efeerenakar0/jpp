@@ -27,6 +27,7 @@ import {
 import toast from 'react-hot-toast';
 import EmptyState from '@/components/fabrika/EmptyState';
 import DigitalManagerOperations from '@/components/fabrika/DigitalManagerOperations';
+import { compactCriticalNotifications } from '@/lib/fabrika-critical-notifications';
 
 type Notification = {
   id: string;
@@ -35,6 +36,10 @@ type Notification = {
   type: string;
   createdAt: string;
   read: boolean;
+  important?: boolean;
+  dedupeKey?: string | null;
+  link?: string | null;
+  groupedCount?: number;
 };
 
 type ChatMessage = {
@@ -178,7 +183,7 @@ export default function CommandCenter() {
       const notifRes = await fetch('/api/fabrika/notifications?scope=important');
       const notifData = await notifRes.json();
       if (notifRes.ok && Array.isArray(notifData.notifications)) {
-        setNotifications(notifData.notifications.slice(0, 8));
+        setNotifications(compactCriticalNotifications(notifData.notifications));
       }
 
       const chatRes = await fetch('/api/fabrika/general-manager/chat');
@@ -282,56 +287,11 @@ export default function CommandCenter() {
   };
 
   const priorities = context?.priorities.slice(0, 3) || [];
-  const liveChannels = [
-    {
-      label: 'WhatsApp',
-      value: context?.metrics.activeConversations || 0,
-      maximum: Math.max(context?.metrics.activeConversations || 0, 1),
-      tone: 'bg-emerald-400',
-    },
-    {
-      label: 'CRM',
-      value: context?.metrics.crmContacts || 0,
-      maximum: Math.max(context?.metrics.crmContacts || 0, 1),
-      tone: 'bg-[#d4a85f]',
-    },
-    {
-      label: 'Portföy',
-      value: context?.metrics.activeCrmProperties || 0,
-      maximum: Math.max(context?.metrics.crmContacts || 0, context?.metrics.activeCrmProperties || 0, 1),
-      tone: 'bg-sky-400',
-    },
-    {
-      label: 'Kampanya',
-      value: context?.metrics.campaigns || 0,
-      maximum: Math.max(context?.metrics.campaigns || 0, context?.metrics.crmContacts || 0, 1),
-      tone: 'bg-violet-400',
-    },
-  ];
-
-  const chartValues = [
-    context?.metrics.upcomingTasks || 0,
-    context?.metrics.activeCrmProperties || 0,
-    context?.metrics.openDeals || 0,
-    context?.metrics.activeConversations || 0,
-    context?.metrics.crmContacts || 0,
-    context?.metrics.campaigns || 0,
-    (context?.metrics.approvedCampaignCopies || 0) + (context?.metrics.authorizedListings || 0),
-  ];
-  const chartMaximum = Math.max(...chartValues, 1);
-  const chartLabels = ['Randevu', 'Portföy', 'Satış', 'Sohbet', 'CRM', 'Kampanya', 'Onay'];
-  const chartPoints = chartValues
-    .map((value, index) => {
-      const x = 44 + index * 65;
-      const y = 136 - (value / chartMaximum) * 96;
-      return `${x},${y}`;
-    })
-    .join(' ');
 
   return (
     <div className="pb-7">
       <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_25rem]">
-        <div className="min-w-0 space-y-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <header className="flex flex-col gap-4 pb-1 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h1 className="business-ceo-display text-[1.9rem] font-medium leading-tight text-[#f6f1e8] sm:text-[2.15rem]">
@@ -353,7 +313,7 @@ export default function CommandCenter() {
             </span>
           </header>
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className="order-2 grid grid-cols-2 gap-3 lg:grid-cols-5">
             <ExecutiveMetricCard label="CRM müşterisi" value={context?.metrics.crmContacts || 0} icon={Users} hint="Doğrulanmış kayıt" />
             <ExecutiveMetricCard label="Aktif portföy" value={context?.metrics.activeCrmProperties || 0} icon={Activity} hint="Yayındaki portföy" />
             <ExecutiveMetricCard label="Sıcak müşteri" value={context?.metrics.activeConversations || 0} icon={Flame} hint="Aktif görüşme" />
@@ -361,7 +321,7 @@ export default function CommandCenter() {
             <ExecutiveMetricCard label="Kritik görev" value={context?.metrics.overdueTasks || 0} icon={AlertTriangle} hint="Geciken görevler" accent={context?.metrics.overdueTasks ? 'danger' : 'neutral'} />
           </div>
 
-          <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+          <section className="order-3 rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <TargetIcon />
@@ -427,68 +387,7 @@ export default function CommandCenter() {
             </div>
           </section>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,.85fr)]">
-            <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-heading text-sm text-[#f6f1e8]">Operasyon görünümü</h2>
-                  <p className="mt-1 text-[10px] text-[#718198]">Canlı modül yoğunluğu</p>
-                </div>
-                <span className="rounded-md border border-[#34465e] px-2 py-1 text-[10px] text-[#91a1b5]">Tüm kanallar</span>
-              </div>
-              <div className="mt-3 h-44 w-full overflow-hidden rounded-lg bg-[#071422]/40 p-2">
-                <svg viewBox="0 0 470 165" role="img" aria-label="Operasyon yoğunluk grafiği" className="h-full w-full">
-                  {[40, 72, 104, 136].map((y, index) => (
-                    <g key={y}>
-                      <text x="2" y={y + 3} fill="#718198" fontSize="8">{Math.round(chartMaximum * (1 - index / 3))}</text>
-                      <line x1="34" x2="458" y1={y} y2={y} stroke="#294059" strokeWidth="1" strokeDasharray="3 6" />
-                    </g>
-                  ))}
-                  <defs>
-                    <linearGradient id="ceo-chart-fill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#35c98b" stopOpacity=".34" />
-                      <stop offset="100%" stopColor="#35c98b" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <polygon points={`44,140 ${chartPoints} 434,140`} fill="url(#ceo-chart-fill)" />
-                  <polyline points={chartPoints} fill="none" stroke="#54d89f" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-                  {chartPoints.split(' ').map((point) => {
-                    const [cx, cy] = point.split(',');
-                      return <circle key={point} cx={cx} cy={cy} r="3.5" fill="#071422" stroke="#8ce7bd" strokeWidth="2" />;
-                  })}
-                  {chartLabels.map((label, index) => (
-                    <text key={label} x={44 + index * 65} y="157" textAnchor="middle" fill="#718198" fontSize="7.5">{label}</text>
-                  ))}
-                </svg>
-              </div>
-              <div className="mt-2 flex items-center gap-5 text-[9px] text-[#8795a8]">
-                <span className="inline-flex items-center gap-2"><i className="h-px w-5 bg-emerald-400" /> Canlı yoğunluk</span>
-                <span className="inline-flex items-center gap-2"><i className="h-px w-5 border-t border-dashed border-[#8190a4]" /> Anlık görünüm</span>
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
-              <h2 className="font-heading text-sm text-[#f6f1e8]">Kanal performansı</h2>
-              <p className="mt-1 text-[10px] text-[#718198]">Doğrulanmış operasyon kayıtları</p>
-              <div className="mt-5 space-y-4">
-                {liveChannels.map((channel) => (
-                  <div key={channel.label} className="grid grid-cols-[4.5rem_1fr_2rem_2.5rem] items-center gap-2 text-[11px]">
-                    <span className="text-[#a9b4c4]">{channel.label}</span>
-                    <span className="h-1.5 overflow-hidden rounded-full bg-[#1d2b3e]">
-                      <span className={`block h-full rounded-full ${channel.tone}`} style={{ width: `${Math.max(8, Math.round((channel.value / channel.maximum) * 100))}%` }} />
-                    </span>
-                    <span className="text-right font-medium text-[#f1ede3]">{channel.value}</span>
-                    <span className="text-right text-[9px] text-[#718198]">%{Math.round((channel.value / channel.maximum) * 100)}</span>
-                  </div>
-                ))}
-              </div>
-              <Link href="/fabrika/crm" className="mt-5 inline-flex items-center gap-2 text-[11px] font-semibold text-emerald-300">
-                Tüm kanal raporlarını görüntüle <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
-            </section>
-          </div>
-
-          <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+          <section className="order-1 rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h2 className="font-heading text-sm text-[#f6f1e8]">Kritik operasyon akışı</h2>
@@ -510,7 +409,7 @@ export default function CommandCenter() {
                     : notification.type === 'GREEN_LISTING' || notification.type === 'WEBSITE_GENERATED' || notification.type === 'STUDIO_READY'
                       ? { label: 'Tamamlandı', className: 'border-emerald-500/45 bg-emerald-500/10 text-emerald-300' }
                       : { label: 'Aktif', className: 'border-[#c99a57]/45 bg-[#c99a57]/10 text-[#e2b56e]' };
-                const href = notification.type === 'NEW_CUSTOMER_MESSAGE' || notification.type === 'APPOINTMENT_REQUEST'
+                const href = notification.link || (notification.type === 'NEW_CUSTOMER_MESSAGE' || notification.type === 'APPOINTMENT_REQUEST'
                   ? '/fabrika/asistan'
                   : notification.type === 'GREEN_LISTING'
                     ? '/fabrika/portfoyler'
@@ -518,13 +417,13 @@ export default function CommandCenter() {
                       ? '/fabrika/pazarlamaci'
                       : notification.type === 'STUDIO_READY'
                         ? '/fabrika/studyo'
-                        : '/fabrika';
+                        : '/fabrika');
                 const owner = context?.company.principalName || 'Ekip';
                 return (
                   <article key={notification.id} className="grid grid-cols-[3.6rem_2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-[#29384d] bg-[#081522]/70 px-2.5 py-2 sm:grid-cols-[3.6rem_2rem_minmax(0,1fr)_6.5rem_7.5rem_3rem]">
                     <time className="text-[10px] text-[#7d8ca1]">{new Date(notification.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</time>
                     <span className={`flex h-7 w-7 items-center justify-center rounded-md border ${bg}`}><Icon className={`h-3.5 w-3.5 ${color}`} /></span>
-                    <div className="min-w-0"><h3 className="truncate text-[10px] font-medium text-[#dfe5ed]">{notification.title}</h3><p className="truncate text-[9px] text-[#718198]">{notification.message}</p></div>
+                    <div className="min-w-0"><h3 className="truncate text-[10px] font-medium text-[#dfe5ed]">{notification.title}{notification.groupedCount && notification.groupedCount > 1 ? ` · ${notification.groupedCount} olay` : ''}</h3><p className="truncate text-[9px] text-[#718198]">{notification.message}</p></div>
                     <span className={`hidden rounded border px-2 py-1 text-center text-[8px] font-semibold uppercase sm:block ${status.className}`}>{status.label}</span>
                     <span className="hidden items-center gap-2 truncate text-[9px] text-[#9eabba] sm:flex"><i className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#c99a57]/50 not-italic text-[8px] text-[#e2b56e]">{owner.slice(0, 2).toUpperCase()}</i>{owner}</span>
                     <Link href={href} className="text-right text-[9px] font-semibold text-emerald-300 hover:text-emerald-200">İncele</Link>
@@ -534,7 +433,7 @@ export default function CommandCenter() {
             </div>
           </section>
 
-          <details className="group rounded-xl border border-[#2b3b50] bg-[#0b1929]/70">
+          <details className="order-4 group rounded-xl border border-[#2b3b50] bg-[#0b1929]/70">
             <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-[#c6d0dc]">
               Gelişmiş yönetim ve onay iş akışları
               <ArrowUpRight className="h-4 w-4 transition-transform group-open:rotate-90" />

@@ -24,7 +24,7 @@
 
 .hero h1 {
   margin: 3px 0 5px;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2rem, 3vw, 3rem);
   font-weight: 500;
   line-height: 1;
@@ -60,7 +60,9 @@
   border: 1px solid rgba(87, 229, 154, 0.54) !important;
   color: #effff6 !important;
   background: linear-gradient(180deg, #269c62, #15764a) !important;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.13), 0 8px 20px rgba(4, 78, 45, 0.2);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.13),
+    0 8px 20px rgba(4, 78, 45, 0.2);
 }
 
 .primaryButton:hover,
@@ -121,7 +123,7 @@
   font-size: 0.72rem;
 }
 
-.countryTabs button:global([data-state='active']) {
+.countryTabs button:global([data-state="active"]) {
   color: #5de09e !important;
   background: rgba(25, 137, 85, 0.14) !important;
   box-shadow: inset 0 -1px #46d38f !important;
@@ -165,7 +167,11 @@
   padding: 11px 13px;
   border: 1px solid var(--mk-border);
   border-radius: 6px;
-  background: linear-gradient(135deg, rgba(12, 34, 50, 0.92), rgba(6, 22, 36, 0.82));
+  background: linear-gradient(
+    135deg,
+    rgba(12, 34, 50, 0.92),
+    rgba(6, 22, 36, 0.82)
+  );
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
 }
 
@@ -216,7 +222,7 @@
 
 .commandGrid {
   display: grid;
-  grid-template-columns: minmax(310px, 0.95fr) minmax(420px, 1.45fr) minmax(290px, 0.96fr);
+  grid-template-columns: minmax(360px, 0.92fr) minmax(500px, 1.45fr);
   gap: 12px;
   margin-top: 12px;
 }
@@ -227,7 +233,9 @@
   border: 1px solid var(--mk-border);
   border-radius: 6px;
   background: linear-gradient(145deg, var(--mk-panel-strong), var(--mk-panel));
-  box-shadow: 0 18px 35px rgba(0, 0, 0, 0.11), inset 0 1px rgba(255, 255, 255, 0.025);
+  box-shadow:
+    0 18px 35px rgba(0, 0, 0, 0.11),
+    inset 0 1px rgba(255, 255, 255, 0.025);
 }
 
 .panelTitle {
@@ -248,7 +256,7 @@
 
 .panelTitle span {
   color: #f1f3f3;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 0.94rem;
 }
 
@@ -287,11 +295,15 @@
 
 .sourceSwitch button:hover,
 .objectiveGroup button:hover,
-.sourceSwitch button[data-active='true'],
-.objectiveGroup button[data-active='true'] {
+.sourceSwitch button[data-active="true"],
+.objectiveGroup button[data-active="true"] {
   border-color: rgba(66, 213, 139, 0.62);
   color: #eafff4;
-  background: linear-gradient(180deg, rgba(42, 164, 103, 0.88), rgba(27, 119, 76, 0.88));
+  background: linear-gradient(
+    180deg,
+    rgba(42, 164, 103, 0.88),
+    rgba(27, 119, 76, 0.88)
+  );
 }
 
 .label {
@@ -469,42 +481,82 @@
   font-size: 0.65rem;
 }
 
-.channels {
+.channelPicker {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 12px;
+  border: 1px solid var(--mk-line);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(3, 15, 26, 0.58);
+}
+
+.channelPicker legend {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 0.25rem 0.35rem;
+  color: #dbe5ec;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.channelPicker legend small {
+  color: #58dc9a;
+  font-size: 0.58rem;
+  font-weight: 650;
+}
+
+.channelGroup {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.channelGroup > span {
+  color: #72879b;
+  font-size: 0.56rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.channelGroup > div {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 5px;
-  padding: 0 12px;
+  gap: 0.35rem;
 }
 
-.channels > span {
-  width: 100%;
-  color: #97a9b9;
-  font-size: 0.65rem;
-}
-
-.channels b {
+.channelGroup label {
   display: inline-flex;
-  min-height: 28px;
+  min-height: 30px;
+  cursor: pointer;
   align-items: center;
-  gap: 5px;
-  padding: 0 8px;
+  gap: 0.4rem;
   border: 1px solid var(--mk-line);
   border-radius: 4px;
-  color: #b5c2cd;
+  padding: 0 0.55rem;
   background: rgba(4, 17, 29, 0.75);
-  font-size: 0.58rem;
-  font-weight: 500;
+  color: #9caebb;
+  font-size: 0.6rem;
+  transition: 160ms ease;
 }
 
-.channels b:first-of-type {
+.channelGroup label[data-active="true"] {
   border-color: rgba(54, 211, 137, 0.5);
-  color: #6de4a6;
+  background: rgba(31, 139, 88, 0.18);
+  color: #8de9ba;
 }
 
-.channels svg {
-  width: 13px;
-  height: 13px;
+.channelGroup input {
+  width: 0.8rem;
+  height: 0.8rem;
+  accent-color: #3fd291;
+}
+
+.channelGroup b {
+  font-weight: 650;
 }
 
 .generateButton {
@@ -545,7 +597,7 @@
 }
 
 .previewBrand span {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 0.59rem;
 }
 
@@ -769,7 +821,7 @@
 
 .archiveHeader h2 {
   margin: 0;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 0.96rem;
   font-weight: 500;
 }
@@ -793,7 +845,10 @@
 .tableHead,
 .campaignRow {
   display: grid;
-  grid-template-columns: 74px minmax(130px, 1.2fr) minmax(130px, 1.4fr) 76px 84px 24px;
+  grid-template-columns: 74px minmax(130px, 1.2fr) minmax(
+      130px,
+      1.4fr
+    ) 76px 84px 24px;
   min-width: 680px;
   align-items: center;
   gap: 8px;
@@ -880,7 +935,7 @@
 
 .posterPack h3 {
   margin: 4px 0;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 1rem;
 }
 
@@ -934,7 +989,7 @@
 
 .webTitle b {
   color: #f0f2f2;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 0.86rem;
   font-weight: 500;
 }

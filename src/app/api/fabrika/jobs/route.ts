@@ -64,7 +64,7 @@ export async function GET() {
             progress: job.items.length
               ? Math.round((completed / job.items.length) * 100)
               : 0,
-            href: '/fabrika/studyo',
+            href: '/fabrika/studyo#studio-recent',
             createdAt: job.createdAt,
           };
         }),

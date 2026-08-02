@@ -26,7 +26,7 @@
 .hero h1 {
   margin: 0;
   color: #f6f3ed;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2rem, 3vw, 2.62rem);
   font-weight: 600;
   letter-spacing: -0.035em;
@@ -62,7 +62,10 @@
   color: #d7e1ec;
   font-size: 0.7rem;
   font-weight: 700;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
 }
 
 .primaryButton,
@@ -108,11 +111,15 @@
   border: 1px solid var(--dev-border-cool);
   border-radius: 0.66rem;
   padding: 0.82rem 0.88rem;
-  background: linear-gradient(145deg, rgba(12, 29, 49, 0.96), rgba(7, 20, 35, 0.96));
+  background: linear-gradient(
+    145deg,
+    rgba(12, 29, 49, 0.96),
+    rgba(7, 20, 35, 0.96)
+  );
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
 }
 
-.metric[data-tone='warning'] {
+.metric[data-tone="warning"] {
   border-color: rgba(198, 144, 47, 0.4);
 }
 
@@ -183,7 +190,11 @@
 .supportRail {
   border: 1px solid var(--dev-border-cool);
   border-radius: 0.66rem;
-  background: linear-gradient(150deg, rgba(10, 27, 47, 0.96), rgba(7, 20, 35, 0.97));
+  background: linear-gradient(
+    150deg,
+    rgba(10, 27, 47, 0.96),
+    rgba(7, 20, 35, 0.97)
+  );
   box-shadow: 0 18px 44px rgba(1, 7, 15, 0.13);
 }
 
@@ -237,7 +248,7 @@
   padding: 0.55rem 0.65rem;
 }
 
-.projectRow[data-primary='true'] {
+.projectRow[data-primary="true"] {
   outline: 1px solid rgba(32, 203, 145, 0.52);
   outline-offset: -1px;
   background: rgba(14, 64, 57, 0.12);
@@ -309,7 +320,7 @@
   font-size: 0.61rem;
 }
 
-.statusCell[data-status='draft'] strong {
+.statusCell[data-status="draft"] strong {
   color: #e6ab40;
 }
 
@@ -344,7 +355,7 @@
   font-weight: 800;
 }
 
-.score[data-tone='warning'] {
+.score[data-tone="warning"] {
   border-color: #d99d32;
   color: #ffd17a;
 }
@@ -360,7 +371,7 @@
   font-size: 0.55rem;
 }
 
-.rowButton[data-primary='true'] {
+.rowButton[data-primary="true"] {
   border-color: rgba(42, 210, 155, 0.55);
   background: rgba(14, 135, 100, 0.35);
   color: #c4f7e5;
@@ -584,23 +595,85 @@
 }
 
 .onboardingPanel {
-  padding: 0.82rem;
+  padding: 1.25rem;
+}
+
+.projectBuilder {
+  border-color: rgba(44, 202, 151, 0.36);
+  background: linear-gradient(
+    145deg,
+    rgba(9, 30, 49, 0.98),
+    rgba(7, 20, 35, 0.98)
+  );
+}
+
+.builderHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--dev-border-cool);
+  padding: 1.2rem 1.25rem;
+}
+
+.builderKicker {
+  display: block;
+  margin-bottom: 0.42rem;
+  color: #3ad4a1;
+  font-size: 0.65rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+}
+
+.builderHeader h2 {
+  margin: 0;
+  color: #f2f6fa;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  letter-spacing: -0.025em;
+}
+
+.builderHeader p {
+  max-width: 47rem;
+  margin: 0.48rem 0 0;
+  color: #8496ab;
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.builderBadge {
+  display: inline-flex;
+  min-height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.42rem;
+  border: 1px solid rgba(43, 206, 153, 0.35);
+  border-radius: 999px;
+  padding: 0.4rem 0.68rem;
+  background: rgba(14, 126, 94, 0.16);
+  color: #9eedcf;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.builderBadge svg {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
 .choiceGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
+  gap: 0.85rem;
 }
 
 .choiceCard {
   display: flex;
-  min-height: 5.2rem;
+  min-height: 9rem;
   align-items: center;
   gap: 0.65rem;
   border: 1px solid var(--dev-border-cool);
-  border-radius: 0.55rem;
-  padding: 0.75rem;
+  border-radius: 0.72rem;
+  padding: 1.1rem;
   background: rgba(7, 19, 34, 0.58);
   color: #aebdcc;
   text-align: left;
@@ -611,27 +684,67 @@
 }
 
 .choiceCard svg {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.7rem;
+  height: 1.7rem;
   flex: 0 0 auto;
   color: #dda746;
 }
 
 .choiceCard strong,
-.choiceCard span {
+.choiceCard span,
+.choiceCard small {
   display: block;
+}
+
+.choiceCard small {
+  margin-bottom: 0.4rem;
+  color: #36d19f;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
 }
 
 .choiceCard strong {
   color: #edf1f6;
-  font-size: 0.68rem;
+  font-size: 0.9rem;
 }
 
 .choiceCard span {
-  margin-top: 0.25rem;
-  color: #74869d;
-  font-size: 0.56rem;
-  line-height: 1.5;
+  margin-top: 0.42rem;
+  color: #8799ad;
+  font-size: 0.7rem;
+  line-height: 1.6;
+}
+
+.builderSteps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.builderSteps span {
+  display: flex;
+  min-height: 2.8rem;
+  align-items: center;
+  gap: 0.52rem;
+  border: 1px solid rgba(77, 103, 133, 0.32);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  color: #9aabba;
+  font-size: 0.62rem;
+}
+
+.builderSteps b {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(34, 197, 142, 0.16);
+  color: #64dfb6;
+  font-size: 0.58rem;
 }
 
 .generatorPanel {
@@ -673,8 +786,8 @@
   font-size: 0.56rem;
 }
 
-.generatorForm input[type='text'],
-.generatorForm input[type='url'] {
+.generatorForm input[type="text"],
+.generatorForm input[type="url"] {
   height: 2.35rem;
   border: 1px solid var(--dev-border-cool);
   border-radius: 0.43rem;
@@ -841,7 +954,7 @@
   margin-bottom: 0.55rem;
 }
 
-.messageRow[data-role='user'] {
+.messageRow[data-role="user"] {
   justify-content: flex-end;
 }
 
@@ -857,7 +970,7 @@
   white-space: pre-wrap;
 }
 
-.messageRow[data-role='user'] .message {
+.messageRow[data-role="user"] .message {
   border-color: rgba(207, 157, 67, 0.36);
   background: rgba(100, 66, 15, 0.22);
   color: #d6c39e;
@@ -880,11 +993,18 @@
   animation: typing 1s infinite alternate;
 }
 
-.typing i:nth-child(2) { animation-delay: 0.2s; }
-.typing i:nth-child(3) { animation-delay: 0.4s; }
+.typing i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing i:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes typing {
-  to { opacity: 0.3; transform: translateY(-2px); }
+  to {
+    opacity: 0.3;
+    transform: translateY(-2px);
+  }
 }
 
 .chatForm {
@@ -923,25 +1043,65 @@
 }
 
 @media (max-width: 1320px) {
-  .workspace { grid-template-columns: minmax(0, 1fr); }
-  .supportRail { position: static; height: 40rem; }
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .supportRail {
+    position: static;
+    height: 40rem;
+  }
 }
 
 @media (max-width: 1050px) {
-  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .projectHeader { display: none; }
-  .projectRow { grid-template-columns: minmax(14rem, 1fr) repeat(2, 0.7fr) 5.8rem; }
-  .projectRow > :nth-child(4), .projectRow > :nth-child(5) { display: none; }
-  .analyticsGrid, .bottomGrid { grid-template-columns: minmax(0, 1fr); }
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .projectHeader {
+    display: none;
+  }
+  .projectRow {
+    grid-template-columns: minmax(14rem, 1fr) repeat(2, 0.7fr) 5.8rem;
+  }
+  .projectRow > :nth-child(4),
+  .projectRow > :nth-child(5) {
+    display: none;
+  }
+  .analyticsGrid,
+  .bottomGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 720px) {
-  .hero { flex-direction: column; }
-  .heroActions, .primaryButton, .secondaryButton { width: 100%; }
-  .metrics { grid-template-columns: minmax(0, 1fr); }
-  .projectRow { grid-template-columns: minmax(0, 1fr); }
-  .projectRow > :not(.projectIdentity):not(.rowActions) { display: none; }
-  .projectIdentity { grid-template-columns: 5rem minmax(0, 1fr); }
-  .projectThumb { height: 3.5rem; }
-  .generatorForm, .choiceGrid { grid-template-columns: minmax(0, 1fr); }
+  .hero {
+    flex-direction: column;
+  }
+  .heroActions,
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+  .metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .projectRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .projectRow > :not(.projectIdentity):not(.rowActions) {
+    display: none;
+  }
+  .projectIdentity {
+    grid-template-columns: 5rem minmax(0, 1fr);
+  }
+  .projectThumb {
+    height: 3.5rem;
+  }
+  .generatorForm,
+  .choiceGrid,
+  .builderSteps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .builderHeader {
+    flex-direction: column;
+  }
 }

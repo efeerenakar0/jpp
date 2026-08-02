@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -8,20 +8,23 @@ import {
   Code2,
   FileArchive,
   FolderOpen,
+  History,
   KeyRound,
   Loader2,
+  PencilLine,
   RefreshCw,
   RotateCw,
+  Save,
   Send,
   ShieldCheck,
   X,
-} from 'lucide-react';
-import toast from 'react-hot-toast';
+} from "lucide-react";
+import toast from "react-hot-toast";
 import {
   MAX_SITE_SOURCE_BYTES,
   MAX_SITE_SOURCE_FILES,
   shouldIncludeWebsiteFile,
-} from '@/lib/website-source-files';
+} from "@/lib/website-source-files";
 
 type WebsiteIntegration = {
   id: string;
@@ -36,9 +39,18 @@ type WebsiteIntegration = {
   sourceFileName: string;
   sourceSize: number;
   apiKeyHint: string;
-  status: 'PENDING' | 'READY' | 'DELIVERED' | 'SUSPENDED';
+  status: "PENDING" | "READY" | "DELIVERED" | "SUSPENDED";
   submittedAt: string;
   deliveredAt: string | null;
+  promptTemplate: string;
+  promptVersions: Array<{
+    id: string;
+    version: number;
+    promptTemplate: string;
+    source: string;
+    createdByType: string;
+    createdAt: string;
+  }>;
 };
 
 type CredentialResult = {
@@ -62,28 +74,28 @@ type Props = {
 };
 
 const initialForm: FormState = {
-  displayName: '',
-  websiteUrl: '',
-  framework: '',
-  hostingProvider: '',
-  portfolioPath: '/portfoyler',
-  technicalContactEmail: '',
-  repositoryUrl: '',
-  notes: '',
+  displayName: "",
+  websiteUrl: "",
+  framework: "",
+  hostingProvider: "",
+  portfolioPath: "/portfoyler",
+  technicalContactEmail: "",
+  repositoryUrl: "",
+  notes: "",
 };
 
-const statusLabels: Record<WebsiteIntegration['status'], string> = {
-  PENDING: 'Admin incelemesinde',
-  READY: 'API bağlantısına hazır',
-  DELIVERED: 'Teslim edildi',
-  SUSPENDED: 'Erişim durduruldu',
+const statusLabels: Record<WebsiteIntegration["status"], string> = {
+  PENDING: "Admin incelemesinde",
+  READY: "API bağlantısına hazır",
+  DELIVERED: "Teslim edildi",
+  SUSPENDED: "Erişim durduruldu",
 };
 
-const statusStyles: Record<WebsiteIntegration['status'], string> = {
-  PENDING: 'border-amber-400/30 bg-amber-400/10 text-amber-200',
-  READY: 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200',
-  DELIVERED: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
-  SUSPENDED: 'border-rose-400/30 bg-rose-400/10 text-rose-200',
+const statusStyles: Record<WebsiteIntegration["status"], string> = {
+  PENDING: "border-amber-400/30 bg-amber-400/10 text-amber-200",
+  READY: "border-cyan-400/30 bg-cyan-400/10 text-cyan-200",
+  DELIVERED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
+  SUSPENDED: "border-rose-400/30 bg-rose-400/10 text-rose-200",
 };
 
 function formatBytes(bytes: number) {
@@ -100,14 +112,14 @@ function sourcePath(file: File) {
 }
 
 async function archiveFolder(files: File[]) {
-  const { default: JSZip } = await import('jszip');
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   for (const file of files) {
     zip.file(sourcePath(file), file);
   }
   return zip.generateAsync({
-    type: 'blob',
-    compression: 'DEFLATE',
+    type: "blob",
+    compression: "DEFLATE",
     compressionOptions: { level: 6 },
   });
 }
@@ -118,33 +130,36 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
   const [integrations, setIntegrations] = useState<WebsiteIntegration[]>([]);
   const [sourceZip, setSourceZip] = useState<File | null>(null);
   const [folderFiles, setFolderFiles] = useState<File[]>([]);
-  const [sourceLabel, setSourceLabel] = useState('');
+  const [sourceLabel, setSourceLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [rotating, setRotating] = useState<string | null>(null);
+  const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
   const [credentials, setCredentials] = useState<CredentialResult | null>(null);
 
   useEffect(() => {
-    folderInputRef.current?.setAttribute('webkitdirectory', '');
-    folderInputRef.current?.setAttribute('directory', '');
+    folderInputRef.current?.setAttribute("webkitdirectory", "");
+    folderInputRef.current?.setAttribute("directory", "");
   }, []);
 
   const loadIntegrations = useCallback(async () => {
     try {
-      const response = await fetch('/api/fabrika/website-integration', {
-        cache: 'no-store',
+      const response = await fetch("/api/fabrika/website-integration", {
+        cache: "no-store",
       });
       const data = (await response.json()) as {
         integrations?: WebsiteIntegration[];
         error?: string;
       };
       if (!response.ok || !data.integrations) {
-        throw new Error(data.error || 'Site bağlantıları alınamadı.');
+        throw new Error(data.error || "Site bağlantıları alınamadı.");
       }
       setIntegrations(data.integrations);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Site bağlantıları alınamadı.'
+        error instanceof Error ? error.message : "Site bağlantıları alınamadı.",
       );
     } finally {
       setLoading(false);
@@ -152,12 +167,13 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
   }, []);
 
   useEffect(() => {
-    void loadIntegrations();
+    const timeout = window.setTimeout(() => void loadIntegrations(), 0);
+    return () => window.clearTimeout(timeout);
   }, [loadIntegrations]);
 
   function updateField<K extends keyof FormState>(
     field: K,
-    value: FormState[K]
+    value: FormState[K],
   ) {
     setForm((current) => ({ ...current, [field]: value }));
   }
@@ -165,10 +181,10 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
   function chooseZip(file: File | undefined) {
     if (!file) return;
     if (
-      !file.name.toLocaleLowerCase('en-US').endsWith('.zip') ||
+      !file.name.toLocaleLowerCase("en-US").endsWith(".zip") ||
       file.size > MAX_SITE_SOURCE_BYTES
     ) {
-      toast.error('En fazla 30 MB boyutunda bir ZIP dosyası seçin.');
+      toast.error("En fazla 30 MB boyutunda bir ZIP dosyası seçin.");
       return;
     }
     setSourceZip(file);
@@ -178,19 +194,21 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
 
   function chooseFolder(files: File[]) {
     const included = files.filter((file) =>
-      shouldIncludeWebsiteFile(sourcePath(file))
+      shouldIncludeWebsiteFile(sourcePath(file)),
     );
     const totalBytes = included.reduce((total, file) => total + file.size, 0);
     if (included.length === 0) {
-      toast.error('Klasörde yüklenebilir kaynak kodu bulunamadı.');
+      toast.error("Klasörde yüklenebilir kaynak kodu bulunamadı.");
       return;
     }
     if (included.length > MAX_SITE_SOURCE_FILES) {
-      toast.error(`En fazla ${MAX_SITE_SOURCE_FILES} kaynak dosyası yüklenebilir.`);
+      toast.error(
+        `En fazla ${MAX_SITE_SOURCE_FILES} kaynak dosyası yüklenebilir.`,
+      );
       return;
     }
     if (totalBytes > 100 * 1024 * 1024) {
-      toast.error('Klasörün sıkıştırılmamış boyutu en fazla 100 MB olabilir.');
+      toast.error("Klasörün sıkıştırılmamış boyutu en fazla 100 MB olabilir.");
       return;
     }
 
@@ -199,15 +217,17 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
     setSourceZip(null);
     setSourceLabel(
       `${included.length} dosya · ${formatBytes(totalBytes)}${
-        excludedCount ? ` · ${excludedCount} gereksiz/gizli dosya çıkarıldı` : ''
-      }`
+        excludedCount
+          ? ` · ${excludedCount} gereksiz/gizli dosya çıkarıldı`
+          : ""
+      }`,
     );
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!sourceZip && folderFiles.length === 0) {
-      toast.error('Site klasörünü veya ZIP paketini seçin.');
+      toast.error("Site klasörünü veya ZIP paketini seçin.");
       return;
     }
     setSubmitting(true);
@@ -216,18 +236,18 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
       if (!source) {
         const blob = await archiveFolder(folderFiles);
         if (blob.size > MAX_SITE_SOURCE_BYTES) {
-          throw new Error('Sıkıştırılmış site paketi 30 MB sınırını aşıyor.');
+          throw new Error("Sıkıştırılmış site paketi 30 MB sınırını aşıyor.");
         }
         const root =
-          sourcePath(folderFiles[0]).split('/')[0] || 'website-source';
-        source = new File([blob], `${root}.zip`, { type: 'application/zip' });
+          sourcePath(folderFiles[0]).split("/")[0] || "website-source";
+        source = new File([blob], `${root}.zip`, { type: "application/zip" });
       }
 
       const payload = new FormData();
-      payload.set('metadata', JSON.stringify(form));
-      payload.set('source', source);
-      const response = await fetch('/api/fabrika/website-integration', {
-        method: 'POST',
+      payload.set("metadata", JSON.stringify(form));
+      payload.set("source", source);
+      const response = await fetch("/api/fabrika/website-integration", {
+        method: "POST",
         body: payload,
       });
       const data = (await response.json()) as {
@@ -242,7 +262,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
         !data.oneTimeApiKey ||
         !data.codexPrompt
       ) {
-        throw new Error(data.error || 'Site paketi gönderilemedi.');
+        throw new Error(data.error || "Site paketi gönderilemedi.");
       }
 
       setCredentials({
@@ -252,12 +272,12 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
       setForm(initialForm);
       setSourceZip(null);
       setFolderFiles([]);
-      setSourceLabel('');
+      setSourceLabel("");
       await loadIntegrations();
-      toast.success('Site kodları ve entegrasyon bilgileri admine gönderildi.');
+      toast.success("Site kodları ve entegrasyon bilgileri admine gönderildi.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Site paketi gönderilemedi.'
+        error instanceof Error ? error.message : "Site paketi gönderilemedi.",
       );
     } finally {
       setSubmitting(false);
@@ -272,11 +292,11 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
   function downloadPrompt() {
     if (!credentials) return;
     const url = URL.createObjectURL(
-      new Blob([credentials.codexPrompt], { type: 'text/plain;charset=utf-8' })
+      new Blob([credentials.codexPrompt], { type: "text/plain;charset=utf-8" }),
     );
-    const anchor = document.createElement('a');
+    const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = 'jasmine-codex-entegrasyon-promptu.txt';
+    anchor.download = "jasmine-codex-entegrasyon-promptu.txt";
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -284,17 +304,17 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
   async function rotateKey(integration: WebsiteIntegration) {
     if (
       !window.confirm(
-        'Eski API anahtarı hemen geçersiz olacak. Yeni anahtar oluşturulsun mu?'
+        "Eski API anahtarı hemen geçersiz olacak. Yeni anahtar oluşturulsun mu?",
       )
     ) {
       return;
     }
     setRotating(integration.id);
     try {
-      const response = await fetch('/api/fabrika/website-integration', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'rotate_key', id: integration.id }),
+      const response = await fetch("/api/fabrika/website-integration", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rotate_key", id: integration.id }),
       });
       const data = (await response.json()) as {
         oneTimeApiKey?: string;
@@ -302,20 +322,58 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
         error?: string;
       };
       if (!response.ok || !data.oneTimeApiKey || !data.codexPrompt) {
-        throw new Error(data.error || 'API anahtarı yenilenemedi.');
+        throw new Error(data.error || "API anahtarı yenilenemedi.");
       }
       setCredentials({
         oneTimeApiKey: data.oneTimeApiKey,
         codexPrompt: data.codexPrompt,
       });
       await loadIntegrations();
-      toast.success('Yeni API anahtarı oluşturuldu.');
+      toast.success("Yeni API anahtarı oluşturuldu.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'API anahtarı yenilenemedi.'
+        error instanceof Error ? error.message : "API anahtarı yenilenemedi.",
       );
     } finally {
       setRotating(null);
+    }
+  }
+
+  function editPrompt(integration: WebsiteIntegration) {
+    setEditingPromptId(integration.id);
+    setPromptDraft(integration.promptTemplate);
+  }
+
+  async function savePrompt(integration: WebsiteIntegration) {
+    if (promptDraft.trim().length < 120) {
+      toast.error("Codex promptu en az 120 karakter olmalıdır.");
+      return;
+    }
+    setSavingPrompt(true);
+    try {
+      const response = await fetch("/api/fabrika/website-integration", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_prompt",
+          id: integration.id,
+          promptTemplate: promptDraft,
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Codex promptu kaydedilemedi.");
+      }
+      setEditingPromptId(null);
+      setPromptDraft("");
+      await loadIntegrations();
+      toast.success("Codex promptunun yeni sürümü kaydedildi.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Codex promptu kaydedilemedi.",
+      );
+    } finally {
+      setSavingPrompt(false);
     }
   }
 
@@ -376,7 +434,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                 <button
                   type="button"
                   onClick={() =>
-                    void copy(credentials.oneTimeApiKey, 'API anahtarı')
+                    void copy(credentials.oneTimeApiKey, "API anahtarı")
                   }
                   className="rounded-lg p-2 text-emerald-200 hover:bg-emerald-300/10"
                   aria-label="API anahtarını kopyala"
@@ -388,7 +446,9 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => void copy(credentials.codexPrompt, 'Codex promptu')}
+                onClick={() =>
+                  void copy(credentials.codexPrompt, "Codex promptu")
+                }
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 text-xs font-black text-slate-950 transition hover:bg-emerald-200"
               >
                 <Clipboard className="h-4 w-4" />
@@ -413,7 +473,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
               <input
                 value={form.displayName}
                 onChange={(event) =>
-                  updateField('displayName', event.target.value)
+                  updateField("displayName", event.target.value)
                 }
                 placeholder="Örn. Acme Emlak ana sitesi"
                 required
@@ -426,7 +486,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                 type="url"
                 value={form.websiteUrl}
                 onChange={(event) =>
-                  updateField('websiteUrl', event.target.value)
+                  updateField("websiteUrl", event.target.value)
                 }
                 placeholder="https://ornek.com"
                 required
@@ -438,7 +498,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
               <input
                 value={form.framework}
                 onChange={(event) =>
-                  updateField('framework', event.target.value)
+                  updateField("framework", event.target.value)
                 }
                 placeholder="Next.js, WordPress, PHP..."
                 required
@@ -450,7 +510,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
               <input
                 value={form.hostingProvider}
                 onChange={(event) =>
-                  updateField('hostingProvider', event.target.value)
+                  updateField("hostingProvider", event.target.value)
                 }
                 placeholder="Vercel, cPanel, Netlify..."
                 required
@@ -462,7 +522,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
               <input
                 value={form.portfolioPath}
                 onChange={(event) =>
-                  updateField('portfolioPath', event.target.value)
+                  updateField("portfolioPath", event.target.value)
                 }
                 placeholder="/portfoyler"
                 required
@@ -475,7 +535,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                 type="email"
                 value={form.technicalContactEmail}
                 onChange={(event) =>
-                  updateField('technicalContactEmail', event.target.value)
+                  updateField("technicalContactEmail", event.target.value)
                 }
                 placeholder="teknik@ornek.com"
                 required
@@ -490,7 +550,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
               type="url"
               value={form.repositoryUrl}
               onChange={(event) =>
-                updateField('repositoryUrl', event.target.value)
+                updateField("repositoryUrl", event.target.value)
               }
               placeholder="https://github.com/..."
               className="mt-1.5 min-h-10 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-xs text-white outline-none focus:border-cyan-400"
@@ -501,7 +561,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
             Teknik notlar
             <textarea
               value={form.notes}
-              onChange={(event) => updateField('notes', event.target.value)}
+              onChange={(event) => updateField("notes", event.target.value)}
               placeholder="Çalıştırma komutu, özel klasörler, dikkat edilmesi gerekenler..."
               rows={3}
               className="mt-1.5 w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-400"
@@ -530,7 +590,9 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                       multiple
                       className="sr-only"
                       onChange={(event) =>
-                        chooseFolder(Array.from(event.currentTarget.files || []))
+                        chooseFolder(
+                          Array.from(event.currentTarget.files || []),
+                        )
                       }
                     />
                   </label>
@@ -575,8 +637,8 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
               <Send className="h-4 w-4" />
             )}
             {submitting
-              ? 'Site paketi hazırlanıyor ve gönderiliyor...'
-              : 'Kodları, API paketini ve promptu gönder'}
+              ? "Site paketi hazırlanıyor ve gönderiliyor..."
+              : "Kodları, API paketini ve promptu gönder"}
           </button>
         </form>
 
@@ -597,7 +659,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
               className="rounded-lg border border-slate-700 p-2 text-slate-400 hover:text-cyan-300"
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`}
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
               />
             </button>
           </div>
@@ -646,6 +708,95 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                       </p>
                       Şirkete özel API
                     </div>
+                  </div>
+                  <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="flex items-center gap-1.5 text-[10px] font-black text-slate-200">
+                          <History className="h-3.5 w-3.5 text-cyan-300" />
+                          Codex entegrasyon promptu
+                        </p>
+                        <p className="mt-1 text-[9px] text-slate-500">
+                          {integration.promptVersions[0]
+                            ? `Sürüm ${integration.promptVersions[0].version} · ${new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(integration.promptVersions[0].createdAt))}`
+                            : "İlk sürüm hazırlanıyor"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => editPrompt(integration)}
+                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 text-[9px] font-bold text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
+                      >
+                        <PencilLine className="h-3 w-3" /> Düzenle
+                      </button>
+                    </div>
+                    {editingPromptId === integration.id ? (
+                      <div className="mt-3 space-y-2">
+                        <textarea
+                          value={promptDraft}
+                          onChange={(event) =>
+                            setPromptDraft(event.target.value)
+                          }
+                          rows={12}
+                          aria-label={`${integration.displayName} Codex promptu`}
+                          className="w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-[10px] leading-5 text-slate-200 outline-none focus:border-cyan-400"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingPromptId(null)}
+                            className="min-h-9 rounded-lg border border-slate-700 px-3 text-[10px] font-bold text-slate-300"
+                          >
+                            Vazgeç
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void savePrompt(integration)}
+                            disabled={savingPrompt}
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-cyan-300 px-3 text-[10px] font-black text-slate-950 disabled:opacity-60"
+                          >
+                            {savingPrompt ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Save className="h-3.5 w-3.5" />
+                            )}
+                            Yeni sürümü kaydet
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {integration.promptVersions.length > 1 ? (
+                      <details className="mt-3 border-t border-slate-800 pt-2 text-[9px] text-slate-400">
+                        <summary className="cursor-pointer font-bold text-slate-300">
+                          Sürüm geçmişini göster (
+                          {integration.promptVersions.length})
+                        </summary>
+                        <ol className="mt-2 space-y-1.5">
+                          {integration.promptVersions.map((version) => (
+                            <li
+                              key={version.id}
+                              className="flex items-center justify-between gap-3 rounded-md bg-slate-950/70 px-2 py-1.5"
+                            >
+                              <span>
+                                Sürüm {version.version} · {version.source}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void copy(
+                                    version.promptTemplate,
+                                    `Prompt sürüm ${version.version}`,
+                                  )
+                                }
+                                className="font-bold text-cyan-300"
+                              >
+                                Kopyala
+                              </button>
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    ) : null}
                   </div>
                   <button
                     type="button"

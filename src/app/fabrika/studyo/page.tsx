@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Aperture,
   AlertCircle,
@@ -13,13 +13,9 @@ import {
   ImagePlus,
   KeyRound,
   Loader2,
-  Maximize2,
-  Minus,
   Plus,
   RefreshCw,
   Settings2,
-  ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   UploadCloud,
   WandSparkles,
@@ -39,7 +35,6 @@ import { Input } from '@/components/ui/input';
 import {
   DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
   STUDIO_ENHANCEMENT_PRESETS,
-  STUDIO_NEGATIVE_PROMPT,
   type StudioEnhancementPreset,
   type StudioEnhancementPresetId,
 } from '@/lib/studio-enhancement';
@@ -85,6 +80,15 @@ type StudioBatchItem = {
   status: 'PENDING' | 'UPLOADING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'ATTACHED';
   errorMessage: string | null;
   attachedMediaId: string | null;
+};
+
+type StudioBatchSummary = {
+  id: string;
+  status: 'PENDING' | 'UPLOADING' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'ATTACHED';
+  createdAt: string;
+  expiresAt: string | null;
+  property: { id: string; title: string; location: string | null } | null;
+  items: Array<{ id: string; status: StudioBatchItem['status'] }>;
 };
 
 type ProviderStatus = {
@@ -145,8 +149,6 @@ export default function StudioPage() {
   const [screen, setScreen] = useState<StudioScreen>('upload');
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState<StudioResult[]>([]);
   const [isPreparingZip, setIsPreparingZip] = useState(false);
@@ -166,6 +168,9 @@ export default function StudioPage() {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [batchItems, setBatchItems] = useState<StudioBatchItem[]>([]);
   const [selectedResultItemIds, setSelectedResultItemIds] = useState<string[]>([]);
+  const [recentBatches, setRecentBatches] = useState<StudioBatchSummary[]>([]);
+  const [isLoadingBatches, setIsLoadingBatches] = useState(true);
+  const [comparePosition, setComparePosition] = useState(50);
   const [isAttaching, setIsAttaching] = useState(false);
   const [selectedPresetId, setSelectedPresetId] =
     useState<StudioEnhancementPresetId>('professional-camera');
@@ -174,6 +179,23 @@ export default function StudioPage() {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
+
+  const loadRecentBatches = useCallback(async () => {
+    try {
+      const response = await fetch('/api/fabrika/studio/batches', {
+        cache: 'no-store',
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Son çalışmalar yüklenemedi.');
+      }
+      setRecentBatches((data.batches || []) as StudioBatchSummary[]);
+    } catch {
+      // The creation and editor flows remain usable if history cannot load.
+    } finally {
+      setIsLoadingBatches(false);
+    }
+  }, []);
 
   const filePreviews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -207,6 +229,15 @@ export default function StudioPage() {
     }
     void loadProperties();
   }, []);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadRecentBatches(), 0);
+    const interval = window.setInterval(() => void loadRecentBatches(), 8_000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+    };
+  }, [loadRecentBatches]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -395,8 +426,6 @@ export default function StudioPage() {
 
     setIsProcessing(true);
     setErrorMessage('');
-    setProgress(5);
-    setStatus('Görseller kalıcı Stüdyo işlemine yükleniyor…');
 
     try {
       const formData = new FormData();
@@ -415,76 +444,39 @@ export default function StudioPage() {
       }
       const nextBatchId = String(created.batch.id);
       setBatchId(nextBatchId);
-      const batchItems = (created.batch.items || []) as StudioBatchItem[];
-      setBatchItems(batchItems);
-      const failures: string[] = [];
+      setBatchItems((created.batch.items || []) as StudioBatchItem[]);
+      setFiles([]);
+      setSelectedSourceMediaIds([]);
+      toast.success(
+        'Görseller sıraya alındı. Bu sayfada beklemeniz gerekmez; tamamlandığında Son çalışmalar bölümünden açabilirsiniz.'
+      );
+      await loadRecentBatches();
+      document.getElementById('studio-recent')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
+      setErrorMessage(message);
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-      for (const [index, item] of batchItems.entries()) {
-        setBatchItems((current) =>
-          current.map((candidate) =>
-            candidate.id === item.id
-              ? { ...candidate, status: 'PROCESSING', errorMessage: null }
-              : candidate
-          )
-        );
-        setProgress(Math.round(10 + (index / batchItems.length) * 85));
-        setStatus(
-          `Stable Image Ultra, ${index + 1}/${batchItems.length} fotoğrafı özgün yapıyı koruyarak iyileştiriyor…`
-        );
-        try {
-          const response = await fetch(
-            `/api/fabrika/studio/batches/${encodeURIComponent(nextBatchId)}/items/${encodeURIComponent(item.id)}/process`,
-            { method: 'POST' }
-          );
-          const data = await response.json();
-          if (!response.ok || !data.success) {
-            failures.push(data.error || `${item.originalFileName} işlenemedi.`);
-            setBatchItems((current) =>
-              current.map((candidate) =>
-                candidate.id === item.id
-                  ? {
-                      ...candidate,
-                      status: 'FAILED',
-                      errorMessage:
-                        data.error || `${item.originalFileName} işlenemedi.`,
-                    }
-                  : candidate
-              )
-            );
-          } else {
-            setBatchItems((current) =>
-              current.map((candidate) =>
-                candidate.id === item.id ? data.item : candidate
-              )
-            );
-          }
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : `${item.originalFileName} işlenemedi.`;
-          failures.push(message);
-          setBatchItems((current) =>
-            current.map((candidate) =>
-              candidate.id === item.id
-                ? { ...candidate, status: 'FAILED', errorMessage: message }
-                : candidate
-            )
-          );
-        }
-      }
-
-      const batchResponse = await fetch(
+  const openBatch = async (nextBatchId: string) => {
+    setErrorMessage('');
+    try {
+      const response = await fetch(
         `/api/fabrika/studio/batches/${encodeURIComponent(nextBatchId)}`,
         { cache: 'no-store' }
       );
-      const batchData = await batchResponse.json();
-      if (!batchResponse.ok || !batchData.success) {
-        throw new Error(batchData.error || 'Stüdyo sonuçları yüklenemedi.');
+      const data = await response.json();
+      if (!response.ok || !data.success || !data.batch) {
+        throw new Error(data.error || 'Stüdyo çalışması açılamadı.');
       }
-      const refreshedItems = batchData.batch.items as StudioBatchItem[];
-      setBatchItems(refreshedItems);
-      const completed = refreshedItems
+      const nextItems = (data.batch.items || []) as StudioBatchItem[];
+      const completed = nextItems
         .filter(
           (item) =>
             item.outputUrl &&
@@ -500,34 +492,21 @@ export default function StudioPage() {
           attachedMediaId: item.attachedMediaId,
         }));
       if (!completed.length) {
-        throw new Error(
-          failures[0] ||
-            batchData.batch.errorSummary ||
-            'Hiçbir görsel iyileştirilemedi.'
-        );
+        throw new Error('Bu çalışmanın indirilebilir sonucu henüz hazır değil.');
       }
-      setProgress(100);
-      setStatus('Kalıcı ve indirilebilir görseller hazır.');
+      setBatchId(nextBatchId);
+      setBatchItems(nextItems);
       setResults(completed);
       setSelectedResultItemIds(completed.map((item) => item.itemId));
+      setSelectedPropertyId(data.batch.propertyId || '');
       setActiveResult(0);
+      setComparePosition(50);
       setScreen('results');
-      if (failures.length) {
-        setErrorMessage(
-          `${completed.length} görsel hazır, ${failures.length} görsel başarısız. Başarısız görselleri yeniden deneyebilirsiniz.`
-        );
-        toast.error(`${failures.length} görsel işlenemedi; başarılı sonuçlar korundu.`);
-      } else {
-        toast.success(`${completed.length} fotoğrafınız iyileştirildi.`);
-      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'İşlem sırasında bir hata oluştu.';
-      setErrorMessage(message);
-      setProgress(0);
-      setStatus('');
-      toast.error(message);
-    } finally {
-      setIsProcessing(false);
+      toast.error(
+        error instanceof Error ? error.message : 'Stüdyo çalışması açılamadı.'
+      );
     }
   };
 
@@ -575,16 +554,12 @@ export default function StudioPage() {
     setBatchItems([]);
     setSelectedResultItemIds([]);
     setActiveResult(0);
-    setProgress(0);
     setErrorMessage('');
     setSelectedPresetId('professional-camera');
     setEnhancementInstruction(DEFAULT_STUDIO_ENHANCEMENT_PROMPT);
   };
 
   const activePhoto = results[activeResult];
-  const activeOriginal = activePhoto
-    ? { url: activePhoto.sourceUrl }
-    : undefined;
 
   const attachSelectedResults = async (makeCover = false) => {
     if (!batchId || !selectedPropertyId || !selectedResultItemIds.length) return;
@@ -739,25 +714,6 @@ export default function StudioPage() {
   const activeSourceUrl = activePhoto?.sourceUrl || sourceCandidates[0]?.url || '';
   const activeOutputUrl = activePhoto?.previewUrl || activeSourceUrl;
   const totalSelected = files.length + selectedSourceMediaIds.length;
-  const completedItems = batchItems.filter(
-    (item) => item.status === 'COMPLETED' || item.status === 'ATTACHED'
-  ).length;
-  const recentVisuals = results.length
-    ? results.map((result) => ({
-        id: result.itemId,
-        url: result.previewUrl,
-        name: result.name,
-        downloadUrl: result.downloadUrl,
-      }))
-    : propertyMedia
-        .filter((item) => item.variantType === 'ENHANCED')
-        .map((item) => ({
-          id: item.id,
-          url: item.url,
-          name: item.fileName,
-          downloadUrl: item.url,
-        }));
-
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
@@ -1082,14 +1038,8 @@ export default function StudioPage() {
                 </div>
               )}
 
-              <div className={styles.strengthControl}>
-                <div><span>Güç (Strength)</span><b>0.3</b></div>
-                <input aria-label="Dönüşüm gücü" type="range" min="0" max="1" step="0.1" value="0.3" readOnly />
-                <div><small>Yapıyı koru</small><small>Daha yaratıcı</small></div>
-              </div>
-
               <div className={styles.controlFooter}>
-                <span><ShieldCheck /> API anahtarı yalnızca sunucuda kullanılır.</span>
+                <span>İşlem arka planda devam eder; sayfada beklemeniz gerekmez.</span>
                 <button type="button" onClick={startProcessing} disabled={!totalSelected || isProcessing}>
                   {isProcessing ? <Loader2 className="animate-spin" /> : <WandSparkles />}
                   {totalSelected || 0} görseli iyileştir
@@ -1105,10 +1055,24 @@ export default function StudioPage() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={activeSourceUrl} alt="Orijinal görsel" className={styles.originalImage} />
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={activeOutputUrl} alt="İyileştirilmiş görsel" className={styles.enhancedImage} />
+                    <img
+                      src={activeOutputUrl}
+                      alt="İyileştirilmiş görsel"
+                      className={styles.enhancedImage}
+                      style={{ clipPath: `inset(0 0 0 ${comparePosition}%)` }}
+                    />
                     <span className={styles.originalLabel}>Orijinal</span>
                     <span className={styles.enhancedLabel}>{activePhoto ? 'İyileştirilmiş' : 'Önizleme'}</span>
-                    <i className={styles.compareDivider}><b>‹ ›</b></i>
+                    <i className={styles.compareDivider} style={{ left: `${comparePosition}%` }}><b>‹ ›</b></i>
+                    <input
+                      className={styles.compareRange}
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={comparePosition}
+                      onChange={(event) => setComparePosition(Number(event.target.value))}
+                      aria-label="Önce ve sonra karşılaştırma çizgisi"
+                    />
                   </>
                 ) : (
                   <div className={styles.emptyCompare}>
@@ -1117,13 +1081,6 @@ export default function StudioPage() {
                     <p>Bir portföy fotoğrafı seçtiğinizde orijinal ve iyileştirilmiş görüntü burada yan yana açılır.</p>
                   </div>
                 )}
-              </div>
-              <div className={styles.zoomBar}>
-                <button type="button" aria-label="Uzaklaştır"><Minus /></button>
-                <span>45%</span>
-                <button type="button" aria-label="Yakınlaştır"><Plus /></button>
-                <button type="button">Sığdır</button>
-                <button type="button" aria-label="Tam ekran"><Maximize2 /></button>
               </div>
               {results.length > 1 && (
                 <div className={styles.resultStrip}>
@@ -1138,27 +1095,6 @@ export default function StudioPage() {
             </section>
 
             <aside className={styles.rightRail}>
-              <section className={styles.statusCard} aria-live="polite">
-                <div className={styles.railTitle}><span>İş durumu</span><b>Stable Image Ultra</b></div>
-                <div className={styles.statusRow}><span>Kuyruk ilerlemesi</span><b>{completedItems || (isProcessing ? 1 : 0)} / {batchItems.length || totalSelected || 0}</b></div>
-                <div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div>
-                <div className={styles.statusRow}><span>Durum</span><b>{isProcessing ? 'İşleniyor' : activePhoto ? 'Tamamlandı' : 'Hazır'}</b></div>
-                <div className={styles.statusRow}><span>Kullanılan kredi</span><b>{completedItems} / {batchItems.length || totalSelected || 0}</b></div>
-                {status && <p>{status}</p>}
-              </section>
-
-              <section className={styles.safetyCard}>
-                <div className={styles.railTitle}><span>Gerçekçilik &amp; güvenlik</span><SlidersHorizontal /></div>
-                {[
-                  ['Mimariyi koru', 'Düşük 0.3 dönüşüm gücü'],
-                  ['Nesne ekleme', 'Negative prompt ile engelli'],
-                  ['Yazı / filigran', 'Temiz pazarlama çıktısı'],
-                ].map(([title, note]) => (
-                  <div key={title}><CheckCircle2 /><p><b>{title}</b><span>{note}</span></p></div>
-                ))}
-                <details><summary>Negative prompt</summary><p>{STUDIO_NEGATIVE_PROMPT}</p></details>
-              </section>
-
               <section className={styles.downloadCard}>
                 <div className={styles.railTitle}><span>İndirme seçenekleri</span><Download /></div>
                 {activePhoto ? (
@@ -1172,7 +1108,6 @@ export default function StudioPage() {
                 <button type="button" onClick={downloadAllResults} disabled={!results.length || isPreparingZip || !selectedResultItemIds.length}>
                   {isPreparingZip ? <Loader2 className="animate-spin" /> : <Download />} Pazarlama paketi (ZIP)
                 </button>
-                <p><ShieldCheck /> Çıktılar renk profili ve boyut standartlarına uygun hazırlanır.</p>
               </section>
             </aside>
 
@@ -1189,71 +1124,6 @@ export default function StudioPage() {
                   </div>
                 </div>
               </div>
-            )}
-
-            {batchItems.length > 0 && screen === 'upload' && (
-              <section
-                aria-live="polite"
-                className={styles.batchPanel}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">
-                      Görsel işlem durumu
-                    </h3>
-                    <p className="mt-1 text-xs text-slate-400">{status}</p>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-200">
-                    %{progress}
-                  </span>
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-emerald-300 transition-[width]"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {batchItems.map((item) => {
-                    const label =
-                      item.status === 'COMPLETED' ||
-                      item.status === 'ATTACHED'
-                        ? 'Hazır'
-                        : item.status === 'FAILED'
-                          ? 'Başarısız'
-                          : item.status === 'PROCESSING'
-                            ? 'İşleniyor'
-                            : item.status === 'UPLOADING'
-                              ? 'Yükleniyor'
-                              : 'Bekliyor';
-                    return (
-                      <li
-                        key={item.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
-                      >
-                        <span className="truncate text-xs text-slate-300">
-                          {item.originalFileName}
-                        </span>
-                        <span
-                          className={`shrink-0 text-[10px] font-bold ${
-                            item.status === 'FAILED'
-                              ? 'text-rose-300'
-                              : item.status === 'COMPLETED' ||
-                                  item.status === 'ATTACHED'
-                                ? 'text-emerald-300'
-                                : 'text-amber-200'
-                          }`}
-                        >
-                          {item.status === 'PROCESSING' && (
-                            <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
-                          )}
-                          {label}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
             )}
 
           </section>
@@ -1391,30 +1261,34 @@ export default function StudioPage() {
 
             {activePhoto ? (
               <div className={styles.resultsCompare}>
-                <div className="relative min-h-[22rem] bg-black">
-                  {/* The result is a short-lived generated Blob/remote URL. */}
+                <div className={`${styles.compareCanvas} min-h-[28rem]`}>
+                  {/* Tenant media and generated result URLs require native image elements. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={activePhoto.previewUrl} alt={`${activePhoto.name} iyileştirilmiş`} className="h-full max-h-[39rem] min-h-[22rem] w-full object-contain" />
-                  <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-300 px-3 py-1.5 text-xs font-extrabold text-emerald-950"><Sparkles className="h-3.5 w-3.5" /> AI iyileştirildi</div>
+                  <img src={activePhoto.sourceUrl} alt="Orijinal görsel" className={styles.originalImage} />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activePhoto.previewUrl}
+                    alt="İyileştirilmiş görsel"
+                    className={styles.enhancedImage}
+                    style={{ clipPath: `inset(0 0 0 ${comparePosition}%)` }}
+                  />
+                  <span className={styles.originalLabel}>Orijinal</span>
+                  <span className={styles.enhancedLabel}>İyileştirilmiş</span>
+                  <i className={styles.compareDivider} style={{ left: `${comparePosition}%` }}><b>‹ ›</b></i>
+                  <input
+                    className={styles.compareRange}
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={comparePosition}
+                    onChange={(event) => setComparePosition(Number(event.target.value))}
+                    aria-label="Önce ve sonra karşılaştırma çizgisi"
+                  />
                 </div>
                 <div className="flex flex-col p-5 sm:p-7">
-                  <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">Seçili görsel</p>
-                  <h2 className="mt-2 break-all text-xl font-extrabold text-white">{activePhoto.name}</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">Stable Image Ultra; ışık, renk dengesi, netlik ve genel sunum kalitesini seçtiğiniz talimata göre yeniden işledi.</p>
-                  {activeOriginal && (
-                    <div className="mt-6 overflow-hidden rounded-xl border border-white/10">
-                      {/* The original may be a local object URL or tenant Blob URL. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={activeOriginal.url}
-                        alt="İşlem öncesi"
-                        className="aspect-[16/10] w-full object-cover"
-                      />
-                      <p className="border-t border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-300">
-                        İşlem öncesi
-                      </p>
-                    </div>
-                  )}
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Seçili sonuç</p>
+                  <h2 className="mt-2 break-all text-lg font-semibold text-white">{activePhoto.name}</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-400">Ortadaki çizgiyi sürükleyerek işlem öncesi ve sonrası arasındaki farkı inceleyin.</p>
                   {activePhoto.attachedMediaId && <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-bold text-emerald-200"><CheckCircle2 className="h-4 w-4" /> Portföye eklendi</div>}
                   <a href={activePhoto.downloadUrl} download={activePhoto.name} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm font-extrabold text-emerald-200 transition hover:bg-emerald-300/20"><Download className="h-4 w-4" /> Bu görseli indir</a>
                 </div>
@@ -1483,19 +1357,89 @@ export default function StudioPage() {
 
       {studioArea === 'enhancer' && (
         <section id="studio-recent" className={styles.recentWorks}>
-          <div className={styles.recentHeader}><div><h2>Son çalışmalar</h2><p>İyileştirilmiş görsellerinizi yeniden açın veya indirin.</p></div><span>{recentVisuals.length} çalışma</span></div>
-          <div className={styles.recentGrid}>
-            {recentVisuals.slice(0, 4).map((item, index) => (
-              <article key={item.id}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.url} alt={item.name} />
-                <div><span>{new Date().toLocaleDateString('tr-TR')}</span><b>{selectedWorkspaceProperty?.title || item.name}</b><small>İyileştirildi</small></div>
-                <button type="button" onClick={() => { setStudioArea('enhancer'); if (results[index]) { setActiveResult(index); setScreen('results'); } }}>Karşılaştır</button>
-                <a href={item.downloadUrl} download={item.name}><Download /> İndir</a>
-              </article>
-            ))}
-            {!recentVisuals.length && (
-              <div className={styles.emptyRecent}><ImagePlus /><span>İlk iyileştirme çalışmanız tamamlandığında burada görünecek.</span></div>
+          <div className={styles.recentHeader}>
+            <div>
+              <h2>Son çalışmalar</h2>
+              <p>İşlemler arka planda sürer. Çalışmalar ve çıktılar 7 gün saklanır.</p>
+            </div>
+            <span>{recentBatches.length} çalışma</span>
+          </div>
+          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+            {recentBatches.map((item) => {
+              const completed = item.items.filter((batchItem) =>
+                ['COMPLETED', 'ATTACHED'].includes(batchItem.status)
+              ).length;
+              const failed = item.items.filter(
+                (batchItem) => batchItem.status === 'FAILED'
+              ).length;
+              const progressValue = item.items.length
+                ? Math.round(((completed + failed) / item.items.length) * 100)
+                : 0;
+              const ready = completed > 0 && ['COMPLETED', 'PARTIAL', 'ATTACHED'].includes(item.status);
+              const statusLabel = ready
+                ? 'Hazır'
+                : item.status === 'FAILED'
+                  ? 'Başarısız'
+                  : item.status === 'PROCESSING'
+                    ? 'İşleniyor'
+                    : 'Sırada';
+              return (
+                <article key={item.id} className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-100">
+                        {item.property?.title || 'Portföysüz görsel çalışması'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(item.createdAt).toLocaleString('tr-TR', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                      ready
+                        ? 'bg-emerald-400/10 text-emerald-300'
+                        : item.status === 'FAILED'
+                          ? 'bg-rose-400/10 text-rose-300'
+                          : 'bg-amber-400/10 text-amber-200'
+                    }`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-emerald-400 transition-[width]"
+                      style={{ width: `${Math.max(item.status === 'PROCESSING' ? 8 : 0, progressValue)}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>{completed}/{item.items.length} görsel hazır</span>
+                    <span>%{progressValue}</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!ready}
+                    onClick={() => void openBatch(item.id)}
+                    className="mt-4 inline-flex w-full items-center justify-center rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-emerald-400/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {ready ? 'Sonuçları aç' : 'Arka planda devam ediyor'}
+                  </button>
+                </article>
+              );
+            })}
+            {!recentBatches.length && !isLoadingBatches && (
+              <div className={styles.emptyRecent}>
+                <ImagePlus />
+                <span>İlk iyileştirme çalışmanız burada görünecek.</span>
+              </div>
+            )}
+            {isLoadingBatches && (
+              <div className="rounded-lg border border-slate-800 p-5 text-sm text-slate-400">
+                Son çalışmalar yükleniyor…
+              </div>
             )}
           </div>
         </section>
@@ -1591,7 +1535,6 @@ export default function StudioPage() {
       </Dialog>
       )}
 
-      {isProcessing && <div className="fixed inset-0 z-50 grid place-items-center bg-[#07120f]/80 px-4 backdrop-blur-sm"><div role="status" aria-live="polite" className="w-full max-w-md rounded-3xl border border-emerald-300/20 bg-slate-950 p-7 text-center shadow-2xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-300/15 text-emerald-300"><Loader2 className="h-8 w-8 animate-spin" /></div><h2 className="mt-5 text-xl font-extrabold text-white">Görselleriniz işleniyor</h2><p className="mt-2 text-sm leading-6 text-slate-400">{status}</p><div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-teal-400 transition-all duration-500" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs font-bold text-emerald-300">%{progress}</p></div></div>}
     </div>
   );
 }

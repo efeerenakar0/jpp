@@ -677,6 +677,9 @@ model CompanyAccount {
   subscriptionPlan             String                  @default("standard")
   subscriptionEndsAt           DateTime?
   workspaceEnabled             Boolean                 @default(false)
+  timezone                     String                  @default("Europe/Istanbul")
+  onboardingState              Json?
+  onboardingCompletedAt        DateTime?
   sessionVersion               Int                     @default(1)
   lastLoginAt                  DateTime?
   createdAt                    DateTime                @default(now())
@@ -728,6 +731,7 @@ model CompanyAccount {
   huntedOutreachApprovals     HuntedOutreachApproval[]
   websiteIntegrations         WebsiteIntegration[]
   generatedWebsites           GeneratedWebsite[]
+  websitePromptVersions       WebsitePromptVersion[]
   propertyMedia               CrmPropertyMedia[]
   studioBatches               StudioBatch[]
 
@@ -1178,6 +1182,7 @@ model GoogleCalendarConnection {
   connectedByMemberId   String?
   email                 String?
   calendarId            String         @default("primary")
+  calendarTimeZone      String?
   encryptedAccessToken  String         @db.Text
   encryptedRefreshToken String         @db.Text
   accessTokenExpiresAt  DateTime?
@@ -1610,31 +1615,32 @@ model WebsiteTemplate {
 }
 
 model GeneratedWebsite {
-  id           String           @id @default(cuid())
+  id               String                 @id @default(cuid())
   companyAccountId String?
-  companyAccount CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  templateId   String?
-  template     WebsiteTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  companyName  String
-  logoUrl      String?
-  primaryColor String           @default("#1a365d")
-  accentColor  String           @default("#c6a55a")
-  phone        String?
-  email        String?
-  address      String?
-  zipFilePath  String? // Üretilen .zip dosya yolu
-  promptTemplate String         @db.Text
-  status       String           @default("pending") // pending, generating, ready, error
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  companyAccount   CompanyAccount?        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  templateId       String?
+  template         WebsiteTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  companyName      String
+  logoUrl          String?
+  primaryColor     String                 @default("#1a365d")
+  accentColor      String                 @default("#c6a55a")
+  phone            String?
+  email            String?
+  address          String?
+  zipFilePath      String? // Üretilen .zip dosya yolu
+  promptTemplate   String                 @db.Text
+  status           String                 @default("pending") // pending, generating, ready, error
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  promptVersions   WebsitePromptVersion[]
 
   @@index([companyAccountId, createdAt])
 }
 
 model WebsiteIntegration {
-  id                    String         @id @default(cuid())
+  id                    String                   @id @default(cuid())
   companyAccountId      String
-  companyAccount        CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  companyAccount        CompanyAccount           @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   displayName           String
   websiteUrl            String
   websiteOrigin         String
@@ -1643,25 +1649,48 @@ model WebsiteIntegration {
   portfolioPath         String
   technicalContactEmail String
   repositoryUrl         String?
-  notes                 String?        @db.Text
+  notes                 String?                  @db.Text
   sourceBlobPathname    String
   sourceFileName        String
   sourceSize            Int
-  apiKeyLookup          String         @unique
+  apiKeyLookup          String                   @unique
   apiKeyHint            String
-  apiKeyCreatedAt       DateTime       @default(now())
-  promptTemplate        String         @db.Text
-  status                String         @default("PENDING")
-  submittedAt           DateTime       @default(now())
+  apiKeyCreatedAt       DateTime                 @default(now())
+  promptTemplate        String                   @db.Text
+  status                String                   @default("PENDING")
+  submittedAt           DateTime                 @default(now())
   deliveredAt           DateTime?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
   requestNonces         WebsiteRequestNonce[]
   rateLimitBuckets      WebsiteRateLimitBucket[]
+  promptVersions        WebsitePromptVersion[]
 
   @@unique([companyAccountId, websiteOrigin])
   @@index([companyAccountId, status])
   @@index([status, createdAt])
+}
+
+model WebsitePromptVersion {
+  id                   String              @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount      @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  websiteIntegrationId String?
+  websiteIntegration   WebsiteIntegration? @relation(fields: [websiteIntegrationId], references: [id], onDelete: Cascade)
+  generatedWebsiteId   String?
+  generatedWebsite     GeneratedWebsite?   @relation(fields: [generatedWebsiteId], references: [id], onDelete: Cascade)
+  version              Int
+  promptTemplate       String              @db.Text
+  source               String
+  createdByType        String
+  createdById          String
+  sourceSnapshot       Json?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@unique([websiteIntegrationId, version])
+  @@unique([generatedWebsiteId, version])
+  @@index([companyAccountId, createdAt])
 }
 
 model WebsiteRequestNonce {

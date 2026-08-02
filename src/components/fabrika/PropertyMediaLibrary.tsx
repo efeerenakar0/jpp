@@ -326,7 +326,7 @@ export default function PropertyMediaLibrary({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none border-slate-700 bg-slate-950 p-0 text-slate-100 sm:h-[min(90dvh,56rem)] sm:w-[min(94vw,72rem)] sm:rounded-xl">
+        <DialogContent className="flex h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none border-slate-700 bg-slate-950 p-0 text-slate-100 sm:h-[min(92dvh,60rem)] sm:w-[min(96vw,80rem)] sm:max-w-none sm:rounded-xl">
           <DialogHeader className="shrink-0 border-b border-slate-800 px-5 py-4 pr-14 sm:px-6">
             <DialogTitle className="flex items-center gap-2 text-white">
               <Images className="h-5 w-5 text-emerald-300" />

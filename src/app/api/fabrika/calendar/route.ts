@@ -141,6 +141,7 @@ async function calendarData(
         select: {
           email: true,
           calendarId: true,
+          calendarTimeZone: true,
           lastSyncedAt: true,
           lastSyncStatus: true,
           lastSyncError: true,

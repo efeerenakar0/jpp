@@ -6,7 +6,7 @@ import {
   X, Settings, Key, Phone, ShieldCheck, ExternalLink, Save, Trash2,
   Search, Sparkles, HelpCircle, Flame, Timer, Users, SlidersHorizontal,
   UserRound, MapPin, Home, WalletCards, CircleCheckBig, Circle,
-  CalendarPlus, UserRoundCheck
+  CalendarPlus
 } from 'lucide-react';
 import ChatInterface from '@/components/fabrika/ChatInterface';
 import AppointmentApproval from '@/components/fabrika/AppointmentApproval';
@@ -129,6 +129,7 @@ export default function AsistanPage() {
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [appointmentActionId, setAppointmentActionId] = useState<string | null>(null);
   const [isCleaningData, setIsCleaningData] = useState(false);
+  const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(false);
   const [metrics, setMetrics] = useState<AssistantMetrics | null>(null);
 
   // AI & company profile settings. WhatsApp itself is connected by QR.
@@ -1018,9 +1019,6 @@ export default function AsistanPage() {
           <p>Canlı müşteri sohbetlerini yönetin, yapay zeka ile anında yanıtlayın ve randevu taleplerini tek akışta organize edin.</p>
         </div>
         <div className={styles.headerActions}>
-          <span className={styles.statusAction}><Phone aria-hidden="true" /> WhatsApp bağlı</span>
-          <span className={styles.statusAction}><Sparkles aria-hidden="true" /> AI aktif</span>
-          <span className={styles.statusAction}><UserRoundCheck aria-hidden="true" /> İnsan devri açık</span>
           <button type="button" onClick={() => setIsModalOpen(true)} className={styles.primaryAction}>
             <Plus aria-hidden="true" /> Yeni sohbet
           </button>
@@ -1047,10 +1045,6 @@ export default function AsistanPage() {
           <span className={styles.metricIcon}><MessageSquare /></span>
           <span><small>Aktif sohbet</small><strong>{metrics?.activeConversations ?? conversations.length}</strong></span>
           <i className={styles.onlineDot} aria-label="Canlı" />
-        </article>
-        <article className={styles.metricCard}>
-          <span className={`${styles.metricIcon} ${styles.metricIconAmber}`}><Flame /></span>
-          <span><small>Sıcak müşteri</small><strong>{hotConversationCount}</strong></span>
         </article>
         <article className={styles.metricCard}>
           <span className={styles.metricIcon}><Calendar /></span>
@@ -1165,20 +1159,29 @@ export default function AsistanPage() {
 
             <section className={styles.chatColumn} aria-label="Seçili sohbet">
               {selectedConvId ? (
-                <ChatInterface
-                  key={selectedConvId}
-                  conversationId={selectedConvId}
-                  messages={selectedConversation?.messages || []}
-                  onSendMessage={handleSendMessage}
-                  onUpdateConversation={handleUpdateConversation}
-                  onDeleteConversation={() => handleDeleteConversation(selectedConvId)}
-                  customerName={selectedConversation?.customerName || 'Müşteri'}
-                  intent={selectedConversation?.intent || 'UNKNOWN'}
-                  notes={selectedConversation?.notes}
-                  tags={selectedConversation?.tags}
-                  aiEnabled={selectedConversation?.aiEnabled !== false}
-                  lastCustomerMessageAt={selectedConversation?.lastCustomerMessageAt}
-                />
+                <>
+                  <button
+                    type="button"
+                    className={styles.detailsTrigger}
+                    onClick={() => setIsCustomerDetailsOpen(true)}
+                  >
+                    <UserRound aria-hidden="true" /> Müşteri bilgileri
+                  </button>
+                  <ChatInterface
+                    key={selectedConvId}
+                    conversationId={selectedConvId}
+                    messages={selectedConversation?.messages || []}
+                    onSendMessage={handleSendMessage}
+                    onUpdateConversation={handleUpdateConversation}
+                    onDeleteConversation={() => handleDeleteConversation(selectedConvId)}
+                    customerName={selectedConversation?.customerName || 'Müşteri'}
+                    intent={selectedConversation?.intent || 'UNKNOWN'}
+                    notes={selectedConversation?.notes}
+                    tags={selectedConversation?.tags}
+                    aiEnabled={selectedConversation?.aiEnabled !== false}
+                    lastCustomerMessageAt={selectedConversation?.lastCustomerMessageAt}
+                  />
+                </>
               ) : (
                 <div className={styles.emptyChat}>
                   <span><Bot aria-hidden="true" /></span>
@@ -1188,8 +1191,30 @@ export default function AsistanPage() {
               )}
             </section>
 
-            <aside className={styles.customerRail} aria-label="Müşteri özeti">
-              <div className={styles.summaryTitle}><strong>Müşteri özeti</strong><span>AI</span></div>
+            {isCustomerDetailsOpen && (
+              <button
+                type="button"
+                className={styles.drawerBackdrop}
+                aria-label="Müşteri bilgilerini kapat"
+                onClick={() => setIsCustomerDetailsOpen(false)}
+              />
+            )}
+            <aside
+              className={styles.customerRail}
+              data-open={isCustomerDetailsOpen}
+              aria-label="Müşteri özeti"
+              aria-hidden={!isCustomerDetailsOpen}
+            >
+              <div className={styles.summaryTitle}>
+                <strong>Müşteri bilgileri</strong>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomerDetailsOpen(false)}
+                  aria-label="Müşteri bilgilerini kapat"
+                >
+                  <X aria-hidden="true" />
+                </button>
+              </div>
               {selectedConversation ? (
                 <>
                   <section className={styles.scoreCard}>

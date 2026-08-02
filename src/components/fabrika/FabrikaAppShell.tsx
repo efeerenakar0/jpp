@@ -9,11 +9,13 @@ import {
   type FabrikaClientSession,
 } from './FabrikaSessionContext';
 import { resolveWorkspaceBrand } from '@/lib/business-ceo-brand';
+import OnboardingWizard from './OnboardingWizard';
 
 interface FabrikaAppShellProps {
   children: React.ReactNode;
   account: {
     companyName: string;
+    onboardingComplete: boolean;
   };
   session: FabrikaClientSession;
 }
@@ -24,6 +26,9 @@ export default function FabrikaAppShell({
   session,
 }: FabrikaAppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [onboardingComplete, setOnboardingComplete] = useState(
+    account.onboardingComplete
+  );
   const pathname = usePathname();
 
   return (
@@ -58,6 +63,12 @@ export default function FabrikaAppShell({
             </div>
           </main>
         </div>
+        {session.principalType === 'OWNER' && !onboardingComplete ? (
+          <OnboardingWizard
+            initialCompanyName={account.companyName}
+            onComplete={() => setOnboardingComplete(true)}
+          />
+        ) : null}
       </div>
     </FabrikaSessionProvider>
   );

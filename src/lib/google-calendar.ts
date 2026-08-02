@@ -11,6 +11,7 @@ const GOOGLE_SCOPES = [
   'openid',
   'email',
   'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
 ];
 const TIME_ZONE = 'Europe/Istanbul';
 
@@ -47,6 +48,13 @@ type GoogleEventList = {
   nextPageToken?: string;
   nextSyncToken?: string;
   error?: { code?: number; message?: string };
+};
+
+export type GoogleCalendarOption = {
+  id: string;
+  summary: string;
+  primary: boolean;
+  timeZone: string | null;
 };
 
 function googleClient() {
@@ -248,9 +256,72 @@ async function googleFetch(
   return response;
 }
 
-function dateInIstanbul(date: Date) {
+export async function listGoogleCalendars(
+  companyAccountId: string
+): Promise<GoogleCalendarOption[]> {
+  const response = await googleFetch(
+    companyAccountId,
+    '/users/me/calendarList?minAccessRole=writer&showHidden=false'
+  );
+  const data = (await response.json()) as {
+    items?: Array<{
+      id?: string;
+      summary?: string;
+      primary?: boolean;
+      timeZone?: string;
+      deleted?: boolean;
+    }>;
+    error?: { message?: string };
+  };
+  if (!response.ok) {
+    throw new Error(data.error?.message || 'Google takvimleri alınamadı.');
+  }
+  return (data.items || [])
+    .filter((calendar) => calendar.id && !calendar.deleted)
+    .map((calendar) => ({
+      id: calendar.id!,
+      summary: calendar.summary?.trim() || 'Adsız takvim',
+      primary: Boolean(calendar.primary),
+      timeZone: calendar.timeZone?.trim() || null,
+    }))
+    .sort((a, b) => Number(b.primary) - Number(a.primary));
+}
+
+export async function selectGoogleCalendar(
+  companyAccountId: string,
+  calendarId: string
+) {
+  const calendars = await listGoogleCalendars(companyAccountId);
+  const selected = calendars.find((calendar) => calendar.id === calendarId);
+  if (!selected) {
+    throw new Error('Seçilen Google takvimi bu hesaba ait değil.');
+  }
+  await prisma.$transaction([
+    prisma.googleCalendarConnection.update({
+      where: { companyAccountId },
+      data: {
+        calendarId: selected.id,
+        calendarTimeZone: selected.timeZone,
+        syncToken: null,
+        lastSyncStatus: 'CONNECTED',
+        lastSyncError: null,
+      },
+    }),
+    ...(selected.timeZone
+      ? [
+          prisma.companyAccount.update({
+            where: { id: companyAccountId },
+            data: { timezone: selected.timeZone },
+          }),
+        ]
+      : []),
+  ]);
+  return selected;
+}
+
+function dateInTimeZone(date: Date, timeZone: string) {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE,
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -263,7 +334,7 @@ function nextDay(dateValue: string) {
   return date.toISOString().slice(0, 10);
 }
 
-function taskEventBody(task: {
+export function buildTaskEventBody(task: {
   id: string;
   title: string;
   description: string | null;
@@ -272,16 +343,16 @@ function taskEventBody(task: {
   allDay: boolean;
   type: CrmTaskType;
   priority: number;
-}) {
+}, timeZone = TIME_ZONE) {
   if (!task.dueAt) throw new Error('Takvim kaydının başlangıç tarihi yok.');
-  const startDate = dateInIstanbul(task.dueAt);
-  const endDate = task.endAt ? dateInIstanbul(task.endAt) : nextDay(startDate);
+  const startDate = dateInTimeZone(task.dueAt, timeZone);
+  const endDate = task.endAt ? dateInTimeZone(task.endAt, timeZone) : nextDay(startDate);
   return {
     summary: task.title,
     description: task.description || undefined,
     start: task.allDay
       ? { date: startDate }
-      : { dateTime: task.dueAt.toISOString(), timeZone: TIME_ZONE },
+      : { dateTime: task.dueAt.toISOString(), timeZone },
     end: task.allDay
       ? { date: endDate === startDate ? nextDay(startDate) : endDate }
       : {
@@ -289,7 +360,7 @@ function taskEventBody(task: {
             task.endAt ||
             new Date(task.dueAt.getTime() + 60 * 60 * 1000)
           ).toISOString(),
-          timeZone: TIME_ZONE,
+          timeZone,
         },
     extendedProperties: {
       private: {
@@ -308,6 +379,7 @@ export async function syncSingleTaskToGoogle(
   const [connection, task] = await Promise.all([
     prisma.googleCalendarConnection.findUnique({
       where: { companyAccountId },
+      include: { companyAccount: { select: { timezone: true } } },
     }),
     prisma.crmTask.findFirst({
       where: { id: taskId, companyAccountId },
@@ -316,7 +388,10 @@ export async function syncSingleTaskToGoogle(
   if (!connection || !task?.dueAt || task.status === CrmTaskStatus.CANCELLED) {
     return null;
   }
-  const body = taskEventBody(task);
+  const body = buildTaskEventBody(
+    task,
+    connection.calendarTimeZone || connection.companyAccount.timezone || TIME_ZONE
+  );
   const calendarId = encodeURIComponent(connection.calendarId);
   const path = task.googleEventId
     ? `/calendars/${calendarId}/events/${encodeURIComponent(task.googleEventId)}?sendUpdates=none`
@@ -374,6 +449,31 @@ export function classifyGoogleEvent(event: Pick<GoogleEvent, 'summary' | 'extend
   return CrmTaskType.OTHER;
 }
 
+export function buildGoogleEventsQuery(input: {
+  syncToken?: string | null;
+  pageToken?: string;
+}) {
+  const params = new URLSearchParams({
+    showDeleted: 'true',
+    maxResults: '2500',
+    singleEvents: 'true',
+  });
+  if (input.syncToken) {
+    params.set('syncToken', input.syncToken);
+  } else {
+    params.set(
+      'timeMin',
+      new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()
+    );
+    params.set(
+      'timeMax',
+      new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    );
+  }
+  if (input.pageToken) params.set('pageToken', input.pageToken);
+  return params;
+}
+
 async function listGoogleEvents(
   companyAccountId: string,
   connection: {
@@ -386,24 +486,10 @@ async function listGoogleEvents(
   let pageToken: string | undefined;
   let nextSyncToken: string | undefined;
   do {
-    const params = new URLSearchParams({
-      showDeleted: 'true',
-      maxResults: '2500',
+    const params = buildGoogleEventsQuery({
+      syncToken: connection.syncToken,
+      pageToken,
     });
-    if (connection.syncToken) {
-      params.set('syncToken', connection.syncToken);
-    } else {
-      params.set(
-        'timeMin',
-        new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()
-      );
-      params.set(
-        'timeMax',
-        new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-      );
-      params.set('singleEvents', 'true');
-    }
-    if (pageToken) params.set('pageToken', pageToken);
     const response = await googleFetch(
       companyAccountId,
       `/calendars/${encodeURIComponent(connection.calendarId)}/events?${params}`

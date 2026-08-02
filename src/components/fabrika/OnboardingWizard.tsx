@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
 
 interface FormData {
   companyName: string;
@@ -12,11 +13,17 @@ interface FormData {
   extraNotes: string;
 }
 
-export default function OnboardingWizard() {
+export default function OnboardingWizard({
+  initialCompanyName,
+  onComplete,
+}: {
+  initialCompanyName: string;
+  onComplete: () => void;
+}) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    companyName: '',
+    companyName: initialCompanyName,
     strengths: '',
     uniquePoints: '',
     serviceAreas: '',
@@ -24,13 +31,33 @@ export default function OnboardingWizard() {
     teamSize: '',
     extraNotes: '',
   });
+  const [error, setError] = useState('');
 
   const totalSteps = 3;
 
-  const handleSkip = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('jasmine_onboarding_done', 'true');
-      window.location.href = '/fabrika/avci';
+  const handleSkip = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/fabrika/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: formData.companyName.trim() || initialCompanyName,
+          strengths: [],
+          uniquePoints: [],
+          serviceAreas: [],
+          extraNotes: '',
+          completed: true,
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Kurulum kaydedilemedi.');
+      onComplete();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Kurulum kaydedilemedi.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,33 +75,35 @@ export default function OnboardingWizard() {
   };
 
   const handleSubmit = async () => {
+    setError('');
     setLoading(true);
     try {
       const payload = {
-        companyName: formData.companyName || 'Business CEO AI',
-        strengths: (formData.strengths || 'Lüks Gayrimenkul, Hızlı Satış').split(',').map((s) => s.trim()).filter(Boolean),
-        uniquePoints: (formData.uniquePoints || 'Yatırımcı Ağı, VIP Hizmet').split(',').map((s) => s.trim()).filter(Boolean),
-        serviceAreas: (formData.serviceAreas || 'Alanya, Mahmutlar, Oba').split(',').map((s) => s.trim()).filter(Boolean),
-        yearsInBusiness: formData.yearsInBusiness ? parseInt(formData.yearsInBusiness) : 10,
-        teamSize: formData.teamSize ? parseInt(formData.teamSize) : 15,
-        extraNotes: formData.extraNotes || 'Alanya bölgesinde lüks konut uzmanı',
+        companyName: formData.companyName.trim(),
+        strengths: formData.strengths.split(',').map((s) => s.trim()).filter(Boolean),
+        uniquePoints: formData.uniquePoints.split(',').map((s) => s.trim()).filter(Boolean),
+        serviceAreas: formData.serviceAreas.split(',').map((s) => s.trim()).filter(Boolean),
+        yearsInBusiness: formData.yearsInBusiness ? parseInt(formData.yearsInBusiness, 10) : null,
+        teamSize: formData.teamSize ? parseInt(formData.teamSize, 10) : null,
+        extraNotes: formData.extraNotes.trim(),
+        completed: true,
       };
 
-      await fetch('/api/fabrika/onboarding', {
+      if (!payload.companyName) {
+        setStep(1);
+        throw new Error('Şirket adını yazın.');
+      }
+
+      const response = await fetch('/api/fabrika/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }).catch(() => {});
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('jasmine_onboarding_done', 'true');
-        window.location.href = '/fabrika/avci';
-      }
-    } catch (error) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('jasmine_onboarding_done', 'true');
-        window.location.href = '/fabrika/avci';
-      }
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Kurulum kaydedilemedi.');
+      onComplete();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Kurulum kaydedilemedi.');
     } finally {
       setLoading(false);
     }
@@ -83,20 +112,21 @@ export default function OnboardingWizard() {
   const progressPercentage = ((step - 1) / (totalSteps - 1)) * 100;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 text-slate-100 font-sans">
-      <div className="w-full max-w-2xl bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden relative">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-slate-950/85 p-4 text-slate-100 backdrop-blur-sm">
+      <div role="dialog" aria-modal="true" aria-labelledby="onboarding-title" className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
         
         {/* Bypass/Skip Button */}
         <button 
           onClick={handleSkip}
-          className="absolute top-4 right-4 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer z-20 flex items-center gap-1.5"
+          disabled={loading}
+          className="absolute right-4 top-4 z-20 flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 disabled:opacity-50"
         >
-          ⚡ Kurulumu Atla & Doğrudan Avcı Paneline Geç ✕
+          Daha sonra tamamla <X className="h-3.5 w-3.5" />
         </button>
 
         {/* Header / Progress */}
         <div className="bg-slate-900 p-6 border-b border-slate-800 pt-8">
-          <h2 className="text-2xl font-black text-white mb-1">
+          <h2 id="onboarding-title" className="mb-1 text-2xl font-bold text-white">
             Şirket Profili Kurulumu
           </h2>
           <p className="text-slate-400 text-xs">Avcı modülünün size en uygun mesajları üretebilmesi için firmanızı tanıyalım.</p>
@@ -116,6 +146,11 @@ export default function OnboardingWizard() {
 
         {/* Content */}
         <div className="p-6">
+          {error ? (
+            <div role="alert" className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+              {error}
+            </div>
+          ) : null}
           {step === 1 && (
             <div className="space-y-4 animate-in fade-in">
               <div>
@@ -220,15 +255,15 @@ export default function OnboardingWizard() {
               step === 1 ? 'opacity-0 cursor-default' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer'
             }`}
           >
-            Geri
+            <span className="inline-flex items-center gap-1"><ChevronLeft className="h-4 w-4" /> Geri</span>
           </button>
           
           {step < totalSteps ? (
             <button
               onClick={handleNext}
-              className="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 rounded-xl font-black text-xs transition-all shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1 px-6 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 rounded-xl font-black text-xs transition-all shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer"
             >
-              Devam Et
+            Devam Et <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
             <button
@@ -236,11 +271,7 @@ export default function OnboardingWizard() {
               disabled={loading}
               className="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 rounded-xl font-black text-xs transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
             >
-              {loading ? (
-                <>Kaydediliyor...</>
-              ) : (
-                'Tamamla ve Avcı Paneline Geç'
-              )}
+              {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Kaydediliyor…</> : <><CheckCircle2 className="h-4 w-4" /> Kurulumu tamamla</>}
             </button>
           )}
         </div>

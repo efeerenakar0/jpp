@@ -153,9 +153,12 @@ export function toSafeCompanyAccount(
     subscriptionPlan: account.subscriptionPlan,
     subscriptionEndsAt: account.subscriptionEndsAt,
     workspaceEnabled: account.workspaceEnabled,
+    timezone: account.timezone,
     hunterEnabled: isHunterEnabled(account),
     sessionVersion: account.sessionVersion,
     lastLoginAt: account.lastLoginAt,
+    onboardingState: account.onboardingState,
+    onboardingCompletedAt: account.onboardingCompletedAt,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
   };

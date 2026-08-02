@@ -37,7 +37,15 @@ import {
   UserRound,
   Video,
 } from 'lucide-react';
-import { type CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { toast } from 'sonner';
 import ConfirmDialog from '@/components/fabrika/ConfirmDialog';
 import EmptyState from '@/components/fabrika/EmptyState';
@@ -126,6 +134,13 @@ type CalendarData = {
 };
 
 type CalendarView = 'month' | 'week' | 'day';
+
+type GoogleCalendarOption = {
+  id: string;
+  summary: string;
+  primary: boolean;
+  timeZone: string | null;
+};
 
 const typeLabels: Record<TaskType, string> = {
   CALL: 'Arama',
@@ -243,8 +258,31 @@ export default function CalendarWorkspace() {
   const [selectedTask, setSelectedTask] = useState<CalendarTask | null>(null);
   const [defaultDate, setDefaultDate] = useState<Date | null>(null);
   const [renderedAt] = useState(Date.now);
+  const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarOption[]>([]);
+  const [googleCalendarsLoading, setGoogleCalendarsLoading] = useState(false);
+  const googleCalendarsLoaded = useRef(false);
 
-  async function loadCalendar() {
+  const loadGoogleCalendars = useCallback(async () => {
+    setGoogleCalendarsLoading(true);
+    try {
+      const response = await fetch('/api/fabrika/calendar/google', {
+        cache: 'no-store',
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Google takvimleri alınamadı.');
+      }
+      setGoogleCalendars(data.calendars || []);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Google takvimleri alınamadı.'
+      );
+    } finally {
+      setGoogleCalendarsLoading(false);
+    }
+  }, []);
+
+  const loadCalendar = useCallback(async () => {
     try {
       const response = await fetch('/api/fabrika/calendar', {
         cache: 'no-store',
@@ -254,6 +292,14 @@ export default function CalendarWorkspace() {
         throw new Error(data.error || 'Takvim yüklenemedi.');
       }
       setCalendar(data.calendar);
+      if (
+        data.calendar.google?.connected &&
+        data.calendar.permissions?.canManageSecrets &&
+        !googleCalendarsLoaded.current
+      ) {
+        googleCalendarsLoaded.current = true;
+        void loadGoogleCalendars();
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Takvim verileri yüklenemedi.'
@@ -261,7 +307,7 @@ export default function CalendarWorkspace() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [loadGoogleCalendars]);
 
   useEffect(() => {
     const timeout = window.setTimeout(loadCalendar, 0);
@@ -284,7 +330,7 @@ export default function CalendarWorkspace() {
       window.clearTimeout(timeout);
       window.clearInterval(interval);
     };
-  }, []);
+  }, [loadCalendar]);
 
   async function postAction(
     payload: Record<string, unknown>,
@@ -332,10 +378,35 @@ export default function CalendarWorkspace() {
         throw new Error(data.error || 'Google bağlantısı kaldırılamadı.');
       }
       toast.success('Google Calendar bağlantısı kaldırıldı.');
+      googleCalendarsLoaded.current = false;
+      setGoogleCalendars([]);
       await loadCalendar();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Bağlantı kaldırılamadı.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeGoogleCalendar(calendarId: string) {
+    setSaving(true);
+    try {
+      const response = await fetch('/api/fabrika/calendar/google', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calendarId }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Google takvimi seçilemedi.');
+      }
+      toast.success('Google takvimi seçildi ve senkronize edildi.');
+      await loadCalendar();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Google takvimi seçilemedi.'
       );
     } finally {
       setSaving(false);
@@ -733,6 +804,28 @@ export default function CalendarWorkspace() {
                   <strong>{calendar.google.connected ? 'Senkronize edildi' : 'Bağlantı bekleniyor'}</strong>
                   {calendar.google.lastSyncedAt ? `Son senkron: ${format(new Date(calendar.google.lastSyncedAt), 'd MMM yyyy HH:mm', { locale: tr })}` : 'Etkinlikler şu anda Business CEO AI takviminde tutuluyor.'}
                 </div>
+                {calendar.google.connected && calendar.permissions.canManageSecrets && (
+                  <label className={styles.settingsLabel}>
+                    Kullanılacak Google takvimi
+                    <select
+                      aria-label="Kullanılacak Google takvimi"
+                      disabled={saving || googleCalendarsLoading}
+                      onChange={(event) => void changeGoogleCalendar(event.target.value)}
+                      value={calendar.google.calendarId || 'primary'}
+                    >
+                      {!googleCalendars.length && (
+                        <option value={calendar.google.calendarId || 'primary'}>
+                          {googleCalendarsLoading ? 'Takvimler yükleniyor…' : 'Birincil takvim'}
+                        </option>
+                      )}
+                      {googleCalendars.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.summary}{option.primary ? ' · Birincil' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <div className={styles.googleButtons}>
                   {calendar.google.connected ? (
                     <>

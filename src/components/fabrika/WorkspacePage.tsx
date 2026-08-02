@@ -36,9 +36,7 @@ import {
   Plus,
   RefreshCw,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Settings2,
   Share2,
   Target,
@@ -123,6 +121,12 @@ type Member = {
   username: string | null;
   lastLoginAt: string | null;
   credentialsUpdatedAt: string | null;
+  monthlyPerformance: {
+    completedTasks: number;
+    openTasks: number;
+    wonDeals: number;
+    newProperties: number;
+  };
 };
 
 type Contact = {
@@ -571,7 +575,11 @@ export default function WorkspacePage({
     };
   }, []);
 
-  async function postAction(payload: Record<string, unknown>, successMessage: string) {
+  async function postAction(
+    payload: Record<string, unknown>,
+    successMessage: string,
+    options: { preserveSelection?: boolean; silentSuccess?: boolean } = {}
+  ) {
     setSaving(true);
     try {
       const response = await fetch('/api/fabrika/workspace', {
@@ -588,9 +596,13 @@ export default function WorkspacePage({
         setMemberCredentials(data.oneTimeCredentials);
       }
       setDialog(null);
-      setSelectedMemberId(null);
-      setSelectedPropertyId(null);
-      toast.success(data.message || successMessage);
+      if (!options.preserveSelection) {
+        setSelectedMemberId(null);
+        setSelectedPropertyId(null);
+      }
+      if (!options.silentSuccess) {
+        toast.success(data.message || successMessage);
+      }
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'İşlem tamamlanamadı.');
@@ -598,6 +610,47 @@ export default function WorkspacePage({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function setPropertyPublication(
+    property: Property,
+    status: 'DRAFT' | 'ACTIVE',
+    offerUndo = true
+  ) {
+    const previousStatus = property.status;
+    const success = await postAction(
+      {
+        action: 'set-property-status',
+        id: property.id,
+        status,
+        idempotencyKey: `property-status:${property.id}:${status}:${crypto.randomUUID()}`,
+      },
+      status === 'ACTIVE'
+        ? 'Portföy yayına alındı.'
+        : 'Portföy yayından kaldırıldı.',
+      { preserveSelection: true, silentSuccess: true }
+    );
+    if (!success) return false;
+
+    const message =
+      status === 'ACTIVE'
+        ? 'Portföy yayına alındı ve bağlı siteye eşitleme olayı oluşturuldu.'
+        : 'Portföy yayından kaldırıldı ve bağlı siteye eşitleme olayı oluşturuldu.';
+    toast.success(message, offerUndo && ['DRAFT', 'ACTIVE'].includes(previousStatus)
+      ? {
+          action: {
+            label: 'Geri al',
+            onClick: () => {
+              void setPropertyPublication(
+                property,
+                previousStatus as 'DRAFT' | 'ACTIVE',
+                false
+              );
+            },
+          },
+        }
+      : undefined);
+    return true;
   }
 
   const filteredContacts = useMemo(() => {
@@ -760,12 +813,6 @@ export default function WorkspacePage({
             setSelectedContactId(id);
             setProfileView('overview');
           }}
-          onSync={() =>
-            postAction(
-              { action: 'sync-modules' },
-              'Asistan görüşmeleri CRM ile eşitlendi.'
-            )
-          }
           onViewChange={setCrmView}
           profileView={profileView}
           query={query}
@@ -808,6 +855,7 @@ export default function WorkspacePage({
           onMedia={setMediaProperty}
           onReload={loadWorkspace}
           onSelect={setSelectedPropertyId}
+          onPublicationChange={setPropertyPublication}
           onViewChange={setPortfolioView}
           portfolioView={portfolioView}
           selectedProperty={selectedProperty || workspace.properties[0] || null}
@@ -844,7 +892,6 @@ export default function WorkspacePage({
   }
 
   if ((mode as string) === 'sirket') {
-    const visibleMember = selectedMember || workspace.members[0] || null;
     return (
       <div className="pb-8">
         <CompanyExactWorkspace
@@ -853,14 +900,12 @@ export default function WorkspacePage({
             setSelectedMemberId(id);
             setDialog('member-edit');
           }}
-          onSelect={setSelectedMemberId}
           onToggle={(member) =>
             postAction(
               { action: 'set-member-active', id: member.id, active: !member.active },
               `Çalışan hesabı ${member.active ? 'kapatıldı' : 'açıldı'}.`
             )
           }
-          selectedMember={visibleMember}
           workspace={workspace}
         />
         <WorkspaceDialog
@@ -2149,7 +2194,6 @@ function CrmExactWorkspace({
   onSelectContact,
   onViewChange,
   setProfileView,
-  onSync,
   onCreateContact,
   onCreateDeal,
   onCreateTask,
@@ -2174,7 +2218,6 @@ function CrmExactWorkspace({
   onSelectContact: (id: string) => void;
   onViewChange: (value: 'customers' | 'pipeline') => void;
   setProfileView: (value: 'overview' | 'activity') => void;
-  onSync: () => Promise<boolean>;
   onCreateContact: () => void;
   onCreateDeal: () => void;
   onCreateTask: () => void;
@@ -2193,7 +2236,7 @@ function CrmExactWorkspace({
       date.getDate() === today.getDate()
     );
   };
-  const hotCount = workspace.contacts.filter((contact) => contact.score >= 60).length;
+  const updatedTodayCount = workspace.contacts.filter((contact) => sameDay(contact.updatedAt)).length;
   const callCount = workspace.tasks.filter(
     (task) => task.status === 'OPEN' && task.type === 'CALL' && sameDay(task.dueAt)
   ).length;
@@ -2265,15 +2308,6 @@ function CrmExactWorkspace({
           </p>
         </div>
         <div className={crmStyles.headerActions}>
-          <button
-            className={crmStyles.secondaryButton}
-            disabled={saving}
-            onClick={() => void onSync()}
-            type="button"
-          >
-            <RefreshCw className={saving ? 'animate-spin' : ''} />
-            Asistan&apos;dan aktar
-          </button>
           <button className={crmStyles.primaryButton} onClick={onCreateContact} type="button">
             <Plus />
             Yeni müşteri
@@ -2284,7 +2318,7 @@ function CrmExactWorkspace({
       <section className={crmStyles.metricGrid} aria-label="CRM özeti">
         {[
           { label: 'Toplam müşteri', value: workspace.metrics.contacts, icon: Users, tone: 'blue' },
-          { label: 'Sıcak müşteri', value: hotCount, icon: Flame, tone: 'rose' },
+          { label: 'Bugün güncellenen', value: updatedTodayCount, icon: RefreshCw, tone: 'blue' },
           { label: 'Bugün aranacak', value: callCount, icon: Phone, tone: 'green' },
           { label: 'Açık fırsat', value: workspace.metrics.openDeals, icon: Target, tone: 'gold' },
           { label: 'Bu ay kazanılan', value: wonCount, icon: Trophy, tone: 'amber' },
@@ -2385,7 +2419,6 @@ function CrmExactWorkspace({
                 <div className={crmStyles.filterPills}>
                   {[
                     { value: 'all', label: 'Tümü' },
-                    { value: 'hot', label: 'Sıcak' },
                     { value: 'follow-up', label: 'Takipte' },
                     { value: 'appointment', label: 'Randevulu' },
                     { value: 'inactive', label: 'Pasif' },
@@ -2416,8 +2449,6 @@ function CrmExactWorkspace({
                         <th>Müşteri</th>
                         <th>Telefon</th>
                         <th>Skor</th>
-                        <th>Sıcaklık</th>
-                        <th>Tercihler</th>
                         <th>Danışman</th>
                         <th>Son iletişim</th>
                         <th>Sonraki aksiyon</th>
@@ -2426,7 +2457,6 @@ function CrmExactWorkspace({
                     </thead>
                     <tbody>
                       {contacts.map((contact) => {
-                        const heat = customerHeat(contact.score);
                         const contactTask = workspace.tasks
                           .filter((task) => task.contact?.id === contact.id && task.status === 'OPEN')
                           .sort((left, right) =>
@@ -2452,13 +2482,6 @@ function CrmExactWorkspace({
                             </td>
                             <td>{contact.phone || '—'}</td>
                             <td><b className={crmStyles.scoreBadge}>{contact.score}</b></td>
-                            <td><span className={heat.className}>{heat.label}</span></td>
-                            <td>
-                              <strong>{contact.desiredLocation || 'Bölge yok'}</strong>
-                              <small>
-                                {[contact.desiredRoomCount, money(contact.budgetMax)].filter(Boolean).join(' · ')}
-                              </small>
-                            </td>
                             <td>{contact.assignedMember?.name || 'Atanmadı'}</td>
                             <td>{dateTime(contact.updatedAt)}</td>
                             <td>
@@ -2619,16 +2642,16 @@ function CrmExactWorkspace({
                     <div className={crmStyles.topDetailGrid}>
                       <section className={crmStyles.preferenceCard}>
                         <div className={crmStyles.sectionHeading}>
-                          <h3>Tercih Özeti</h3>
+                          <h3>İletişim Özeti</h3>
                           <button onClick={onEditContact} type="button"><Edit3 /> Düzenle</button>
                         </div>
                         <dl>
-                          <div><dt>Lokasyon</dt><dd>{selectedContact.desiredLocation || 'Belirtilmedi'}</dd></div>
-                          <div><dt>Bütçe</dt><dd>{selectedContact.budgetMin || selectedContact.budgetMax ? `${money(selectedContact.budgetMin)} – ${money(selectedContact.budgetMax)}` : 'Belirtilmedi'}</dd></div>
-                          <div><dt>Oda sayısı</dt><dd>{selectedContact.desiredRoomCount || 'Belirtilmedi'}</dd></div>
                           <div><dt>Müşteri tipi</dt><dd>{contactTypeLabels[selectedContact.type]}</dd></div>
+                          <div><dt>Durum</dt><dd>{contactStageLabels[selectedContact.stage]}</dd></div>
+                          <div><dt>Kaynak</dt><dd>{selectedContact.source || 'Manuel kayıt'}</dd></div>
                           <div><dt>Danışman</dt><dd>{selectedContact.assignedMember?.name || 'Atanmadı'}</dd></div>
-                          <div><dt>Etiketler</dt><dd>{selectedContact.tags.join(', ') || '—'}</dd></div>
+                          <div><dt>Son güncelleme</dt><dd>{dateTime(selectedContact.updatedAt)}</dd></div>
+                          <div><dt>Sonraki işlem</dt><dd>{nextTask?.title || 'Henüz planlanmadı'}</dd></div>
                         </dl>
                       </section>
 
@@ -2764,6 +2787,7 @@ function PortfolioExactWorkspace({
   onEdit,
   onMedia,
   onReload,
+  onPublicationChange,
 }: {
   workspace: Workspace;
   portfolioView: 'properties' | 'owner-reports' | 'sources';
@@ -2774,6 +2798,10 @@ function PortfolioExactWorkspace({
   onEdit: (id: string) => void;
   onMedia: (property: Property) => void;
   onReload: () => Promise<void>;
+  onPublicationChange: (
+    property: Property,
+    status: 'DRAFT' | 'ACTIVE'
+  ) => Promise<boolean>;
 }) {
   const [propertyQuery, setPropertyQuery] = useState('');
   const normalizedQuery = propertyQuery.toLocaleLowerCase('tr-TR');
@@ -2917,8 +2945,18 @@ function PortfolioExactWorkspace({
                   </dl>
                   <section className={operationsStyles.completeness}><div><span>Veri tamamlama</span><strong>{Math.min(100, [selectedProperty.title, selectedProperty.location, selectedProperty.price, selectedProperty.roomCount, selectedProperty.area, selectedProperty.description, selectedProperty.imageUrl].filter(Boolean).length * 14)}%</strong></div><progress max="100" value={Math.min(100, [selectedProperty.title, selectedProperty.location, selectedProperty.price, selectedProperty.roomCount, selectedProperty.area, selectedProperty.description, selectedProperty.imageUrl].filter(Boolean).length * 14)} /></section>
                   <div className={operationsStyles.propertyActions}>
-                    <Link href="/fabrika/asistan"><Sparkles /> Asistana bağla</Link>
-                    <Link href="/fabrika/pazarlamaci"><Megaphone /> Pazarlamada kullan</Link>
+                    <button
+                      data-primary="true"
+                      onClick={() => void onPublicationChange(
+                        selectedProperty,
+                        selectedProperty.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE'
+                      )}
+                      type="button"
+                    >
+                      {selectedProperty.status === 'ACTIVE' ? <X /> : <CheckCircle2 />}
+                      {selectedProperty.status === 'ACTIVE' ? 'Yayından kaldır' : 'Yayına al'}
+                    </button>
+                    <Link href={`/fabrika/pazarlamaci?propertyId=${encodeURIComponent(selectedProperty.id)}`}><Megaphone /> Pazarlamada kullan</Link>
                     <button onClick={() => onMedia(selectedProperty)} type="button"><Camera /> Fotoğrafları yönet</button>
                   </div>
                 </>
@@ -2933,44 +2971,47 @@ function PortfolioExactWorkspace({
 
 function CompanyExactWorkspace({
   workspace,
-  selectedMember,
-  onSelect,
   onAdd,
   onEdit,
   onToggle,
 }: {
   workspace: Workspace;
-  selectedMember: Member | null;
-  onSelect: (id: string) => void;
   onAdd: () => void;
   onEdit: (id: string) => void;
   onToggle: (member: Member) => Promise<boolean>;
 }) {
   const activeMembers = workspace.members.filter((member) => member.active).length;
   const openTasks = workspace.tasks.filter((task) => task.status === 'OPEN').length;
-  const memberTasks = selectedMember ? workspace.tasks.filter((task) => task.assignedMember?.id === selectedMember.id) : [];
-  const completedTasks = memberTasks.filter((task) => task.status === 'COMPLETED').length;
-  const performance = memberTasks.length ? Math.round((completedTasks / memberTasks.length) * 100) : 0;
-  const permissionRows = ['Müşteriler', 'Portföyler', 'Görüşmeler', 'Eşleştirmeler', 'Görevler', 'Pazarlamacı', 'Stüdyo', 'Raporlar', 'Abonelik', 'API anahtarları', 'Ekip yönetimi'];
+  const monthlyCompleted = workspace.members.reduce(
+    (sum, member) => sum + member.monthlyPerformance.completedTasks,
+    0
+  );
+  const monthlyWonDeals = workspace.members.reduce(
+    (sum, member) => sum + member.monthlyPerformance.wonDeals,
+    0
+  );
+  const performanceBase = monthlyCompleted + openTasks;
+  const performance = performanceBase
+    ? Math.round((monthlyCompleted / performanceBase) * 100)
+    : 0;
 
   return (
     <div className={operationsStyles.workspace}>
       <header className={operationsStyles.pageHeader}>
-        <div><p className={operationsStyles.eyebrow}>Şirket ve yetki yönetimi</p><h1>Şirket &amp; Ekip</h1><p>Şirket profilinizi, ekip üyelerinizi, rollerini ve modül erişimlerini yönetin.</p></div>
-        <div className={operationsStyles.headerActions}><button className={operationsStyles.primaryButton} disabled={!workspace.permissions.canManageTeam} onClick={onAdd} type="button"><UserPlus /> Ekip üyesi ekle</button><button className={operationsStyles.secondaryButton} type="button"><Edit3 /> Şirket profilini düzenle</button></div>
+        <div><p className={operationsStyles.eyebrow}>Şirket ve yetki yönetimi</p><h1>Şirket &amp; Ekip</h1><p>Ekip üyelerini, hesap durumlarını ve bu ayın gerçek iş sonuçlarını yönetin.</p></div>
+        <div className={operationsStyles.headerActions}><button className={operationsStyles.primaryButton} disabled={!workspace.permissions.canManageTeam} onClick={onAdd} type="button"><UserPlus /> Ekip üyesi ekle</button></div>
       </header>
       <section className={operationsStyles.portfolioMetrics}>
         {[
           { label: 'Ekip üyesi', value: workspace.members.length, icon: Users, tone: 'gold' },
           { label: 'Aktif çalışan', value: activeMembers, icon: UserCheck, tone: 'green' },
-          { label: 'Bekleyen davet', value: workspace.members.length - activeMembers, icon: Mail, tone: 'gold' },
-          { label: 'Açık görev', value: openTasks, icon: ListChecks, tone: 'amber' },
+          { label: 'Bu ay tamamlanan', value: monthlyCompleted, icon: CheckCircle2, tone: 'green' },
+          { label: 'Bu ay kazanılan', value: monthlyWonDeals, icon: Trophy, tone: 'gold' },
           { label: 'Bu ay performans', value: `%${performance}`, icon: Gauge, tone: 'green' },
         ].map((metric) => <article data-tone={metric.tone} key={metric.label}><metric.icon /><div><span>{metric.label}</span><strong>{metric.value}</strong></div></article>)}
       </section>
 
-      <div className={operationsStyles.companySplit}>
-        <div className={operationsStyles.companyLeft}>
+      <div className={operationsStyles.companyLeft}>
           <section className={operationsStyles.teamPanel}>
             <header><h2>Ekip üyeleri</h2><label><Search /><input placeholder="Üye ara..." /></label><span>Tüm roller</span><span>Tüm durumlar</span></header>
             <div className={operationsStyles.teamTableScroll}>
@@ -2979,28 +3020,31 @@ function CompanyExactWorkspace({
                 <tbody>{workspace.members.map((member) => {
                   const activeTaskCount = workspace.tasks.filter((task) => task.assignedMember?.id === member.id && task.status === 'OPEN').length;
                   const clientCount = workspace.contacts.filter((contact) => contact.assignedMember?.id === member.id).length;
-                  return <tr data-selected={selectedMember?.id === member.id} key={member.id} onClick={() => onSelect(member.id)}><td><span className={operationsStyles.memberAvatar}>{contactInitials(member.name)}</span><strong>{member.name}</strong></td><td>{member.username || '—'}</td><td><span>{memberRoleLabels[member.role]}</span></td><td>{member.phoneNormalized || member.phone || '—'}</td><td>{clientCount}</td><td>{activeTaskCount}</td><td>{member.lastLoginAt ? dateTime(member.lastLoginAt) : 'Henüz giriş yok'}</td><td><b data-active={member.active}>{member.active ? 'Aktif' : 'Kapalı'}</b></td><td><button aria-label="Üyeyi düzenle" onClick={(event) => { event.stopPropagation(); onEdit(member.id); }} type="button"><MoreHorizontal /></button></td></tr>;
+                  return <tr key={member.id}><td><span className={operationsStyles.memberAvatar}>{contactInitials(member.name)}</span><strong>{member.name}</strong></td><td>{member.username || '—'}</td><td><span>{memberRoleLabels[member.role]}</span></td><td>{member.phoneNormalized || member.phone || '—'}</td><td>{clientCount}</td><td>{activeTaskCount}</td><td>{member.lastLoginAt ? dateTime(member.lastLoginAt) : 'Henüz giriş yok'}</td><td><b data-active={member.active}>{member.active ? 'Aktif' : 'Kapalı'}</b></td><td><button aria-label="Üyeyi düzenle" onClick={() => onEdit(member.id)} type="button"><MoreHorizontal /></button></td></tr>;
                 })}</tbody>
               </table>
             </div>
             <footer>Toplam {workspace.members.length} üye</footer>
           </section>
 
-          <div className={operationsStyles.companyCards}>
-            <section><h3>Şirket profili</h3><div className={operationsStyles.companyMark}>{workspace.account.companyName.slice(0, 2).toUpperCase()}</div><strong>{workspace.account.companyName}</strong><p>{workspace.account.ownerName}</p><button type="button">Profili düzenle</button></section>
-            <section><h3>Rol şablonları</h3><article><ShieldCheck /><div><strong>Patron</strong><span>Tüm modüllere tam erişim</span></div></article><article><Users /><div><strong>Çalışan</strong><span>Tanımlı modüllere erişim</span></div></article><button type="button">Rol şablonlarını yönet</button></section>
-            <section><h3>Son ekip etkinliği</h3>{workspace.activities.slice(0, 4).map((activity) => <article key={activity.id}><span /><div><strong>{activity.title}</strong><small>{dateTime(activity.createdAt)}</small></div></article>)}</section>
+        <section className={operationsStyles.monthlyPerformancePanel}>
+          <header><div><p className={operationsStyles.eyebrow}>Canlı şirket verisi</p><h2>Bu ay performansı</h2></div><span>Ay başından bugüne</span></header>
+          <div>
+            {workspace.members.map((member) => {
+              const resultTotal = member.monthlyPerformance.completedTasks + member.monthlyPerformance.openTasks;
+              const memberScore = resultTotal
+                ? Math.round((member.monthlyPerformance.completedTasks / resultTotal) * 100)
+                : 0;
+              return <article key={member.id}>
+                <span className={operationsStyles.memberAvatar}>{contactInitials(member.name)}</span>
+                <div><strong>{member.name}</strong><small>{memberRoleLabels[member.role]}</small></div>
+                <dl><div><dt>Tamamlanan</dt><dd>{member.monthlyPerformance.completedTasks}</dd></div><div><dt>Açık görev</dt><dd>{member.monthlyPerformance.openTasks}</dd></div><div><dt>Kazanılan</dt><dd>{member.monthlyPerformance.wonDeals}</dd></div><div><dt>Yeni portföy</dt><dd>{member.monthlyPerformance.newProperties}</dd></div></dl>
+                <b>%{memberScore}</b>
+                {member.role !== 'OWNER' && <button onClick={() => void onToggle(member)} type="button">{member.active ? 'Durdur' : 'Aç'}</button>}
+              </article>;
+            })}
           </div>
-        </div>
-
-        <aside className={operationsStyles.memberRail}>
-          {selectedMember ? <>
-            <header><span className={operationsStyles.largeMemberAvatar}>{contactInitials(selectedMember.name)}</span><div><h2>{selectedMember.name} <b>{selectedMember.active ? 'Aktif' : 'Kapalı'}</b></h2><strong>{memberRoleLabels[selectedMember.role]}</strong><p>{selectedMember.phoneNormalized || selectedMember.phone || selectedMember.email || 'İletişim bilgisi yok'}</p><small>{selectedMember.username || 'Kullanıcı adı yok'}</small></div></header>
-            <section className={operationsStyles.workload}><div><h3>İş yükü</h3><strong>{memberTasks.filter((task) => task.status === 'OPEN').length}</strong><span>aktif görev</span></div><div><h3>Performans</h3><strong>%{performance}</strong><span>başarı oranı</span></div></section>
-            <section className={operationsStyles.permissions}><div><h3>Modül yetkileri</h3><button onClick={() => onEdit(selectedMember.id)} type="button">Yetkileri düzenle</button></div>{permissionRows.map((permission, index) => { const denied = selectedMember.role !== 'OWNER' && index >= 8; return <p key={permission}><span>{permission}</span><strong data-denied={denied}>{denied ? 'Erişim yok' : index === 7 && selectedMember.role !== 'OWNER' ? 'Salt okunur' : 'Tam erişim'}</strong></p>; })}</section>
-            {selectedMember.role !== 'OWNER' && <button className={operationsStyles.pauseButton} onClick={() => void onToggle(selectedMember)} type="button">{selectedMember.active ? 'Hesabı geçici durdur' : 'Hesabı yeniden aç'}</button>}
-          </> : <div className={operationsStyles.emptyRail}><Users /><h2>Ekip üyesi seçin</h2></div>}
-        </aside>
+        </section>
       </div>
     </div>
   );
