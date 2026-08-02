@@ -7,17 +7,21 @@ import {
   ChevronRight,
   Clock3,
   FileCheck2,
+  FileSignature,
   FilePlus2,
   Files,
   FileText,
   Heart,
+  History,
+  PenLine,
+  Plus,
   Search,
-  ShieldAlert,
+  Settings2,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import PageHeader from '@/components/fabrika/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -40,6 +44,7 @@ import type {
   DocumentRecordDTO,
   DocumentTemplateDTO,
 } from './types';
+import styles from './DocumentCenter.module.css';
 
 type MainTab = 'catalog' | 'drafts' | 'completed' | 'archive';
 
@@ -122,10 +127,10 @@ function TemplateCard({
   onFavorite: () => void;
 }) {
   return (
-    <article className="group flex min-h-72 flex-col rounded-2xl border border-slate-800 bg-slate-900/65 p-6 transition hover:border-emerald-500/35 hover:bg-slate-900">
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
-          <FileText className="h-5 w-5" />
+    <article className={styles.templateCard} data-category={template.category}>
+      <div className={styles.templateTopRow}>
+        <span className={styles.templateIcon}>
+          <FileText aria-hidden="true" />
         </span>
         <button
           type="button"
@@ -133,47 +138,42 @@ function TemplateCard({
           aria-label={
             template.favorite ? 'Favorilerden kaldır' : 'Favorilere ekle'
           }
-          className={`flex h-9 w-9 items-center justify-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+          className={
             template.favorite
-              ? 'border-rose-500/25 bg-rose-500/10 text-rose-400'
-              : 'border-slate-700 text-slate-500 hover:text-rose-400'
-          }`}
+              ? styles.favoriteButtonActive
+              : styles.favoriteButton
+          }
         >
           <Heart
-            className="h-4 w-4"
             fill={template.favorite ? 'currentColor' : 'none'}
           />
         </button>
       </div>
-      <div className="mt-4 flex-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-400">
+      <div className={styles.templateCopy}>
+        <p className={styles.templateCategory}>
           {DOCUMENT_CATEGORY_LABELS[template.category]}
         </p>
-        <h3 className="mt-2 text-lg font-semibold leading-7 text-white">
-          {template.name}
-        </h3>
-        <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
+        <h3>{template.name}</h3>
+        <p className={styles.templateDescription}>
           {template.description}
         </p>
       </div>
-      <div className="mt-5 flex items-center justify-between border-t border-slate-800 pt-4">
-        <div className="text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1">
-            <Clock3 className="h-3.5 w-3.5" />
+      <div className={styles.templateFooter}>
+        <div className={styles.templateMeta}>
+          <span>
+            <Clock3 aria-hidden="true" />
             ~{template.estimatedMinutes} dk.
           </span>
-          <span className="mx-2">·</span>
           <span title={legalStatusLabel(template.legalStatus)}>
-            Sürüm {template.version}
+            v{template.version}
           </span>
         </div>
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/10 hover:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          className={styles.prepareButton}
         >
           Hazırla
-          <ChevronRight className="h-4 w-4" />
         </button>
       </div>
     </article>
@@ -188,8 +188,8 @@ function DocumentList({
   onOpen: (document: DocumentRecordDTO) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/55">
-      <div className="hidden grid-cols-[minmax(250px,2fr)_minmax(160px,1fr)_130px_180px_48px] gap-4 border-b border-slate-800 bg-slate-950/40 px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500 md:grid">
+    <div className={styles.documentList}>
+      <div className="hidden grid-cols-[minmax(250px,2fr)_minmax(160px,1fr)_130px_180px_48px] gap-4 border-b border-slate-800 bg-slate-950/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 md:grid">
         <span>Belge</span>
         <span>Şablon</span>
         <span>Durum</span>
@@ -205,19 +205,19 @@ function DocumentList({
             className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-800/45 focus-visible:bg-slate-800/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 md:grid-cols-[minmax(250px,2fr)_minmax(160px,1fr)_130px_180px_48px] md:items-center md:gap-4 md:px-5"
           >
             <span className="min-w-0">
-              <span className="block truncate text-base font-semibold text-white">
+              <span className="block truncate text-sm font-semibold text-white">
                 {document.title}
               </span>
               <span className="mt-1 block text-xs text-slate-500">
                 {document.documentNumber} · Sürüm {document.versionNumber}
               </span>
             </span>
-            <span className="truncate text-sm text-slate-400">
+            <span className="truncate text-xs text-slate-400">
               {document.template.name}
             </span>
             <span>
               <span
-                className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold ${
                   statusClasses[document.status]
                 }`}
               >
@@ -226,7 +226,7 @@ function DocumentList({
                   : documentStatusLabel(document.status)}
               </span>
             </span>
-            <span className="text-sm text-slate-500">
+            <span className="text-xs text-slate-500">
               {formatDate(document.updatedAt)}
               <span className="mt-0.5 block">· {document.lastEditedByName}</span>
             </span>
@@ -252,6 +252,7 @@ export default function DocumentCenter() {
   >('ALL');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [quickTemplateKey, setQuickTemplateKey] = useState('');
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] =
     useState<DocumentTemplateDTO | null>(null);
@@ -319,6 +320,15 @@ export default function DocumentCenter() {
       completed: documents.filter(
         (document) => document.status === 'GENERATED' && !document.deletedAt
       ).length,
+      thisMonth: documents.filter((document) => {
+        if (document.deletedAt) return false;
+        const updatedAt = new Date(document.updatedAt);
+        const now = new Date();
+        return (
+          updatedAt.getFullYear() === now.getFullYear() &&
+          updatedAt.getMonth() === now.getMonth()
+        );
+      }).length,
       archive: documents.filter(
         (document) =>
           document.deletedAt ||
@@ -394,288 +404,191 @@ export default function DocumentCenter() {
   if (loading || !data) return <LoadingState />;
 
   return (
-    <div className="space-y-6 pb-8">
-      <PageHeader
-        eyebrow="M6 · Operasyon araçları"
-        title="Belge Merkezi"
-        description="Sözleşme, tutanak, izin ve müşteri belgelerini şirket ve portföy kayıtlarınızla hazırlayın; sürümlü PDF veya DOCX olarak arşivleyin."
-        icon={Files}
-        actions={
-          <Button
-            onClick={switchToCatalog}
-            className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-          >
-            <FilePlus2 />
-            Yeni belge
-          </Button>
-        }
-      />
-
-      <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/7 p-3 text-sm leading-6 text-amber-100/80">
-        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+    <div className={styles.page}>
+      <header className={styles.hero}>
         <div>
-          <p className="font-semibold text-amber-200">Hukuki kontrol uyarısı</p>
-          <p>{DOCUMENT_LEGAL_NOTICE}</p>
+          <p className={styles.eyebrow}>M6 · SÖZLEŞME VE BELGELER</p>
+          <div className={styles.titleRow}>
+            <span className={styles.titleIcon} aria-hidden="true">
+              <Files />
+            </span>
+            <div>
+              <h1>Belge Merkezi</h1>
+              <p>
+                Gayrimenkul sözleşmeleri ve formlarınızı hazırlayın, onay
+                süreçlerini yönetin ve sürümlü PDF veya DOCX olarak arşivleyin.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+        <div className={styles.heroActions}>
+          <button type="button" onClick={() => setTab('completed')}>
+            <History aria-hidden="true" /> Geçmiş
+          </button>
+          <button type="button" onClick={switchToCatalog}>
+            <Settings2 aria-hidden="true" /> Şablon yönetimi
+          </button>
+        </div>
+      </header>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: 'Profesyonel şablon',
-            value: stats.templates,
-            icon: Files,
-            tone: 'emerald',
-          },
-          {
-            label: 'Otomatik kayıtlı taslak',
-            value: stats.drafts,
-            icon: CalendarClock,
-            tone: 'amber',
-          },
-          {
-            label: 'Tamamlanan belge',
-            value: stats.completed,
-            icon: FileCheck2,
-            tone: 'emerald',
-          },
-          {
-            label: 'Arşiv ve çöp',
-            value: stats.archive,
-            icon: Archive,
-            tone: 'slate',
-          },
-        ].map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <article
-              key={stat.label}
-              className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/55 p-4"
-            >
-              <div>
-                <p className="text-xs text-slate-400">{stat.label}</p>
-                <p className="mt-1 text-2xl font-semibold text-white">
-                  {stat.value}
-                </p>
-              </div>
-              <span
-                className={`flex h-10 w-10 items-center justify-center rounded-lg border ${
-                  stat.tone === 'amber'
-                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
-                    : stat.tone === 'slate'
-                      ? 'border-slate-700 bg-slate-800 text-slate-400'
-                      : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-              </span>
-            </article>
-          );
-        })}
+      <section className={styles.actionBar}>
+        <button
+          type="button"
+          onClick={switchToCatalog}
+          className={styles.newDocumentButton}
+        >
+          <Plus aria-hidden="true" /> Yeni belge
+        </button>
+        <button
+          type="button"
+          onClick={switchToCatalog}
+          className={styles.templateManagementButton}
+        >
+          <FileSignature aria-hidden="true" /> Şablon kataloğu
+        </button>
+        <div className={styles.legalNotice}>
+          <ShieldCheck aria-hidden="true" />
+          <span>
+            Belgeleriniz ıslak imza, e-imza ve mevzuata uygunluk kontrolüne
+            hazır biçimde saklanır. {DOCUMENT_LEGAL_NOTICE}
+          </span>
+        </div>
       </section>
 
-      <div
-        ref={catalogRef}
-        className="sticky top-0 z-20 rounded-xl border border-slate-800 bg-[#07101f]/95 p-2 shadow-xl shadow-slate-950/30 backdrop-blur"
-      >
-        <div className="flex gap-1 overflow-x-auto">
-          {tabItems.map((item) => {
-            const Icon = item.icon;
-            const count =
-              item.id === 'catalog'
-                ? stats.templates
-                : item.id === 'drafts'
-                  ? stats.drafts
-                  : item.id === 'completed'
-                    ? stats.completed
-                    : stats.archive;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTab(item.id)}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
-                  tab === item.id
-                    ? 'bg-emerald-500 text-emerald-950'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-                <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] ${
-                    tab === item.id ? 'bg-emerald-950/15' : 'bg-slate-800'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <section className={styles.metrics} aria-label="Belge Merkezi özeti">
+        {[
+          { label: 'Şablon', value: stats.templates, icon: Files, tone: 'green' },
+          { label: 'Taslak', value: stats.drafts, icon: FileText, tone: 'blue' },
+          {
+            label: 'Tamamlanan',
+            value: stats.completed,
+            icon: CheckCircle2,
+            tone: 'green',
+          },
+          { label: 'Bu ay hazırlanan', value: stats.thisMonth, icon: PenLine, tone: 'cyan' },
+          { label: 'Arşiv ve çöp', value: stats.archive, icon: Archive, tone: 'slate' },
+        ].map((stat) => (
+          <article className={styles.metricCard} data-tone={stat.tone} key={stat.label}>
+            <span><stat.icon aria-hidden="true" /></span>
+            <div>
+              <small>{stat.label}</small>
+              <strong>{stat.value}</strong>
+            </div>
+          </article>
+        ))}
+      </section>
 
-      <section className="space-y-5">
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/45 p-3 lg:flex-row lg:items-center">
-          <label className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <span className="sr-only">Belge veya şablon ara</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                tab === 'catalog'
-                  ? 'Şablon adı, kullanım amacı veya etiket ara…'
-                  : 'Belge adı, numarası veya şablon ara…'
-              }
-              className="h-11 w-full rounded-lg border border-slate-700 bg-slate-950 pl-10 pr-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-            />
-          </label>
+      <nav ref={catalogRef} className={styles.tabs} aria-label="Belge görünümü">
+        {tabItems.map((item) => {
+          const count =
+            item.id === 'catalog'
+              ? stats.templates
+              : item.id === 'drafts'
+                ? stats.drafts
+                : item.id === 'completed'
+                  ? stats.completed
+                  : stats.archive;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={tab === item.id ? styles.activeTab : styles.tab}
+            >
+              {item.label}
+              <span>{count}</span>
+            </button>
+          );
+        })}
+      </nav>
 
-          {tab === 'catalog' ? (
-            <>
-              <select
-                value={category}
-                onChange={(event) =>
-                  setCategory(event.target.value as 'ALL' | DocumentCategory)
-                }
-                aria-label="Şablon kategorisi"
-                className="h-11 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none focus:border-emerald-500"
-              >
-                <option value="ALL">Tüm kategoriler</option>
-                {DOCUMENT_CATEGORIES.map((item) => (
-                  <option key={item} value={item}>
-                    {DOCUMENT_CATEGORY_LABELS[item]}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setFavoritesOnly((current) => !current)}
-                className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg border px-3 text-sm transition ${
-                  favoritesOnly
-                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
-                    : 'border-slate-700 bg-slate-950 text-slate-400 hover:text-white'
-                }`}
-              >
-                <Heart
-                  className="h-4 w-4"
-                  fill={favoritesOnly ? 'currentColor' : 'none'}
-                />
-                Favoriler
-              </button>
-            </>
-          ) : (
-            <>
-              {tab === 'archive' ? (
-                <select
-                  value={archiveStatus}
-                  onChange={(event) =>
-                    setArchiveStatus(
-                      event.target.value as
-                        | 'ALL'
-                        | 'ARCHIVED'
-                        | 'CANCELLED'
-                        | 'DELETED'
-                    )
-                  }
-                  aria-label="Arşiv durumu"
-                  className="h-11 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none focus:border-emerald-500"
-                >
-                  <option value="ALL">Tüm arşiv</option>
-                  <option value="ARCHIVED">Arşivlenenler</option>
-                  <option value="CANCELLED">İptal edilenler</option>
-                  <option value="DELETED">Çöp kutusu</option>
-                </select>
-              ) : null}
-              <label className="flex items-center gap-2 text-xs text-slate-500">
-                Başlangıç
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(event) => setFromDate(event.target.value)}
-                  className="h-11 rounded-lg border border-slate-700 bg-slate-950 px-2 text-sm text-slate-200 outline-none focus:border-emerald-500"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-xs text-slate-500">
-                Bitiş
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(event) => setToDate(event.target.value)}
-                  className="h-11 rounded-lg border border-slate-700 bg-slate-950 px-2 text-sm text-slate-200 outline-none focus:border-emerald-500"
-                />
-              </label>
-            </>
-          )}
-        </div>
+      <section className={styles.filterBar}>
+        <label className={styles.searchField}>
+          <Search aria-hidden="true" />
+          <span className="sr-only">Belge veya şablon ara</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={
+              tab === 'catalog'
+                ? 'Belge adı ile ara…'
+                : 'Belge adı, numarası veya şablon ara…'
+            }
+          />
+        </label>
 
         {tab === 'catalog' ? (
           <>
-            {recentDocuments.length > 0 && !query && category === 'ALL' ? (
-              <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <h2 className="font-semibold text-white">Son belgeler</h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Kaldığınız işe tek tıklamayla dönün.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setTab('drafts')}
-                    className="min-h-10 rounded-lg px-3 text-sm font-medium text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
-                  >
-                    Taslakları aç
-                  </button>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {recentDocuments.map((document) => (
-                    <button
-                      key={document.publicId}
-                      type="button"
-                      onClick={() => openDocument(document)}
-                      className="min-h-32 rounded-xl border border-slate-800 bg-slate-900/45 p-4 text-left transition hover:border-emerald-500/30 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                    >
-                      <span className="flex items-center justify-between">
-                        <FileText className="h-4 w-4 text-emerald-400" />
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-xs ${
-                            statusClasses[document.status]
-                          }`}
-                        >
-                          {documentStatusLabel(document.status)}
-                        </span>
-                      </span>
-                      <span className="mt-3 block truncate text-sm font-semibold text-white">
-                        {document.title}
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500">
-                        {formatDate(document.updatedAt)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
+            <select
+              value={category}
+              onChange={(event) =>
+                setCategory(event.target.value as 'ALL' | DocumentCategory)
+              }
+              aria-label="Şablon kategorisi"
+            >
+              <option value="ALL">Kategori: Tümü</option>
+              {DOCUMENT_CATEGORIES.map((item) => (
+                <option key={item} value={item}>
+                  {DOCUMENT_CATEGORY_LABELS[item]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setFavoritesOnly((current) => !current)}
+              className={favoritesOnly ? styles.favoriteFilterActive : styles.favoriteFilter}
+            >
+              <Heart fill={favoritesOnly ? 'currentColor' : 'none'} aria-hidden="true" />
+              Sadece favoriler
+            </button>
+          </>
+        ) : (
+          <>
+            {tab === 'archive' ? (
+              <select
+                value={archiveStatus}
+                onChange={(event) =>
+                  setArchiveStatus(
+                    event.target.value as
+                      | 'ALL'
+                      | 'ARCHIVED'
+                      | 'CANCELLED'
+                      | 'DELETED'
+                  )
+                }
+                aria-label="Arşiv durumu"
+              >
+                <option value="ALL">Tüm arşiv</option>
+                <option value="ARCHIVED">Arşivlenenler</option>
+                <option value="CANCELLED">İptal edilenler</option>
+                <option value="DELETED">Çöp kutusu</option>
+              </select>
             ) : null}
+            <label className={styles.dateField}>
+              Başlangıç
+              <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+            </label>
+            <label className={styles.dateField}>
+              Bitiş
+              <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+            </label>
+          </>
+        )}
+      </section>
 
-            <section>
-              <div className="mb-3 flex items-end justify-between">
+      {tab === 'catalog' ? (
+        <>
+          <div className={styles.catalogLayout}>
+            <main className={styles.catalogPanel}>
+              <div className={styles.sectionHeading}>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">
-                    Profesyonel Türkçe belge şablonları
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {filteredTemplates.length} şablon gösteriliyor.
-                  </p>
+                  <h2>Şablon kataloğu</h2>
+                  <p>{filteredTemplates.length} profesyonel Türkçe şablon</p>
                 </div>
-                <span className="hidden items-center gap-1 text-xs text-slate-500 sm:inline-flex">
-                  <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-                  Şirket, CRM ve portföy verileriyle otomatik dolar
-                </span>
+                <span><Sparkles aria-hidden="true" /> CRM ve portföy verileriyle dolar</span>
               </div>
               {filteredTemplates.length ? (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className={styles.templateGrid}>
                   {filteredTemplates.map((template) => (
                     <TemplateCard
                       key={template.key}
@@ -692,47 +605,136 @@ export default function DocumentCenter() {
                   description="Arama metnini veya kategori filtresini değiştirin."
                 />
               )}
-            </section>
-          </>
-        ) : tabDocuments.length ? (
-          <DocumentList documents={tabDocuments} onOpen={openDocument} />
-        ) : (
-          <EmptyState
-            icon={
-              tab === 'drafts'
-                ? CalendarClock
-                : tab === 'completed'
-                  ? FileCheck2
-                  : Archive
-            }
-            title={
-              tab === 'drafts'
-                ? 'Kaydedilmiş taslak yok'
-                : tab === 'completed'
-                  ? 'Tamamlanmış belge yok'
-                  : 'Arşivde belge yok'
-            }
-            description={
-              tab === 'drafts'
-                ? 'Bir şablon seçtiğiniz anda taslak otomatik olarak oluşturulur.'
-                : tab === 'completed'
-                  ? 'Zorunlu alanları tamamlayıp belgeyi oluşturduğunuzda burada görünür.'
-                  : 'Arşivlenen, iptal edilen veya yumuşak silinen belgeler burada tutulur.'
-            }
-            action={
-              tab !== 'archive' ? (
-                <Button
-                  onClick={switchToCatalog}
-                  className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+            </main>
+
+            <aside className={styles.sideRail}>
+              <section className={styles.recentPanel}>
+                <div className={styles.sideHeading}>
+                  <div>
+                    <h2>Son belgeler</h2>
+                    <p>Kaldığınız işe tek tıklamayla dönün.</p>
+                  </div>
+                  <button type="button" onClick={() => setTab('drafts')}>
+                    Tümünü görüntüle
+                  </button>
+                </div>
+                {recentDocuments.length ? (
+                  <div className={styles.recentList}>
+                    {recentDocuments.map((document) => (
+                      <button
+                        key={document.publicId}
+                        type="button"
+                        onClick={() => openDocument(document)}
+                      >
+                        <span className={styles.recentIcon}><FileText aria-hidden="true" /></span>
+                        <span className={styles.recentCopy}>
+                          <strong>{document.title}</strong>
+                          <small>{document.template.name}</small>
+                        </span>
+                        <span className={`${styles.recentStatus} ${statusClasses[document.status]}`}>
+                          {documentStatusLabel(document.status)}
+                        </span>
+                        <time>{formatDate(document.updatedAt)}</time>
+                        <ChevronRight aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.noRecent}>Henüz hazırlanmış belge yok.</p>
+                )}
+              </section>
+
+              <section className={styles.quickPanel}>
+                <div className={styles.sideHeading}>
+                  <div>
+                    <h2>Hızlı belge</h2>
+                    <p>CRM ve portföy verileriyle yeni belge oluşturun.</p>
+                  </div>
+                </div>
+                <select
+                  aria-label="Hızlı belge türü"
+                  value={quickTemplateKey}
+                  onChange={(event) => setQuickTemplateKey(event.target.value)}
                 >
-                  <FilePlus2 />
-                  Şablon seç
-                </Button>
-              ) : undefined
-            }
-          />
-        )}
-      </section>
+                  <option value="">Belge türü seçin</option>
+                  {data.templates.map((template) => (
+                    <option key={template.key} value={template.key}>{template.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className={styles.quickButton}
+                  disabled={!quickTemplateKey}
+                  onClick={() => {
+                    const template = data.templates.find((item) => item.key === quickTemplateKey);
+                    if (template) openTemplate(template);
+                  }}
+                >
+                  <Plus aria-hidden="true" /> Oluştur ve düzenle
+                </button>
+                <ul>
+                  <li><CheckCircle2 aria-hidden="true" /> Müşteri bilgileri otomatik dolar</li>
+                  <li><CheckCircle2 aria-hidden="true" /> Portföy bilgileri eklenir</li>
+                  <li><CheckCircle2 aria-hidden="true" /> Sürümlü taslak oluşturulur</li>
+                </ul>
+              </section>
+            </aside>
+          </div>
+
+          {recentDocuments.length ? (
+            <section className={styles.historyStrip}>
+              <div className={styles.historyHeading}>
+                <h2>Son işlemler &amp; belge geçmişi</h2>
+                <button type="button" onClick={() => setTab('completed')}>Tüm geçmişi görüntüle</button>
+              </div>
+              <div className={styles.timeline}>
+                {recentDocuments.map((document, index) => (
+                  <button key={document.publicId} type="button" onClick={() => openDocument(document)}>
+                    <i aria-hidden="true" data-active={index === 0} />
+                    <span><FileText aria-hidden="true" /></span>
+                    <strong>{document.title}</strong>
+                    <small>{documentStatusLabel(document.status)} · {document.lastEditedByName}</small>
+                    <time>{formatDate(document.updatedAt)}</time>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : tabDocuments.length ? (
+        <DocumentList documents={tabDocuments} onOpen={openDocument} />
+      ) : (
+        <EmptyState
+          icon={
+            tab === 'drafts'
+              ? CalendarClock
+              : tab === 'completed'
+                ? FileCheck2
+                : Archive
+          }
+          title={
+            tab === 'drafts'
+              ? 'Kaydedilmiş taslak yok'
+              : tab === 'completed'
+                ? 'Tamamlanmış belge yok'
+                : 'Arşivde belge yok'
+          }
+          description={
+            tab === 'drafts'
+              ? 'Bir şablon seçtiğiniz anda taslak otomatik olarak oluşturulur.'
+              : tab === 'completed'
+                ? 'Zorunlu alanları tamamlayıp belgeyi oluşturduğunuzda burada görünür.'
+                : 'Arşivlenen, iptal edilen veya yumuşak silinen belgeler burada tutulur.'
+          }
+          action={
+            tab !== 'archive' ? (
+              <Button onClick={switchToCatalog} className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400">
+                <FilePlus2 /> Şablon seç
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
 
       {wizardOpen && selectedTemplate ? (
         <DocumentWizard

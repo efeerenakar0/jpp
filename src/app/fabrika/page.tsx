@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
+  Activity,
   Aperture,
+  ArrowUpRight,
   Bell,
   Bot,
-  Clock,
   Code2,
   Crosshair,
   Crown,
@@ -14,16 +15,18 @@ import {
   MessageCircle,
   Send,
   AlertTriangle,
-  ArrowRight,
+  Users,
+  CalendarDays,
   CheckCircle2,
-  Circle,
+  ChevronRight,
+  Clock3,
+  Flame,
+  Star,
+  Target,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { tr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import EmptyState from '@/components/fabrika/EmptyState';
-import NotificationPanel from '@/components/fabrika/NotificationPanel';
-import PageHeader from '@/components/fabrika/PageHeader';
+import DigitalManagerOperations from '@/components/fabrika/DigitalManagerOperations';
 
 type Notification = {
   id: string;
@@ -32,7 +35,6 @@ type Notification = {
   type: string;
   createdAt: string;
   read: boolean;
-  link?: string | null;
 };
 
 type ChatMessage = {
@@ -97,6 +99,46 @@ type ManagerProvider = {
   sharedWithAssistant: boolean;
 };
 
+function ExecutiveMetricCard({
+  label,
+  value,
+  icon: Icon,
+  hint,
+  accent = 'success',
+}: {
+  label: string;
+  value: ReactNode;
+  icon: typeof Users;
+  hint: string;
+  accent?: 'success' | 'danger' | 'neutral';
+}) {
+  const accentClass = accent === 'danger'
+    ? 'text-rose-400'
+    : accent === 'neutral'
+      ? 'text-[#9aa8ba]'
+      : 'text-emerald-400';
+
+  return (
+    <article className="group relative min-h-[116px] overflow-hidden rounded-[11px] border border-[#34445a] bg-[linear-gradient(145deg,#0d1c2c,#0a1725)] px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-colors hover:border-[#c99a57]/45">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[12px] font-medium normal-case tracking-normal text-[#99a7b8]">{label}</p>
+          <div className="mt-2 flex items-end gap-2">
+            <strong className="font-heading text-[2rem] font-normal leading-none text-[#f4f0e8]">{value}</strong>
+            <span className={`pb-0.5 text-[10px] font-semibold ${accentClass}`}>
+              {accent === 'danger' ? 'Takip gerekli' : accent === 'neutral' ? 'Canlı' : 'Güncel'}
+            </span>
+          </div>
+          <p className="mt-2 text-[10px] text-[#738299]">{hint}</p>
+        </div>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d3a557] text-[#d9aa5e] shadow-[inset_0_0_18px_rgba(201,154,87,0.08)]">
+          <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+        </span>
+      </div>
+    </article>
+  );
+}
+
 const getNotificationStyles = (type: string) => {
   switch (type) {
     case 'GREEN_LISTING':
@@ -118,16 +160,6 @@ const getNotificationStyles = (type: string) => {
   }
 };
 
-const notificationSource = (type: string) => {
-  if (type === 'APPOINTMENT_REQUEST') return 'Takvim';
-  if (type === 'NEW_CUSTOMER_MESSAGE') return 'Asistan';
-  if (type === 'GREEN_LISTING') return 'Portföyler';
-  if (type === 'WEBSITE_GENERATED') return 'Yazılımcı';
-  if (type === 'AD_COPY_READY') return 'Pazarlamacı';
-  if (type === 'STUDIO_READY') return 'Stüdyo';
-  return 'Sistem';
-};
-
 export default function CommandCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -137,7 +169,6 @@ export default function CommandCenter() {
   const [context, setContext] = useState<OperationalContext | null>(null);
   const [suggestions, setSuggestions] = useState<ManagerSuggestion[]>([]);
   const [provider, setProvider] = useState<ManagerProvider | null>(null);
-  const [whatsAppConnected, setWhatsAppConnected] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const lastMessageIdRef = useRef<string | null>(null);
   const stickToBottomRef = useRef(true);
@@ -163,19 +194,6 @@ export default function CommandCenter() {
         if (chatData.provider) {
           setProvider(chatData.provider);
         }
-      }
-      const whatsAppRes = await fetch('/api/fabrika/whatsapp/connection', {
-        cache: 'no-store',
-      });
-      if (whatsAppRes.ok) {
-        const whatsAppData = (await whatsAppRes.json()) as {
-          connectionStatus?: string;
-          platformEnabled?: boolean;
-        };
-        setWhatsAppConnected(
-          whatsAppData.platformEnabled !== false &&
-            ['CONNECTED', 'WORKING'].includes(whatsAppData.connectionStatus || '')
-        );
       }
       setChatLoading(false);
 
@@ -263,144 +281,291 @@ export default function CommandCenter() {
     }
   };
 
-  return (
-    <div className="space-y-6 pb-8">
-      <PageHeader
-        eyebrow="Günlük çalışma alanı"
-        title={`${context?.company.name || 'Jasmine Group'} Komuta Merkezi`}
-        description="Önce müdahale gerektiren işleri görün; ardından şirket verileriniz hakkında Dijital Genel Müdür'e sorun."
-        icon={Crown}
-      />
+  const priorities = context?.priorities.slice(0, 3) || [];
+  const liveChannels = [
+    {
+      label: 'WhatsApp',
+      value: context?.metrics.activeConversations || 0,
+      maximum: Math.max(context?.metrics.activeConversations || 0, 1),
+      tone: 'bg-emerald-400',
+    },
+    {
+      label: 'CRM',
+      value: context?.metrics.crmContacts || 0,
+      maximum: Math.max(context?.metrics.crmContacts || 0, 1),
+      tone: 'bg-[#d4a85f]',
+    },
+    {
+      label: 'Portföy',
+      value: context?.metrics.activeCrmProperties || 0,
+      maximum: Math.max(context?.metrics.crmContacts || 0, context?.metrics.activeCrmProperties || 0, 1),
+      tone: 'bg-sky-400',
+    },
+    {
+      label: 'Kampanya',
+      value: context?.metrics.campaigns || 0,
+      maximum: Math.max(context?.metrics.campaigns || 0, context?.metrics.crmContacts || 0, 1),
+      tone: 'bg-violet-400',
+    },
+  ];
 
-      <NotificationPanel
-        title="Kritik operasyon akışı"
-        description="Yalnızca karar veya müdahale gerektiren olaylar"
-        count={notifications.length}
-      >
-        <div className="custom-scrollbar max-h-[26rem] space-y-2 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <EmptyState
-                icon={Bell}
-                title="Kritik olay yok"
-                description="Şu anda müdahale gerektiren bir operasyon bulunmuyor."
-              />
-            ) : (
-              notifications.map((notification) => {
-                const { icon: Icon, color, bg } = getNotificationStyles(notification.type);
-                const source = notificationSource(notification.type);
-                const article = (
-                  <article
-                    key={notification.id}
-                    className="flex gap-3 rounded-lg border border-slate-800 bg-slate-950/60 p-4 transition-colors hover:border-slate-700"
-                  >
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${bg}`}>
-                      <Icon className={`h-4 w-4 ${color}`} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-semibold text-white">{notification.title}</h3>
-                          <span className="rounded-md border border-slate-700 px-2 py-0.5 text-xs text-slate-400">
-                            {source}
-                          </span>
-                        </div>
-                        <time className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
-                          <Clock className="h-3 w-3" />
-                          {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: tr })}
-                        </time>
-                      </div>
-                      <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                        <p className="text-sm leading-6 text-slate-400">{notification.message}</p>
-                        {notification.link && (
-                          <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-emerald-300">
-                            Kaydı aç <ArrowRight className="h-4 w-4" />
-                          </span>
-                        )}
+  const chartValues = [
+    context?.metrics.upcomingTasks || 0,
+    context?.metrics.activeCrmProperties || 0,
+    context?.metrics.openDeals || 0,
+    context?.metrics.activeConversations || 0,
+    context?.metrics.crmContacts || 0,
+    context?.metrics.campaigns || 0,
+    (context?.metrics.approvedCampaignCopies || 0) + (context?.metrics.authorizedListings || 0),
+  ];
+  const chartMaximum = Math.max(...chartValues, 1);
+  const chartLabels = ['Randevu', 'Portföy', 'Satış', 'Sohbet', 'CRM', 'Kampanya', 'Onay'];
+  const chartPoints = chartValues
+    .map((value, index) => {
+      const x = 44 + index * 65;
+      const y = 136 - (value / chartMaximum) * 96;
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  return (
+    <div className="pb-7">
+      <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_25rem]">
+        <div className="min-w-0 space-y-4">
+          <header className="flex flex-col gap-4 pb-1 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="business-ceo-display text-[1.9rem] font-medium leading-tight text-[#f6f1e8] sm:text-[2.15rem]">
+                {context?.company.name || 'Business CEO AI'} Komuta Merkezi
+              </h1>
+              <p className="mt-2 max-w-3xl text-[13px] leading-5 text-[#8e9caf]">
+                Portföy, müşteri iletişimi, pazarlama ve operasyon süreçlerinizi tek bir merkezden yönetin.
+              </p>
+            </div>
+            <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[#34445a] bg-[#0b1827] px-3.5 text-[11px] text-[#c3cbd5] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+              <CalendarDays className="h-4 w-4 text-[#d6a55a]" />
+              {new Date().toLocaleDateString('tr-TR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                weekday: 'long',
+              })}
+              <ChevronRight className="h-3.5 w-3.5 rotate-90 text-[#66758a]" />
+            </span>
+          </header>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <ExecutiveMetricCard label="CRM müşterisi" value={context?.metrics.crmContacts || 0} icon={Users} hint="Doğrulanmış kayıt" />
+            <ExecutiveMetricCard label="Aktif portföy" value={context?.metrics.activeCrmProperties || 0} icon={Activity} hint="Yayındaki portföy" />
+            <ExecutiveMetricCard label="Sıcak müşteri" value={context?.metrics.activeConversations || 0} icon={Flame} hint="Aktif görüşme" />
+            <ExecutiveMetricCard label="Bugünkü randevu" value={context?.metrics.upcomingTasks || 0} icon={CalendarDays} hint="Bugünün planı" accent="neutral" />
+            <ExecutiveMetricCard label="Kritik görev" value={context?.metrics.overdueTasks || 0} icon={AlertTriangle} hint="Geciken görevler" accent={context?.metrics.overdueTasks ? 'danger' : 'neutral'} />
+          </div>
+
+          <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <TargetIcon />
+                <h2 className="font-heading text-sm font-semibold text-[#f6f1e8]">Yönetici öncelikleri</h2>
+              </div>
+              <span className="text-[10px] text-[#718198]">Canlı şirket verisi</span>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-3">
+              {(priorities.length > 0
+                ? priorities
+                : [
+                    {
+                      id: 'overdue',
+                      severity: 'critical' as const,
+                      title: `${context?.metrics.overdueTasks || 0} kritik görev takipte`,
+                      detail: 'Geciken ve yaklaşan operasyonları kontrol edin.',
+                      href: '/fabrika/takvim',
+                    },
+                    {
+                      id: 'conversations',
+                      severity: 'warning' as const,
+                      title: `${context?.metrics.activeConversations || 0} müşteri görüşmesi açık`,
+                      detail: 'Yanıt ve insan devri bekleyen sohbetleri inceleyin.',
+                      href: '/fabrika/asistan',
+                    },
+                    {
+                      id: 'portfolio',
+                      severity: 'info' as const,
+                      title: `${context?.metrics.activeCrmProperties || 0} aktif portföy yayında`,
+                      detail: 'Portföy performansını ve yeni talepleri görüntüleyin.',
+                      href: '/fabrika/portfoyler',
+                    },
+                  ]
+              ).map((priority) => {
+                const tone = priority.severity === 'critical'
+                  ? 'border-rose-500/35 bg-rose-500/[0.06] text-rose-300'
+                  : priority.severity === 'warning'
+                    ? 'border-amber-500/35 bg-amber-500/[0.06] text-amber-300'
+                    : 'border-emerald-500/35 bg-emerald-500/[0.06] text-emerald-300';
+                const PriorityIcon = priority.severity === 'critical'
+                  ? AlertTriangle
+                  : priority.severity === 'warning'
+                    ? Clock3
+                    : Star;
+                return (
+                  <article key={priority.id} className={`flex min-h-[146px] flex-col overflow-hidden rounded-lg border ${tone}`}>
+                    <div className="flex flex-1 gap-3 p-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-current/30 bg-black/10">
+                        <PriorityIcon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.16em]">{priority.severity === 'critical' ? 'Yüksek öncelik' : priority.severity === 'warning' ? 'Orta öncelik' : 'Fırsat'}</p>
+                        <h3 className="mt-2 text-[13px] font-semibold text-[#f6f1e8]">{priority.title}</h3>
+                        <p className="mt-1.5 text-[10px] leading-4 text-[#91a1b5]">{priority.detail}</p>
                       </div>
                     </div>
+                    <Link href={priority.href} className="inline-flex items-center justify-between border-t border-current/15 px-3.5 py-2.5 text-[10px] font-semibold">
+                      İlgili kaydı aç <ChevronRight className="h-3.5 w-3.5" />
+                    </Link>
                   </article>
                 );
-                return notification.link ? (
-                  <Link href={notification.link} key={notification.id}>
-                    {article}
-                  </Link>
-                ) : article;
-              })
-            )}
-        </div>
-      </NotificationPanel>
+              })}
+            </div>
+          </section>
 
-      {context?.company.principalType === 'OWNER' ? (
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5" aria-labelledby="setup-checklist-title">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div><h2 id="setup-checklist-title" className="text-base font-semibold text-white">Başlangıç kontrol listesi</h2><p className="mt-1 text-sm text-slate-400">Temel bağlantıları tamamladığınızda sistem tüm modüller arasında canlı çalışır.</p></div>
-            <span className="text-sm font-semibold text-emerald-300">{[
-              context.metrics.activeCrmProperties > 0,
-              context.metrics.crmContacts > 0,
-              context.calendar.google.connected,
-              whatsAppConnected,
-            ].filter(Boolean).length}/4 tamamlandı</span>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { done: context.metrics.activeCrmProperties > 0, label: 'İlk portföyü yayınla', href: '/fabrika/portfoyler' },
-              { done: context.metrics.crmContacts > 0, label: 'Müşteri kaydı oluştur', href: '/fabrika/crm' },
-              { done: context.calendar.google.connected, label: 'Google Takvim’i bağla', href: '/fabrika/takvim' },
-              { done: whatsAppConnected, label: 'WhatsApp’ı bağla', href: '/fabrika/whatsapp' },
-            ].map((item) => (
-              <Link key={item.label} href={item.href} className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 text-sm text-slate-200 transition hover:border-emerald-500/30">
-                {item.done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" /> : <Circle className="h-4 w-4 shrink-0 text-slate-600" />}
-                <span className={item.done ? 'text-slate-400 line-through' : ''}>{item.label}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section
-          aria-labelledby="general-manager-title"
-          className="flex h-[42rem] max-h-[calc(100vh-6rem)] min-h-[34rem] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
-        >
-          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
-                <Crown className="h-4 w-4" />
-              </span>
-              <div>
-                <h2 id="general-manager-title" className="text-sm font-semibold text-white">
-                  Dijital Genel Müdür
-                </h2>
-                <p className="mt-0.5 text-xs text-emerald-400">
-                  Asistan ile aynı {provider?.provider || 'AI'} · şirket kapsamlı veri
-                </p>
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,.85fr)]">
+            <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-heading text-sm text-[#f6f1e8]">Operasyon görünümü</h2>
+                  <p className="mt-1 text-[10px] text-[#718198]">Canlı modül yoğunluğu</p>
+                </div>
+                <span className="rounded-md border border-[#34465e] px-2 py-1 text-[10px] text-[#91a1b5]">Tüm kanallar</span>
               </div>
+              <div className="mt-3 h-44 w-full overflow-hidden rounded-lg bg-[#071422]/40 p-2">
+                <svg viewBox="0 0 470 165" role="img" aria-label="Operasyon yoğunluk grafiği" className="h-full w-full">
+                  {[40, 72, 104, 136].map((y, index) => (
+                    <g key={y}>
+                      <text x="2" y={y + 3} fill="#718198" fontSize="8">{Math.round(chartMaximum * (1 - index / 3))}</text>
+                      <line x1="34" x2="458" y1={y} y2={y} stroke="#294059" strokeWidth="1" strokeDasharray="3 6" />
+                    </g>
+                  ))}
+                  <defs>
+                    <linearGradient id="ceo-chart-fill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#35c98b" stopOpacity=".34" />
+                      <stop offset="100%" stopColor="#35c98b" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <polygon points={`44,140 ${chartPoints} 434,140`} fill="url(#ceo-chart-fill)" />
+                  <polyline points={chartPoints} fill="none" stroke="#54d89f" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                  {chartPoints.split(' ').map((point) => {
+                    const [cx, cy] = point.split(',');
+                      return <circle key={point} cx={cx} cy={cy} r="3.5" fill="#071422" stroke="#8ce7bd" strokeWidth="2" />;
+                  })}
+                  {chartLabels.map((label, index) => (
+                    <text key={label} x={44 + index * 65} y="157" textAnchor="middle" fill="#718198" fontSize="7.5">{label}</text>
+                  ))}
+                </svg>
+              </div>
+              <div className="mt-2 flex items-center gap-5 text-[9px] text-[#8795a8]">
+                <span className="inline-flex items-center gap-2"><i className="h-px w-5 bg-emerald-400" /> Canlı yoğunluk</span>
+                <span className="inline-flex items-center gap-2"><i className="h-px w-5 border-t border-dashed border-[#8190a4]" /> Anlık görünüm</span>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+              <h2 className="font-heading text-sm text-[#f6f1e8]">Kanal performansı</h2>
+              <p className="mt-1 text-[10px] text-[#718198]">Doğrulanmış operasyon kayıtları</p>
+              <div className="mt-5 space-y-4">
+                {liveChannels.map((channel) => (
+                  <div key={channel.label} className="grid grid-cols-[4.5rem_1fr_2rem_2.5rem] items-center gap-2 text-[11px]">
+                    <span className="text-[#a9b4c4]">{channel.label}</span>
+                    <span className="h-1.5 overflow-hidden rounded-full bg-[#1d2b3e]">
+                      <span className={`block h-full rounded-full ${channel.tone}`} style={{ width: `${Math.max(8, Math.round((channel.value / channel.maximum) * 100))}%` }} />
+                    </span>
+                    <span className="text-right font-medium text-[#f1ede3]">{channel.value}</span>
+                    <span className="text-right text-[9px] text-[#718198]">%{Math.round((channel.value / channel.maximum) * 100)}</span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/fabrika/crm" className="mt-5 inline-flex items-center gap-2 text-[11px] font-semibold text-emerald-300">
+                Tüm kanal raporlarını görüntüle <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+            </section>
+          </div>
+
+          <section className="rounded-xl border border-[#34445a] bg-[linear-gradient(145deg,#0d1b2a,#0a1725)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="font-heading text-sm text-[#f6f1e8]">Kritik operasyon akışı</h2>
+                <p className="mt-1 text-[10px] text-[#718198]">Müdahale veya karar gerektiren son olaylar</p>
+              </div>
+              <Link href="/fabrika" className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300">
+                Tüm akışı görüntüle <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <div className="custom-scrollbar max-h-56 space-y-1.5 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <EmptyState icon={CheckCircle2} title="Kritik olay yok" description="Şu anda müdahale gerektiren bir operasyon bulunmuyor." />
+              ) : notifications.map((notification) => {
+                const { icon: Icon, color, bg } = getNotificationStyles(notification.type);
+                const status = notification.type === 'SYSTEM'
+                  ? { label: 'Gecikti', className: 'border-rose-500/45 bg-rose-500/10 text-rose-300' }
+                  : notification.type === 'NEW_CUSTOMER_MESSAGE' || notification.type === 'APPOINTMENT_REQUEST'
+                    ? { label: 'Yanıt bekliyor', className: 'border-amber-500/45 bg-amber-500/10 text-amber-300' }
+                    : notification.type === 'GREEN_LISTING' || notification.type === 'WEBSITE_GENERATED' || notification.type === 'STUDIO_READY'
+                      ? { label: 'Tamamlandı', className: 'border-emerald-500/45 bg-emerald-500/10 text-emerald-300' }
+                      : { label: 'Aktif', className: 'border-[#c99a57]/45 bg-[#c99a57]/10 text-[#e2b56e]' };
+                const href = notification.type === 'NEW_CUSTOMER_MESSAGE' || notification.type === 'APPOINTMENT_REQUEST'
+                  ? '/fabrika/asistan'
+                  : notification.type === 'GREEN_LISTING'
+                    ? '/fabrika/portfoyler'
+                    : notification.type === 'AD_COPY_READY'
+                      ? '/fabrika/pazarlamaci'
+                      : notification.type === 'STUDIO_READY'
+                        ? '/fabrika/studyo'
+                        : '/fabrika';
+                const owner = context?.company.principalName || 'Ekip';
+                return (
+                  <article key={notification.id} className="grid grid-cols-[3.6rem_2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-[#29384d] bg-[#081522]/70 px-2.5 py-2 sm:grid-cols-[3.6rem_2rem_minmax(0,1fr)_6.5rem_7.5rem_3rem]">
+                    <time className="text-[10px] text-[#7d8ca1]">{new Date(notification.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</time>
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-md border ${bg}`}><Icon className={`h-3.5 w-3.5 ${color}`} /></span>
+                    <div className="min-w-0"><h3 className="truncate text-[10px] font-medium text-[#dfe5ed]">{notification.title}</h3><p className="truncate text-[9px] text-[#718198]">{notification.message}</p></div>
+                    <span className={`hidden rounded border px-2 py-1 text-center text-[8px] font-semibold uppercase sm:block ${status.className}`}>{status.label}</span>
+                    <span className="hidden items-center gap-2 truncate text-[9px] text-[#9eabba] sm:flex"><i className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#c99a57]/50 not-italic text-[8px] text-[#e2b56e]">{owner.slice(0, 2).toUpperCase()}</i>{owner}</span>
+                    <Link href={href} className="text-right text-[9px] font-semibold text-emerald-300 hover:text-emerald-200">İncele</Link>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          <details className="group rounded-xl border border-[#2b3b50] bg-[#0b1929]/70">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold text-[#c6d0dc]">
+              Gelişmiş yönetim ve onay iş akışları
+              <ArrowUpRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="border-t border-[#2b3b50] p-4"><DigitalManagerOperations /></div>
+          </details>
+        </div>
+
+        <section
+          aria-labelledby="general-manager-title"
+          className="sticky top-0 flex h-[calc(100dvh-7.5rem)] min-h-[42rem] flex-col overflow-hidden rounded-xl border border-[#c99a57]/30 bg-[linear-gradient(180deg,#0d1b2b,#091522)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+        >
+          <div className="flex items-start justify-between border-b border-[#34445a] px-4 py-4">
+            <div>
+              <h2 id="general-manager-title" className="font-heading text-[15px] font-medium text-[#f6f1e8]">
+                Genel Müdür Yardımcısı
+              </h2>
+              <p className="mt-1 text-[10px] text-[#8998aa]">
+                Business CEO AI Asistanı
+              </p>
             </div>
             <span
-              className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+              className={`rounded border px-2 py-1 text-[9px] font-semibold ${
                 provider?.configured
-                  ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                  ? 'border-[#c99a57]/40 bg-[#c99a57]/10 text-[#e8bb76]'
                   : 'border-amber-500/25 bg-amber-500/10 text-amber-300'
               }`}
             >
-              {provider?.configured ? 'Canlı AI' : 'Güvenli yedek'}
+              {provider?.configured ? 'AI' : 'Yedek'}
             </span>
           </div>
-
-          {suggestions.length > 0 && (
-            <div className="custom-scrollbar flex shrink-0 gap-2 overflow-x-auto border-b border-slate-800 bg-slate-950/60 px-4 py-3">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion.label}
-                  type="button"
-                  onClick={() => setInputText(suggestion.prompt)}
-                  className="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[11px] font-medium text-slate-300 transition-colors hover:border-emerald-500/40 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                  aria-label={`${suggestion.label} sorusunu hazırla`}
-                >
-                  {suggestion.label}
-                </button>
-              ))}
-            </div>
-          )}
 
           <div
             ref={chatScrollRef}
@@ -412,8 +577,8 @@ export default function CommandCenter() {
             role="log"
             aria-live="polite"
             aria-relevant="additions text"
-            aria-label="Dijital Genel Müdür mesajları"
-            className="custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-slate-950/30 p-4 sm:p-5"
+            aria-label="Genel Müdür Yardımcısı mesajları"
+            className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[#08131f]/45 p-4"
           >
             {chatLoading ? (
               <div className="flex h-full items-center justify-center">
@@ -457,7 +622,7 @@ export default function CommandCenter() {
                     }`}
                   >
                     <div className={`mb-1.5 flex items-center gap-2 text-[10px] font-semibold ${isPatron ? 'justify-end text-emerald-300' : 'text-slate-400'}`}>
-                      <span>{isPatron ? message.authorName || 'Ekip üyesi' : 'Dijital Genel Müdür'}</span>
+                      <span>{isPatron ? message.authorName || 'Ekip üyesi' : 'Genel Müdür Yardımcısı'}</span>
                       {!isPatron && message.provider && (
                         <span className="rounded border border-slate-700 px-1.5 py-0.5 font-normal text-slate-500">
                           {message.provider === 'RULE_ENGINE' ? 'Doğrulanmış yedek' : message.provider}
@@ -476,7 +641,7 @@ export default function CommandCenter() {
               );
             })}
             {isSending && (
-              <div className="flex max-w-[90%] gap-2.5" aria-label="Dijital Genel Müdür yanıt hazırlıyor">
+              <div className="flex max-w-[90%] gap-2.5" aria-label="Genel Müdür Yardımcısı yanıt hazırlıyor">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300">
                   <Crown className="h-4 w-4" />
                 </span>
@@ -489,7 +654,26 @@ export default function CommandCenter() {
             )}
           </div>
 
-          <form onSubmit={handleSendMessage} className="border-t border-slate-800 bg-slate-950 p-3">
+          {suggestions.length > 0 && (
+            <div className="shrink-0 border-t border-[#34445a] bg-[#0b1724] px-3 py-3">
+              <p className="mb-2 text-[9px] text-[#77869a]">Önerilen komutlar</p>
+              <div className="custom-scrollbar flex flex-wrap gap-1.5">
+                {suggestions.slice(0, 5).map((suggestion) => (
+                  <button
+                    key={suggestion.label}
+                    type="button"
+                    onClick={() => setInputText(suggestion.prompt)}
+                    className="rounded-full border border-[#34445a] bg-[#0b1827] px-2.5 py-1.5 text-[9px] font-medium text-[#aeb8c5] transition-colors hover:border-[#c99a57]/45 hover:text-[#e5b972] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99a57]"
+                    aria-label={`${suggestion.label} sorusunu hazırla`}
+                  >
+                    {suggestion.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSendMessage} className="border-t border-[#34445a] bg-[#0b1724] p-3">
             <div className="flex items-center gap-2">
               <label htmlFor="manager-command" className="sr-only">
                 Genel müdür yardımcısına mesaj
@@ -500,14 +684,14 @@ export default function CommandCenter() {
                 value={inputText}
                 maxLength={2000}
                 onChange={(event) => setInputText(event.target.value)}
-                placeholder="Örn. Bu hafta hangi müşterileri takip etmeliyim?"
+                placeholder="Bir şey yazın…"
                 aria-describedby="manager-command-help"
                 className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
               <button
                 type="submit"
                 disabled={!inputText.trim() || isSending}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-emerald-950 transition-colors hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 transition-colors hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Mesajı gönder"
               >
                 <Send className="h-4 w-4" />
@@ -517,7 +701,16 @@ export default function CommandCenter() {
               Yanıtlar şirketinizin doğrulanmış kayıtlarıyla sınırlıdır; değişiklikler ilgili modülde insan onayı gerektirir.
             </p>
           </form>
-      </section>
+        </section>
+      </div>
     </div>
+  );
+}
+
+function TargetIcon() {
+  return (
+    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#c99a57]/25 bg-[#c99a57]/10 text-[#e9bd79]">
+      <Target className="h-3.5 w-3.5" />
+    </span>
   );
 }

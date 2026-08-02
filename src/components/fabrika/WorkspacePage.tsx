@@ -1,21 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import {
   Activity,
+  ArrowRight,
   BadgeCheck,
+  BedDouble,
   BrainCircuit,
   Building2,
   CalendarDays,
+  Camera,
   CheckCircle2,
   CircleDollarSign,
   Copy,
   Clock3,
-  Combine,
   ContactRound,
   Edit3,
   ExternalLink,
+  Flame,
+  Gauge,
   Home,
   ImagePlus,
   Images,
@@ -23,18 +26,26 @@ import {
   KeyRound,
   ListChecks,
   Loader2,
+  Mail,
+  MapPin,
   MessageSquareText,
-  Network,
-  Plus,
-  EyeOff,
   Megaphone,
-  Rocket,
+  MoreHorizontal,
+  Network,
+  Phone,
+  Plus,
+  RefreshCw,
   Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
   Settings2,
   Share2,
   Target,
+  Trophy,
   UploadCloud,
   UserCheck,
+  UserPlus,
   UserX,
   Users,
   X,
@@ -73,6 +84,8 @@ import {
   MEMBER_WORK_DAYS,
   type MemberWorkDay,
 } from '@/lib/company-member-form';
+import crmStyles from './WorkspaceCrm.module.css';
+import operationsStyles from './WorkspaceOperations.module.css';
 
 export type WorkspaceMode =
   | 'crm'
@@ -110,12 +123,6 @@ type Member = {
   username: string | null;
   lastLoginAt: string | null;
   credentialsUpdatedAt: string | null;
-  monthlyPerformance: {
-    completedTasks: number;
-    openTasks: number;
-    wonDeals: number;
-    newProperties: number;
-  };
 };
 
 type Contact = {
@@ -139,7 +146,6 @@ type Contact = {
   consentStatus: 'UNKNOWN' | 'GRANTED' | 'REVOKED';
   nextActionAt: string | null;
   assignedMember: Pick<Member, 'id' | 'name'> | null;
-  duplicateContactIds: string[];
   updatedAt: string;
 };
 
@@ -256,6 +262,7 @@ type DialogKind =
   | 'contact'
   | 'contact-edit'
   | 'property'
+  | 'property-edit'
   | 'deal'
   | 'task'
   | 'member'
@@ -357,15 +364,6 @@ const contactTypeLabels: Record<Contact['type'], string> = {
   OTHER: 'Diğer',
 };
 
-const propertyStatusLabels: Record<Property['status'], string> = {
-  DRAFT: 'Yayından kaldırıldı',
-  ACTIVE: 'Yayında',
-  RESERVED: 'Rezerve',
-  SOLD: 'Satıldı',
-  RENTED: 'Kiralandı',
-  ARCHIVED: 'Arşivlendi',
-};
-
 const memberRoleLabels: Record<Member['role'], string> = {
   OWNER: 'Patron',
   MANAGER: 'Yönetici',
@@ -379,6 +377,25 @@ const memberAvailabilityLabels: Record<Member['availability'], string> = {
   ON_LEAVE: 'İzinli',
   OFFLINE: 'Çevrimdışı',
 };
+
+function customerHeat(score: number) {
+  if (score >= 80) {
+    return {
+      label: 'Çok sıcak',
+      className: 'border-rose-500/25 bg-rose-500/10 text-rose-300',
+    };
+  }
+  if (score >= 60) {
+    return {
+      label: 'Sıcak',
+      className: 'border-amber-500/25 bg-amber-500/10 text-amber-300',
+    };
+  }
+  return {
+    label: 'Takipte',
+    className: 'border-sky-500/25 bg-sky-500/10 text-sky-300',
+  };
+}
 
 const fieldClass =
   'h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20';
@@ -491,7 +508,6 @@ export default function WorkspacePage({
   mode: WorkspaceMode;
   initialView?: WorkspaceInitialView;
 }) {
-  const searchParams = useSearchParams();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -499,8 +515,13 @@ export default function WorkspacePage({
   const [memberCredentials, setMemberCredentials] =
     useState<OneTimeMemberCredentials | null>(null);
   const [query, setQuery] = useState('');
-  const [crmFilter, setCrmFilter] = useState<'all' | 'follow-up'>('all');
+  const [crmFilter, setCrmFilter] = useState<
+    'all' | 'hot' | 'follow-up' | 'appointment' | 'inactive'
+  >('all');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
+    null
+  );
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [mediaProperty, setMediaProperty] = useState<Property | null>(null);
   const [profileView, setProfileView] = useState<
@@ -550,24 +571,6 @@ export default function WorkspacePage({
     };
   }, []);
 
-  useEffect(() => {
-    if (searchParams.get('action') !== 'new') return;
-    const timer = window.setTimeout(() => {
-      if (mode === 'crm') setDialog('contact');
-      if (mode === 'portfoyler') setDialog('property');
-      if (mode === 'takvim') setDialog('task');
-      if (mode === 'sirket') setDialog('member');
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [mode, searchParams]);
-
-  useEffect(() => {
-    const contactId = searchParams.get('contactId');
-    if (mode !== 'crm' || !contactId) return;
-    const timer = window.setTimeout(() => setSelectedContactId(contactId), 0);
-    return () => window.clearTimeout(timer);
-  }, [mode, searchParams]);
-
   async function postAction(payload: Record<string, unknown>, successMessage: string) {
     setSaving(true);
     try {
@@ -586,6 +589,7 @@ export default function WorkspacePage({
       }
       setDialog(null);
       setSelectedMemberId(null);
+      setSelectedPropertyId(null);
       toast.success(data.message || successMessage);
       return true;
     } catch (error) {
@@ -593,35 +597,6 @@ export default function WorkspacePage({
       return false;
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function setPropertyPublication(
-    property: Property,
-    status: 'DRAFT' | 'ACTIVE',
-    offerUndo = true
-  ) {
-    const previousStatus = property.status === 'ACTIVE' ? 'ACTIVE' : 'DRAFT';
-    const success = await postAction(
-      {
-        action: 'set-property-status',
-        id: property.id,
-        status,
-        idempotencyKey: crypto.randomUUID(),
-      },
-      status === 'ACTIVE'
-        ? 'Portföy yayına alındı.'
-        : 'Portföy yayından kaldırıldı.'
-    );
-    if (success && offerUndo) {
-      toast('İşlemi geri almak için 8 saniyeniz var.', {
-        duration: 8000,
-        action: {
-          label: 'Geri al',
-          onClick: () =>
-            void setPropertyPublication(property, previousStatus, false),
-        },
-      });
     }
   }
 
@@ -634,12 +609,25 @@ export default function WorkspacePage({
         .filter(Boolean)
         .some((value) => value!.toLocaleLowerCase('tr-TR').includes(normalized));
       if (!matchesQuery) return false;
+      if (crmFilter === 'hot') return contact.score >= 60;
       if (crmFilter === 'follow-up') {
         return (
           ['NEW', 'CONTACTED'].includes(contact.stage) ||
           (contact.nextActionAt !== null && new Date(contact.nextActionAt) <= now)
         );
       }
+      if (crmFilter === 'appointment') {
+        return (
+          ['VIEWING', 'OFFER'].includes(contact.stage) ||
+          workspace.tasks.some(
+            (task) =>
+              task.contact?.id === contact.id &&
+              task.status === 'OPEN' &&
+              ['MEETING', 'VIEWING'].includes(task.type)
+          )
+        );
+      }
+      if (crmFilter === 'inactive') return contact.stage === 'LOST';
       return true;
     });
   }, [crmFilter, query, workspace]);
@@ -661,6 +649,10 @@ export default function WorkspacePage({
     : [];
   const selectedMember =
     workspace?.members.find((member) => member.id === selectedMemberId) || null;
+  const selectedProperty =
+    workspace?.properties.find(
+      (property) => property.id === selectedPropertyId
+    ) || null;
 
   if (loading) {
     return (
@@ -691,6 +683,7 @@ export default function WorkspacePage({
     );
   }
 
+  const hotContactCount = workspace.contacts.filter((contact) => contact.score >= 60).length;
   const followUpContactCount = workspace.contacts.filter(
     (contact) =>
       ['NEW', 'CONTACTED'].includes(contact.stage) ||
@@ -724,6 +717,177 @@ export default function WorkspacePage({
   };
   const actionLabel = actionLabels[mode];
 
+  if ((mode as string) === 'crm') {
+    return (
+      <div className="pb-8">
+        <CrmExactWorkspace
+          contacts={filteredContacts}
+          crmFilter={crmFilter}
+          crmView={crmView}
+          onAddNote={async (note) =>
+            selectedContact
+              ? postAction(
+                  {
+                    action: 'add-contact-note',
+                    id: selectedContact.id,
+                    note,
+                  },
+                  'Müşteri notu kaydedildi.'
+                )
+              : false
+          }
+          onCreateContact={() => setDialog('contact')}
+          onCreateDeal={() => setDialog('deal')}
+          onCreateTask={() => setDialog('task')}
+          onEditContact={() => setDialog('contact-edit')}
+          onFilterChange={setCrmFilter}
+          onMoveDeal={(id, stage) =>
+            postAction(
+              { action: 'move-deal', id, stage },
+              `Fırsat ${stageLabels[stage]} aşamasına taşındı.`
+            )
+          }
+          onQueryChange={setQuery}
+          onScoreContact={() =>
+            selectedContact
+              ? postAction(
+                  { action: 'score-contact', id: selectedContact.id },
+                  'Müşteri öncelik puanı yenilendi.'
+                )
+              : Promise.resolve(false)
+          }
+          onSelectContact={(id) => {
+            setSelectedContactId(id);
+            setProfileView('overview');
+          }}
+          onSync={() =>
+            postAction(
+              { action: 'sync-modules' },
+              'Asistan görüşmeleri CRM ile eşitlendi.'
+            )
+          }
+          onViewChange={setCrmView}
+          profileView={profileView}
+          query={query}
+          saving={saving}
+          selectedContact={selectedContact}
+          selectedContactActivities={selectedContactActivities}
+          selectedContactDeals={selectedContactDeals}
+          selectedContactTasks={selectedContactTasks}
+          setProfileView={setProfileView}
+          workspace={workspace}
+        />
+
+        <WorkspaceDialog
+          key={`${dialog || 'closed'}-${selectedContact?.id || 'new'}`}
+          dialog={dialog}
+          members={workspace.members}
+          contacts={workspace.contacts}
+          properties={workspace.properties}
+          deals={workspace.deals}
+          selectedContact={selectedContact}
+          selectedProperty={null}
+          selectedMember={null}
+          saving={saving}
+          onClose={() => setDialog(null)}
+          onSubmit={postAction}
+        />
+      </div>
+    );
+  }
+
+  if ((mode as string) === 'portfoyler') {
+    return (
+      <div className="pb-8">
+        <PortfolioExactWorkspace
+          onAdd={() => setDialog('property')}
+          onEdit={(id) => {
+            setSelectedPropertyId(id);
+            setDialog('property-edit');
+          }}
+          onMedia={setMediaProperty}
+          onReload={loadWorkspace}
+          onSelect={setSelectedPropertyId}
+          onViewChange={setPortfolioView}
+          portfolioView={portfolioView}
+          selectedProperty={selectedProperty || workspace.properties[0] || null}
+          workspace={workspace}
+        />
+        <WorkspaceDialog
+          key={`${dialog || 'closed'}-${selectedProperty?.id || 'new'}`}
+          contacts={workspace.contacts}
+          deals={workspace.deals}
+          dialog={dialog}
+          members={workspace.members}
+          onClose={() => {
+            setDialog(null);
+            setSelectedPropertyId(null);
+          }}
+          onSubmit={postAction}
+          properties={workspace.properties}
+          saving={saving}
+          selectedContact={null}
+          selectedMember={null}
+          selectedProperty={selectedProperty}
+        />
+        {mediaProperty && (
+          <PropertyMediaLibrary
+            onChanged={() => void loadWorkspace()}
+            onOpenChange={(open) => !open && setMediaProperty(null)}
+            open={Boolean(mediaProperty)}
+            propertyId={mediaProperty.id}
+            propertyTitle={mediaProperty.title}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if ((mode as string) === 'sirket') {
+    const visibleMember = selectedMember || workspace.members[0] || null;
+    return (
+      <div className="pb-8">
+        <CompanyExactWorkspace
+          onAdd={() => setDialog('member')}
+          onEdit={(id) => {
+            setSelectedMemberId(id);
+            setDialog('member-edit');
+          }}
+          onSelect={setSelectedMemberId}
+          onToggle={(member) =>
+            postAction(
+              { action: 'set-member-active', id: member.id, active: !member.active },
+              `Çalışan hesabı ${member.active ? 'kapatıldı' : 'açıldı'}.`
+            )
+          }
+          selectedMember={visibleMember}
+          workspace={workspace}
+        />
+        <WorkspaceDialog
+          key={`${dialog || 'closed'}-${selectedMember?.id || 'new'}`}
+          contacts={workspace.contacts}
+          deals={workspace.deals}
+          dialog={dialog}
+          members={workspace.members}
+          onClose={() => {
+            setDialog(null);
+            setSelectedMemberId(null);
+          }}
+          onSubmit={postAction}
+          properties={workspace.properties}
+          saving={saving}
+          selectedContact={null}
+          selectedMember={selectedMember}
+          selectedProperty={null}
+        />
+        <MemberCredentialsDialog
+          credentials={memberCredentials}
+          onClose={() => setMemberCredentials(null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
@@ -733,6 +897,22 @@ export default function WorkspacePage({
         icon={meta.icon}
         actions={
           <>
+            {mode === 'crm' && crmView === 'customers' && (
+              <Button
+                className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
+                disabled={saving}
+                onClick={() =>
+                  postAction(
+                    { action: 'sync-modules' },
+                    'Asistan görüşmeleri CRM ile eşitlendi.'
+                  )
+                }
+                variant="outline"
+              >
+                <RefreshCw className={saving ? 'animate-spin' : ''} />
+                Asistan&apos;dan aktar
+              </Button>
+            )}
             {headerAction && actionLabel && (
               <Button
                 className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
@@ -747,8 +927,9 @@ export default function WorkspacePage({
       />
 
       {mode === 'crm' ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard label="Tüm müşteriler" value={workspace.metrics.contacts} icon={ContactRound} />
+          <StatCard label="Sıcak takip" value={hotContactCount} icon={Flame} status="warning" />
           <StatCard label="Takip bekliyor" value={followUpContactCount} icon={Clock3} status={followUpContactCount > 0 ? 'warning' : 'default'} />
           <StatCard label="Açık fırsat" value={workspace.metrics.openDeals} icon={Target} status="success" />
         </div>
@@ -859,6 +1040,7 @@ export default function WorkspacePage({
             <div className="flex gap-2 overflow-x-auto border-b border-slate-800 bg-slate-950/40 px-4 py-3" aria-label="Müşteri filtreleri">
               {[
                 { value: 'all', label: 'Tümü' },
+                { value: 'hot', label: 'Sıcak takip' },
                 { value: 'follow-up', label: 'Takip bekleyen' },
               ].map((filter) => (
                 <button
@@ -868,7 +1050,7 @@ export default function WorkspacePage({
                       : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:text-slate-200'
                   }`}
                   key={filter.value}
-                  onClick={() => setCrmFilter(filter.value as 'all' | 'follow-up')}
+                  onClick={() => setCrmFilter(filter.value as 'all' | 'hot' | 'follow-up')}
                   type="button"
                 >
                   {filter.label}
@@ -880,21 +1062,23 @@ export default function WorkspacePage({
                 <EmptyState
                   icon={Users}
                   title="Henüz müşteri yok"
-                  description="İlk müşteriyi ekleyin. Yeni Asistan görüşmeleri CRM ile otomatik eşitlenir."
+                  description="İlk müşteriyi ekleyin veya Asistan görüşmelerini üstteki aktar düğmesinden CRM’e alın."
                 />
               </div>
             ) : (
               <div className="custom-scrollbar max-h-[760px] overflow-auto">
-                <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-500">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="bg-slate-950/60 text-[11px] uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-medium">Müşteri</th>
                       <th className="px-4 py-3 font-medium">Aşama</th>
+                      <th className="px-4 py-3 font-medium">Sıcaklık</th>
                       <th className="px-4 py-3 font-medium">Son hareket</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {filteredContacts.map((contact) => {
+                      const heat = customerHeat(contact.score);
                       return (
                         <tr
                           className={`cursor-pointer transition hover:bg-slate-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
@@ -926,14 +1110,22 @@ export default function WorkspacePage({
                                 contact.email ||
                                 'İletişim bilgisi yok'}
                             </p>
-                            <p className="mt-1 text-xs text-slate-600">
+                            <p className="mt-1 text-[10px] text-slate-600">
                               {contactTypeLabels[contact.type]} ·{' '}
                               {contact.desiredLocation || 'Bölge yok'}
                             </p>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300">
+                            <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
                               {contactStageLabels[contact.stage]}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium ${heat.className}`}
+                            >
+                              <Flame className="h-3 w-3" />
+                              {heat.label} · {contact.score}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-400">
@@ -954,9 +1146,16 @@ export default function WorkspacePage({
                 <div className="border-b border-slate-800 p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
-                        Müşteri ayrıntıları
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
+                          360° müşteri profili
+                        </p>
+                        <span
+                          className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${customerHeat(selectedContact.score).className}`}
+                        >
+                          {customerHeat(selectedContact.score).label}
+                        </span>
+                      </div>
                       <h2 className="mt-2 text-2xl font-semibold text-white">
                         {selectedContact.name}
                       </h2>
@@ -967,41 +1166,6 @@ export default function WorkspacePage({
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {workspace.permissions.canManageTeam &&
-                      selectedContact.duplicateContactIds.length > 0 ? (
-                        <Button
-                          aria-label="Yinelenen müşteri kaydını birleştir"
-                          disabled={saving}
-                          onClick={() => {
-                            const duplicate = workspace.contacts.find(
-                              (contact) =>
-                                contact.id ===
-                                selectedContact.duplicateContactIds[0]
-                            );
-                            if (
-                              !duplicate ||
-                              !window.confirm(
-                                `${duplicate.name} kaydı ${selectedContact.name} kaydına birleştirilecek. İlişkili görev, portföy, görüşme ve fırsatlar korunacak. Devam edilsin mi?`
-                              )
-                            ) {
-                              return;
-                            }
-                            void postAction(
-                              {
-                                action: 'merge-contacts',
-                                primaryId: selectedContact.id,
-                                duplicateId: duplicate.id,
-                              },
-                              'Yinelenen müşteri kayıtları birleştirildi.'
-                            );
-                          }}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <Combine className="h-4 w-4" />
-                          Yineleneni birleştir
-                        </Button>
-                      ) : null}
                       <Button
                         aria-label="Müşteri profilini düzenle"
                         onClick={() => setDialog('contact-edit')}
@@ -1089,6 +1253,14 @@ export default function WorkspacePage({
                         [
                           'İstenen bölge',
                           selectedContact.desiredLocation || '—',
+                        ],
+                        ['Oda tercihi', selectedContact.desiredRoomCount || '—'],
+                        [
+                          'Bütçe',
+                          selectedContact.budgetMin ||
+                          selectedContact.budgetMax
+                            ? `${money(selectedContact.budgetMin)} – ${money(selectedContact.budgetMax)}`
+                            : '—',
                         ],
                         [
                           'Danışman',
@@ -1294,7 +1466,7 @@ export default function WorkspacePage({
                               <p className="mt-2 text-[10px] text-slate-600">
                                 {activity.actorMember?.name ||
                                   (activity.type === 'AI_SCORE_UPDATED'
-                                    ? 'Jasmine AI'
+                                    ? 'Business CEO AI'
                                     : 'Sistem')}
                               </p>
                             </div>
@@ -1333,18 +1505,12 @@ export default function WorkspacePage({
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {workspace.properties.map((property) => {
-              const published = property.status === 'ACTIVE';
-              const publicationCanChange = ['DRAFT', 'ACTIVE'].includes(
-                property.status
-              );
-              return (
+            {workspace.properties.map((property) => (
               <article
                 className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
-                id={`property-${property.id}`}
                 key={property.id}
               >
-                <div className="flex h-44 items-center justify-center bg-slate-950">
+                <div className="flex h-36 items-center justify-center bg-slate-950">
                   {property.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -1356,62 +1522,36 @@ export default function WorkspacePage({
                     <Home className="h-9 w-9 text-slate-700" />
                   )}
                 </div>
-                <div className="p-5">
+                <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h2 className="text-lg font-semibold leading-6 text-white">{property.title}</h2>
-                      <p className="mt-1 text-sm leading-5 text-slate-400">
+                      <h2 className="font-semibold text-white">{property.title}</h2>
+                      <p className="mt-1 text-xs text-slate-500">
                         {property.location || 'Konum yok'} · {property.roomCount || 'Oda bilgisi yok'}
                       </p>
                     </div>
-                    <span
-                      className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
-                        published
-                          ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-                          : 'border-slate-700 bg-slate-950 text-slate-400'
-                      }`}
-                    >
-                      {propertyStatusLabels[property.status]}
+                    <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300">
+                      {property.status}
                     </span>
                   </div>
-                  <p className="mt-4 text-xl font-semibold text-slate-100">
+                  <p className="mt-4 text-lg font-semibold text-slate-100">
                     {money(property.price)}
                   </p>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                    <Button
-                      className={
-                        published
-                          ? 'border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800'
-                          : 'bg-emerald-500 text-emerald-950 hover:bg-emerald-400'
-                      }
-                      disabled={saving || !publicationCanChange}
-                      onClick={() =>
-                        void setPropertyPublication(
-                          property,
-                          published ? 'DRAFT' : 'ACTIVE'
-                        )
-                      }
-                      type="button"
-                      variant={published ? 'outline' : 'default'}
-                    >
-                      {published ? (
-                        <EyeOff className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Rocket className="mr-2 h-4 w-4" />
-                      )}
-                      {published ? 'Yayından kaldır' : 'Yayına al'}
-                    </Button>
-                    <Button asChild className="border-slate-700 bg-slate-950 text-slate-200 hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200" variant="outline">
-                      <Link
-                        href={`/fabrika/pazarlamaci?propertyId=${encodeURIComponent(property.id)}`}
-                      >
-                        <Megaphone className="mr-2 h-4 w-4" />
-                        Pazarlamada kullan
-                      </Link>
-                    </Button>
+                  <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+                    {[
+                      ['Görüntü', property.listingViews],
+                      ['Talep', property.inquiryCount],
+                      ['Gösterim', property.showingCount],
+                      ['Teklif', property.offerCount],
+                    ].map(([label, value]) => (
+                      <div className="rounded-lg bg-slate-950 p-2" key={label}>
+                        <p className="text-sm font-semibold text-white">{value}</p>
+                        <p className="mt-0.5 text-[9px] text-slate-500">{label}</p>
+                      </div>
+                    ))}
                   </div>
                   <Button
-                    className="mt-2 w-full border-slate-700 bg-slate-950 text-slate-200 hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200"
+                    className="mt-4 w-full border-slate-700 bg-slate-950 text-slate-200 hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200"
                     onClick={() => setMediaProperty(property)}
                     type="button"
                     variant="outline"
@@ -1419,22 +1559,34 @@ export default function WorkspacePage({
                     <Images className="mr-2 h-4 w-4" />
                     Fotoğrafları yönet
                   </Button>
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-sm">
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs">
                     <span className="text-slate-500">
                       {property.ownerContact?.name || 'Mülk sahibi atanmadı'}
                     </span>
-                    <Link
-                      className="flex items-center gap-1 text-emerald-300 hover:text-emerald-200"
-                      href={`/portfoy-takip/${property.sellerPortalToken}`}
-                      target="_blank"
-                    >
-                      Malik raporu <ExternalLink className="h-3 w-3" />
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="flex items-center gap-1 text-cyan-300 hover:text-cyan-200"
+                        onClick={() => {
+                          setSelectedPropertyId(property.id);
+                          setDialog('property-edit');
+                        }}
+                        type="button"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        Düzenle
+                      </button>
+                      <Link
+                        className="flex items-center gap-1 text-emerald-300 hover:text-emerald-200"
+                        href={`/portfoy-takip/${property.sellerPortalToken}`}
+                        target="_blank"
+                      >
+                        Malik raporu <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </article>
-              );
-            })}
+            ))}
           </div>
         )
       )}
@@ -1664,51 +1816,42 @@ export default function WorkspacePage({
       )}
 
       {mode === 'sirket' && (
-        <div className="space-y-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)]">
           <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-400">
-                  Bu ay performansı
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-white">
-                  Ekip iş sonuçları
-                </h2>
-              </div>
-              <p className="text-sm text-slate-500">
-                Tamamlanan görev, kazanılan satış ve yeni portföy kayıtlarından hesaplanır.
-              </p>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {workspace.members.map((member) => (
-                <article
-                  className="rounded-xl border border-slate-800 bg-slate-950/55 p-4"
-                  key={member.id}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate font-semibold text-white">{member.name}</p>
-                    <span className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400">
-                      {memberRoleLabels[member.role]}
-                    </span>
+            <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">Şirket hesabı</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{workspace.account.companyName}</h2>
+            <p className="mt-1 text-sm text-slate-400">{workspace.account.ownerName}</p>
+            {workspace.permissions.canViewSubscription ? (
+              <dl className="mt-6 space-y-3">
+                {[
+                  ['Abonelik', workspace.account.subscriptionStatus],
+                  ['Paket', workspace.account.subscriptionPlan],
+                  [
+                    'Bitiş tarihi',
+                    workspace.account.subscriptionEndsAt
+                      ? dateTime(workspace.account.subscriptionEndsAt)
+                      : 'Süresiz',
+                  ],
+                  ['Çalışma alanı', workspace.account.workspaceEnabled ? 'Aktif' : 'Beklemede'],
+                ].map(([label, value]) => (
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 text-sm" key={label}>
+                    <dt className="text-slate-500">{label}</dt>
+                    <dd className="font-medium text-slate-200">{value}</dd>
                   </div>
-                  <dl className="mt-4 grid grid-cols-2 gap-3">
-                    {[
-                      ['Tamamlanan', member.monthlyPerformance.completedTasks],
-                      ['Açık görev', member.monthlyPerformance.openTasks],
-                      ['Kazanılan satış', member.monthlyPerformance.wonDeals],
-                      ['Yeni portföy', member.monthlyPerformance.newProperties],
-                    ].map(([label, value]) => (
-                      <div className="rounded-lg bg-slate-900 p-3" key={label}>
-                        <dt className="text-xs text-slate-500">{label}</dt>
-                        <dd className="mt-1 text-xl font-semibold text-slate-100">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </article>
-              ))}
-            </div>
+                ))}
+              </dl>
+            ) : (
+              <div className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <p className="text-sm font-semibold text-emerald-200">
+                  Çalışan erişimi
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Operasyon kayıtları ve ekip listesi görünür. Abonelik,
+                  entegrasyon anahtarları ve hesap yönetimi patrona özeldir.
+                </p>
+              </div>
+            )}
           </section>
-
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             <div className="flex items-start justify-between gap-3 border-b border-slate-800 p-4">
               <div>
@@ -1869,18 +2012,20 @@ export default function WorkspacePage({
       )}
 
       <WorkspaceDialog
-        key={`${dialog || 'closed'}-${selectedMember?.id || 'new'}`}
+        key={`${dialog || 'closed'}-${selectedMember?.id || selectedProperty?.id || 'new'}`}
         dialog={dialog}
         members={workspace.members}
         contacts={workspace.contacts}
         properties={workspace.properties}
         deals={workspace.deals}
         selectedContact={selectedContact}
+        selectedProperty={selectedProperty}
         selectedMember={selectedMember}
         saving={saving}
         onClose={() => {
           setDialog(null);
           setSelectedMemberId(null);
+          setSelectedPropertyId(null);
         }}
         onSubmit={postAction}
       />
@@ -1953,6 +2098,918 @@ export default function WorkspacePage({
   );
 }
 
+type CrmFilter = 'all' | 'hot' | 'follow-up' | 'appointment' | 'inactive';
+
+function contactInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.slice(0, 1).toLocaleUpperCase('tr-TR'))
+    .join('');
+}
+
+function propertyMatchScore(contact: Contact, property: Property) {
+  let score = 54;
+  if (
+    contact.desiredLocation &&
+    property.location?.toLocaleLowerCase('tr-TR').includes(
+      contact.desiredLocation.toLocaleLowerCase('tr-TR')
+    )
+  ) {
+    score += 18;
+  }
+  if (contact.desiredRoomCount && property.roomCount === contact.desiredRoomCount) {
+    score += 14;
+  }
+  if (
+    property.price &&
+    (contact.budgetMin == null || property.price >= contact.budgetMin) &&
+    (contact.budgetMax == null || property.price <= contact.budgetMax)
+  ) {
+    score += 12;
+  }
+  return Math.min(score, 98);
+}
+
+function CrmExactWorkspace({
+  workspace,
+  contacts,
+  selectedContact,
+  selectedContactActivities,
+  selectedContactDeals,
+  selectedContactTasks,
+  query,
+  crmFilter,
+  crmView,
+  profileView,
+  saving,
+  onQueryChange,
+  onFilterChange,
+  onSelectContact,
+  onViewChange,
+  setProfileView,
+  onSync,
+  onCreateContact,
+  onCreateDeal,
+  onCreateTask,
+  onEditContact,
+  onScoreContact,
+  onAddNote,
+  onMoveDeal,
+}: {
+  workspace: Workspace;
+  contacts: Contact[];
+  selectedContact: Contact | null;
+  selectedContactActivities: ActivityItem[];
+  selectedContactDeals: Deal[];
+  selectedContactTasks: Task[];
+  query: string;
+  crmFilter: CrmFilter;
+  crmView: 'customers' | 'pipeline';
+  profileView: 'overview' | 'activity';
+  saving: boolean;
+  onQueryChange: (value: string) => void;
+  onFilterChange: (value: CrmFilter) => void;
+  onSelectContact: (id: string) => void;
+  onViewChange: (value: 'customers' | 'pipeline') => void;
+  setProfileView: (value: 'overview' | 'activity') => void;
+  onSync: () => Promise<boolean>;
+  onCreateContact: () => void;
+  onCreateDeal: () => void;
+  onCreateTask: () => void;
+  onEditContact: () => void;
+  onScoreContact: () => Promise<boolean>;
+  onAddNote: (note: string) => Promise<boolean> | false;
+  onMoveDeal: (id: string, stage: DealStage) => Promise<boolean>;
+}) {
+  const today = new Date();
+  const sameDay = (value: string | null) => {
+    if (!value) return false;
+    const date = new Date(value);
+    return (
+      date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate()
+    );
+  };
+  const hotCount = workspace.contacts.filter((contact) => contact.score >= 60).length;
+  const callCount = workspace.tasks.filter(
+    (task) => task.status === 'OPEN' && task.type === 'CALL' && sameDay(task.dueAt)
+  ).length;
+  const wonCount = workspace.deals.filter((deal) => deal.stage === 'WON').length;
+  const matchedProperties = selectedContact
+    ? workspace.properties
+        .map((property) => ({
+          property,
+          score: propertyMatchScore(selectedContact, property),
+        }))
+        .sort((left, right) => right.score - left.score)
+        .slice(0, 2)
+    : [];
+  const nextTask = selectedContactTasks
+    .filter((task) => task.status === 'OPEN')
+    .sort((left, right) => {
+      const leftTime = left.dueAt ? new Date(left.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const rightTime = right.dueAt ? new Date(right.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return leftTime - rightTime;
+    })[0];
+  const pipelineStages: Array<{
+    label: string;
+    icon: typeof Users;
+    count: number;
+    tone: string;
+  }> = [
+    {
+      label: 'Yeni',
+      icon: ContactRound,
+      count: workspace.contacts.filter((contact) => contact.stage === 'NEW').length,
+      tone: 'blue',
+    },
+    {
+      label: 'İlgilenen',
+      icon: Users,
+      count: workspace.contacts.filter((contact) =>
+        ['CONTACTED', 'QUALIFIED'].includes(contact.stage)
+      ).length,
+      tone: 'emerald',
+    },
+    {
+      label: 'Randevu',
+      icon: CalendarDays,
+      count: workspace.contacts.filter((contact) => contact.stage === 'VIEWING').length,
+      tone: 'gold',
+    },
+    {
+      label: 'Teklif',
+      icon: Target,
+      count: workspace.contacts.filter((contact) => contact.stage === 'OFFER').length,
+      tone: 'violet',
+    },
+    {
+      label: 'Kazanıldı',
+      icon: Trophy,
+      count: workspace.contacts.filter((contact) => contact.stage === 'WON').length,
+      tone: 'green',
+    },
+  ];
+
+  return (
+    <div className={crmStyles.workspace}>
+      <header className={crmStyles.pageHeader}>
+        <div>
+          <p className={crmStyles.eyebrow}>Müşteri ve satış hafızası</p>
+          <h1>Merkezi CRM</h1>
+          <p className={crmStyles.intro}>
+            Her müşteriyi, her görüşmeyi, her tercihi ve her fırsatı tek yerde yönetin.
+          </p>
+        </div>
+        <div className={crmStyles.headerActions}>
+          <button
+            className={crmStyles.secondaryButton}
+            disabled={saving}
+            onClick={() => void onSync()}
+            type="button"
+          >
+            <RefreshCw className={saving ? 'animate-spin' : ''} />
+            Asistan&apos;dan aktar
+          </button>
+          <button className={crmStyles.primaryButton} onClick={onCreateContact} type="button">
+            <Plus />
+            Yeni müşteri
+          </button>
+        </div>
+      </header>
+
+      <section className={crmStyles.metricGrid} aria-label="CRM özeti">
+        {[
+          { label: 'Toplam müşteri', value: workspace.metrics.contacts, icon: Users, tone: 'blue' },
+          { label: 'Sıcak müşteri', value: hotCount, icon: Flame, tone: 'rose' },
+          { label: 'Bugün aranacak', value: callCount, icon: Phone, tone: 'green' },
+          { label: 'Açık fırsat', value: workspace.metrics.openDeals, icon: Target, tone: 'gold' },
+          { label: 'Bu ay kazanılan', value: wonCount, icon: Trophy, tone: 'amber' },
+        ].map((metric) => (
+          <article className={crmStyles.metricCard} data-tone={metric.tone} key={metric.label}>
+            <metric.icon aria-hidden="true" />
+            <div>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <div className={crmStyles.viewSwitch} role="tablist" aria-label="CRM görünümü">
+        <button
+          aria-selected={crmView === 'customers'}
+          className={crmView === 'customers' ? crmStyles.activeView : ''}
+          onClick={() => onViewChange('customers')}
+          role="tab"
+          type="button"
+        >
+          <Users /> Müşteriler
+        </button>
+        <button
+          aria-selected={crmView === 'pipeline'}
+          className={crmView === 'pipeline' ? crmStyles.activeView : ''}
+          onClick={() => onViewChange('pipeline')}
+          role="tab"
+          type="button"
+        >
+          <Kanban /> Satış panosu
+        </button>
+      </div>
+
+      {crmView === 'pipeline' ? (
+        <section className={crmStyles.fullPipeline}>
+          <div className={crmStyles.panelHeading}>
+            <div>
+              <p>Satış operasyonu</p>
+              <h2>Fırsat panosu</h2>
+            </div>
+            <button className={crmStyles.primaryButton} onClick={onCreateDeal} type="button">
+              <Plus /> Fırsat ekle
+            </button>
+          </div>
+          <div className={crmStyles.boardScroller}>
+            <div className={crmStyles.dealBoard}>
+              {visibleStages.map((stage) => {
+                const stageDeals = workspace.deals.filter((deal) => deal.stage === stage);
+                const nextStage = visibleStages[visibleStages.indexOf(stage) + 1];
+                return (
+                  <section className={crmStyles.dealColumn} key={stage}>
+                    <header>
+                      <span>{stageLabels[stage]}</span>
+                      <strong>{stageDeals.length}</strong>
+                    </header>
+                    <div>
+                      {stageDeals.map((deal) => (
+                        <article key={deal.id}>
+                          <h3>{deal.title}</h3>
+                          <p>{deal.contact.name}</p>
+                          <strong>{money(deal.estimatedValue)}</strong>
+                          <span>%{deal.probability} olasılık</span>
+                          {nextStage && (
+                            <button
+                              disabled={saving}
+                              onClick={() => void onMoveDeal(deal.id, nextStage)}
+                              type="button"
+                            >
+                              Sonraki aşama <ArrowRight />
+                            </button>
+                          )}
+                        </article>
+                      ))}
+                      {stageDeals.length === 0 && <p className={crmStyles.noDeals}>Fırsat yok</p>}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <div className={crmStyles.splitLayout}>
+          <div className={crmStyles.leftColumn}>
+            <section className={crmStyles.customerPanel}>
+              <div className={crmStyles.filters}>
+                <label className={crmStyles.searchField}>
+                  <Search aria-hidden="true" />
+                  <input
+                    aria-label="Müşteri ara"
+                    onChange={(event) => onQueryChange(event.target.value)}
+                    placeholder="Müşteri ara..."
+                    value={query}
+                  />
+                </label>
+                <div className={crmStyles.filterPills}>
+                  {[
+                    { value: 'all', label: 'Tümü' },
+                    { value: 'hot', label: 'Sıcak' },
+                    { value: 'follow-up', label: 'Takipte' },
+                    { value: 'appointment', label: 'Randevulu' },
+                    { value: 'inactive', label: 'Pasif' },
+                  ].map((filter) => (
+                    <button
+                      aria-pressed={crmFilter === filter.value}
+                      className={crmFilter === filter.value ? crmStyles.activeFilter : ''}
+                      key={filter.value}
+                      onClick={() => onFilterChange(filter.value as CrmFilter)}
+                      type="button"
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={crmStyles.secondaryFilters}>
+                <span>Danışman: Tümü</span>
+                <span>Kaynak: Tümü</span>
+                <small>{contacts.length} kayıt gösteriliyor</small>
+              </div>
+
+              {contacts.length > 0 ? (
+                <div className={crmStyles.tableScroller}>
+                  <table className={crmStyles.customerTable}>
+                    <thead>
+                      <tr>
+                        <th>Müşteri</th>
+                        <th>Telefon</th>
+                        <th>Skor</th>
+                        <th>Sıcaklık</th>
+                        <th>Tercihler</th>
+                        <th>Danışman</th>
+                        <th>Son iletişim</th>
+                        <th>Sonraki aksiyon</th>
+                        <th>Durum</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contacts.map((contact) => {
+                        const heat = customerHeat(contact.score);
+                        const contactTask = workspace.tasks
+                          .filter((task) => task.contact?.id === contact.id && task.status === 'OPEN')
+                          .sort((left, right) =>
+                            (left.dueAt ? new Date(left.dueAt).getTime() : Number.MAX_SAFE_INTEGER) -
+                            (right.dueAt ? new Date(right.dueAt).getTime() : Number.MAX_SAFE_INTEGER)
+                          )[0];
+                        return (
+                          <tr
+                            aria-selected={selectedContact?.id === contact.id}
+                            key={contact.id}
+                            onClick={() => onSelectContact(contact.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                onSelectContact(contact.id);
+                              }
+                            }}
+                            tabIndex={0}
+                          >
+                            <td>
+                              <span className={crmStyles.avatar}>{contactInitials(contact.name)}</span>
+                              <strong>{contact.name}</strong>
+                            </td>
+                            <td>{contact.phone || '—'}</td>
+                            <td><b className={crmStyles.scoreBadge}>{contact.score}</b></td>
+                            <td><span className={heat.className}>{heat.label}</span></td>
+                            <td>
+                              <strong>{contact.desiredLocation || 'Bölge yok'}</strong>
+                              <small>
+                                {[contact.desiredRoomCount, money(contact.budgetMax)].filter(Boolean).join(' · ')}
+                              </small>
+                            </td>
+                            <td>{contact.assignedMember?.name || 'Atanmadı'}</td>
+                            <td>{dateTime(contact.updatedAt)}</td>
+                            <td>
+                              <strong>{contactTask?.title || 'Takip planla'}</strong>
+                              <small>{dateTime(contactTask?.dueAt || contact.nextActionAt)}</small>
+                            </td>
+                            <td><span className={crmStyles.stageBadge}>{contactStageLabels[contact.stage]}</span></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={crmStyles.emptyCustomers}>
+                  <Users />
+                  <strong>Eşleşen müşteri bulunamadı</strong>
+                  <p>Arama ölçütlerini değiştirin veya yeni bir müşteri ekleyin.</p>
+                </div>
+              )}
+            </section>
+
+            <section className={crmStyles.compactFunnel}>
+              <header>
+                <h2>Satış hunisi</h2>
+                <button onClick={() => onViewChange('pipeline')} type="button">
+                  Tümünü aç <ArrowRight />
+                </button>
+              </header>
+              <div className={crmStyles.funnelSteps}>
+                {pipelineStages.map((stage, index) => (
+                  <div className={crmStyles.funnelPair} key={stage.label}>
+                    <article data-tone={stage.tone}>
+                      <stage.icon />
+                      <div>
+                        <span>{stage.label}</span>
+                        <strong>{stage.count}</strong>
+                        <small>
+                          %{workspace.contacts.length > 0
+                            ? Math.round((stage.count / workspace.contacts.length) * 100)
+                            : 0}
+                        </small>
+                      </div>
+                    </article>
+                    {index < pipelineStages.length - 1 && <ArrowRight className={crmStyles.funnelArrow} />}
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <aside className={crmStyles.detailRail}>
+            {selectedContact ? (
+              <>
+                <header className={crmStyles.profileHeader}>
+                  <div className={crmStyles.profileIdentity}>
+                    <span className={crmStyles.profileAvatar}>{contactInitials(selectedContact.name)}</span>
+                    <div>
+                      <div className={crmStyles.verifiedName}>
+                        <h2>{selectedContact.name}</h2>
+                        <BadgeCheck aria-label="Doğrulanmış müşteri" />
+                      </div>
+                      <a href={selectedContact.phone ? `tel:${selectedContact.phone}` : undefined}>
+                        <Phone /> {selectedContact.phone || 'Telefon yok'}
+                      </a>
+                      <a href={selectedContact.email ? `mailto:${selectedContact.email}` : undefined}>
+                        <Mail /> {selectedContact.email || 'E-posta yok'}
+                      </a>
+                    </div>
+                  </div>
+                  <button
+                    aria-label="AI müşteri skorunu güncelle"
+                    className={crmStyles.leadScore}
+                    disabled={saving}
+                    onClick={() => void onScoreContact()}
+                    style={{ '--score': `${selectedContact.score * 3.6}deg` } as React.CSSProperties}
+                    type="button"
+                  >
+                    <span>{selectedContact.score}</span>
+                    <div>
+                      <strong>AI Lead Skoru</strong>
+                      <small>
+                        {selectedContact.scoreReasons[0] ||
+                          `${selectedContactDeals.length} açık fırsat · potansiyel ve takip önceliği`}
+                      </small>
+                    </div>
+                  </button>
+                </header>
+
+                <div className={crmStyles.contactActions}>
+                  <a aria-disabled={!selectedContact.phone} href={selectedContact.phone ? `tel:${selectedContact.phone}` : undefined}>
+                    <Phone /> Ara
+                  </a>
+                  <a
+                    aria-disabled={!selectedContact.phone}
+                    href={selectedContact.phone ? `https://wa.me/${selectedContact.phone.replace(/\D/g, '')}` : undefined}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <MessageSquareText /> WhatsApp
+                  </a>
+                  <a aria-disabled={!selectedContact.email} href={selectedContact.email ? `mailto:${selectedContact.email}` : undefined}>
+                    <Mail /> E-posta
+                  </a>
+                  <a aria-disabled={!selectedContact.phone} href={selectedContact.phone ? `sms:${selectedContact.phone}` : undefined}>
+                    <MessageSquareText /> SMS
+                  </a>
+                  <button aria-label="Müşteri profilini düzenle" onClick={onEditContact} type="button">
+                    <MoreHorizontal />
+                  </button>
+                </div>
+
+                <nav className={crmStyles.detailTabs} aria-label="Müşteri detayları">
+                  <button
+                    aria-current={profileView === 'overview' ? 'page' : undefined}
+                    onClick={() => setProfileView('overview')}
+                    type="button"
+                  >
+                    Genel Bakış
+                  </button>
+                  <button
+                    aria-current={profileView === 'activity' ? 'page' : undefined}
+                    onClick={() => setProfileView('activity')}
+                    type="button"
+                  >
+                    Görüşmeler
+                  </button>
+                  <button onClick={() => setProfileView('overview')} type="button">Eşleşen Portföyler</button>
+                  <button onClick={onCreateTask} type="button">Görevler</button>
+                  <button onClick={() => setProfileView('overview')} type="button">Notlar</button>
+                </nav>
+
+                {profileView === 'activity' ? (
+                  <section className={crmStyles.activityView}>
+                    <div className={crmStyles.sectionHeading}>
+                      <h3>Görüşme Geçmişi</h3>
+                      <span>{selectedContactActivities.length} kayıt</span>
+                    </div>
+                    {selectedContactActivities.length > 0 ? (
+                      <ol className={crmStyles.timeline}>
+                        {selectedContactActivities.map((activity) => (
+                          <li key={activity.id}>
+                            <span><Activity /></span>
+                            <div>
+                              <time>{dateTime(activity.createdAt)}</time>
+                              <strong>{activity.title}</strong>
+                              {activity.description && <p>{activity.description}</p>}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className={crmStyles.emptyCopy}>Bu müşteri için henüz görüşme kaydı yok.</p>
+                    )}
+                  </section>
+                ) : (
+                  <div className={crmStyles.detailBody}>
+                    <div className={crmStyles.topDetailGrid}>
+                      <section className={crmStyles.preferenceCard}>
+                        <div className={crmStyles.sectionHeading}>
+                          <h3>Tercih Özeti</h3>
+                          <button onClick={onEditContact} type="button"><Edit3 /> Düzenle</button>
+                        </div>
+                        <dl>
+                          <div><dt>Lokasyon</dt><dd>{selectedContact.desiredLocation || 'Belirtilmedi'}</dd></div>
+                          <div><dt>Bütçe</dt><dd>{selectedContact.budgetMin || selectedContact.budgetMax ? `${money(selectedContact.budgetMin)} – ${money(selectedContact.budgetMax)}` : 'Belirtilmedi'}</dd></div>
+                          <div><dt>Oda sayısı</dt><dd>{selectedContact.desiredRoomCount || 'Belirtilmedi'}</dd></div>
+                          <div><dt>Müşteri tipi</dt><dd>{contactTypeLabels[selectedContact.type]}</dd></div>
+                          <div><dt>Danışman</dt><dd>{selectedContact.assignedMember?.name || 'Atanmadı'}</dd></div>
+                          <div><dt>Etiketler</dt><dd>{selectedContact.tags.join(', ') || '—'}</dd></div>
+                        </dl>
+                      </section>
+
+                      <section className={crmStyles.historyCard}>
+                        <div className={crmStyles.sectionHeading}>
+                          <h3>Görüşme Geçmişi</h3>
+                          <button onClick={() => setProfileView('activity')} type="button">Tümünü gör</button>
+                        </div>
+                        {selectedContactActivities.length > 0 ? (
+                          <ol className={crmStyles.miniTimeline}>
+                            {selectedContactActivities.slice(0, 4).map((activity) => (
+                              <li key={activity.id}>
+                                <span><Activity /></span>
+                                <div>
+                                  <time>{dateTime(activity.createdAt)}</time>
+                                  <strong>{activity.title}</strong>
+                                  {activity.description && <p>{activity.description}</p>}
+                                </div>
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p className={crmStyles.emptyCopy}>Henüz görüşme geçmişi bulunmuyor.</p>
+                        )}
+                      </section>
+                    </div>
+
+                    <section className={crmStyles.matchSection}>
+                      <div className={crmStyles.sectionHeading}>
+                        <h3>Eşleşen Portföy Önerileri</h3>
+                        <Link href="/fabrika/portfoyler">Tümünü gör</Link>
+                      </div>
+                      {matchedProperties.length > 0 ? (
+                        <div className={crmStyles.matchGrid}>
+                          {matchedProperties.map(({ property, score }) => (
+                            <article key={property.id}>
+                              <div className={crmStyles.propertyImage}>
+                                {property.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img alt="" src={property.imageUrl} />
+                                ) : (
+                                  <Home />
+                                )}
+                                <span>%{score} Eşleşme</span>
+                              </div>
+                              <div className={crmStyles.propertyCopy}>
+                                <h4>{property.title}</h4>
+                                <p><MapPin /> {property.location || 'Konum belirtilmedi'}</p>
+                                <div>
+                                  <span><BedDouble /> {property.roomCount || '—'}</span>
+                                  <span><Building2 /> {property.area ? `${property.area} m²` : '—'}</span>
+                                </div>
+                                <strong>{money(property.price)}</strong>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className={crmStyles.emptyCopy}>Eşleştirilecek aktif portföy bulunmuyor.</p>
+                      )}
+                    </section>
+
+                    <div className={crmStyles.bottomDetailGrid}>
+                      <section className={crmStyles.noteCard}>
+                        <div className={crmStyles.sectionHeading}>
+                          <h3>İç Not</h3>
+                          <span>{selectedContact.assignedMember?.name || 'Ekip'}</span>
+                        </div>
+                        <p>{selectedContact.notes || 'Bu müşteri için henüz iç not eklenmedi.'}</p>
+                        <form
+                          key={selectedContact.id}
+                          onSubmit={async (event) => {
+                            event.preventDefault();
+                            const note = String(new FormData(event.currentTarget).get('note') || '');
+                            const saved = await onAddNote(note);
+                            if (saved) event.currentTarget.reset();
+                          }}
+                        >
+                          <input name="note" placeholder="Yeni not ekleyin..." required />
+                          <button disabled={saving} type="submit"><Plus /></button>
+                        </form>
+                      </section>
+
+                      <section className={crmStyles.nextActionCard}>
+                        <div className={crmStyles.sectionHeading}>
+                          <h3>Sonraki En İyi Aksiyon</h3>
+                          <Target />
+                        </div>
+                        <p>{nextTask?.title || selectedContact.nextActionAt ? nextTask?.description || 'Müşteriyle takip görüşmesi planlayın.' : 'Yeni bir takip aksiyonu oluşturun.'}</p>
+                        <button onClick={onCreateTask} type="button">Aksiyon oluştur</button>
+                      </section>
+
+                      <section className={crmStyles.appointmentCard}>
+                        <div className={crmStyles.sectionHeading}>
+                          <h3>{nextTask?.type === 'VIEWING' ? 'Gösterim' : 'Randevu'}</h3>
+                          <CalendarDays />
+                        </div>
+                        <p><Clock3 /> {dateTime(nextTask?.dueAt || selectedContact.nextActionAt)}</p>
+                        <span>{nextTask?.property?.title || nextTask?.deal?.title || 'Müşteri takibi'}</span>
+                        <button onClick={onCreateTask} type="button">Randevu detayları</button>
+                      </section>
+                    </div>
+                  </div>
+                )}
+
+                <footer className={crmStyles.profileFooter}>
+                  <span>Kaynak: {selectedContact.source || 'Manuel kayıt'}</span>
+                  <span>Güncelleme: {dateTime(selectedContact.updatedAt)}</span>
+                  <span>Müşteri No: {selectedContact.id.slice(0, 12).toUpperCase()}</span>
+                </footer>
+              </>
+            ) : (
+              <div className={crmStyles.emptyProfile}>
+                <ContactRound />
+                <h2>Müşteri profili seçin</h2>
+                <p>Tercihleri, görüşmeleri ve sonraki aksiyonu görmek için soldaki listeden bir müşteri seçin.</p>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PortfolioExactWorkspace({
+  workspace,
+  portfolioView,
+  selectedProperty,
+  onViewChange,
+  onSelect,
+  onAdd,
+  onEdit,
+  onMedia,
+  onReload,
+}: {
+  workspace: Workspace;
+  portfolioView: 'properties' | 'owner-reports' | 'sources';
+  selectedProperty: Property | null;
+  onViewChange: (view: 'properties' | 'owner-reports' | 'sources') => void;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onEdit: (id: string) => void;
+  onMedia: (property: Property) => void;
+  onReload: () => Promise<void>;
+}) {
+  const [propertyQuery, setPropertyQuery] = useState('');
+  const normalizedQuery = propertyQuery.toLocaleLowerCase('tr-TR');
+  const filteredProperties = workspace.properties.filter((property) =>
+    [property.title, property.referenceCode, property.location, property.description]
+      .filter(Boolean)
+      .some((value) => value!.toLocaleLowerCase('tr-TR').includes(normalizedQuery))
+  );
+  const activeCount = workspace.properties.filter((property) => property.status === 'ACTIVE').length;
+  const draftCount = workspace.properties.filter((property) => property.status === 'DRAFT').length;
+  const soldCount = workspace.properties.filter((property) => property.status === 'SOLD').length;
+  const rentedCount = workspace.properties.filter((property) => property.status === 'RENTED').length;
+  const statusLabel: Record<Property['status'], string> = {
+    DRAFT: 'Taslak',
+    ACTIVE: 'Yayında',
+    RESERVED: 'Rezerve',
+    SOLD: 'Satıldı',
+    RENTED: 'Kiralandı',
+    ARCHIVED: 'Arşiv',
+  };
+
+  return (
+    <div className={operationsStyles.workspace}>
+      <header className={operationsStyles.pageHeader}>
+        <div>
+          <p className={operationsStyles.eyebrow}>Portföy merkezi</p>
+          <h1>Portföy Yönetimi</h1>
+          <p>Tüm aktif, taslak ve arşivlenmiş gayrimenkulleri tek yerde yönetin.</p>
+        </div>
+        <div className={operationsStyles.headerActions}>
+          <button className={operationsStyles.secondaryButton} onClick={() => onViewChange('sources')} type="button">
+            <UploadCloud /> Web sitesinden içe aktar
+          </button>
+          <button className={operationsStyles.primaryButton} onClick={onAdd} type="button">
+            <Plus /> Yeni portföy ekle
+          </button>
+        </div>
+      </header>
+
+      <div className={operationsStyles.modeTabs}>
+        <button aria-pressed={portfolioView === 'properties'} onClick={() => onViewChange('properties')} type="button">Portföyler</button>
+        <button aria-pressed={portfolioView === 'owner-reports'} onClick={() => onViewChange('owner-reports')} type="button">Malik raporları</button>
+        <button aria-pressed={portfolioView === 'sources'} onClick={() => onViewChange('sources')} type="button">Kaynaklar ve onay</button>
+      </div>
+
+      {portfolioView === 'sources' ? (
+        <PortfolioSourcesPanel onPortfolioChanged={onReload} />
+      ) : portfolioView === 'owner-reports' ? (
+        <section className={operationsStyles.reportGrid}>
+          {workspace.properties.map((property) => (
+            <article key={property.id}>
+              <div className={operationsStyles.reportIcon}><Share2 /></div>
+              <div>
+                <h2>{property.title}</h2>
+                <p>{property.ownerContact?.name || 'Mülk sahibi atanmadı'} · {property.location || 'Konum yok'}</p>
+                <span>{property.listingViews + property.inquiryCount + property.showingCount + property.offerCount} toplam etkileşim</span>
+              </div>
+              <Link href={`/portfoy-takip/${property.sellerPortalToken}`} target="_blank">Raporu aç <ExternalLink /></Link>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <>
+          <section className={operationsStyles.portfolioMetrics}>
+            {[
+              { label: 'Toplam portföy', value: workspace.properties.length, icon: Building2, tone: 'neutral' },
+              { label: 'Aktif', value: activeCount, icon: Home, tone: 'green' },
+              { label: 'Taslak', value: draftCount, icon: Building2, tone: 'gold' },
+              { label: 'Satışta', value: Math.max(activeCount - rentedCount, soldCount), icon: Target, tone: 'emerald' },
+              { label: 'Kiralık', value: rentedCount, icon: KeyRound, tone: 'violet' },
+            ].map((metric) => (
+              <article data-tone={metric.tone} key={metric.label}>
+                <metric.icon />
+                <div><span>{metric.label}</span><strong>{metric.value}</strong></div>
+              </article>
+            ))}
+          </section>
+
+          <div className={operationsStyles.portfolioSplit}>
+            <section className={operationsStyles.portfolioPanel}>
+              <div className={operationsStyles.portfolioFilters}>
+                <label>
+                  <Search />
+                  <input onChange={(event) => setPropertyQuery(event.target.value)} placeholder="Portföy adı, referans no. veya açıklama..." value={propertyQuery} />
+                </label>
+                <button type="button">İl <strong>Tümü</strong></button>
+                <button type="button">İlçe <strong>Tümü</strong></button>
+                <button type="button">Mahalle <strong>Tümü</strong></button>
+                <button type="button">Portföy tipi <strong>Tümü</strong></button>
+                <button type="button">Oda sayısı <strong>Tümü</strong></button>
+                <button type="button"><SlidersHorizontal /> Daha fazla filtre</button>
+              </div>
+              <div className={operationsStyles.activeFilters}>
+                <span>Aktif filtreler:</span><b>Durum: Aktif</b><b>Satışta veya Kiralık</b><button type="button">Filtreleri temizle</button>
+              </div>
+              <div className={operationsStyles.portfolioTableScroll}>
+                <table className={operationsStyles.portfolioTable}>
+                  <thead><tr><th>Portföy</th><th>Tip</th><th>Oda</th><th>m²</th><th>Fiyat</th><th>Sorumlu danışman</th><th>Yayın durumu</th><th>Leads</th><th>Son güncelleme</th><th /></tr></thead>
+                  <tbody>
+                    {filteredProperties.map((property) => (
+                      <tr data-selected={selectedProperty?.id === property.id} key={property.id} onClick={() => onSelect(property.id)} tabIndex={0}>
+                        <td>
+                          <div className={operationsStyles.portfolioThumb}>{property.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- portfolio images can be tenant-provided external URLs.
+                            <img alt="" src={property.imageUrl} />
+                          ) : <Home />}</div>
+                          <div><strong>{property.title}</strong><span>{property.location || 'Konum belirtilmedi'}</span><small>REF: {property.referenceCode || property.id.slice(0, 10).toUpperCase()}</small></div>
+                        </td>
+                        <td><span className={operationsStyles.typePill}>Gayrimenkul</span></td>
+                        <td>{property.roomCount || '—'}</td>
+                        <td>{property.area ? `${property.area} m²` : '—'}</td>
+                        <td><strong>{money(property.price)}</strong></td>
+                        <td>{property.assignedMember?.name || 'Atanmadı'}</td>
+                        <td><span className={operationsStyles.statusPill} data-status={property.status}>{statusLabel[property.status]}</span></td>
+                        <td>{property.inquiryCount}</td>
+                        <td>Canlı kayıt</td>
+                        <td><button aria-label="Portföyü düzenle" onClick={(event) => { event.stopPropagation(); onEdit(property.id); }} type="button"><MoreHorizontal /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <footer className={operationsStyles.tableFooter}><span>Toplam {filteredProperties.length} portföy</span><span>Sayfa 1 / 1</span></footer>
+            </section>
+
+            <aside className={operationsStyles.propertyRail}>
+              {selectedProperty ? (
+                <>
+                  <header><div><h2>{selectedProperty.title}</h2><p>REF: {selectedProperty.referenceCode || selectedProperty.id.slice(0, 10).toUpperCase()}</p></div><button aria-label="Portföyü düzenle" onClick={() => onEdit(selectedProperty.id)} type="button"><Edit3 /></button></header>
+                  <div className={operationsStyles.heroImage}>{selectedProperty.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- portfolio images can be tenant-provided external URLs.
+                    <img alt="" src={selectedProperty.imageUrl} />
+                  ) : <Home />}</div>
+                  <dl>
+                    <div><dt><Building2 /> Tip</dt><dd>Gayrimenkul</dd></div>
+                    <div><dt><MapPin /> Lokasyon</dt><dd>{selectedProperty.location || 'Belirtilmedi'}</dd></div>
+                    <div><dt><BedDouble /> Oda</dt><dd>{selectedProperty.roomCount || '—'}</dd></div>
+                    <div><dt><Gauge /> m²</dt><dd>{selectedProperty.area ? `${selectedProperty.area} m²` : '—'}</dd></div>
+                    <div><dt><Target /> Fiyat</dt><dd>{money(selectedProperty.price)}</dd></div>
+                    <div><dt><CheckCircle2 /> Durum</dt><dd>{statusLabel[selectedProperty.status]}</dd></div>
+                  </dl>
+                  <section className={operationsStyles.completeness}><div><span>Veri tamamlama</span><strong>{Math.min(100, [selectedProperty.title, selectedProperty.location, selectedProperty.price, selectedProperty.roomCount, selectedProperty.area, selectedProperty.description, selectedProperty.imageUrl].filter(Boolean).length * 14)}%</strong></div><progress max="100" value={Math.min(100, [selectedProperty.title, selectedProperty.location, selectedProperty.price, selectedProperty.roomCount, selectedProperty.area, selectedProperty.description, selectedProperty.imageUrl].filter(Boolean).length * 14)} /></section>
+                  <div className={operationsStyles.propertyActions}>
+                    <Link href="/fabrika/asistan"><Sparkles /> Asistana bağla</Link>
+                    <Link href="/fabrika/pazarlamaci"><Megaphone /> Pazarlamada kullan</Link>
+                    <button onClick={() => onMedia(selectedProperty)} type="button"><Camera /> Fotoğrafları yönet</button>
+                  </div>
+                </>
+              ) : <div className={operationsStyles.emptyRail}><Home /><h2>Portföy seçin</h2></div>}
+            </aside>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CompanyExactWorkspace({
+  workspace,
+  selectedMember,
+  onSelect,
+  onAdd,
+  onEdit,
+  onToggle,
+}: {
+  workspace: Workspace;
+  selectedMember: Member | null;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onEdit: (id: string) => void;
+  onToggle: (member: Member) => Promise<boolean>;
+}) {
+  const activeMembers = workspace.members.filter((member) => member.active).length;
+  const openTasks = workspace.tasks.filter((task) => task.status === 'OPEN').length;
+  const memberTasks = selectedMember ? workspace.tasks.filter((task) => task.assignedMember?.id === selectedMember.id) : [];
+  const completedTasks = memberTasks.filter((task) => task.status === 'COMPLETED').length;
+  const performance = memberTasks.length ? Math.round((completedTasks / memberTasks.length) * 100) : 0;
+  const permissionRows = ['Müşteriler', 'Portföyler', 'Görüşmeler', 'Eşleştirmeler', 'Görevler', 'Pazarlamacı', 'Stüdyo', 'Raporlar', 'Abonelik', 'API anahtarları', 'Ekip yönetimi'];
+
+  return (
+    <div className={operationsStyles.workspace}>
+      <header className={operationsStyles.pageHeader}>
+        <div><p className={operationsStyles.eyebrow}>Şirket ve yetki yönetimi</p><h1>Şirket &amp; Ekip</h1><p>Şirket profilinizi, ekip üyelerinizi, rollerini ve modül erişimlerini yönetin.</p></div>
+        <div className={operationsStyles.headerActions}><button className={operationsStyles.primaryButton} disabled={!workspace.permissions.canManageTeam} onClick={onAdd} type="button"><UserPlus /> Ekip üyesi ekle</button><button className={operationsStyles.secondaryButton} type="button"><Edit3 /> Şirket profilini düzenle</button></div>
+      </header>
+      <section className={operationsStyles.portfolioMetrics}>
+        {[
+          { label: 'Ekip üyesi', value: workspace.members.length, icon: Users, tone: 'gold' },
+          { label: 'Aktif çalışan', value: activeMembers, icon: UserCheck, tone: 'green' },
+          { label: 'Bekleyen davet', value: workspace.members.length - activeMembers, icon: Mail, tone: 'gold' },
+          { label: 'Açık görev', value: openTasks, icon: ListChecks, tone: 'amber' },
+          { label: 'Bu ay performans', value: `%${performance}`, icon: Gauge, tone: 'green' },
+        ].map((metric) => <article data-tone={metric.tone} key={metric.label}><metric.icon /><div><span>{metric.label}</span><strong>{metric.value}</strong></div></article>)}
+      </section>
+
+      <div className={operationsStyles.companySplit}>
+        <div className={operationsStyles.companyLeft}>
+          <section className={operationsStyles.teamPanel}>
+            <header><h2>Ekip üyeleri</h2><label><Search /><input placeholder="Üye ara..." /></label><span>Tüm roller</span><span>Tüm durumlar</span></header>
+            <div className={operationsStyles.teamTableScroll}>
+              <table className={operationsStyles.teamTable}>
+                <thead><tr><th>Üye</th><th>Kullanıcı adı</th><th>Rol</th><th>Telefon</th><th>Müşteri sayısı</th><th>Aktif görev</th><th>Son giriş</th><th>Hesap durumu</th><th /></tr></thead>
+                <tbody>{workspace.members.map((member) => {
+                  const activeTaskCount = workspace.tasks.filter((task) => task.assignedMember?.id === member.id && task.status === 'OPEN').length;
+                  const clientCount = workspace.contacts.filter((contact) => contact.assignedMember?.id === member.id).length;
+                  return <tr data-selected={selectedMember?.id === member.id} key={member.id} onClick={() => onSelect(member.id)}><td><span className={operationsStyles.memberAvatar}>{contactInitials(member.name)}</span><strong>{member.name}</strong></td><td>{member.username || '—'}</td><td><span>{memberRoleLabels[member.role]}</span></td><td>{member.phoneNormalized || member.phone || '—'}</td><td>{clientCount}</td><td>{activeTaskCount}</td><td>{member.lastLoginAt ? dateTime(member.lastLoginAt) : 'Henüz giriş yok'}</td><td><b data-active={member.active}>{member.active ? 'Aktif' : 'Kapalı'}</b></td><td><button aria-label="Üyeyi düzenle" onClick={(event) => { event.stopPropagation(); onEdit(member.id); }} type="button"><MoreHorizontal /></button></td></tr>;
+                })}</tbody>
+              </table>
+            </div>
+            <footer>Toplam {workspace.members.length} üye</footer>
+          </section>
+
+          <div className={operationsStyles.companyCards}>
+            <section><h3>Şirket profili</h3><div className={operationsStyles.companyMark}>{workspace.account.companyName.slice(0, 2).toUpperCase()}</div><strong>{workspace.account.companyName}</strong><p>{workspace.account.ownerName}</p><button type="button">Profili düzenle</button></section>
+            <section><h3>Rol şablonları</h3><article><ShieldCheck /><div><strong>Patron</strong><span>Tüm modüllere tam erişim</span></div></article><article><Users /><div><strong>Çalışan</strong><span>Tanımlı modüllere erişim</span></div></article><button type="button">Rol şablonlarını yönet</button></section>
+            <section><h3>Son ekip etkinliği</h3>{workspace.activities.slice(0, 4).map((activity) => <article key={activity.id}><span /><div><strong>{activity.title}</strong><small>{dateTime(activity.createdAt)}</small></div></article>)}</section>
+          </div>
+        </div>
+
+        <aside className={operationsStyles.memberRail}>
+          {selectedMember ? <>
+            <header><span className={operationsStyles.largeMemberAvatar}>{contactInitials(selectedMember.name)}</span><div><h2>{selectedMember.name} <b>{selectedMember.active ? 'Aktif' : 'Kapalı'}</b></h2><strong>{memberRoleLabels[selectedMember.role]}</strong><p>{selectedMember.phoneNormalized || selectedMember.phone || selectedMember.email || 'İletişim bilgisi yok'}</p><small>{selectedMember.username || 'Kullanıcı adı yok'}</small></div></header>
+            <section className={operationsStyles.workload}><div><h3>İş yükü</h3><strong>{memberTasks.filter((task) => task.status === 'OPEN').length}</strong><span>aktif görev</span></div><div><h3>Performans</h3><strong>%{performance}</strong><span>başarı oranı</span></div></section>
+            <section className={operationsStyles.permissions}><div><h3>Modül yetkileri</h3><button onClick={() => onEdit(selectedMember.id)} type="button">Yetkileri düzenle</button></div>{permissionRows.map((permission, index) => { const denied = selectedMember.role !== 'OWNER' && index >= 8; return <p key={permission}><span>{permission}</span><strong data-denied={denied}>{denied ? 'Erişim yok' : index === 7 && selectedMember.role !== 'OWNER' ? 'Salt okunur' : 'Tam erişim'}</strong></p>; })}</section>
+            {selectedMember.role !== 'OWNER' && <button className={operationsStyles.pauseButton} onClick={() => void onToggle(selectedMember)} type="button">{selectedMember.active ? 'Hesabı geçici durdur' : 'Hesabı yeniden aç'}</button>}
+          </> : <div className={operationsStyles.emptyRail}><Users /><h2>Ekip üyesi seçin</h2></div>}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function MemberCredentialsDialog({ credentials, onClose }: { credentials: OneTimeMemberCredentials | null; onClose: () => void }) {
+  return <Dialog open={Boolean(credentials)} onOpenChange={(open) => !open && onClose()}><DialogContent className="border border-slate-700 bg-slate-900 text-slate-100 sm:max-w-md"><DialogHeader><DialogTitle>Çalışan giriş bilgileri hazır</DialogTitle><DialogDescription>Bu kod yalnızca şimdi gösterilir. Çalışana güvenli bir kanaldan iletin.</DialogDescription></DialogHeader>{credentials && <div className="space-y-3">{[['Kullanıcı adı', credentials.username], ['Geçici giriş kodu', credentials.temporaryCode]].map(([label, value]) => <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-950 p-3" key={label}><div><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 font-mono text-sm font-semibold text-white">{value}</p></div><Button aria-label={`${label} bilgisini kopyala`} onClick={async () => { await navigator.clipboard.writeText(value); toast.success(`${label} kopyalandı.`); }} size="icon" variant="outline"><Copy className="h-4 w-4" /></Button></div>)}</div>}<DialogFooter><Button className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400" onClick={onClose} type="button">Bilgileri kaydettim</Button></DialogFooter></DialogContent></Dialog>;
+}
+
 function WorkspaceDialog({
   dialog,
   members,
@@ -1960,6 +3017,7 @@ function WorkspaceDialog({
   properties,
   deals,
   selectedContact,
+  selectedProperty,
   selectedMember,
   saving,
   onClose,
@@ -1971,6 +3029,7 @@ function WorkspaceDialog({
   properties: Property[];
   deals: Deal[];
   selectedContact: Contact | null;
+  selectedProperty: Property | null;
   selectedMember: Member | null;
   saving: boolean;
   onClose: () => void;
@@ -1991,6 +3050,9 @@ function WorkspaceDialog({
     () => (propertyImage ? URL.createObjectURL(propertyImage) : null),
     [propertyImage]
   );
+  const displayedPropertyImage =
+    propertyImagePreview ||
+    (dialog === 'property-edit' ? selectedProperty?.imageUrl : null);
 
   useEffect(() => {
     if (dialog !== 'property') return;
@@ -2126,25 +3188,36 @@ function WorkspaceDialog({
         'Müşteri profili güncellendi.'
       );
     }
-    if (dialog === 'property') {
-      const province = provinces.find(
-        (item) => String(item.id) === provinceId
-      )?.name;
-      const district = districts.find(
-        (item) => String(item.id) === districtId
-      )?.name;
-      const neighborhood = neighborhoods.find(
-        (item) => String(item.id) === neighborhoodId
-      )?.name;
+    if (
+      dialog === 'property' ||
+      (dialog === 'property-edit' && selectedProperty)
+    ) {
+      const province =
+        dialog === 'property'
+          ? provinces.find((item) => String(item.id) === provinceId)?.name
+          : null;
+      const district =
+        dialog === 'property'
+          ? districts.find((item) => String(item.id) === districtId)?.name
+          : null;
+      const neighborhood =
+        dialog === 'property'
+          ? neighborhoods.find((item) => String(item.id) === neighborhoodId)
+              ?.name
+          : null;
 
-      if (!province || !district || !neighborhood) {
+      if (
+        dialog === 'property' &&
+        (!province || !district || !neighborhood)
+      ) {
         toast.error('İl, ilçe ve mahalle seçimini tamamlayın.');
         return;
       }
 
       try {
         setPropertySubmitting(true);
-        let imageUrl = '';
+        let imageUrl =
+          dialog === 'property-edit' ? selectedProperty?.imageUrl || '' : '';
         if (propertyImage) {
           const imageData = new FormData();
           imageData.append('image', propertyImage);
@@ -2168,20 +3241,31 @@ function WorkspaceDialog({
 
         await onSubmit(
           {
-            action: 'create-property',
+            action:
+              dialog === 'property-edit'
+                ? 'update-property'
+                : 'create-property',
+            ...(dialog === 'property-edit'
+              ? { id: selectedProperty!.id }
+              : {}),
             ...values,
-            location: [province, district, neighborhood].join(' / '),
+            location:
+              dialog === 'property'
+                ? [province, district, neighborhood].join(' / ')
+                : values.location,
             imageUrl,
             price: values.price || null,
             area: values.area || null,
             ownerContactId: values.ownerContactId || null,
             assignedMemberId: values.assignedMemberId || null,
           },
-          'Portföy eklendi ve Asistan bilgisi güncellendi.'
+          dialog === 'property-edit'
+            ? 'Portföy güncellendi; bağlı web sitesi yeni veriyi API üzerinden alacak.'
+            : 'Portföy eklendi ve bağlı web sitesi için API verisi güncellendi.'
         );
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : 'Portföy eklenemedi.'
+          error instanceof Error ? error.message : 'Portföy kaydedilemedi.'
         );
       } finally {
         setPropertySubmitting(false);
@@ -2248,6 +3332,7 @@ function WorkspaceDialog({
     contact: 'Yeni müşteri',
     'contact-edit': 'Müşteri profilini düzenle',
     property: 'Yeni portföy',
+    'property-edit': 'Portföyü düzenle',
     deal: 'Yeni satış fırsatı',
     task: 'Yeni görev veya randevu',
     member: 'Yeni ekip üyesi',
@@ -2259,6 +3344,7 @@ function WorkspaceDialog({
       <DialogContent
         className={`max-h-[90vh] overflow-y-auto border border-slate-700 bg-slate-900 text-slate-100 ${
           dialog === 'property' ||
+          dialog === 'property-edit' ||
           dialog === 'member' ||
           dialog === 'member-edit'
             ? 'sm:max-w-3xl'
@@ -2268,8 +3354,8 @@ function WorkspaceDialog({
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            {dialog === 'property'
-              ? 'Konumu listeden seçin; görseliniz kalite kaybı olmadan güvenli depolamaya yüklenir.'
+            {dialog === 'property' || dialog === 'property-edit'
+              ? 'Kaydedilen değişiklikler bağlı müşteri web sitesinde API üzerinden otomatik görünür.'
               : dialog === 'member' || dialog === 'member-edit'
                 ? 'Rol, çalışma düzeni ve WhatsApp görev izinleri yalnızca patron tarafından yönetilir.'
                 : 'Bilgileri daha sonra müşteri veya portföy profilinden geliştirebilirsiniz.'}
@@ -2278,7 +3364,7 @@ function WorkspaceDialog({
         <form
           className="grid gap-4 sm:grid-cols-2"
           id="workspace-form"
-          key={`${dialog}-${selectedContact?.id || selectedMember?.id || 'new'}`}
+          key={`${dialog}-${selectedContact?.id || selectedProperty?.id || selectedMember?.id || 'new'}`}
           onSubmit={submit}
         >
           {dialog === 'contact' && (
@@ -2499,17 +3585,28 @@ function WorkspaceDialog({
             </>
           )}
 
-          {dialog === 'property' && (
+          {(dialog === 'property' ||
+            (dialog === 'property-edit' && selectedProperty)) && (
             <>
               <label className={`${labelClass} sm:col-span-2`}>
                 Portföy başlığı
-                <Input className={fieldClass} name="title" required />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.title || ''}
+                  name="title"
+                  required
+                />
               </label>
               <label className={labelClass}>
                 Referans kodu
-                <Input className={fieldClass} name="referenceCode" />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.referenceCode || ''}
+                  name="referenceCode"
+                />
               </label>
-              <fieldset className="grid gap-3 rounded-xl border border-slate-700/80 bg-slate-950/45 p-4 sm:col-span-2 sm:grid-cols-3">
+              {dialog === 'property' ? (
+                <fieldset className="grid gap-3 rounded-xl border border-slate-700/80 bg-slate-950/45 p-4 sm:col-span-2 sm:grid-cols-3">
                 <legend className="px-1 text-xs font-semibold text-slate-200">
                   Portföy konumu
                 </legend>
@@ -2586,14 +3683,36 @@ function WorkspaceDialog({
                   Bu seçim Asistan’ın “Mahmutlar’da 2+1” gibi müşteri
                   taleplerini doğru portföyle eşleştirmesini sağlar.
                 </p>
-              </fieldset>
+                </fieldset>
+              ) : (
+                <label className={`${labelClass} sm:col-span-2`}>
+                  Konum
+                  <Input
+                    className={fieldClass}
+                    defaultValue={selectedProperty?.location || ''}
+                    name="location"
+                    placeholder="İl / İlçe / Mahalle"
+                    required
+                  />
+                </label>
+              )}
               <label className={labelClass}>
                 Fiyat
-                <Input className={fieldClass} min="0" name="price" type="number" />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.price ?? ''}
+                  min="0"
+                  name="price"
+                  type="number"
+                />
               </label>
               <label className={labelClass}>
                 Oda sayısı
-                <SelectField defaultValue="" name="roomCount" required>
+                <SelectField
+                  defaultValue={selectedProperty?.roomCount || ''}
+                  name="roomCount"
+                  required
+                >
                   <option value="">Oda sayısını seçin</option>
                   {roomCountOptions.map((roomCount) => (
                     <option key={roomCount} value={roomCount}>
@@ -2604,11 +3723,20 @@ function WorkspaceDialog({
               </label>
               <label className={labelClass}>
                 Alan (m²)
-                <Input className={fieldClass} min="0" name="area" type="number" />
+                <Input
+                  className={fieldClass}
+                  defaultValue={selectedProperty?.area ?? ''}
+                  min="0"
+                  name="area"
+                  type="number"
+                />
               </label>
               <label className={labelClass}>
                 Durum
-                <SelectField defaultValue="ACTIVE" name="status">
+                <SelectField
+                  defaultValue={selectedProperty?.status || 'ACTIVE'}
+                  name="status"
+                >
                   <option value="DRAFT">Taslak</option>
                   <option value="ACTIVE">Aktif</option>
                   <option value="RESERVED">Rezerve</option>
@@ -2619,7 +3747,10 @@ function WorkspaceDialog({
               </label>
               <label className={labelClass}>
                 Mülk sahibi
-                <SelectField defaultValue="" name="ownerContactId">
+                <SelectField
+                  defaultValue={selectedProperty?.ownerContact?.id || ''}
+                  name="ownerContactId"
+                >
                   <option value="">Atanmadı</option>
                   {contacts.filter((contact) => contact.type === 'SELLER').map((contact) => (
                     <option key={contact.id} value={contact.id}>{contact.name}</option>
@@ -2628,7 +3759,10 @@ function WorkspaceDialog({
               </label>
               <label className={labelClass}>
                 Sorumlu danışman
-                <SelectField defaultValue="" name="assignedMemberId">
+                <SelectField
+                  defaultValue={selectedProperty?.assignedMember?.id || ''}
+                  name="assignedMemberId"
+                >
                   <option value="">Atanmadı</option>
                   {members.map((member) => (
                     <option key={member.id} value={member.id}>{member.name}</option>
@@ -2657,13 +3791,13 @@ function WorkspaceDialog({
                       onChange={selectPropertyImage}
                       type="file"
                     />
-                    {propertyImagePreview ? (
+                    {displayedPropertyImage ? (
                       <div
                         aria-label="Seçilen portföy görselinin önizlemesi"
                         className="h-24 w-32 shrink-0 rounded-lg bg-cover bg-center shadow-inner"
                         role="img"
                         style={{
-                          backgroundImage: `url("${propertyImagePreview}")`,
+                          backgroundImage: `url("${displayedPropertyImage}")`,
                         }}
                       />
                     ) : (
@@ -2675,7 +3809,9 @@ function WorkspaceDialog({
                       <span className="block text-sm font-semibold text-slate-100">
                         {propertyImage
                           ? propertyImage.name
-                          : 'Bilgisayardan görsel seçin'}
+                          : selectedProperty?.imageUrl
+                            ? 'Mevcut görsel · değiştirmek için seçin'
+                            : 'Bilgisayardan görsel seçin'}
                       </span>
                       <span className="mt-1 block text-xs leading-5 text-slate-400">
                         {propertyImage
@@ -2713,7 +3849,11 @@ function WorkspaceDialog({
               </div>
               <label className={`${labelClass} sm:col-span-2`}>
                 Açıklama
-                <textarea className={`${fieldClass} min-h-24 py-3`} name="description" />
+                <textarea
+                  className={`${fieldClass} min-h-24 py-3`}
+                  defaultValue={selectedProperty?.description || ''}
+                  name="description"
+                />
               </label>
             </>
           )}

@@ -2,17 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Bot, Plus, MessageSquare, Calendar, BarChart3, Clock, Loader2,
+  Bot, Plus, MessageSquare, Calendar, Clock, Loader2,
   X, Settings, Key, Phone, ShieldCheck, ExternalLink, Save, Trash2,
-  Search, Sparkles, CheckCircle2, HelpCircle
+  Search, Sparkles, HelpCircle, Flame, Timer, Users, SlidersHorizontal,
+  UserRound, MapPin, Home, WalletCards, CircleCheckBig, Circle,
+  CalendarPlus, UserRoundCheck
 } from 'lucide-react';
 import ChatInterface from '@/components/fabrika/ChatInterface';
 import AppointmentApproval from '@/components/fabrika/AppointmentApproval';
 import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
-import PageHeader from '@/components/fabrika/PageHeader';
-import StatCard from '@/components/fabrika/StatCard';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import toast from 'react-hot-toast';
+import styles from './assistant.module.css';
 
 interface Message {
   id: string;
@@ -76,6 +77,44 @@ type AppointmentAction =
   | 'cancel'
   | 'remind';
 
+const LOCATION_HINTS = [
+  'Alanya', 'Kargıcak', 'Mahmutlar', 'Oba', 'Kestel', 'Avsallar',
+  'Konaklı', 'Demirtaş', 'Tosmur', 'Cikcilli', 'Bektaş', 'Kleopatra',
+];
+
+function customerInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase('tr-TR'))
+    .join('') || 'M';
+}
+
+function calculateAverageResponse(conversations: Conversation[]) {
+  const responseTimes: number[] = [];
+  conversations.forEach((conversation) => {
+    const ordered = [...(conversation.messages || [])].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    ordered.forEach((message, index) => {
+      if (message.role === 'assistant' || message.role === 'patron') return;
+      const response = ordered
+        .slice(index + 1)
+        .find((candidate) => candidate.role === 'assistant' || candidate.role === 'patron');
+      if (!response) return;
+      const duration = new Date(response.createdAt).getTime() - new Date(message.createdAt).getTime();
+      if (duration >= 0 && duration <= 60 * 60 * 1000) responseTimes.push(duration);
+    });
+  });
+  if (!responseTimes.length) return '—';
+  const averageSeconds = Math.max(
+    1,
+    Math.round(responseTimes.reduce((total, duration) => total + duration, 0) / responseTimes.length / 1000)
+  );
+  return averageSeconds < 60 ? `${averageSeconds} sn` : `${Math.round(averageSeconds / 60)} dk`;
+}
+
 export default function AsistanPage() {
   const { permissions } = useFabrikaSession();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -99,7 +138,7 @@ export default function AsistanPage() {
     businessAccountId: '',
     verifyToken: '',
     geminiApiKey: '',
-    companyName: 'Jasmine Group',
+    companyName: 'Business CEO AI',
     assistantName: 'Efe',
     serviceCity: 'Alanya',
     companyAddress: '',
@@ -544,22 +583,92 @@ export default function AsistanPage() {
 
     if (!matchesSearch) return false;
     if (filterIntent === 'HOT') return conv.intent === 'INVESTMENT' || conv.intent === 'BOTH';
+    if (filterIntent === 'APPOINTMENT') {
+      return appointments.some((appointment) => {
+        const phoneMatches =
+          conv.customerPhone &&
+          appointment.customerPhone &&
+          normalizePhone(conv.customerPhone) === normalizePhone(appointment.customerPhone);
+        return phoneMatches || appointment.customerName === conv.customerName;
+      });
+    }
     return true;
   });
   const selectedConversation = conversations.find(
     (conversation) => conversation.id === selectedConvId
   );
+  const selectedCustomerText = [
+    selectedConversation?.summary,
+    selectedConversation?.notes,
+    ...(selectedConversation?.messages || []).map((message) => message.content),
+    ...(selectedConversation?.tags || []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const selectedLocation =
+    LOCATION_HINTS.find((location) =>
+      selectedCustomerText.toLocaleLowerCase('tr-TR').includes(location.toLocaleLowerCase('tr-TR'))
+    ) || configForm.serviceCity || 'Henüz belirlenmedi';
+  const roomMatch = selectedCustomerText.match(/\b([1-9]\s*\+\s*[0-9])\b/);
+  const budgetMatch = selectedCustomerText.match(
+    /(?:₺|€|\$)?\s*\d{1,3}(?:[.\s]\d{3})+(?:\s*(?:₺|TL|€|EUR|\$|USD))?/i
+  );
+  const selectedAppointments = appointments.filter((appointment) => {
+    const phoneMatches =
+      selectedConversation?.customerPhone &&
+      appointment.customerPhone &&
+      normalizePhone(selectedConversation.customerPhone) === normalizePhone(appointment.customerPhone);
+    return phoneMatches || appointment.customerName === selectedConversation?.customerName;
+  });
+  const scoreSignals = {
+    intent:
+      selectedConversation?.intent === 'INVESTMENT'
+        ? 18
+        : selectedConversation?.intent === 'BOTH'
+          ? 16
+          : selectedConversation?.intent === 'RESIDENTIAL'
+            ? 11
+            : 0,
+    messages: Math.min(14, (selectedConversation?.messages.length || 0) * 2),
+    profile: Math.min(8, (selectedConversation?.tags?.length || 0) * 2),
+    appointment: selectedAppointments.length > 0 || /randevu|görüş|göster/i.test(selectedCustomerText) ? 10 : 0,
+    budget: budgetMatch ? 6 : 0,
+    location: selectedLocation !== 'Henüz belirlenmedi' ? 4 : 0,
+  };
+  const leadScore = Math.min(
+    99,
+    43 + Object.values(scoreSignals).reduce((total, score) => total + score, 0)
+  );
+  const isHotLead = leadScore >= 72;
+  const hotConversationCount = conversations.filter(
+    (conversation) => conversation.intent === 'INVESTMENT' || conversation.intent === 'BOTH'
+  ).length;
+  const averageResponse = calculateAverageResponse(conversations);
+  const lastContact = selectedConversation
+    ? new Date(selectedConversation.updatedAt).toLocaleString('tr-TR', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
+  const nextActions = [
+    { label: 'İhtiyaç özeti çıkarıldı', done: Boolean(selectedConversation?.summary) },
+    { label: 'Bütçe ve lokasyon doğrulandı', done: Boolean(budgetMatch && selectedLocation) },
+    { label: 'Uygun portföyleri paylaş', done: /paylaş|gönder|portföy/i.test(selectedCustomerText) },
+    { label: 'Randevu oluştur', done: selectedAppointments.length > 0 },
+    { label: 'Danışmana devret', done: selectedConversation?.aiEnabled === false },
+  ];
 
   return (
-    <div className="space-y-6 overflow-x-hidden pb-8 text-slate-100">
-
+    <div className={`${styles.page} relative overflow-x-hidden pb-8 text-slate-100`}>
       {/* Settings Modal */}
       {permissions.canManageSecrets && isSettingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4">
-          <div className="relative w-full max-w-xl rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
             <div className="flex justify-between items-center mb-6 border-b border-slate-800/80 pb-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-300">
+                <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-600 text-white rounded-2xl shadow-lg shadow-rose-500/25">
                   <Settings className="w-6 h-6" />
                 </div>
                 <div>
@@ -574,9 +683,9 @@ export default function AsistanPage() {
 
             <form onSubmit={handleSaveConfig} className="space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar pr-1">
               {/* AI & Persona Config Box */}
-              <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-950/50 p-4">
+              <div className="bg-gradient-to-br from-rose-950/20 via-slate-900 to-slate-950 p-4.5 rounded-2xl border border-rose-500/20 space-y-3 shadow-inner">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
                     <Sparkles className="w-4 h-4" /> Yapay Zeka Danışman & Şirket Profili
                   </div>
                 </div>
@@ -589,7 +698,7 @@ export default function AsistanPage() {
                     rows={2}
                     value={configForm.companyAddress}
                     onChange={(e) => setConfigForm({ ...configForm, companyAddress: e.target.value })}
-                    placeholder="Örn: Mahmutlar Mah. Barbaros Cad. Jasmine Towers No:12 Alanya/Antalya"
+                    placeholder="Örn: Mahmutlar Mah. Barbaros Cad. Business Plaza No:12 Alanya/Antalya"
                     className="w-full bg-slate-950 text-white text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none resize-none custom-scrollbar"
                   />
                 </div>
@@ -616,7 +725,7 @@ export default function AsistanPage() {
                       type="text"
                       value={configForm.companyName}
                       onChange={(e) => setConfigForm({ ...configForm, companyName: e.target.value })}
-                      placeholder="Jasmine Group"
+                      placeholder="Business CEO AI"
                       className="w-full bg-slate-950 text-white text-xs p-2.5 rounded-xl border border-slate-800 focus:border-rose-500 outline-none"
                     />
                   </div>
@@ -891,7 +1000,7 @@ export default function AsistanPage() {
                   <button
                     type="submit"
                     disabled={isSavingConfig}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-emerald-500 px-6 py-2.5 text-xs font-bold text-emerald-950 transition-colors hover:bg-emerald-400"
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-500/25 transition-all cursor-pointer"
                   >
                     <Save className="w-4 h-4" /> Ayarları Kaydet
                   </button>
@@ -902,256 +1011,161 @@ export default function AsistanPage() {
         </div>
       )}
 
-      {/* Header Banner */}
-      <section>
-        <div>
-          <PageHeader
-            eyebrow="CRM ve iletişim"
-            title="Yapay Zeka Asistanı"
-            description="WhatsApp teslim takibi, insan devri ve uçtan uca randevu yönetimini tek ekrandan yönetin."
-            icon={Bot}
-            actions={
-              <>
-                <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  Webhook aktif
-                </span>
-                {permissions.canManageSecrets && (
-                  <button
-                    type="button"
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                  >
-                    <Settings className="h-4 w-4" /> AI & şirket ayarları
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleCleanupData}
-                  disabled={isCleaningData}
-                  className="inline-flex items-center gap-2 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3.5 py-2 text-xs font-medium text-rose-300 transition-colors hover:bg-rose-500/15 disabled:opacity-50"
-                  title="Test sohbetlerini ve hatalı, gönderilmemiş mesajları önizleyip temizle"
-                >
-                  {isCleaningData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Veri temizliği
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
-                >
-                  <Plus className="h-4 w-4" /> Yeni test sohbeti
-                </button>
-              </>
-            }
-          />
-
-
-          {/* Quick Metrics Bar */}
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard
-              label="Aktif sohbetler"
-              value={metrics?.activeConversations ?? conversations.length}
-              icon={MessageSquare}
-              hint={`${metrics?.handoffConversations ?? 0} insan temsilcide`}
-              status="success"
-            />
-            <StatCard
-              label="Bekleyen randevu"
-              value={pendingAppointments}
-              icon={Calendar}
-              hint={`Bugün ${metrics?.approvedToday ?? 0} onay`}
-              status="warning"
-            />
-            <StatCard
-              label="Bugünkü mesajlar"
-              value={metrics?.todayMessages ?? 0}
-              icon={BarChart3}
-              hint={`${metrics?.incomingMessages ?? 0} gelen · ${metrics?.outgoingMessages ?? 0} giden`}
-            />
-            <StatCard
-              label="Teslim edilen"
-              value={metrics?.deliveredMessages ?? 0}
-              icon={CheckCircle2}
-              hint={`${metrics?.failedMessages ?? 0} hata`}
-              status="success"
-            />
-          </div>
+      <section className={styles.executiveHeader}>
+        <div className={styles.headerCopy}>
+          <p className={styles.eyebrow}>M4 · CRM ve iletişim</p>
+          <h1>Yapay Zeka Asistanı</h1>
+          <p>Canlı müşteri sohbetlerini yönetin, yapay zeka ile anında yanıtlayın ve randevu taleplerini tek akışta organize edin.</p>
+        </div>
+        <div className={styles.headerActions}>
+          <span className={styles.statusAction}><Phone aria-hidden="true" /> WhatsApp bağlı</span>
+          <span className={styles.statusAction}><Sparkles aria-hidden="true" /> AI aktif</span>
+          <span className={styles.statusAction}><UserRoundCheck aria-hidden="true" /> İnsan devri açık</span>
+          <button type="button" onClick={() => setIsModalOpen(true)} className={styles.primaryAction}>
+            <Plus aria-hidden="true" /> Yeni sohbet
+          </button>
+          {permissions.canManageSecrets && (
+            <button type="button" onClick={() => setIsSettingsOpen(true)} className={styles.secondaryAction}>
+              <Settings aria-hidden="true" /> Ayarlar
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleCleanupData}
+            disabled={isCleaningData}
+            className={styles.iconAction}
+            title="Test ve hatalı sohbet verilerini temizle"
+            aria-label="Test ve hatalı sohbet verilerini temizle"
+          >
+            {isCleaningData ? <Loader2 className="animate-spin" /> : <Trash2 />}
+          </button>
         </div>
       </section>
 
-      {/* Main Content Area */}
-      <main>
-        {/* Navigation Tabs */}
-        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-1">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium transition-colors ${
-                activeTab === 'chat'
-                  ? 'bg-emerald-500 text-emerald-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <MessageSquare className="w-4 h-4" />
-              Canlı Sohbet CRM ({conversations.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('appointments')}
-              className={`relative flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium transition-colors ${
-                activeTab === 'appointments'
-                  ? 'bg-emerald-500 text-emerald-950'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              Ofis Randevu Talepleri
-              {pendingAppointments > 0 && (
-                <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-amber-950">
-                  {pendingAppointments}
-                </span>
-              )}
-            </button>
-          </div>
+      <section className={styles.metricGrid} aria-label="Asistan performans göstergeleri">
+        <article className={styles.metricCard}>
+          <span className={styles.metricIcon}><MessageSquare /></span>
+          <span><small>Aktif sohbet</small><strong>{metrics?.activeConversations ?? conversations.length}</strong></span>
+          <i className={styles.onlineDot} aria-label="Canlı" />
+        </article>
+        <article className={styles.metricCard}>
+          <span className={`${styles.metricIcon} ${styles.metricIconAmber}`}><Flame /></span>
+          <span><small>Sıcak müşteri</small><strong>{hotConversationCount}</strong></span>
+        </article>
+        <article className={styles.metricCard}>
+          <span className={styles.metricIcon}><Calendar /></span>
+          <span><small>Bekleyen randevu</small><strong>{pendingAppointments}</strong></span>
+        </article>
+        <article className={styles.metricCard}>
+          <span className={styles.metricIcon}><MessageSquare /></span>
+          <span><small>Bugünkü mesaj</small><strong>{metrics?.todayMessages ?? 0}</strong></span>
+        </article>
+        <article className={styles.metricCard}>
+          <span className={styles.metricIcon}><Timer /></span>
+          <span><small>Yanıt süresi</small><strong>{averageResponse}</strong></span>
+          <em>Ortalama</em>
+        </article>
+      </section>
 
-          {activeTab === 'chat' && (
-            <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1">
-              <button
-                onClick={() => setFilterIntent('ALL')}
-                className={`rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors ${
-                  filterIntent === 'ALL' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                Tümü
-              </button>
-              <button
-                onClick={() => setFilterIntent('HOT')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                  filterIntent === 'HOT' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                Sıcak ilgilenenler
-              </button>
-            </div>
-          )}
+      <main className={styles.workspace}>
+        <div className={styles.tabs}>
+          <button type="button" onClick={() => setActiveTab('chat')} data-active={activeTab === 'chat'}>
+            Canlı sohbetler <span>{conversations.length}</span>
+          </button>
+          <button type="button" onClick={() => setActiveTab('appointments')} data-active={activeTab === 'appointments'}>
+            Ofis randevu talepleri {pendingAppointments > 0 && <span>{pendingAppointments}</span>}
+          </button>
         </div>
 
-        {/* Tab Content */}
         {isLoading ? (
           <LoadingSkeleton rows={5} />
         ) : activeTab === 'appointments' ? (
-          <AppointmentApproval 
-            appointments={appointments} 
-            onAction={handleAppointmentAction}
-            processingId={appointmentActionId}
-          />
+          <div className={styles.appointmentSurface}>
+            <AppointmentApproval
+              appointments={appointments}
+              onAction={handleAppointmentAction}
+              processingId={appointmentActionId}
+            />
+          </div>
         ) : (
-          <div className="grid min-h-[640px] grid-cols-1 gap-4 lg:h-[720px] lg:grid-cols-12">
-            {/* Sidebar: Conversation List */}
-            <div className="flex h-full min-h-[30rem] flex-col rounded-xl border border-slate-800 bg-slate-900 p-3 lg:col-span-4">
-              {/* Search Bar & Clear Cache */}
-              <div className="flex items-center gap-2 mb-3">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+          <div className={styles.threeColumnGrid}>
+            <aside className={styles.conversationPanel} aria-label="Sohbetler">
+              <div className={styles.panelHeading}>
+                <strong>Sohbetler</strong><span>{filteredConversations.length}</span>
+              </div>
+              <div className={styles.searchRow}>
+                <label>
+                  <Search aria-hidden="true" />
                   <input
-                    type="text"
+                    type="search"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Müşteri adı veya telefon ile ara..."
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none"
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Ara..."
+                    aria-label="Müşteri adı veya telefonla ara"
                   />
-                </div>
-                <button
-                  onClick={handleCleanupData}
-                  disabled={isCleaningData}
-                  className="p-2.5 bg-rose-950/50 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 rounded-xl transition-all cursor-pointer shrink-0"
-                  title="Test ve hatalı verileri temizle"
-                >
-                  {isCleaningData ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
+                </label>
+                <button type="button" onClick={() => setFilterIntent('ALL')} aria-label="Filtreleri sıfırla">
+                  <SlidersHorizontal aria-hidden="true" />
                 </button>
               </div>
-
-              {/* Conversations Stream */}
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                {filteredConversations.length === 0 ? (
-                  <div className="text-center py-12 px-4">
-                    <MessageSquare className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                    <p className="text-slate-400 text-xs font-medium">Henüz bir sohbet kaydı bulunmuyor.</p>
-                  </div>
-                ) : (
-                  filteredConversations.map(conv => (
-                    <div
-                      key={conv.id}
-                      onClick={() => setSelectedConvId(conv.id)}
-                      className={`group relative cursor-pointer rounded-lg border p-3 transition-colors ${
-                        selectedConvId === conv.id
-                          ? 'border-emerald-500/35 bg-emerald-500/10'
-                          : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-950'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-1.5">
-                        <div className="text-sm font-semibold text-white transition-colors group-hover:text-emerald-300">
-                          {conv.customerName}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {conv.aiEnabled === false && (
-                            <span className="text-[9px] px-2 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300 font-bold">
-                              İnsanda
-                            </span>
-                          )}
-                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full border font-bold ${intentColors[conv.intent] || intentColors.UNKNOWN}`}>
-                            {conv.intent === 'INVESTMENT' ? 'Yatırımcı' : conv.intent === 'RESIDENTIAL' ? 'Konut' : 'İlgilenen'}
-                          </span>
-                          <button
-                            onClick={(e) => handleDeleteConversation(conv.id, e)}
-                            className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1 transition-opacity"
-                            title="Sohbeti Sil"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-slate-400 truncate mb-2">
-                        {conv.summary || 'Henüz mesaj yok'}
-                      </div>
-                      {conv.tags && conv.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {conv.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-300"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-800/50 pt-2">
-                        <span className="flex items-center gap-1 font-mono">
-                          <Phone className="w-3 h-3 text-slate-600" />
-                          {conv.customerPhone || 'WhatsApp Direct'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(conv.updatedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
+              <div className={styles.filterChips}>
+                <button type="button" onClick={() => setFilterIntent('ALL')} data-active={filterIntent === 'ALL'}>Tümü <span>{conversations.length}</span></button>
+                <button type="button" onClick={() => setFilterIntent('HOT')} data-active={filterIntent === 'HOT'}>Sıcak <span>{hotConversationCount}</span></button>
+                <button type="button" onClick={() => setFilterIntent('APPOINTMENT')} data-active={filterIntent === 'APPOINTMENT'}>Bekleyen <span>{pendingAppointments}</span></button>
               </div>
-            </div>
+              <div className={`${styles.conversationList} custom-scrollbar`}>
+                {filteredConversations.length === 0 ? (
+                  <div className={styles.emptyConversation}>
+                    <MessageSquare aria-hidden="true" />
+                    <p>Bu filtrede sohbet bulunamadı.</p>
+                  </div>
+                ) : filteredConversations.map((conversation) => (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    key={conversation.id}
+                    onClick={() => setSelectedConvId(conversation.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedConvId(conversation.id);
+                      }
+                    }}
+                    className={styles.conversationItem}
+                    data-active={selectedConvId === conversation.id}
+                  >
+                    <span className={styles.avatar}>{customerInitials(conversation.customerName)}</span>
+                    <span className={styles.conversationCopy}>
+                      <span className={styles.conversationTitle}>
+                        <strong>{conversation.customerName}</strong>
+                        <time>{new Date(conversation.updatedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</time>
+                      </span>
+                      <span className={styles.conversationSummary}>{conversation.summary || 'Henüz mesaj yok'}</span>
+                      <span className={styles.conversationMeta}>
+                        <i>WhatsApp</i>
+                        <b className={intentColors[conversation.intent] || intentColors.UNKNOWN}>
+                          {conversation.intent === 'INVESTMENT' ? 'Sıcak' : conversation.intent === 'RESIDENTIAL' ? 'Konut' : 'İlgili'}
+                        </b>
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.deleteConversation}
+                      title="Sohbeti sil"
+                      onClick={(event) => handleDeleteConversation(conversation.id, event)}
+                      aria-label={`${conversation.customerName} sohbetini sil`}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <footer><span>{conversations.length} sohbet</span><button type="button" onClick={() => setFilterIntent('ALL')}>Tümünü görüntüle</button></footer>
+            </aside>
 
-            {/* Main Chat Interface */}
-            <div className="lg:col-span-8 h-full">
+            <section className={styles.chatColumn} aria-label="Seçili sohbet">
               {selectedConvId ? (
-                <ChatInterface 
+                <ChatInterface
                   key={selectedConvId}
                   conversationId={selectedConvId}
                   messages={selectedConversation?.messages || []}
@@ -1166,25 +1180,87 @@ export default function AsistanPage() {
                   lastCustomerMessageAt={selectedConversation?.lastCustomerMessageAt}
                 />
               ) : (
-                <div className="flex h-full min-h-[30rem] flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/60 p-8 text-center">
-                  <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10">
-                    <Bot className="h-7 w-7 text-emerald-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Canlı Sohbet Seçin</h3>
-                  <p className="text-slate-400 text-xs max-w-md">
-                    Sol menüden müşteri sohbetini seçerek yapay zeka asistanının otonom cevaplarını, randevu tekliflerini ve canlı ilan sunumlarını izleyebilirsiniz.
-                  </p>
+                <div className={styles.emptyChat}>
+                  <span><Bot aria-hidden="true" /></span>
+                  <h2>Canlı sohbet seçin</h2>
+                  <p>Soldan bir müşteri seçerek konuşmayı ve yapay zeka yanıtlarını görüntüleyin.</p>
                 </div>
               )}
-            </div>
+            </section>
+
+            <aside className={styles.customerRail} aria-label="Müşteri özeti">
+              <div className={styles.summaryTitle}><strong>Müşteri özeti</strong><span>AI</span></div>
+              {selectedConversation ? (
+                <>
+                  <section className={styles.scoreCard}>
+                    <div>
+                      <small>Sistem lead skoru</small>
+                      <p><strong>{leadScore}</strong><span>/100</span></p>
+                      <em>{isHotLead ? 'Sıcak müşteri' : 'Takipte'}</em>
+                    </div>
+                    <span
+                      className={styles.scoreRing}
+                      style={{ background: `conic-gradient(#5bd58b ${leadScore * 3.6}deg, rgba(91, 213, 139, .12) 0deg)` }}
+                    ><i>{customerInitials(selectedConversation.customerName)}</i></span>
+                    <p>{isHotLead ? 'Yüksek satın alma niyeti ve net müşteri sinyalleri.' : 'İlgiyi artırmak için ihtiyaçları netleştirin.'}</p>
+                  </section>
+
+                  <section className={styles.preferenceCard}>
+                    <h3>Tercihler</h3>
+                    <dl>
+                      <div><dt><MapPin /> Lokasyon</dt><dd>{selectedLocation}</dd></div>
+                      <div><dt><Home /> Daire tipi</dt><dd>{roomMatch?.[1]?.replace(/\s/g, '') || 'Belirlenmedi'}</dd></div>
+                      <div><dt><WalletCards /> Bütçe</dt><dd>{budgetMatch?.[0]?.trim() || 'Belirlenmedi'}</dd></div>
+                      <div><dt><Flame /> Öncelik</dt><dd>{isHotLead ? 'Yüksek' : 'Normal'}</dd></div>
+                    </dl>
+                  </section>
+
+                  <section className={styles.notesCard}>
+                    <h3>CRM notları</h3>
+                    <p>{selectedConversation.notes || selectedConversation.summary || 'Henüz müşteri notu girilmedi.'}</p>
+                  </section>
+
+                  <section className={styles.tagsCard}>
+                    <h3>Etiketler</h3>
+                    <div>
+                      {(selectedConversation.tags?.length ? selectedConversation.tags : [selectedLocation, roomMatch?.[1] || 'Yeni müşteri']).map((tag) => (
+                        <span key={tag}>{tag}</span>
+                      ))}
+                    </div>
+                  </section>
+
+                  <div className={styles.lastContact}><span>Son iletişim</span><time>{lastContact}</time></div>
+
+                  <section className={styles.nextActions}>
+                    <h3>Sonraki en iyi aksiyon</h3>
+                    {nextActions.map((action) => (
+                      <div key={action.label} data-done={action.done}>
+                        {action.done ? <CircleCheckBig /> : <Circle />}<span>{action.label}</span>
+                      </div>
+                    ))}
+                  </section>
+
+                  <div className={styles.railActions}>
+                    <button type="button" onClick={() => setActiveTab('appointments')}><CalendarPlus /> Randevu oluştur</button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateConversation({ aiEnabled: false }).catch(() => {})}
+                      disabled={selectedConversation.aiEnabled === false}
+                    ><Users /> İnsana devret</button>
+                  </div>
+                </>
+              ) : (
+                <div className={styles.emptySummary}><UserRound /><p>Özet için bir müşteri seçin.</p></div>
+              )}
+            </aside>
           </div>
         )}
       </main>
 
       {/* New Conversation Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4">
-          <div className="relative w-full max-w-md overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold text-white">Yeni Test Sohbeti Başlat</h3>
@@ -1201,7 +1277,7 @@ export default function AsistanPage() {
                       required
                       value={newCustomerName}
                       onChange={e => setNewCustomerName(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-rose-500"
                       placeholder="Örn: Mehmet Yılmaz"
                     />
                   </div>
@@ -1211,7 +1287,7 @@ export default function AsistanPage() {
                       type="text" 
                       value={newCustomerPhone}
                       onChange={e => setNewCustomerPhone(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-rose-500"
                       placeholder="Örn: 905551234567"
                     />
                   </div>
@@ -1227,7 +1303,7 @@ export default function AsistanPage() {
                   </button>
                   <button
                     type="submit"
-                    className="rounded-lg bg-emerald-500 px-6 py-2.5 text-xs font-bold text-emerald-950 hover:bg-emerald-400"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-500/20"
                   >
                     Sohbeti Başlat
                   </button>

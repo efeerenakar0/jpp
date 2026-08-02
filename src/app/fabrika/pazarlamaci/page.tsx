@@ -1,24 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AdPlatform } from '@prisma/client';
 import {
   Bot,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Clock3,
+  Copy,
   Download,
   ExternalLink,
   Globe2,
   ImageIcon,
   KeyRound,
   Loader2,
+  MapPin,
   Megaphone,
+  MessageCircle,
+  MousePointerClick,
   Plus,
   Rocket,
   Settings2,
   Sparkles,
   Target,
+  TrendingUp,
+  Users2,
   WandSparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,13 +32,7 @@ import AdCopyCard from '@/components/fabrika/AdCopyCard';
 import EmptyState from '@/components/fabrika/EmptyState';
 import InternationalMarketingPanel from '@/components/fabrika/InternationalMarketingPanel';
 import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
-import PageHeader from '@/components/fabrika/PageHeader';
-import StatCard from '@/components/fabrika/StatCard';
 import type { InternationalMarketingPlan } from '@/lib/international-marketing';
-import {
-  DEFAULT_MARKETING_CHANNELS,
-  MARKETING_CHANNELS,
-} from '@/lib/marketing-channels';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import styles from './marketing.module.css';
 
 type Property = {
   id: string;
@@ -58,7 +59,7 @@ type Property = {
 
 type AdCopy = {
   id: string;
-  platform: AdPlatform;
+  platform: 'GOOGLE_ADS' | 'INSTAGRAM' | 'WHATSAPP';
   headline: string;
   body: string;
   callToAction: string | null;
@@ -143,10 +144,8 @@ export default function MarketingPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [campaignType, setCampaignType] = useState<'listing' | 'brand'>('listing');
   const [propertyId, setPropertyId] = useState('');
+  const [objective, setObjective] = useState('Nitelikli talep toplama');
   const [audience, setAudience] = useState('Bölgedeki alıcı ve yatırımcılar');
-  const [selectedChannels, setSelectedChannels] = useState<AdPlatform[]>(
-    DEFAULT_MARKETING_CHANNELS
-  );
   const [tone, setTone] = useState('professional');
   const [posterTemplate, setPosterTemplate] = useState('SIGNATURE');
   const [targetUrl, setTargetUrl] = useState('');
@@ -163,14 +162,7 @@ export default function MarketingPage() {
       setData(body);
       setModel(body.ai.model);
       setAiActive(body.ai.active || !body.ai.configured);
-      const requestedPropertyId = new URL(window.location.href).searchParams.get('propertyId');
-      setPropertyId((current) => {
-        if (requestedPropertyId && body.properties.some((property) => property.id === requestedPropertyId)) {
-          return requestedPropertyId;
-        }
-        if (current && body.properties.some((property) => property.id === current)) return current;
-        return body.properties[0]?.id || '';
-      });
+      setPropertyId((current) => current || body.properties[0]?.id || '');
       setExpanded((current) =>
         Object.keys(current).length || !body.campaigns[0]
           ? current
@@ -206,6 +198,34 @@ export default function MarketingPage() {
     };
   }, [domesticCampaigns]);
 
+  const selectedProperty = useMemo(
+    () => data?.properties.find((property) => property.id === propertyId) || data?.properties[0] || null,
+    [data?.properties, propertyId]
+  );
+
+  const previewCampaign = useMemo(
+    () =>
+      domesticCampaigns.find((campaign) => campaign.property?.id === selectedProperty?.id) ||
+      domesticCampaigns[0] ||
+      null,
+    [domesticCampaigns, selectedProperty?.id]
+  );
+
+  const previewCopy = previewCampaign?.adCopies.find((copy) => copy.platform === 'INSTAGRAM') || null;
+
+  const readiness = useMemo(() => {
+    const fields = [objective, audience, tone, posterTemplate, targetUrl || selectedProperty?.title];
+    return Math.round((fields.filter(Boolean).length / fields.length) * 100);
+  }, [audience, objective, posterTemplate, selectedProperty?.title, targetUrl, tone]);
+
+  async function copyPreview() {
+    if (!previewCopy) return;
+    await navigator.clipboard.writeText(
+      [previewCopy.headline, previewCopy.body, previewCopy.callToAction].filter(Boolean).join('\n\n')
+    );
+    toast.success('Instagram metni kopyalandı.');
+  }
+
   async function generateCampaign() {
     if (campaignType === 'listing' && !propertyId) {
       toast.error('Önce aktif bir portföy seçin.');
@@ -219,16 +239,16 @@ export default function MarketingPage() {
         body: JSON.stringify({
           type: campaignType,
           propertyId: campaignType === 'listing' ? propertyId : undefined,
+          objective,
           audience,
           tone,
           posterTemplate,
           targetUrl,
-          channels: selectedChannels,
         }),
       });
       const body = (await response.json()) as Campaign & { error?: string };
       if (!response.ok) throw new Error(body.error || 'Kampanya üretilemedi.');
-      toast.success(`Kampanya, ${selectedChannels.length} kanal metni ve poster şablonuyla hazır.`);
+      toast.success('Kampanya, üç kanal metni ve poster şablonu hazır.');
       await fetchData();
       setExpanded((current) => ({ ...current, [body.id]: true }));
     } catch (error) {
@@ -315,385 +335,305 @@ export default function MarketingPage() {
   const aiLabel = data?.ai.configured && data.ai.active
     ? `OpenRouter · ${data.ai.model}`
     : data?.ai.fallbackAvailable
-      ? 'Jasmine AI Router · Groq + Cloudflare'
+      ? 'Business CEO AI Router · Groq + Cloudflare'
       : 'Akıllı kural motoru';
 
   return (
-    <div className="space-y-6 pb-10">
-      <PageHeader
-        eyebrow="Büyüme ve kampanya operasyonu"
-        title="Profesyonel Pazarlamacı"
-        description="Aktif portföylerden çok kanallı reklam metni ve gerçek fotoğraflı poster üretin; web siteniz için ölçülebilir reklam planı hazırlayın."
-        icon={Megaphone}
-        actions={
-          <>
-            <Badge className="h-8 border border-emerald-500/20 bg-emerald-500/10 px-3 text-emerald-300">
-              <Bot className="mr-1 h-3.5 w-3.5" />
-              {aiLabel}
-            </Badge>
-            {data?.permissions.canManageSecrets && (
+    <main className={styles.page}>
+      <header className={styles.hero}>
+        <div>
+          <p className={styles.eyebrow}>M3 · Akıllı pazarlama</p>
+          <h1>Pazarlamacı</h1>
+          <p>Aktif portföylerinizi doğru kitleye, doğru kanalda ve doğru mesajla ulaştırın.</p>
+          <p>AI destekli pazarlama ile erişim ve nitelikli talep operasyonunu tek ekrandan yönetin.</p>
+        </div>
+        <div className={styles.heroActions}>
+          <Button
+            type="button"
+            onClick={() => document.getElementById('campaign-builder')?.scrollIntoView({ behavior: 'smooth' })}
+            className={styles.primaryButton}
+          >
+            <Plus /> Yeni kampanya oluştur
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => document.getElementById('template')?.focus()}
+            className={styles.secondaryButton}
+          >
+            <ImageIcon /> Şablonlar
+          </Button>
+          {data?.permissions.canManageSecrets && (
+            <Button type="button" variant="outline" onClick={() => setSettingsOpen(true)} className={styles.secondaryButton}>
+              <Settings2 /> AI ayarları
+            </Button>
+          )}
+          <Badge className={styles.aiBadge}><Bot /> {aiLabel}</Badge>
+        </div>
+      </header>
+
+      <Tabs defaultValue="domestic" className={styles.marketTabs}>
+        <div className={styles.marketBar}>
+          <TabsList className={styles.countryTabs}>
+            <TabsTrigger value="domestic">Yurt içi</TabsTrigger>
+            <TabsTrigger value="international">Yurt dışı</TabsTrigger>
+          </TabsList>
+          <div className={styles.countrySelect}><span>🇹🇷</span> Türkiye <ChevronDown /></div>
+        </div>
+
+        <TabsContent value="domestic" className={styles.domesticContent}>
+          <section className={styles.metrics} aria-label="Pazarlama özeti">
+            {[
+              { label: 'Aktif kampanya', value: domesticCampaigns.length, icon: Megaphone, note: 'şirket kampanyası' },
+              { label: 'Aktif portföy', value: data?.properties.length || 0, icon: Target, note: 'kampanyaya hazır' },
+              { label: 'Onaylı içerik', value: stats.approved, icon: Users2, note: 'kanal metni' },
+              { label: 'Hazır poster', value: stats.posterReady, icon: MousePointerClick, note: 'indirilebilir' },
+            ].map((metric) => {
+              const Icon = metric.icon;
+              return (
+                <article key={metric.label} className={styles.metricCard}>
+                  <span className={styles.metricIcon}><Icon /></span>
+                  <div><span>{metric.label}</span><strong>{metric.value}</strong></div>
+                  <small>{metric.note}</small>
+                </article>
+              );
+            })}
+          </section>
+
+          <section className={styles.commandGrid}>
+            <article id="campaign-builder" className={`${styles.panel} ${styles.builder}`}>
+              <div className={styles.panelTitle}>
+                <div><span>Kampanya oluşturucu</span><small>Portföy ve hedeflerinizi belirleyin</small></div>
+                <Sparkles />
+              </div>
+
+              <div className={styles.sourceSwitch}>
+                {([
+                  ['listing', 'Aktif portföy'],
+                  ['brand', 'Şirket markası'],
+                ] as const).map(([value, label]) => (
+                  <button key={value} type="button" onClick={() => setCampaignType(value)} data-active={campaignType === value}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {campaignType === 'listing' && (
+                <>
+                  <label htmlFor="property" className={styles.label}>Kampanya portföyü</label>
+                  <select id="property" value={propertyId} onChange={(event) => setPropertyId(event.target.value)} className={styles.select}>
+                    <option value="">Portföy seçin</option>
+                    {data?.properties.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.referenceCode ? `${property.referenceCode} · ` : ''}{property.title} · {money(property.price)}
+                      </option>
+                    ))}
+                  </select>
+                  {!loading && data?.properties.length === 0 && (
+                    <p className={styles.warning}>Kampanya için önce Portföyler bölümünde aktif bir kayıt oluşturun.</p>
+                  )}
+                </>
+              )}
+
+              <div className={styles.propertyCard}>
+                <div className={styles.propertyImage}>
+                  {selectedProperty?.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={selectedProperty.imageUrl} alt={selectedProperty.title} />
+                  ) : <ImageIcon />}
+                </div>
+                <div>
+                  <strong>{selectedProperty?.title || data?.company.name || 'Kurumsal marka kampanyası'}</strong>
+                  <span><MapPin /> {selectedProperty?.location || 'Konum bilgisi portföyden alınır'}</span>
+                  <b>{money(selectedProperty?.price || null)}</b>
+                  <small>{selectedProperty?.referenceCode || 'Şirket tanıtımı'} · {selectedProperty?.status || 'Aktif'}</small>
+                </div>
+              </div>
+
+              <div className={styles.readiness}><span>Veri tamlığı</span><i><b style={{ width: `${readiness}%` }} /></i><strong>{readiness}%</strong></div>
+
+              <fieldset className={styles.objectiveGroup}>
+                <legend>Kampanya hedefi</legend>
+                {['Farkındalık', 'Lead toplama', 'Ziyaret', 'Satış'].map((label, index) => (
+                  <button
+                    key={label}
+                    type="button"
+                    data-active={objective === label || (index === 1 && objective === 'Nitelikli talep toplama')}
+                    onClick={() => setObjective(index === 1 ? 'Nitelikli talep toplama' : label)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </fieldset>
+
+              <div className={styles.formRows}>
+                <label>Hedef kitle<Input value={audience} onChange={(event) => setAudience(event.target.value)} className={inputClass} /></label>
+                <label>Mesaj tonu
+                  <select value={tone} onChange={(event) => setTone(event.target.value)} className={styles.select}>
+                    <option value="professional">Profesyonel &amp; güvenilir</option>
+                    <option value="warm">Samimi</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </label>
+                <label>Poster şablonu
+                  <select id="template" value={posterTemplate} onChange={(event) => setPosterTemplate(event.target.value)} className={styles.select}>
+                    <option value="SIGNATURE">Signature · Dengeli</option>
+                    <option value="EDITORIAL">Editorial · Premium</option>
+                    <option value="BOLD">Bold · Yüksek dikkat</option>
+                  </select>
+                </label>
+                <label>Hedef sayfa<Input type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="https://siteniz.com/portfoy/..." className={inputClass} /></label>
+              </div>
+
+              <div className={styles.channels}>
+                <span>Kanallar</span>
+                <b><ImageIcon /> Instagram</b><b><MessageCircle /> WhatsApp</b><b><Globe2 /> Google</b><b><Users2 /> Emlak grubu</b>
+              </div>
+
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => setSettingsOpen(true)}
-                className="h-9 border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+                onClick={generateCampaign}
+                disabled={generating || (campaignType === 'listing' && !propertyId)}
+                className={styles.generateButton}
               >
-                <Settings2 />
-                AI ayarları
+                {generating ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+                {generating ? 'Kampanya hazırlanıyor…' : 'AI kampanyasını oluştur'}
               </Button>
-            )}
-          </>
-        }
-      />
+            </article>
 
-      <Tabs defaultValue="domestic" className="gap-6">
-        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto border border-slate-800 bg-slate-900 p-1 sm:w-fit">
-          <TabsTrigger value="domestic" className="min-h-10 px-5 text-slate-400 data-active:bg-emerald-500 data-active:text-emerald-950">
-            Yurt İçi
-          </TabsTrigger>
-          <TabsTrigger value="international" className="min-h-10 px-5 text-slate-400 data-active:bg-emerald-500 data-active:text-emerald-950">
-            <Globe2 /> Yurt Dışı
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="domestic" className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Kampanya" value={domesticCampaigns.length} icon={Megaphone} />
-            <StatCard label="Aktif portföy" value={data?.properties.length || 0} icon={Target} />
-            <StatCard label="Onaylı kanal metni" value={stats.approved} icon={CheckCircle2} status="success" />
-            <StatCard label="İndirilebilir poster" value={stats.posterReady} icon={ImageIcon} />
-          </div>
-
-          <Tabs defaultValue="campaigns" className="gap-5">
-        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto border border-slate-800 bg-slate-900 p-1 sm:w-fit">
-          <TabsTrigger value="campaigns" className="min-h-9 px-4 text-slate-400 data-active:bg-slate-800 data-active:text-white">
-            <WandSparkles /> Kampanya stüdyosu
-          </TabsTrigger>
-          <TabsTrigger value="website" className="min-h-9 px-4 text-slate-400 data-active:bg-slate-800 data-active:text-white">
-            <Globe2 /> Web reklam planı
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="campaigns" className="space-y-6">
-          <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-            <div className="border-b border-slate-800 p-5">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
-                  <Sparkles className="h-4 w-4" />
-                </span>
-                <div>
-                  <h2 className="font-semibold text-white">Yeni kampanya üret</h2>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Portföy verilerini değiştirmeden Google Ads, Instagram ve WhatsApp için ayrı içerik üretir.
-                  </p>
+            <article className={`${styles.panel} ${styles.previewPanel}`}>
+              <div className={styles.panelTitle}>
+                <div><span>Instagram gönderi önizleme</span><small>Gerçek poster ve kanal metni</small></div>
+                <ImageIcon />
+              </div>
+              <div className={styles.instagramPreview}>
+                <div className={styles.previewBrand}><span>BUSINESS CEO AI</span><small>EXECUTIVE REAL ESTATE</small></div>
+                <div className={styles.previewVisual}>
+                  {previewCampaign?.posterHeadline ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={`/api/fabrika/marketing/poster/${previewCampaign.id}?format=square`} alt={`${previewCampaign.name} poster ön izlemesi`} />
+                  ) : selectedProperty?.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={selectedProperty.imageUrl} alt={selectedProperty.title} />
+                  ) : <div className={styles.noPreview}><ImageIcon /><span>İlk kampanyanızın posteri burada görünecek</span></div>}
+                </div>
+                <div className={styles.previewMeta}>
+                  <strong>{previewCampaign?.posterHeadline || selectedProperty?.title || 'Yeni kampanya'}</strong>
+                  <span>{selectedProperty?.location || previewCampaign?.property?.location || 'Business CEO AI'}</span>
+                  <b>{money(selectedProperty?.price || previewCampaign?.property?.price || null)}</b>
                 </div>
               </div>
-            </div>
-
-            <div className="grid gap-5 p-5 xl:grid-cols-[1.25fr_.75fr]">
-              <div className="space-y-5">
-                <fieldset>
-                  <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Kampanya kaynağı</legend>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {([
-                      ['listing', 'Aktif portföy', 'Portföy fotoğrafı, fiyatı ve özellikleri'],
-                      ['brand', 'Şirket markası', 'Kurumsal güven ve danışmanlık kampanyası'],
-                    ] as const).map(([value, title, text]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setCampaignType(value)}
-                        className={`rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
-                          campaignType === value
-                            ? 'border-emerald-500/50 bg-emerald-500/10'
-                            : 'border-slate-800 bg-slate-950 hover:border-slate-700'
-                        }`}
-                      >
-                        <span className="text-sm font-semibold text-white">{title}</span>
-                        <span className="mt-1 block text-xs text-slate-500">{text}</span>
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-
-                {campaignType === 'listing' && (
-                  <div>
-                    <label htmlFor="property" className="mb-2 block text-xs font-semibold text-slate-400">Aktif portföy</label>
-                    <select
-                      id="property"
-                      value={propertyId}
-                      onChange={(event) => setPropertyId(event.target.value)}
-                      className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500"
-                    >
-                      <option value="">Portföy seçin</option>
-                      {data?.properties.map((property) => (
-                        <option key={property.id} value={property.id}>
-                          {property.referenceCode ? `${property.referenceCode} · ` : ''}{property.title} · {money(property.price)}
-                        </option>
-                      ))}
-                    </select>
-                    {!loading && data?.properties.length === 0 && (
-                      <p className="mt-2 text-xs text-amber-300">Kampanya için önce Portföyler bölümünde bir kaydı aktif duruma getirin.</p>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="audience" className="mb-2 block text-xs font-semibold text-slate-400">Hedef kitle</label>
-                    <Input id="audience" value={audience} onChange={(event) => setAudience(event.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label htmlFor="tone" className="mb-2 block text-xs font-semibold text-slate-400">İletişim tonu</label>
-                    <select id="tone" value={tone} onChange={(event) => setTone(event.target.value)} className="min-h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500">
-                      <option value="professional">Profesyonel</option>
-                      <option value="warm">Samimi</option>
-                      <option value="premium">Premium</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="template" className="mb-2 block text-xs font-semibold text-slate-400">Poster şablonu</label>
-                    <select id="template" value={posterTemplate} onChange={(event) => setPosterTemplate(event.target.value)} className="min-h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500">
-                      <option value="SIGNATURE">Signature · Dengeli</option>
-                      <option value="EDITORIAL">Editorial · Premium</option>
-                      <option value="BOLD">Bold · Yüksek dikkat</option>
-                    </select>
-                  </div>
-                </div>
-
-                <fieldset>
-                  <legend className="text-sm font-semibold text-slate-200">Yayın kanalları</legend>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    İçerik hazırlanmasını istediğiniz kanalları tek tek seçin.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {MARKETING_CHANNELS.map((channel) => {
-                      const selected = selectedChannels.includes(channel.id);
-                      return (
-                        <button
-                          key={channel.id}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() =>
-                            setSelectedChannels((current) =>
-                              selected
-                                ? current.filter((item) => item !== channel.id)
-                                : [...current, channel.id]
-                            )
-                          }
-                          className={`min-h-9 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
-                            selected
-                              ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
-                              : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-600 hover:text-slate-200'
-                          }`}
-                        >
-                          {channel.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {selectedChannels.length === 0 && (
-                    <p className="mt-2 text-xs font-medium text-amber-300">En az bir yayın kanalı seçin.</p>
-                  )}
-                </fieldset>
-
-                <div>
-                  <label htmlFor="target-url" className="mb-2 block text-xs font-semibold text-slate-400">Hedef sayfa (isteğe bağlı)</label>
-                  <Input id="target-url" type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="https://siteniz.com/portfoy/..." className={inputClass} />
-                </div>
+              <div className={styles.copyPreview}>
+                <span>Gönderi metni</span>
+                <h3>{previewCopy?.headline || 'Kampanyanız için platforma özel başlık burada oluşur.'}</h3>
+                <p>{previewCopy?.body || 'Portföyünüzü ve hedef kitlenizi seçin; yapay zekâ doğrulanmış bilgilerle paylaşım metnini hazırlasın.'}</p>
+                {previewCopy?.callToAction && <strong>{previewCopy.callToAction}</strong>}
+                <button type="button" onClick={copyPreview} disabled={!previewCopy}><Copy /> Kopyala</button>
               </div>
+            </article>
 
-              <aside className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-950 p-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">Seçili kanallar</p>
-                  <ul className="mt-4 space-y-3 text-sm text-slate-300">
-                    {MARKETING_CHANNELS.filter((channel) => selectedChannels.includes(channel.id)).map((channel) => (
-                      <li key={channel.id} className="flex gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                        {channel.label}
-                      </li>
-                    ))}
-                  </ul>
+            <aside className={`${styles.panel} ${styles.suggestion}`}>
+              <div className={styles.panelTitle}>
+                <div><span>AI kampanya önerisi</span><small>Seçimlerinize göre anlık özet</small></div>
+                <Badge>AI</Badge>
+              </div>
+              <div className={styles.suggestionList}>
+                <div><span><Users2 /></span><p><b>Hedef kitle</b>{audience}</p></div>
+                <div><span><Clock3 /></span><p><b>Yayın yaklaşımı</b>Instagram görseli, Google araması ve izinli WhatsApp teması birlikte planlanır.</p></div>
+                <div><span><TrendingUp /></span><p><b>Değer önerisi</b>{selectedProperty?.title || data?.company.name || 'Şirket markası'} için {objective.toLocaleLowerCase('tr-TR')} odaklı mesaj.</p></div>
+                <div><span className={styles.risk}><Target /></span><p><b>Kontrol notu</b>Fiyat, konum ve portföy özellikleri yalnızca kayıtlı veriden alınır.</p></div>
+              </div>
+              {[
+                ['İçerik hazırlığı', readiness],
+                ['Kanal kapsamı', 75],
+                ['Onay oranı', domesticCampaigns.flatMap((campaign) => campaign.adCopies).length ? Math.round((stats.approved / domesticCampaigns.flatMap((campaign) => campaign.adCopies).length) * 100) : 0],
+              ].map(([label, value]) => (
+                <div key={label as string} className={styles.scoreRow}>
+                  <span>{label as string}</span><i><b style={{ width: `${value}%` }} /></i><strong>{value}/100</strong>
                 </div>
-                <Button
-                  type="button"
-                  onClick={generateCampaign}
-                  disabled={generating || selectedChannels.length === 0 || (campaignType === 'listing' && !propertyId)}
-                  className="mt-6 min-h-11 bg-emerald-500 font-semibold text-emerald-950 hover:bg-emerald-400"
-                >
-                  {generating ? <Loader2 className="animate-spin" /> : <Plus />}
-                  {generating ? 'Kampanya hazırlanıyor…' : 'Kampanyayı üret'}
-                </Button>
-              </aside>
-            </div>
+              ))}
+            </aside>
           </section>
 
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-base font-semibold text-white">Kampanya arşivi</h2>
-              <p className="mt-1 text-xs text-slate-500">Metinleri onaylayın; posterleri kare veya hikâye boyutunda indirin.</p>
-            </div>
-            {loading ? (
-              <LoadingSkeleton rows={3} />
-            ) : domesticCampaigns.length === 0 ? (
-              <EmptyState icon={Megaphone} title="Henüz kampanya yok" description="Yukarıdaki stüdyodan ilk kampanya setinizi oluşturun." />
-            ) : (
-              domesticCampaigns.map((campaign) => (
-                <article key={campaign.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-                  <button
-                    type="button"
-                    onClick={() => setExpanded((current) => ({ ...current, [campaign.id]: !current[campaign.id] }))}
-                    className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-slate-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
-                    aria-expanded={Boolean(expanded[campaign.id])}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge className={campaign.type === 'listing' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-slate-700 text-slate-200'}>
-                          {campaign.type === 'listing' ? 'Portföy' : 'Marka'}
-                        </Badge>
-                        <Badge variant="outline" className="border-slate-700 text-slate-400">
-                          {campaign.generatedBy === 'OPENROUTER'
-                            ? 'OpenRouter AI'
-                            : campaign.generatedBy === 'GROQ'
-                              ? 'Groq AI'
-                              : campaign.generatedBy === 'CLOUDFLARE'
-                                ? 'Cloudflare AI'
-                                : 'Akıllı kural motoru'}
-                        </Badge>
-                        <h3 className="truncate text-sm font-semibold text-white">{campaign.name}</h3>
-                      </div>
-                      <p className="mt-2 line-clamp-1 text-xs text-slate-500">
-                        {campaign.property?.title || campaign.description} · {new Date(campaign.createdAt).toLocaleDateString('tr-TR')}
-                      </p>
-                    </div>
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400">
-                      {expanded[campaign.id] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </span>
-                  </button>
-
-                  {expanded[campaign.id] && (
-                    <div className="space-y-5 border-t border-slate-800 bg-slate-950/30 p-4">
-                      {campaign.posterHeadline && (
-                        <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-                          <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={`/api/fabrika/marketing/poster/${campaign.id}?format=square`}
-                              alt={`${campaign.name} kare poster ön izlemesi`}
-                              className="aspect-square w-full object-cover"
-                            />
-                          </div>
-                          <div className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900 p-4">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">Poster paketi</p>
-                              <h4 className="mt-2 text-lg font-semibold text-white">{campaign.posterHeadline}</h4>
-                              <p className="mt-1 text-sm text-slate-400">{campaign.posterSubline}</p>
-                              <p className="mt-4 text-xs leading-5 text-slate-500">Portföyün gerçek fotoğrafı kullanılır; yapay görsel üretilmez. Metinler güvenli alan içinde tutulur.</p>
+          <section className={styles.bottomGrid}>
+            <article className={`${styles.panel} ${styles.archive}`}>
+              <div className={styles.archiveHeader}>
+                <div><h2>Kampanyalarım</h2><p>Metinleri onaylayın, posterleri indirin ve kampanya detaylarını açın.</p></div>
+                <Badge>{domesticCampaigns.length} kampanya</Badge>
+              </div>
+              {loading ? (
+                <LoadingSkeleton rows={3} />
+              ) : domesticCampaigns.length === 0 ? (
+                <EmptyState icon={Megaphone} title="Henüz kampanya yok" description="Kampanya oluşturucudan ilk setinizi hazırlayın." />
+              ) : (
+                <div className={styles.campaignTable}>
+                  <div className={styles.tableHead}><span>Durum</span><span>Kampanya</span><span>Portföy</span><span>Kanal</span><span>Oluşturma</span><span /></div>
+                  {domesticCampaigns.map((campaign) => (
+                    <div key={campaign.id} className={styles.campaignItem}>
+                      <button
+                        type="button"
+                        onClick={() => setExpanded((current) => ({ ...current, [campaign.id]: !current[campaign.id] }))}
+                        className={styles.campaignRow}
+                        aria-expanded={Boolean(expanded[campaign.id])}
+                      >
+                        <span><b>Aktif</b></span>
+                        <strong>{campaign.name}</strong>
+                        <span>{campaign.property?.title || 'Şirket markası'}</span>
+                        <span className={styles.platformIcons}>{campaign.adCopies.map((copy) => copy.platform === 'INSTAGRAM' ? '◉' : copy.platform === 'WHATSAPP' ? '◍' : 'G').join(' ')}</span>
+                        <time>{new Date(campaign.createdAt).toLocaleDateString('tr-TR')}</time>
+                        {expanded[campaign.id] ? <ChevronUp /> : <ChevronDown />}
+                      </button>
+                      {expanded[campaign.id] && (
+                        <div className={styles.campaignDetails}>
+                          {campaign.posterHeadline && (
+                            <div className={styles.posterPack}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={`/api/fabrika/marketing/poster/${campaign.id}?format=square`} alt={`${campaign.name} kare poster ön izlemesi`} />
+                              <div><h3>{campaign.posterHeadline}</h3><p>{campaign.posterSubline}</p>
+                                <Button asChild className={styles.primaryButton}><a href={`/api/fabrika/marketing/poster/${campaign.id}?format=square&download=1`}><Download /> Kare poster</a></Button>
+                                <Button asChild variant="outline" className={styles.secondaryButton}><a href={`/api/fabrika/marketing/poster/${campaign.id}?format=story&download=1`}><Download /> Hikâye</a></Button>
+                              </div>
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <Button asChild className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400">
-                                <a href={`/api/fabrika/marketing/poster/${campaign.id}?format=square&download=1`}>
-                                  <Download /> Kare poster
-                                </a>
-                              </Button>
-                              <Button asChild variant="outline" className="border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800 hover:text-white">
-                                <a href={`/api/fabrika/marketing/poster/${campaign.id}?format=story&download=1`}>
-                                  <Download /> Hikâye posteri
-                                </a>
-                              </Button>
-                            </div>
-                          </div>
+                          )}
+                          <div className={styles.copyGrid}>{campaign.adCopies.map((copy) => <AdCopyCard key={copy.id} {...copy} onApprove={toggleApprove} />)}</div>
                         </div>
                       )}
-                      <div className="grid gap-4 xl:grid-cols-3">
-                        {campaign.adCopies.map((copy) => (
-                          <AdCopyCard key={copy.id} {...copy} onApprove={toggleApprove} />
-                        ))}
-                      </div>
                     </div>
-                  )}
-                </article>
-              ))
-            )}
-          </section>
-        </TabsContent>
-
-        <TabsContent value="website" className="space-y-6">
-          <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-            <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-              <div>
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300"><Globe2 className="h-4 w-4" /></span>
-                  <div>
-                    <h2 className="font-semibold text-white">Web sitesi reklam rehberi</h2>
-                    <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Sitenizin herkese açık içeriğini inceler; kanal planı ve ilk uygulanacak işleri hazırlar. Trafik veya dönüşüm verisi uydurmaz.</p>
-                  </div>
+                  ))}
                 </div>
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <Input type="url" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} placeholder="https://emlaksiteniz.com" className={`min-h-11 ${inputClass}`} />
-                  <Button type="button" onClick={analyzeWebsite} disabled={analyzing} className="min-h-11 bg-emerald-500 px-5 text-emerald-950 hover:bg-emerald-400">
-                    {analyzing ? <Loader2 className="animate-spin" /> : <Rocket />}
-                    {analyzing ? 'Analiz ediliyor…' : 'Reklam planı hazırla'}
-                  </Button>
+              )}
+            </article>
+
+            <aside className={`${styles.panel} ${styles.websitePlan}`}>
+              <div className={styles.webTitle}><span><Globe2 /></span><div><b>Web sitesi reklam planı</b><small>{data?.websiteAnalyses[0]?.domain || 'Yeni analiz oluşturun'}</small></div></div>
+              <label htmlFor="website-url">Web sitesi adresi</label>
+              <Input id="website-url" type="url" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} placeholder="https://emlaksiteniz.com" className={inputClass} />
+              <Button type="button" onClick={analyzeWebsite} disabled={analyzing} className={styles.generateButton}>
+                {analyzing ? <Loader2 className="animate-spin" /> : <Rocket />}{analyzing ? 'Analiz ediliyor…' : 'Reklam planı hazırla'}
+              </Button>
+              {data?.websiteAnalyses[0] ? (
+                <div className={styles.webSummary}>
+                  <p>{data.websiteAnalyses[0].summary}</p>
+                  {[
+                    ['Güçlü taraf', jsonList(data.websiteAnalyses[0].strengths).length],
+                    ['Fırsat', jsonList(data.websiteAnalyses[0].opportunities).length],
+                    ['İlk aksiyon', jsonList(data.websiteAnalyses[0].firstActions).length],
+                  ].map(([label, value]) => <div key={label as string}><span>{label as string}</span><b>{value}</b></div>)}
+                  <a href={data.websiteAnalyses[0].websiteUrl} target="_blank" rel="noreferrer">Siteyi aç <ExternalLink /></a>
                 </div>
-              </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Analiz kapsamı</p>
-                <ul className="mt-3 space-y-2 text-xs leading-5 text-slate-400">
-                  <li>• Dönüşüm ve iletişim fırsatları</li>
-                  <li>• Google, Instagram ve WhatsApp kanal rolleri</li>
-                  <li>• İlk 14 gün uygulanacak işler</li>
-                </ul>
-              </div>
-            </div>
+              ) : <p className={styles.webEmpty}>Sitenizin açık içeriğini analiz ederek Google, Instagram ve WhatsApp için uygulanabilir ilk adımları çıkarır.</p>}
+            </aside>
           </section>
 
-          <section className="space-y-4">
-            <div>
-              <h2 className="text-base font-semibold text-white">Hazırlanan büyüme planları</h2>
-              <p className="mt-1 text-xs text-slate-500">Her analiz şirket hesabınıza özel saklanır.</p>
-            </div>
-            {!data?.websiteAnalyses.length ? (
-              <EmptyState icon={Globe2} title="Henüz web reklam planı yok" description="Web sitenizi yazarak ilk kanal planını hazırlayın." />
-            ) : (
-              data.websiteAnalyses.map((analysis) => (
-                <article key={analysis.id} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                  <div className="flex flex-col gap-3 border-b border-slate-800 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-white">{analysis.domain}</h3>
-                        <Badge variant="outline" className="border-slate-700 text-slate-400">{analysis.generatedBy === 'RULE_ENGINE' ? 'Kural motoru' : 'AI analizi'}</Badge>
-                      </div>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{analysis.summary}</p>
-                    </div>
-                    <Button asChild variant="outline" className="border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800 hover:text-white">
-                      <a href={analysis.websiteUrl} target="_blank" rel="noreferrer"><ExternalLink /> Siteyi aç</a>
-                    </Button>
-                  </div>
-                  <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                    {[
-                      ['Güçlü taraflar', jsonList(analysis.strengths)],
-                      ['Fırsatlar', jsonList(analysis.opportunities)],
-                      ['Kanal planı', jsonList(analysis.channelPlan)],
-                      ['İlk aksiyonlar', jsonList(analysis.firstActions)],
-                    ].map(([title, items]) => (
-                      <div key={title as string}>
-                        <h4 className="text-xs font-semibold uppercase tracking-wide text-emerald-400">{title as string}</h4>
-                        <ul className="mt-3 space-y-2 text-xs leading-5 text-slate-400">
-                          {(items as string[]).map((item) => <li key={item} className="flex gap-2"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />{item}</li>)}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              ))
-            )}
-          </section>
-        </TabsContent>
-          </Tabs>
+          {data && data.websiteAnalyses.length > 1 && (
+            <details className={styles.analysisArchive}>
+              <summary>Önceki web reklam planları ({data.websiteAnalyses.length - 1})</summary>
+              <div>{data.websiteAnalyses.slice(1).map((analysis) => <a key={analysis.id} href={analysis.websiteUrl} target="_blank" rel="noreferrer"><b>{analysis.domain}</b><span>{analysis.summary}</span><ExternalLink /></a>)}</div>
+            </details>
+          )}
         </TabsContent>
 
-        <TabsContent value="international">
+        <TabsContent value="international" className={styles.internationalPanel}>
           <InternationalMarketingPanel
             properties={data?.properties || []}
             campaigns={internationalCampaigns}
@@ -737,6 +677,6 @@ export default function MarketingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </main>
   );
 }
