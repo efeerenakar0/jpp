@@ -473,6 +473,127 @@ enum CrmTaskType {
   OTHER
 }
 
+enum WebsiteDeliveryStatus {
+  SUBMITTED
+  IN_PROGRESS
+  READY_FOR_QA
+  CHANGES_REQUESTED
+  APPROVED
+  DELIVERED
+  FAILED
+}
+
+enum WebsiteDeliveryType {
+  ZIP_ONLY
+  ADMIN_DEPLOYED
+  CUSTOMER_DEPLOYS
+}
+
+enum WebsiteQaStatus {
+  PENDING
+  PASSED
+  FAILED
+}
+
+enum WebsiteApiKeyEnvironment {
+  STAGING
+  PRODUCTION
+}
+
+enum WebsiteApiKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum AdPublicationStatus {
+  DRAFT
+  READY_TO_PUBLISH
+  EXPORTED
+  MANUALLY_CONFIRMED
+}
+
+enum ViewingWorkflowStatus {
+  AWAITING_ASSIGNMENT_SEND
+  AWAITING_EMPLOYEE_ACK
+  ASSIGNMENT_ACCEPTED
+  AWAITING_OWNER_DECISION
+  REASSIGNMENT_REQUIRED
+  APPOINTMENT_PENDING
+  APPOINTMENT_CONFIRMED
+  AWAITING_APPOINTMENT_CONFIRMATION
+  AWAITING_OUTCOME
+  SALE_REPORTED
+  AWAITING_SALE_DECISION
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum ViewingAssignmentAttemptStatus {
+  AWAITING_SEND
+  AWAITING_ACK
+  ACCEPTED
+  REJECTED
+  TIMED_OUT
+  DELIVERY_FAILED
+  SUPERSEDED
+}
+
+enum WhatsAppInteractionPromptStatus {
+  OPEN
+  ANSWERED
+  EXPIRED
+  CANCELLED
+}
+
+enum WhatsAppInteractionPromptType {
+  EMPLOYEE_ASSIGNMENT
+  OWNER_REASSIGNMENT
+  EMPLOYEE_APPOINTMENT_CONFIRMATION
+  EMPLOYEE_APPOINTMENT_OUTCOME
+  OWNER_SALE_DECISION
+  OWNER_APPOINTMENT_ESCALATION
+}
+
+enum WhatsAppExpectedResponseType {
+  ASSIGNMENT_ACK
+  OWNER_REASSIGNMENT_DECISION
+  APPOINTMENT_CONFIRMATION
+  APPOINTMENT_OUTCOME
+  SALE_DECISION
+}
+
+enum WhatsAppPromptRecipientType {
+  OWNER
+  EMPLOYEE
+}
+
+enum AppointmentOutcomeType {
+  SOLD_REPORTED
+  NOT_SOLD
+  FOLLOW_UP
+  CUSTOMER_NO_SHOW
+  EMPLOYEE_NO_SHOW
+  CANCELLED
+}
+
+enum AppointmentNoSaleReason {
+  PRICE
+  PROPERTY_MISMATCH
+  FINANCING
+  TIMING
+  CUSTOMER_DECISION
+  OTHER
+}
+
+enum SaleDecisionStatus {
+  PENDING
+  REMOVE
+  KEEP
+  DETAIL_REQUESTED
+}
+
 enum PhoneVerificationStatus {
   UNVERIFIED
   VERIFIED
@@ -656,6 +777,114 @@ enum DocumentAuditAction {
   UNFAVORITED
 }
 
+enum PartnerPipelineStage {
+  DISCOVERED
+  QUALIFIED
+  CONTACTED
+  ENGAGED
+  MEETING
+  REVIEW
+  AGREEMENT
+  ACTIVE
+  DISQUALIFIED
+  NOT_INTERESTED
+  DO_NOT_CONTACT
+  ARCHIVED
+}
+
+enum PartnerSourceType {
+  OFFICIAL_REGISTRY
+  PROFESSIONAL_ASSOCIATION
+  AUTHORIZED_DIRECTORY_API
+  PARTNER_FEED
+  MANUAL_CSV
+  FIRST_PARTY_APPLICATION
+  OFFICIAL_COMPANY_WEBSITE
+}
+
+enum PartnerDiscoveryRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum PartnerContactVerificationStatus {
+  UNVERIFIED
+  SOURCE_VERIFIED
+  MANUALLY_VERIFIED
+  REJECTED
+}
+
+enum PartnerMailboxStatus {
+  CONNECTED
+  ERROR
+  REVOKED
+}
+
+enum PartnerEmailDraftStatus {
+  DRAFT
+  READY_FOR_APPROVAL
+  APPROVED
+  INVALIDATED
+  QUEUED
+  SENT
+  CANCELLED
+}
+
+enum PartnerApprovalStatus {
+  APPROVED
+  REVOKED
+  CONSUMED
+}
+
+enum PartnerEmailMessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  RETRY
+  FAILED
+  CANCELLED
+  EXTERNAL_COMPOSE_OPENED
+}
+
+enum PartnerEmailEventType {
+  QUEUED
+  CLAIMED
+  SENT
+  RETRY_SCHEDULED
+  FAILED
+  CANCELLED
+  MANUALLY_CONFIRMED
+  BOUNCED
+  SUPPRESSED
+}
+
+enum PartnerCountryPolicyStatus {
+  ALLOWED
+  CONSENT_REQUIRED
+  MANUAL_REVIEW
+  BLOCKED
+  BLOCKED_PENDING_COUNTRY_REVIEW
+}
+
+enum PartnerAgreementStatus {
+  DRAFT
+  SENT_FOR_REVIEW
+  SIGNED
+  EXPIRED
+  TERMINATED
+}
+
+enum PartnerCommissionStatus {
+  PROPOSED
+  APPROVED
+  EARNED
+  PAID
+  CANCELLED
+}
+
 model CompanyAccount {
   id                           String                  @id @default(cuid())
   companyName                  String
@@ -734,6 +963,31 @@ model CompanyAccount {
   websitePromptVersions       WebsitePromptVersion[]
   propertyMedia               CrmPropertyMedia[]
   studioBatches               StudioBatch[]
+  websiteIntegrationVersions  WebsiteIntegrationVersion[]
+  websiteIntegrationApiKeys   WebsiteIntegrationApiKey[]
+  websiteDeliveryTokens       WebsiteDeliveryToken[]
+  viewingWorkflows            ViewingWorkflow[]
+  viewingAssignmentAttempts   ViewingAssignmentAttempt[]
+  whatsAppInteractionPrompts  WhatsAppInteractionPrompt[]
+  appointmentRequests         AppointmentRequest[]
+  appointmentOutcomes         AppointmentOutcome[]
+  partnerOrganizations        PartnerOrganization[]
+  partnerContacts             PartnerContact[]
+  partnerSources              PartnerSource[]
+  partnerDiscoveryRuns        PartnerDiscoveryRun[]
+  partnerScoreSnapshots       PartnerScoreSnapshot[]
+  partnerMailboxConnection    PartnerMailboxConnection?
+  partnerEmailDrafts          PartnerEmailDraft[]
+  partnerOutreachApprovals    PartnerOutreachApproval[]
+  partnerEmailMessages        PartnerEmailMessage[]
+  partnerEmailEvents          PartnerEmailEvent[]
+  partnerSuppressions         PartnerSuppression[]
+  partnerActivities           PartnerActivity[]
+  partnerAgreements           PartnerAgreement[]
+  partnerCommissions          PartnerCommission[]
+  partnerCountryPolicies      PartnerCountryPolicy[]
+  partnerEmailQuotaBuckets    PartnerEmailQuotaBucket[]
+  partnerApplicationAttempts  PartnerApplicationAttempt[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -802,7 +1056,8 @@ model CompanyDocument {
   createdAt        DateTime                  @default(now())
   updatedAt        DateTime                  @updatedAt
 
-  auditLogs DocumentAuditLog[]
+  auditLogs            DocumentAuditLog[]
+  authorizedProperties CrmProperty[]      @relation("PropertyAuthorizationDocument")
 
   @@unique([companyAccountId, documentNumber])
   @@unique([companyAccountId, versionGroupId, versionNumber])
@@ -886,15 +1141,19 @@ model CompanyMember {
   createdAt                      DateTime                @default(now())
   updatedAt                      DateTime                @updatedAt
 
-  contacts      CrmContact[]
-  properties    CrmProperty[]
-  deals         CrmDeal[]
-  tasks         CrmTask[]
-  activities    CrmActivity[]
-  notifications Notification[]
-  commitments   OperationalCommitment[]
-  createdMedia  CrmPropertyMedia[]
-  studioBatches StudioBatch[]
+  contacts                    CrmContact[]
+  properties                  CrmProperty[]
+  deals                       CrmDeal[]
+  tasks                       CrmTask[]
+  activities                  CrmActivity[]
+  notifications               Notification[]
+  commitments                 OperationalCommitment[]
+  createdMedia                CrmPropertyMedia[]
+  studioBatches               StudioBatch[]
+  viewingAssignmentAttempts   ViewingAssignmentAttempt[]
+  interactionPrompts          WhatsAppInteractionPrompt[] @relation("PromptRecipientMember")
+  assignedAppointments        AppointmentRequest[]        @relation("AppointmentAssignedMember")
+  reportedAppointmentOutcomes AppointmentOutcome[]        @relation("AppointmentOutcomeReporter")
 
   @@unique([companyAccountId, email])
   @@index([companyAccountId, active])
@@ -929,11 +1188,13 @@ model CrmContact {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  ownedProperties CrmProperty[] @relation("PropertyOwner")
-  deals           CrmDeal[]
-  tasks           CrmTask[]
-  matches         CrmMatch[]
-  activities      CrmActivity[]
+  ownedProperties     CrmProperty[]        @relation("PropertyOwner")
+  deals               CrmDeal[]
+  tasks               CrmTask[]
+  matches             CrmMatch[]
+  activities          CrmActivity[]
+  viewingWorkflows    ViewingWorkflow[]
+  appointmentRequests AppointmentRequest[]
 
   @@unique([companyAccountId, sourceConversationId])
   @@index([companyAccountId, stage])
@@ -942,45 +1203,62 @@ model CrmContact {
 }
 
 model CrmProperty {
-  id                  String            @id @default(cuid())
-  companyAccountId    String
-  companyAccount      CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  ownerContactId      String?
-  ownerContact        CrmContact?       @relation("PropertyOwner", fields: [ownerContactId], references: [id], onDelete: SetNull)
-  assignedMemberId    String?
-  assignedMember      CompanyMember?    @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
-  title               String
-  referenceCode       String?
-  location            String?
-  price               Float?
-  roomCount           String?
-  area                Float?
-  status              CrmPropertyStatus @default(DRAFT)
-  description         String?           @db.Text
-  imageUrl            String?
-  sourceListingId     String?
-  sellerPortalToken   String            @unique @default(uuid())
-  sellerPortalEnabled Boolean           @default(true)
-  listingViews        Int               @default(0)
-  inquiryCount        Int               @default(0)
-  showingCount        Int               @default(0)
-  offerCount          Int               @default(0)
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  id                                 String            @id @default(cuid())
+  companyAccountId                   String
+  companyAccount                     CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  ownerContactId                     String?
+  ownerContact                       CrmContact?       @relation("PropertyOwner", fields: [ownerContactId], references: [id], onDelete: SetNull)
+  assignedMemberId                   String?
+  assignedMember                     CompanyMember?    @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  title                              String
+  referenceCode                      String?
+  location                           String?
+  price                              Float?
+  roomCount                          String?
+  area                               Float?
+  status                             CrmPropertyStatus @default(DRAFT)
+  description                        String?           @db.Text
+  imageUrl                           String?
+  sourceListingId                    String?
+  sellerPortalToken                  String            @unique @default(uuid())
+  sellerPortalEnabled                Boolean           @default(true)
+  listingViews                       Int               @default(0)
+  inquiryCount                       Int               @default(0)
+  showingCount                       Int               @default(0)
+  offerCount                         Int               @default(0)
+  publicationApprovedAt              DateTime?
+  publicationApprovedById            String?
+  publicationAuthorizationDocumentId String?
+  publicationAuthorizationDocument   CompanyDocument?  @relation("PropertyAuthorizationDocument", fields: [publicationAuthorizationDocumentId], references: [id], onDelete: SetNull)
+  authorityDocumentVerifiedAt        DateTime?
+  authorityExpiresAt                 DateTime?
+  eidsRequired                       Boolean           @default(true)
+  eidsVerifiedAt                     DateTime?
+  eidsVerificationReference          String?
+  eidsExemptionReason                String?           @db.Text
+  publicationBlockedAt               DateTime?
+  publicationBlockReason             String?           @db.Text
+  publishedAt                        DateTime?
+  createdAt                          DateTime          @default(now())
+  updatedAt                          DateTime          @updatedAt
 
-  deals           CrmDeal[]
-  tasks           CrmTask[]
-  matches         CrmMatch[]
-  activities      CrmActivity[]
-  portfolioImport PortfolioImportItem?
-  adCampaigns     AdCampaign[]
-  media           CrmPropertyMedia[]
-  studioBatches   StudioBatch[]
+  deals               CrmDeal[]
+  tasks               CrmTask[]
+  matches             CrmMatch[]
+  activities          CrmActivity[]
+  portfolioImport     PortfolioImportItem?
+  adCampaigns         AdCampaign[]
+  media               CrmPropertyMedia[]
+  studioBatches       StudioBatch[]
+  viewingWorkflows    ViewingWorkflow[]
+  appointmentRequests AppointmentRequest[]
 
   @@unique([companyAccountId, sourceListingId])
   @@index([companyAccountId, status])
   @@index([ownerContactId])
   @@index([assignedMemberId])
+  @@index([companyAccountId, status, publicationApprovedAt])
+  @@index([publicationAuthorizationDocumentId])
 }
 
 model CrmPropertyMedia {
@@ -1111,8 +1389,10 @@ model CrmDeal {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  tasks      CrmTask[]
-  activities CrmActivity[]
+  tasks               CrmTask[]
+  activities          CrmActivity[]
+  viewingWorkflows    ViewingWorkflow[]
+  appointmentRequests AppointmentRequest[]
 
   @@index([companyAccountId, stage])
   @@index([contactId])
@@ -1165,8 +1445,11 @@ model CrmTask {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 
-  transitions TaskStatusTransition[]
-  commitments OperationalCommitment[]
+  transitions         TaskStatusTransition[]
+  commitments         OperationalCommitment[]
+  viewingWorkflow     ViewingWorkflow?
+  appointmentRequests AppointmentRequest[]
+  followUpOutcomes    AppointmentOutcome[]    @relation("AppointmentOutcomeFollowUpTask")
 
   @@unique([companyAccountId, googleCalendarId, googleEventId])
   @@unique([companyAccountId, idempotencyKey])
@@ -1638,9 +1921,9 @@ model GeneratedWebsite {
 }
 
 model WebsiteIntegration {
-  id                    String                   @id @default(cuid())
+  id                    String                      @id @default(cuid())
   companyAccountId      String
-  companyAccount        CompanyAccount           @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  companyAccount        CompanyAccount              @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   displayName           String
   websiteUrl            String
   websiteOrigin         String
@@ -1649,26 +1932,121 @@ model WebsiteIntegration {
   portfolioPath         String
   technicalContactEmail String
   repositoryUrl         String?
-  notes                 String?                  @db.Text
+  notes                 String?                     @db.Text
   sourceBlobPathname    String
   sourceFileName        String
   sourceSize            Int
-  apiKeyLookup          String                   @unique
+  apiKeyLookup          String                      @unique
   apiKeyHint            String
-  apiKeyCreatedAt       DateTime                 @default(now())
-  promptTemplate        String                   @db.Text
-  status                String                   @default("PENDING")
-  submittedAt           DateTime                 @default(now())
+  apiKeyCreatedAt       DateTime                    @default(now())
+  promptTemplate        String                      @db.Text
+  status                WebsiteDeliveryStatus       @default(SUBMITTED)
+  deliveryType          WebsiteDeliveryType?
+  currentSourceVersion  Int                         @default(1)
+  previewUrl            String?
+  finalUrl              String?
+  approvedAt            DateTime?
+  approvedByAdminId     String?
+  lastError             String?                     @db.Text
+  submittedAt           DateTime                    @default(now())
   deliveredAt           DateTime?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
   requestNonces         WebsiteRequestNonce[]
   rateLimitBuckets      WebsiteRateLimitBucket[]
   promptVersions        WebsitePromptVersion[]
+  versions              WebsiteIntegrationVersion[]
+  apiKeys               WebsiteIntegrationApiKey[]
+  deliveryTokens        WebsiteDeliveryToken[]
 
   @@unique([companyAccountId, websiteOrigin])
   @@index([companyAccountId, status])
   @@index([status, createdAt])
+}
+
+model WebsiteIntegrationVersion {
+  id                      String               @id @default(cuid())
+  companyAccountId        String
+  companyAccount          CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  websiteIntegrationId    String
+  websiteIntegration      WebsiteIntegration   @relation(fields: [websiteIntegrationId], references: [id], onDelete: Cascade)
+  version                 Int
+  sourceBlobPathname      String
+  sourceFileName          String
+  sourceSize              Int
+  sourceSha256            String
+  sourceSecurityReport    Json
+  workOrderVersion        Int                  @default(1)
+  workOrder               String               @db.Text
+  resultBlobPathname      String?
+  resultFileName          String?
+  resultSize              Int?
+  resultSha256            String?
+  resultSecurityReport    Json?
+  buildReport             Json?
+  qaStatus                WebsiteQaStatus      @default(PENDING)
+  qaReport                Json?
+  previewUrl              String?
+  finalUrl                String?
+  deliveryType            WebsiteDeliveryType?
+  submittedByType         String
+  submittedById           String
+  resultUploadedByAdminId String?
+  approvedByAdminId       String?
+  resultUploadedAt        DateTime?
+  approvedAt              DateTime?
+  deliveredAt             DateTime?
+  retentionUntil          DateTime?
+  lastError               String?              @db.Text
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  deliveryTokens WebsiteDeliveryToken[]
+
+  @@unique([websiteIntegrationId, version])
+  @@index([companyAccountId, createdAt])
+  @@index([websiteIntegrationId, qaStatus, createdAt])
+}
+
+model WebsiteIntegrationApiKey {
+  id                   String                   @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount           @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  websiteIntegrationId String
+  websiteIntegration   WebsiteIntegration       @relation(fields: [websiteIntegrationId], references: [id], onDelete: Cascade)
+  environment          WebsiteApiKeyEnvironment
+  status               WebsiteApiKeyStatus      @default(ACTIVE)
+  keyLookup            String                   @unique
+  keyHint              String
+  expiresAt            DateTime?
+  lastUsedAt           DateTime?
+  revokedAt            DateTime?
+  createdByType        String
+  createdById          String
+  createdAt            DateTime                 @default(now())
+
+  @@index([websiteIntegrationId, environment, status])
+  @@index([companyAccountId, createdAt])
+}
+
+model WebsiteDeliveryToken {
+  id                   String                    @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount            @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  websiteIntegrationId String
+  websiteIntegration   WebsiteIntegration        @relation(fields: [websiteIntegrationId], references: [id], onDelete: Cascade)
+  versionId            String
+  version              WebsiteIntegrationVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  tokenHash            String                    @unique
+  tokenHint            String
+  recipientEmail       String?
+  expiresAt            DateTime
+  usedAt               DateTime?
+  createdByAdminId     String
+  createdAt            DateTime                  @default(now())
+
+  @@index([companyAccountId, expiresAt])
+  @@index([websiteIntegrationId, versionId])
 }
 
 model WebsitePromptVersion {
@@ -1721,28 +2099,35 @@ model WebsiteRateLimitBucket {
 // --- Modül 3: Pazarlamacı / Reklam Ekibi ---
 
 model AdCampaign {
-  id                String          @id @default(cuid())
-  companyAccountId  String?
-  companyAccount    CompanyAccount? @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  propertyId        String?
-  property          CrmProperty?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
-  name              String
-  description       String?         @db.Text
-  type              String // "listing" veya "brand"
-  objective         String?
-  audience          String?
-  tone              String?
-  status            String          @default("DRAFT")
-  posterTemplate    String?
-  posterHeadline    String?
-  posterSubline     String?
-  posterCta         String?
-  generatedBy       String?
-  generatedModel    String?
-  internationalPlan Json?
-  isActive          Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                     String              @id @default(cuid())
+  companyAccountId       String?
+  companyAccount         CompanyAccount?     @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyId             String?
+  property               CrmProperty?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  name                   String
+  description            String?             @db.Text
+  type                   String // "listing" veya "brand"
+  objective              String?
+  audience               String?
+  tone                   String?
+  status                 String              @default("DRAFT")
+  publicationStatus      AdPublicationStatus @default(DRAFT)
+  exportPackage          Json?
+  exportedAt             DateTime?
+  externalPublicationUrl String?
+  publicationProofUrl    String?
+  manuallyConfirmedAt    DateTime?
+  manuallyConfirmedById  String?
+  posterTemplate         String?
+  posterHeadline         String?
+  posterSubline          String?
+  posterCta              String?
+  generatedBy            String?
+  generatedModel         String?
+  internationalPlan      Json?
+  isActive               Boolean             @default(true)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
   adCopies AdCopy[]
 
@@ -1810,6 +2195,7 @@ model CustomerConversation {
   messages            ConversationMessage[]
   appointmentRequests AppointmentRequest[]
   handoffs            ConversationHandoff[]
+  viewingWorkflows    ViewingWorkflow[]
 
   @@index([companyAccountId, isActive, updatedAt])
   @@index([companyAccountId, customerPhone, channel])
@@ -1842,23 +2228,204 @@ model ConversationMessage {
 }
 
 model AppointmentRequest {
-  id             String               @id @default(cuid())
-  conversationId String
-  conversation   CustomerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  customerName   String
-  customerPhone  String?
-  proposedDate   DateTime?
-  proposedTime   String? // e.g. "14:00"
-  status         AppointmentStatus    @default(PENDING)
-  patronNote     String?              @db.Text
-  confirmMessage String?              @db.Text // AI'ın ürettiği teyit mesajı
-  reminderSentAt DateTime?
-  rescheduledAt  DateTime?
-  cancelledAt    DateTime?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id                              String               @id @default(cuid())
+  companyAccountId                String
+  companyAccount                  CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  conversationId                  String
+  conversation                    CustomerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contactId                       String?
+  contact                         CrmContact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  propertyId                      String?
+  property                        CrmProperty?         @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  assignedMemberId                String?
+  assignedMember                  CompanyMember?       @relation("AppointmentAssignedMember", fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  taskId                          String?
+  task                            CrmTask?             @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  dealId                          String?
+  deal                            CrmDeal?             @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  viewingWorkflowId               String?
+  viewingWorkflow                 ViewingWorkflow?     @relation(fields: [viewingWorkflowId], references: [id], onDelete: SetNull)
+  shortCode                       String?
+  customerName                    String
+  customerPhone                   String?
+  proposedDate                    DateTime?
+  proposedTime                    String?
+  startAt                         DateTime?
+  endAt                           DateTime?
+  timezone                        String               @default("Europe/Istanbul")
+  status                          AppointmentStatus    @default(PENDING)
+  patronNote                      String?              @db.Text
+  confirmMessage                  String?              @db.Text
+  reminderSentAt                  DateTime?
+  customerReminderSentAt          DateTime?
+  employeeReminderSentAt          DateTime?
+  employeeReminderCount           Int                  @default(0)
+  employeeConfirmationDueAt       DateTime?
+  employeeConfirmationEscalatedAt DateTime?
+  employeeConfirmedAt             DateTime?
+  employeeDeclinedAt              DateTime?
+  outcomePromptSentAt             DateTime?
+  outcomeReminderCount            Int                  @default(0)
+  outcomeEscalatedAt              DateTime?
+  rescheduledAt                   DateTime?
+  cancelledAt                     DateTime?
+  createdAt                       DateTime             @default(now())
+  updatedAt                       DateTime             @updatedAt
 
+  outcome            AppointmentOutcome?
+  interactionPrompts WhatsAppInteractionPrompt[]
+
+  @@unique([companyAccountId, shortCode])
+  @@index([companyAccountId, status, startAt])
   @@index([status, proposedDate])
+  @@index([assignedMemberId, startAt])
+  @@index([viewingWorkflowId])
+}
+
+model ViewingWorkflow {
+  id                          String                @id @default(cuid())
+  companyAccountId            String
+  companyAccount              CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  contactId                   String
+  contact                     CrmContact            @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  propertyId                  String
+  property                    CrmProperty           @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  conversationId              String
+  conversation                CustomerConversation  @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  crmTaskId                   String                @unique
+  crmTask                     CrmTask               @relation(fields: [crmTaskId], references: [id], onDelete: Restrict)
+  dealId                      String?
+  deal                        CrmDeal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  initialAppointmentRequestId String?
+  shortCode                   String
+  status                      ViewingWorkflowStatus @default(AWAITING_ASSIGNMENT_SEND)
+  version                     Int                   @default(1)
+  idempotencyKey              String
+  startedAt                   DateTime              @default(now())
+  completedAt                 DateTime?
+  cancelledAt                 DateTime?
+  lastError                   String?               @db.Text
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+
+  assignmentAttempts  ViewingAssignmentAttempt[]
+  interactionPrompts  WhatsAppInteractionPrompt[]
+  appointmentRequests AppointmentRequest[]
+  outcomes            AppointmentOutcome[]
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@unique([companyAccountId, shortCode])
+  @@index([companyAccountId, status, updatedAt])
+  @@index([contactId, propertyId])
+}
+
+model ViewingAssignmentAttempt {
+  id                        String                         @id @default(cuid())
+  companyAccountId          String
+  companyAccount            CompanyAccount                 @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  workflowId                String
+  workflow                  ViewingWorkflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  taskId                    String
+  propertyId                String
+  contactId                 String
+  memberId                  String
+  member                    CompanyMember                  @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  sequence                  Int
+  previousAttemptId         String?
+  outboxMessageId           String?                        @unique
+  outboxMessage             WhatsAppOutboxMessage?         @relation(fields: [outboxMessageId], references: [id], onDelete: SetNull)
+  providerMessageId         String?
+  responseProviderMessageId String?
+  status                    ViewingAssignmentAttemptStatus @default(AWAITING_SEND)
+  sentAt                    DateTime?
+  deliveredAt               DateTime?
+  ackDeadlineAt             DateTime?
+  answeredAt                DateTime?
+  failureReason             String?                        @db.Text
+  idempotencyKey            String
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+
+  interactionPrompts WhatsAppInteractionPrompt[]
+
+  @@unique([workflowId, sequence])
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, status, ackDeadlineAt])
+  @@index([memberId, status])
+}
+
+model WhatsAppInteractionPrompt {
+  id                         String                          @id @default(cuid())
+  companyAccountId           String
+  companyAccount             CompanyAccount                  @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  workflowId                 String?
+  workflow                   ViewingWorkflow?                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  taskId                     String?
+  propertyId                 String?
+  contactId                  String?
+  appointmentRequestId       String?
+  appointmentRequest         AppointmentRequest?             @relation(fields: [appointmentRequestId], references: [id], onDelete: Cascade)
+  assignmentAttemptId        String?
+  assignmentAttempt          ViewingAssignmentAttempt?       @relation(fields: [assignmentAttemptId], references: [id], onDelete: Cascade)
+  actionId                   String?
+  recipientType              WhatsAppPromptRecipientType
+  recipientId                String
+  recipientMemberId          String?
+  recipientMember            CompanyMember?                  @relation("PromptRecipientMember", fields: [recipientMemberId], references: [id], onDelete: Cascade)
+  promptType                 WhatsAppInteractionPromptType
+  expectedResponseType       WhatsAppExpectedResponseType
+  shortCode                  String
+  candidateMemberSnapshot    Json?
+  outboxMessageId            String?                         @unique
+  outboxMessage              WhatsAppOutboxMessage?          @relation(fields: [outboxMessageId], references: [id], onDelete: SetNull)
+  sentProviderMessageId      String?
+  lastReplyProviderMessageId String?
+  status                     WhatsAppInteractionPromptStatus @default(OPEN)
+  deadlineAt                 DateTime?
+  reminderCount              Int                             @default(0)
+  lastReminderAt             DateTime?
+  answeredAt                 DateTime?
+  expiresAt                  DateTime?
+  idempotencyKey             String
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@unique([companyAccountId, lastReplyProviderMessageId])
+  @@index([companyAccountId, recipientType, recipientId, status])
+  @@index([recipientMemberId, status])
+  @@index([companyAccountId, shortCode, status])
+  @@index([assignmentAttemptId, status])
+  @@index([sentProviderMessageId])
+  @@index([deadlineAt, status])
+}
+
+model AppointmentOutcome {
+  id                        String                   @id @default(cuid())
+  companyAccountId          String
+  companyAccount            CompanyAccount           @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  appointmentRequestId      String                   @unique
+  appointmentRequest        AppointmentRequest       @relation(fields: [appointmentRequestId], references: [id], onDelete: Cascade)
+  viewingWorkflowId         String?
+  viewingWorkflow           ViewingWorkflow?         @relation(fields: [viewingWorkflowId], references: [id], onDelete: SetNull)
+  reportedByMemberId        String?
+  reportedByMember          CompanyMember?           @relation("AppointmentOutcomeReporter", fields: [reportedByMemberId], references: [id], onDelete: SetNull)
+  outcome                   AppointmentOutcomeType
+  noSaleReason              AppointmentNoSaleReason?
+  reasonText                String?                  @db.Text
+  nextAction                String?                  @db.Text
+  nextActionAt              DateTime?
+  followUpTaskId            String?
+  followUpTask              CrmTask?                 @relation("AppointmentOutcomeFollowUpTask", fields: [followUpTaskId], references: [id], onDelete: SetNull)
+  evidenceProviderMessageId String?
+  saleDecision              SaleDecisionStatus?
+  saleDecisionById          String?
+  saleDecisionAt            DateTime?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+
+  @@index([companyAccountId, outcome, createdAt])
+  @@index([viewingWorkflowId])
 }
 
 // --- Ortak: Bildirim Sistemi ---
@@ -2039,7 +2606,9 @@ model WhatsAppOutboxMessage {
   createdAt                DateTime              @default(now())
   updatedAt                DateTime              @updatedAt
 
-  deliveryAudits MessageDeliveryAudit[]
+  deliveryAudits           MessageDeliveryAudit[]
+  viewingAssignmentAttempt ViewingAssignmentAttempt?
+  interactionPrompt        WhatsAppInteractionPrompt?
 
   @@unique([companyAccountId, idempotencyKey])
   @@index([status, nextAttemptAt])
@@ -2399,4 +2968,438 @@ model DailyManagerSummary {
 
   @@unique([companyAccountId, periodStart, periodEnd])
   @@index([companyAccountId, periodStart])
+}
+
+model PartnerOrganization {
+  id                      String               @id @default(cuid())
+  companyAccountId        String
+  companyAccount          CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  externalId              String?
+  legalName               String
+  displayName             String
+  normalizedName          String
+  domain                  String?
+  websiteUrl              String?
+  logoUrl                 String?
+  countryCode             String
+  countryName             String
+  city                    String?
+  address                 String?              @db.Text
+  registrationNumber      String?
+  licenseNumber           String?
+  licenseVerifiedAt       DateTime?
+  legalStatus             String?
+  languages               String[]             @default([])
+  specialties             String[]             @default([])
+  internationalExperience Boolean              @default(false)
+  reviewAverage           Float?
+  reviewCount             Int?
+  fitScore                Float                @default(0)
+  confidenceScore         Float                @default(0)
+  scoreVersion            String               @default("partner-score-v1")
+  scoreExplanation        Json?
+  stage                   PartnerPipelineStage @default(DISCOVERED)
+  statusReason            String?              @db.Text
+  discoveredAt            DateTime             @default(now())
+  lastEnrichedAt          DateTime?
+  lastVerifiedAt          DateTime?
+  lastContactedAt         DateTime?
+  nextFollowUpAt          DateTime?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  contacts       PartnerContact[]
+  sources        PartnerSource[]
+  scoreSnapshots PartnerScoreSnapshot[]
+  drafts         PartnerEmailDraft[]
+  messages       PartnerEmailMessage[]
+  suppressions   PartnerSuppression[]
+  activities     PartnerActivity[]
+  agreements     PartnerAgreement[]
+  commissions    PartnerCommission[]
+
+  @@unique([companyAccountId, domain])
+  @@index([companyAccountId, countryCode, stage, fitScore])
+  @@index([companyAccountId, normalizedName, city])
+  @@index([companyAccountId, registrationNumber])
+  @@index([companyAccountId, licenseNumber])
+}
+
+model PartnerContact {
+  id                 String                           @id @default(cuid())
+  companyAccountId   String
+  companyAccount     CompanyAccount                   @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId     String
+  organization       PartnerOrganization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role               String                           @default("CORPORATE")
+  name               String?
+  encryptedEmail     String?                          @db.Text
+  emailHmac          String?
+  emailMasked        String?
+  emailDomain        String?
+  encryptedPhone     String?                          @db.Text
+  phoneMasked        String?
+  verificationStatus PartnerContactVerificationStatus @default(UNVERIFIED)
+  verifiedAt         DateTime?
+  sourceId           String?
+  source             PartnerSource?                   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  active             Boolean                          @default(true)
+  createdAt          DateTime                         @default(now())
+  updatedAt          DateTime                         @updatedAt
+
+  drafts       PartnerEmailDraft[]
+  messages     PartnerEmailMessage[]
+  suppressions PartnerSuppression[]
+
+  @@unique([companyAccountId, emailHmac])
+  @@index([companyAccountId, organizationId, active])
+  @@index([companyAccountId, emailDomain])
+}
+
+model PartnerSource {
+  id                  String               @id @default(cuid())
+  companyAccountId    String
+  companyAccount      CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId      String?
+  organization        PartnerOrganization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  discoveryRunId      String?
+  discoveryRun        PartnerDiscoveryRun? @relation(fields: [discoveryRunId], references: [id], onDelete: SetNull)
+  type                PartnerSourceType
+  providerKey         String
+  externalId          String?
+  sourceUrl           String?
+  title               String?
+  evidence            Json
+  contentHash         String
+  observedAt          DateTime
+  fetchedAt           DateTime             @default(now())
+  expiresAt           DateTime?
+  trusted             Boolean              @default(false)
+  promptInjectionRisk Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+
+  contacts PartnerContact[]
+
+  @@unique([companyAccountId, providerKey, contentHash])
+  @@index([companyAccountId, organizationId, observedAt])
+  @@index([companyAccountId, type, fetchedAt])
+}
+
+model PartnerDiscoveryRun {
+  id               String                    @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount            @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  providerKey      String
+  countryCode      String
+  city             String?
+  language         String?
+  specialization   String?
+  status           PartnerDiscoveryRunStatus @default(QUEUED)
+  requestedLimit   Int                       @default(25)
+  discoveredCount  Int                       @default(0)
+  acceptedCount    Int                       @default(0)
+  rejectedCount    Int                       @default(0)
+  errorCode        String?
+  errorMessage     String?                   @db.Text
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdByType    String
+  createdById      String
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  sources PartnerSource[]
+
+  @@index([companyAccountId, status, createdAt])
+  @@index([companyAccountId, countryCode, createdAt])
+}
+
+model PartnerScoreSnapshot {
+  id                String              @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount      @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId    String
+  organization      PartnerOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  version           String
+  total             Float
+  confidence        Float
+  breakdown         Json
+  explanations      String[]            @default([])
+  evidenceSourceIds String[]            @default([])
+  calculatedAt      DateTime            @default(now())
+
+  @@index([companyAccountId, organizationId, calculatedAt])
+  @@index([companyAccountId, total, confidence])
+}
+
+model PartnerMailboxConnection {
+  id                    String               @id @default(cuid())
+  companyAccountId      String               @unique
+  companyAccount        CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  status                PartnerMailboxStatus @default(CONNECTED)
+  email                 String
+  encryptedRefreshToken String               @db.Text
+  encryptedAccessToken  String?              @db.Text
+  accessTokenExpiresAt  DateTime?
+  grantedScopes         String[]             @default([])
+  connectedById         String
+  lastTestedAt          DateTime?
+  lastSuccessfulSendAt  DateTime?
+  lastErrorCode         String?
+  lastErrorAt           DateTime?
+  revokedAt             DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  messages PartnerEmailMessage[]
+}
+
+model PartnerEmailDraft {
+  id                      String                  @id @default(cuid())
+  companyAccountId        String
+  companyAccount          CompanyAccount          @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId          String
+  organization            PartnerOrganization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId               String
+  contact                 PartnerContact          @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  status                  PartnerEmailDraftStatus @default(DRAFT)
+  subject                 String
+  body                    String                  @db.Text
+  language                String
+  turkishTranslation      String                  @db.Text
+  personalizationEvidence Json
+  warnings                String[]                @default([])
+  contentHash             String
+  promptVersion           String
+  modelProvider           String
+  modelName               String?
+  generatedAt             DateTime                @default(now())
+  editedAt                DateTime?
+  editedByType            String?
+  editedById              String?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  approvals PartnerOutreachApproval[]
+  messages  PartnerEmailMessage[]
+
+  @@index([companyAccountId, status, createdAt])
+  @@index([companyAccountId, organizationId, createdAt])
+}
+
+model PartnerOutreachApproval {
+  id               String                @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  draftId          String
+  draft            PartnerEmailDraft     @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  status           PartnerApprovalStatus @default(APPROVED)
+  approvedHash     String
+  policySnapshot   Json
+  approvedByType   String
+  approvedById     String
+  approvedAt       DateTime              @default(now())
+  revokedAt        DateTime?
+  consumedAt       DateTime?
+  createdAt        DateTime              @default(now())
+
+  message PartnerEmailMessage?
+
+  @@index([companyAccountId, draftId, status])
+  @@index([companyAccountId, approvedAt])
+}
+
+model PartnerEmailMessage {
+  id                   String                    @id @default(cuid())
+  companyAccountId     String
+  companyAccount       CompanyAccount            @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId       String
+  organization         PartnerOrganization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactId            String
+  contact              PartnerContact            @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  draftId              String
+  draft                PartnerEmailDraft         @relation(fields: [draftId], references: [id], onDelete: Restrict)
+  approvalId           String?                   @unique
+  approval             PartnerOutreachApproval?  @relation(fields: [approvalId], references: [id], onDelete: SetNull)
+  mailboxConnectionId  String
+  mailboxConnection    PartnerMailboxConnection  @relation(fields: [mailboxConnectionId], references: [id], onDelete: Restrict)
+  idempotencyKey       String
+  status               PartnerEmailMessageStatus @default(QUEUED)
+  recipientEmailHmac   String
+  recipientEmailMasked String
+  recipientDomain      String
+  subjectSnapshot      String
+  bodySnapshot         String                    @db.Text
+  scheduledAt          DateTime                  @default(now())
+  claimedAt            DateTime?
+  leaseExpiresAt       DateTime?
+  leaseToken           String?
+  attemptCount         Int                       @default(0)
+  maxAttempts          Int                       @default(5)
+  nextAttemptAt        DateTime                  @default(now())
+  providerMessageId    String?
+  providerThreadId     String?
+  sentAt               DateTime?
+  failedAt             DateTime?
+  lastErrorCode        String?
+  lastErrorMessage     String?                   @db.Text
+  followUpNumber       Int                       @default(0)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  events PartnerEmailEvent[]
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@index([companyAccountId, organizationId, createdAt])
+  @@index([companyAccountId, recipientDomain, createdAt])
+}
+
+model PartnerEmailEvent {
+  id               String                @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount        @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  messageId        String
+  message          PartnerEmailMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type             PartnerEmailEventType
+  providerEventId  String?
+  metadata         Json?
+  createdAt        DateTime              @default(now())
+
+  @@unique([companyAccountId, providerEventId])
+  @@index([companyAccountId, messageId, createdAt])
+}
+
+model PartnerSuppression {
+  id               String               @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId   String?
+  organization     PartnerOrganization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  contactId        String?
+  contact          PartnerContact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  emailHmac        String
+  emailMasked      String
+  reason           String
+  source           String
+  suppressedByType String
+  suppressedById   String?
+  createdAt        DateTime             @default(now())
+
+  @@unique([companyAccountId, emailHmac])
+  @@index([companyAccountId, organizationId])
+}
+
+model PartnerActivity {
+  id               String              @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount      @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId   String
+  organization     PartnerOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type             String
+  actorType        String
+  actorId          String?
+  summary          String
+  metadata         Json?
+  createdAt        DateTime            @default(now())
+
+  @@index([companyAccountId, organizationId, createdAt])
+  @@index([companyAccountId, type, createdAt])
+}
+
+model PartnerAgreement {
+  id               String                 @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount         @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId   String
+  organization     PartnerOrganization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status           PartnerAgreementStatus @default(DRAFT)
+  title            String
+  terms            Json
+  startsAt         DateTime?
+  endsAt           DateTime?
+  signedAt         DateTime?
+  createdById      String
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  commissions PartnerCommission[]
+
+  @@index([companyAccountId, organizationId, status])
+}
+
+model PartnerCommission {
+  id               String                  @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount          @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  organizationId   String
+  organization     PartnerOrganization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agreementId      String?
+  agreement        PartnerAgreement?       @relation(fields: [agreementId], references: [id], onDelete: SetNull)
+  status           PartnerCommissionStatus @default(PROPOSED)
+  currency         String                  @default("EUR")
+  amount           Float?
+  rate             Float?
+  reference        String?
+  notes            String?                 @db.Text
+  earnedAt         DateTime?
+  paidAt           DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([companyAccountId, organizationId, status])
+  @@index([companyAccountId, status, createdAt])
+}
+
+model PartnerCountryPolicy {
+  id                String                     @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount             @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  countryCode       String
+  status            PartnerCountryPolicyStatus @default(BLOCKED_PENDING_COUNTRY_REVIEW)
+  legalBasisNote    String?                    @db.Text
+  consentRequired   Boolean                    @default(false)
+  footerText        String?                    @db.Text
+  dailyCompanyLimit Int                        @default(25)
+  dailyDomainLimit  Int                        @default(3)
+  dailyMailboxLimit Int                        @default(25)
+  reviewedByType    String?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@unique([companyAccountId, countryCode])
+  @@index([companyAccountId, status])
+}
+
+model PartnerEmailQuotaBucket {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  mailboxId        String
+  recipientDomain  String
+  localDate        String
+  companyCount     Int            @default(0)
+  mailboxCount     Int            @default(0)
+  domainCount      Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([companyAccountId, mailboxId, recipientDomain, localDate])
+  @@index([companyAccountId, localDate])
+}
+
+model PartnerApplicationAttempt {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  fingerprintHmac  String
+  emailHmac        String
+  accepted         Boolean
+  reasonCode       String?
+  createdAt        DateTime       @default(now())
+
+  @@index([companyAccountId, fingerprintHmac, createdAt])
+  @@index([companyAccountId, emailHmac, createdAt])
 }

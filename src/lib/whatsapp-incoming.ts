@@ -20,6 +20,11 @@ import { processVerifiedPropertyOwnerWhatsAppMessage } from '@/lib/digital-manag
 import { recordOperationEvent } from '@/lib/digital-manager/events';
 import { getCompanyOperationalStatus } from '@/lib/digital-manager/company-guard';
 import { orchestrateCustomerViewingRequest } from '@/lib/digital-manager/lead-orchestration';
+import { processViewingInteractionReply } from '@/lib/viewing-workflow/service';
+import {
+  propertyClarificationText,
+} from '@/lib/viewing-workflow/property-resolution';
+import { resolveViewingPropertyForMessage } from '@/lib/viewing-workflow/property-resolution.server';
 
 export type IncomingWhatsAppMessage = {
   companyAccountId: string;
@@ -113,6 +118,45 @@ export async function processIncomingWhatsAppMessage(
     identity.resolution.status === 'RESOLVED' &&
     identity.resolution.role === 'EMPLOYEE'
   ) {
+    const operationReply = await processViewingInteractionReply({
+      companyAccountId: input.companyAccountId,
+      recipientType: 'EMPLOYEE',
+      recipientId: identity.resolution.entityId,
+      text: input.text.trim(),
+      provider: input.provider,
+      providerMessageId: input.providerMessageId,
+      quotedProviderMessageId: input.quotedProviderMessageId,
+    });
+    if (operationReply.handled) {
+      if (!('duplicate' in operationReply && operationReply.duplicate)) {
+        const clarification =
+          'clarificationRequired' in operationReply &&
+          operationReply.clarificationRequired;
+        const openCodes =
+          'openPrompts' in operationReply && Array.isArray(operationReply.openPrompts)
+            ? operationReply.openPrompts
+                .map((prompt) => `#${prompt.shortCode}`)
+                .join(', ')
+            : '';
+        await queueCompanyWhatsAppMessage({
+          companyAccountId: input.companyAccountId,
+          to: normalizedPhone,
+          text: clarification
+            ? `Yanıtı tek bir açık işe bağlayamadım. Lütfen iş koduyla yanıtla${openCodes ? `: ${openCodes}` : '.'}`
+            : 'Operasyon yanıtınız doğrulandı ve ilgili işe kaydedildi.',
+          recipientType: 'EMPLOYEE',
+          recipientId: identity.resolution.entityId,
+          purpose: clarification
+            ? 'VIEWING_REPLY_CLARIFICATION'
+            : 'VIEWING_REPLY_CONFIRMATION',
+          replyToProviderMessageId: input.providerMessageId,
+          correlationId: input.providerMessageId,
+          idempotencyKey: `viewing-reply:${input.providerMessageId}:response`,
+          createdByType: 'VIEWING_WORKFLOW',
+        });
+      }
+      return operationReply;
+    }
     return processVerifiedEmployeeWhatsAppMessage({
       companyAccountId: input.companyAccountId,
       employeeId: identity.resolution.entityId,
@@ -127,6 +171,45 @@ export async function processIncomingWhatsAppMessage(
     identity.resolution.status === 'RESOLVED' &&
     identity.resolution.role === 'OWNER'
   ) {
+    const operationReply = await processViewingInteractionReply({
+      companyAccountId: input.companyAccountId,
+      recipientType: 'OWNER',
+      recipientId: identity.resolution.entityId,
+      text: input.text.trim(),
+      provider: input.provider,
+      providerMessageId: input.providerMessageId,
+      quotedProviderMessageId: input.quotedProviderMessageId,
+    });
+    if (operationReply.handled) {
+      if (!('duplicate' in operationReply && operationReply.duplicate)) {
+        const clarification =
+          'clarificationRequired' in operationReply &&
+          operationReply.clarificationRequired;
+        const openCodes =
+          'openPrompts' in operationReply && Array.isArray(operationReply.openPrompts)
+            ? operationReply.openPrompts
+                .map((prompt) => `#${prompt.shortCode}`)
+                .join(', ')
+            : '';
+        await queueCompanyWhatsAppMessage({
+          companyAccountId: input.companyAccountId,
+          to: normalizedPhone,
+          text: clarification
+            ? `Yanıtı tek bir açık karara bağlayamadım. Lütfen iş koduyla yanıtlayın${openCodes ? `: ${openCodes}` : '.'}`
+            : 'Kararınız doğrulandı ve ilgili operasyona uygulandı.',
+          recipientType: 'OWNER',
+          recipientId: identity.resolution.entityId,
+          purpose: clarification
+            ? 'VIEWING_REPLY_CLARIFICATION'
+            : 'VIEWING_REPLY_CONFIRMATION',
+          replyToProviderMessageId: input.providerMessageId,
+          correlationId: input.providerMessageId,
+          idempotencyKey: `viewing-reply:${input.providerMessageId}:response`,
+          createdByType: 'VIEWING_WORKFLOW',
+        });
+      }
+      return operationReply;
+    }
     return processVerifiedOwnerWhatsAppMessage({
       companyAccountId: input.companyAccountId,
       text: input.text.trim(),
@@ -438,6 +521,7 @@ export async function processIncomingWhatsAppMessage(
         })
       : await prisma.appointmentRequest.create({
           data: {
+            companyAccountId: input.companyAccountId,
             conversationId: conversation.id,
             customerName: conversation.customerName,
             customerPhone: phone,
@@ -457,10 +541,54 @@ export async function processIncomingWhatsAppMessage(
       select: { id: true },
     });
     if (contact) {
+      const propertyResolution = await resolveViewingPropertyForMessage({
+        companyAccountId: input.companyAccountId,
+        message: input.text,
+        now: receivedAt,
+      });
+      if (propertyResolution.status !== 'RESOLVED') {
+        const clarification = propertyClarificationText(
+          propertyResolution.candidates
+        );
+        await prisma.appointmentRequest.update({
+          where: { id: appointment.id },
+          data: { contactId: contact.id },
+        });
+        await queueCompanyWhatsAppMessage({
+          companyAccountId: input.companyAccountId,
+          to: phone,
+          text: clarification,
+          conversationId: conversation.id,
+          contactId: contact.id,
+          recipientType: 'CRM_CONTACT',
+          recipientId: contact.id,
+          purpose: 'VIEWING_PROPERTY_CLARIFICATION',
+          correlationId: appointment.id,
+          replyToProviderMessageId: input.providerMessageId,
+          idempotencyKey: `viewing:${input.provider}:${input.providerMessageId}:property-clarification`,
+          createdByType: 'VIEWING_WORKFLOW',
+          createdById: appointment.id,
+        });
+        await markInboundCompleted();
+        return {
+          duplicate: resumed,
+          clarificationRequired: true,
+          conversationId: conversation.id,
+          appointmentRequestId: appointment.id,
+        };
+      }
+      await prisma.appointmentRequest.update({
+        where: { id: appointment.id },
+        data: {
+          contactId: contact.id,
+          propertyId: propertyResolution.propertyId,
+        },
+      });
       await orchestrateCustomerViewingRequest({
         companyAccountId: input.companyAccountId,
         conversationId: conversation.id,
         contactId: contact.id,
+        propertyId: propertyResolution.propertyId,
         customerName: conversation.customerName,
         customerMessage: input.text,
         provider: input.provider,

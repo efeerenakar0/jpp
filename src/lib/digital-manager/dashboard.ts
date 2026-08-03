@@ -50,6 +50,7 @@ export async function getDigitalManagerDashboard(
     preferences,
     summary,
     members,
+    viewingWorkflows,
   ] = await Promise.all([
     owner
       ? prisma.generalManagerAction.findMany({
@@ -280,6 +281,91 @@ export async function getDigitalManagerDashboard(
           take: 200,
         })
       : [],
+    prisma.viewingWorkflow.findMany({
+      where: owner
+        ? { companyAccountId }
+        : {
+            companyAccountId,
+            crmTask: { is: { assignedMemberId: principal.memberId } },
+          },
+      select: {
+        id: true,
+        shortCode: true,
+        status: true,
+        startedAt: true,
+        completedAt: true,
+        cancelledAt: true,
+        lastError: true,
+        contact: { select: { id: true, name: true } },
+        property: {
+          select: { id: true, title: true, referenceCode: true, status: true },
+        },
+        crmTask: {
+          select: {
+            id: true,
+            workflowStatus: true,
+            assignedMember: { select: { id: true, name: true } },
+          },
+        },
+        assignmentAttempts: {
+          select: {
+            id: true,
+            sequence: true,
+            status: true,
+            sentAt: true,
+            deliveredAt: true,
+            ackDeadlineAt: true,
+            answeredAt: true,
+            failureReason: true,
+            member: { select: { id: true, name: true } },
+            outboxMessage: {
+              select: { status: true, lastError: true },
+            },
+          },
+          orderBy: { sequence: 'asc' },
+        },
+        interactionPrompts: {
+          where: { status: 'OPEN' },
+          select: {
+            id: true,
+            promptType: true,
+            expectedResponseType: true,
+            shortCode: true,
+            candidateMemberSnapshot: true,
+            deadlineAt: true,
+            expiresAt: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
+        appointmentRequests: {
+          select: {
+            id: true,
+            shortCode: true,
+            startAt: true,
+            endAt: true,
+            timezone: true,
+            status: true,
+            employeeConfirmedAt: true,
+            employeeDeclinedAt: true,
+            outcome: {
+              select: {
+                outcome: true,
+                reasonText: true,
+                nextAction: true,
+                nextActionAt: true,
+                saleDecision: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 30,
+    }),
   ]);
 
   return {
@@ -315,5 +401,6 @@ export async function getDigitalManagerDashboard(
       maxActiveTaskCapacity: member.maxActiveTaskCapacity,
       activeTaskCount: member._count.tasks,
     })),
+    viewingWorkflows,
   };
 }

@@ -20,6 +20,7 @@ import {
   Smartphone,
   LockKeyhole,
   FileText,
+  Handshake,
 } from 'lucide-react';
 import { useState } from 'react';
 import { primaryModuleDefinitions } from '@/lib/fabrika-primary-modules';
@@ -50,6 +51,13 @@ const primaryModules = primaryModuleDefinitions.map((module) => ({
 }));
 
 const realEstatePackages = [
+  {
+    name: 'Partner Ağı',
+    href: '/fabrika/partnerler',
+    icon: Handshake,
+    color: 'from-cyan-400 to-emerald-500',
+    description: 'Global İş Ortakları',
+  },
   {
     name: 'Merkezi CRM',
     href: '/fabrika/crm',

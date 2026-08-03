@@ -6,6 +6,7 @@ import {
   Check,
   Clipboard,
   Code2,
+  Download,
   FileArchive,
   FolderOpen,
   History,
@@ -39,10 +40,33 @@ type WebsiteIntegration = {
   sourceFileName: string;
   sourceSize: number;
   apiKeyHint: string;
-  status: "PENDING" | "READY" | "DELIVERED" | "SUSPENDED";
+  status:
+    | "SUBMITTED"
+    | "IN_PROGRESS"
+    | "READY_FOR_QA"
+    | "CHANGES_REQUESTED"
+    | "APPROVED"
+    | "DELIVERED"
+    | "FAILED";
+  deliveryType: "ZIP_ONLY" | "ADMIN_DEPLOYED" | "CUSTOMER_DEPLOYS" | null;
+  previewUrl: string | null;
+  finalUrl: string | null;
+  approvedAt: string | null;
+  lastError: string | null;
   submittedAt: string;
   deliveredAt: string | null;
   promptTemplate: string;
+  versions: Array<{
+    id: string;
+    version: number;
+    resultFileName: string | null;
+    resultSha256: string | null;
+    qaStatus: "PENDING" | "PASSED" | "FAILED";
+    previewUrl: string | null;
+    finalUrl: string | null;
+    approvedAt: string | null;
+    deliveredAt: string | null;
+  }>;
   promptVersions: Array<{
     id: string;
     version: number;
@@ -85,17 +109,23 @@ const initialForm: FormState = {
 };
 
 const statusLabels: Record<WebsiteIntegration["status"], string> = {
-  PENDING: "Admin incelemesinde",
-  READY: "API bağlantısına hazır",
+  SUBMITTED: "Admin incelemesinde",
+  IN_PROGRESS: "Site üzerinde çalışılıyor",
+  READY_FOR_QA: "Kalite kontrolünde",
+  CHANGES_REQUESTED: "Düzeltme yapılıyor",
+  APPROVED: "Teslim paketi hazır",
   DELIVERED: "Teslim edildi",
-  SUSPENDED: "Erişim durduruldu",
+  FAILED: "İşlem hatası",
 };
 
 const statusStyles: Record<WebsiteIntegration["status"], string> = {
-  PENDING: "border-amber-400/30 bg-amber-400/10 text-amber-200",
-  READY: "border-cyan-400/30 bg-cyan-400/10 text-cyan-200",
+  SUBMITTED: "border-amber-400/30 bg-amber-400/10 text-amber-200",
+  IN_PROGRESS: "border-cyan-400/30 bg-cyan-400/10 text-cyan-200",
+  READY_FOR_QA: "border-amber-400/30 bg-amber-400/10 text-amber-200",
+  CHANGES_REQUESTED: "border-orange-400/30 bg-orange-400/10 text-orange-200",
+  APPROVED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
   DELIVERED: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
-  SUSPENDED: "border-rose-400/30 bg-rose-400/10 text-rose-200",
+  FAILED: "border-rose-400/30 bg-rose-400/10 text-rose-200",
 };
 
 function formatBytes(bytes: number) {
@@ -709,6 +739,50 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                       Şirkete özel API
                     </div>
                   </div>
+                  {integration.lastError ? (
+                    <p className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-[10px] leading-4 text-rose-200">
+                      {integration.lastError}
+                    </p>
+                  ) : null}
+                  {integration.status === "APPROVED" ||
+                  integration.status === "DELIVERED" ? (
+                    <div className="mt-3 rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-3">
+                      <p className="flex items-center gap-2 text-[10px] font-black text-emerald-200">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Kalite kontrolden geçen teslim paketi hazır
+                      </p>
+                      <p className="mt-1 text-[9px] leading-4 text-emerald-100/70">
+                        {integration.versions[0]?.resultFileName ||
+                          "Onaylı site paketi"}
+                        {integration.versions[0]?.resultSha256
+                          ? ` · SHA-256 ${integration.versions[0].resultSha256.slice(0, 12)}…`
+                          : ""}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <a
+                          href={`/api/fabrika/website-integration/${integration.id}/download`}
+                          className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-300 px-3 text-[10px] font-black text-slate-950"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Tamamlanmış ZIP’i indir
+                        </a>
+                        {integration.finalUrl ? (
+                          <a
+                            href={integration.finalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-emerald-400/30 px-3 text-[10px] font-bold text-emerald-100"
+                          >
+                            Yayındaki siteyi aç
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-[10px] leading-4 text-slate-400">
+                      Tamamlanmış ZIP yalnız admin kalite kontrolünden sonra burada görünür.
+                    </p>
+                  )}
                   <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -798,19 +872,22 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                       </details>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void rotateKey(integration)}
-                    disabled={rotating === integration.id}
-                    className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-300 transition hover:text-cyan-200 disabled:opacity-50"
-                  >
-                    {rotating === integration.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RotateCw className="h-3.5 w-3.5" />
-                    )}
-                    API anahtarını ve promptu yenile
-                  </button>
+                  {integration.status === "APPROVED" ||
+                  integration.status === "DELIVERED" ? (
+                    <button
+                      type="button"
+                      onClick={() => void rotateKey(integration)}
+                      disabled={rotating === integration.id}
+                      className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-300 transition hover:text-cyan-200 disabled:opacity-50"
+                    >
+                      {rotating === integration.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RotateCw className="h-3.5 w-3.5" />
+                      )}
+                      Production API anahtarını yenile
+                    </button>
+                  ) : null}
                 </article>
               ))}
             </div>

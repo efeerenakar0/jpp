@@ -10,6 +10,7 @@ import {
   Clock3,
   FilePenLine,
   Handshake,
+  Eye,
   Loader2,
   MessageSquareText,
   RefreshCw,
@@ -156,6 +157,73 @@ type Member = {
   activeTaskCount: number;
 };
 
+type ViewingCandidate = {
+  index: number;
+  memberId: string;
+  name: string;
+};
+
+type ViewingWorkflow = {
+  id: string;
+  shortCode: string;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  lastError: string | null;
+  contact: { id: string; name: string };
+  property: {
+    id: string;
+    title: string;
+    referenceCode: string | null;
+    status: string;
+  };
+  crmTask: {
+    id: string;
+    workflowStatus: string;
+    assignedMember: { id: string; name: string } | null;
+  };
+  assignmentAttempts: Array<{
+    id: string;
+    sequence: number;
+    status: string;
+    sentAt: string | null;
+    deliveredAt: string | null;
+    ackDeadlineAt: string | null;
+    answeredAt: string | null;
+    failureReason: string | null;
+    member: { id: string; name: string };
+    outboxMessage: { status: string; lastError: string | null } | null;
+  }>;
+  interactionPrompts: Array<{
+    id: string;
+    promptType: string;
+    expectedResponseType: string;
+    shortCode: string;
+    candidateMemberSnapshot: unknown;
+    deadlineAt: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+  }>;
+  appointmentRequests: Array<{
+    id: string;
+    shortCode: string | null;
+    startAt: string | null;
+    endAt: string | null;
+    timezone: string;
+    status: string;
+    employeeConfirmedAt: string | null;
+    employeeDeclinedAt: string | null;
+    outcome: {
+      outcome: string;
+      reasonText: string | null;
+      nextAction: string | null;
+      nextActionAt: string | null;
+      saleDecision: string | null;
+    } | null;
+  }>;
+};
+
 type Dashboard = {
   role: 'OWNER' | 'EMPLOYEE';
   generatedAt: string;
@@ -168,6 +236,7 @@ type Dashboard = {
   members: Member[];
   corrections: Correction[];
   preferences: Preferences | null;
+  viewingWorkflows: ViewingWorkflow[];
   summary: {
     generatedText: string;
     periodStart: string;
@@ -210,6 +279,13 @@ const statusLabels: Record<string, string> = {
   PENDING_APPROVAL: 'Onay bekliyor',
   EXECUTING: 'Uygulanıyor',
   EXECUTED: 'Uygulandı',
+  AWAITING_ASSIGNMENT_SEND: 'Görev mesajı gönderiliyor',
+  AWAITING_EMPLOYEE_ACK: 'Çalışan yanıtı bekleniyor',
+  ASSIGNMENT_ACCEPTED: 'Çalışan kabul etti',
+  AWAITING_OWNER_DECISION: 'Patron kararı bekleniyor',
+  AWAITING_APPOINTMENT_CONFIRMATION: 'Randevu teyidi bekleniyor',
+  AWAITING_OUTCOME: 'Gösterim sonucu bekleniyor',
+  AWAITING_SALE_DECISION: 'Satış kararı bekleniyor',
 };
 
 function dateTime(value: string | null) {
@@ -319,6 +395,18 @@ function verifiedContextLines(value: unknown) {
     context.property ? `Portföy: ${String(context.property)}` : null,
     context.nextAction ? `Sonraki adım: ${String(context.nextAction)}` : null,
   ].filter((line): line is string => Boolean(line));
+}
+
+function viewingCandidates(value: unknown): ViewingCandidate[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+    const row = entry as Record<string, unknown>;
+    const index = Number(row.index);
+    const memberId = String(row.memberId || '');
+    const name = String(row.name || '');
+    return index > 0 && memberId && name ? [{ index, memberId, name }] : [];
+  });
 }
 
 function canMakePermanentRule(approval: Approval) {
@@ -525,6 +613,39 @@ export default function DigitalManagerOperations() {
     }
   }
 
+  async function decideViewing(
+    promptId: string,
+    action: 'REASSIGN' | 'WAIT' | 'CANCEL' | 'REMOVE' | 'KEEP' | 'DETAIL',
+    candidateIndex?: number
+  ) {
+    setBusyId(`viewing:${promptId}`);
+    try {
+      const response = await fetch('/api/fabrika/general-manager/viewings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptId,
+          action,
+          candidateIndex: candidateIndex || null,
+          reason: 'Patron gösterim operasyon panelinden karar verdi.',
+          clientRequestId: crypto.randomUUID(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Gösterim kararı uygulanamadı.');
+      }
+      toast.success('Gösterim kararı ilişkili kayıtlara uygulandı.');
+      await refresh(true);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Gösterim kararı uygulanamadı.'
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function applyOwnerPolicy(
     approval: Approval,
     operation: 'MUTE_EVENT' | 'MAKE_PERMANENT'
@@ -677,6 +798,9 @@ export default function DigitalManagerOperations() {
               <UserCheck /> Onaylar ({dashboard.approvals.length})
             </TabsTrigger>
           )}
+          <TabsTrigger value="viewings" className="px-3 text-xs">
+            <Eye /> Gösterimler ({dashboard.viewingWorkflows.length})
+          </TabsTrigger>
           <TabsTrigger value="tasks" className="px-3 text-xs">
             <CheckCircle2 /> Görevler
           </TabsTrigger>
@@ -816,6 +940,256 @@ export default function DigitalManagerOperations() {
             </div>
           </TabsContent>
         )}
+
+        <TabsContent value="viewings" className="pt-4">
+          <PanelTitle
+            title="Gösterim vakaları ve yanıt bekleyen kararlar"
+            description="Müşteri, portföy, çalışan, WhatsApp teslimi, randevu ve sonuç aynı ilişkili vaka üzerinde izlenir."
+            count={dashboard.viewingWorkflows.length}
+          />
+          <div className="custom-scrollbar max-h-[42rem] space-y-3 overflow-y-auto pr-1">
+            {dashboard.viewingWorkflows.length === 0 ? (
+              <EmptyLine>Henüz ilişkili gösterim vakası bulunmuyor.</EmptyLine>
+            ) : (
+              dashboard.viewingWorkflows.map((workflow) => {
+                const appointment = workflow.appointmentRequests[0] || null;
+                const openPrompt = workflow.interactionPrompts[0] || null;
+                const candidates = viewingCandidates(
+                  openPrompt?.candidateMemberSnapshot
+                );
+                return (
+                  <article
+                    key={workflow.id}
+                    className="rounded-lg border border-slate-800 bg-slate-950/50 p-4"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-white">
+                            İş #{workflow.shortCode}
+                          </p>
+                          <StatusBadge
+                            status={workflow.status}
+                            problem={Boolean(workflow.lastError)}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-slate-300">
+                          {workflow.contact.name} ·{' '}
+                          {workflow.property.referenceCode ||
+                            workflow.property.title}
+                        </p>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          Sorumlu:{' '}
+                          {workflow.crmTask.assignedMember?.name || 'Atanmamış'} ·
+                          Görev: {statusLabels[workflow.crmTask.workflowStatus] || workflow.crmTask.workflowStatus}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-[10px] text-slate-500">
+                        Başlangıç {dateTime(workflow.startedAt)}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                      <div className="rounded-md border border-slate-800 bg-slate-950 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Atama geçmişi
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {workflow.assignmentAttempts.map((attempt) => (
+                            <div
+                              key={attempt.id}
+                              className="flex items-start justify-between gap-2 text-xs"
+                            >
+                              <div>
+                                <p className="font-medium text-slate-200">
+                                  {attempt.sequence}. {attempt.member.name}
+                                </p>
+                                <p className="mt-0.5 text-[10px] text-slate-500">
+                                  Teslim: {attempt.outboxMessage?.status || 'Kuyrukta'} ·
+                                  ACK: {dateTime(attempt.ackDeadlineAt)}
+                                </p>
+                                {(attempt.failureReason ||
+                                  attempt.outboxMessage?.lastError) && (
+                                  <p className="mt-1 text-[10px] text-rose-300">
+                                    {attempt.failureReason ||
+                                      attempt.outboxMessage?.lastError}
+                                  </p>
+                                )}
+                              </div>
+                              <StatusBadge status={attempt.status} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border border-slate-800 bg-slate-950 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Randevu ve sonuç
+                        </p>
+                        {appointment ? (
+                          <div className="mt-2 space-y-1 text-xs text-slate-300">
+                            <p>
+                              #{appointment.shortCode || workflow.shortCode} ·{' '}
+                              {dateTime(appointment.startAt)}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              Çalışan teyidi:{' '}
+                              {appointment.employeeConfirmedAt
+                                ? dateTime(appointment.employeeConfirmedAt)
+                                : appointment.employeeDeclinedAt
+                                  ? `Katılamıyor · ${dateTime(appointment.employeeDeclinedAt)}`
+                                  : 'Bekleniyor'}
+                            </p>
+                            {appointment.outcome && (
+                              <div className="mt-2 rounded border border-slate-800 p-2">
+                                <p className="font-medium text-white">
+                                  {appointment.outcome.outcome}
+                                </p>
+                                {appointment.outcome.reasonText && (
+                                  <p className="mt-1 text-[10px] text-slate-400">
+                                    {appointment.outcome.reasonText}
+                                  </p>
+                                )}
+                                {appointment.outcome.saleDecision && (
+                                  <p className="mt-1 text-[10px] text-amber-300">
+                                    Satış kararı: {appointment.outcome.saleDecision}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Randevu henüz kesinleşmedi.
+                          </p>
+                        )}
+                      </div>
+
+                      <div
+                        className={`rounded-md border p-3 ${
+                          openPrompt
+                            ? 'border-amber-500/25 bg-amber-500/5'
+                            : 'border-slate-800 bg-slate-950'
+                        }`}
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Açık cevap istemi
+                        </p>
+                        {openPrompt ? (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-white">
+                              #{openPrompt.shortCode} · {openPrompt.promptType}
+                            </p>
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              Son yanıt: {dateTime(openPrompt.deadlineAt)}
+                            </p>
+                            {dashboard.role === 'OWNER' &&
+                              openPrompt.expectedResponseType ===
+                                'OWNER_REASSIGNMENT_DECISION' && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {candidates.map((candidate) => (
+                                    <Button
+                                      key={candidate.memberId}
+                                      type="button"
+                                      size="sm"
+                                      disabled={busyId === `viewing:${openPrompt.id}`}
+                                      onClick={() =>
+                                        void decideViewing(
+                                          openPrompt.id,
+                                          'REASSIGN',
+                                          candidate.index
+                                        )
+                                      }
+                                      className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                                    >
+                                      {candidate.index}. {candidate.name}
+                                    </Button>
+                                  ))}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={busyId === `viewing:${openPrompt.id}`}
+                                    onClick={() =>
+                                      void decideViewing(openPrompt.id, 'WAIT')
+                                    }
+                                    className="border-slate-700 bg-slate-950 text-slate-300"
+                                  >
+                                    Beklet
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    disabled={busyId === `viewing:${openPrompt.id}`}
+                                    onClick={() =>
+                                      void decideViewing(openPrompt.id, 'CANCEL')
+                                    }
+                                  >
+                                    İptal et
+                                  </Button>
+                                </div>
+                              )}
+                            {dashboard.role === 'OWNER' &&
+                              openPrompt.expectedResponseType ===
+                                'SALE_DECISION' && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={busyId === `viewing:${openPrompt.id}`}
+                                    onClick={() =>
+                                      void decideViewing(openPrompt.id, 'REMOVE')
+                                    }
+                                    className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                                  >
+                                    Satıldı · yayından kaldır
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={busyId === `viewing:${openPrompt.id}`}
+                                    onClick={() =>
+                                      void decideViewing(openPrompt.id, 'KEEP')
+                                    }
+                                    className="border-slate-700 bg-slate-950 text-slate-300"
+                                  >
+                                    Rezerve tut
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={busyId === `viewing:${openPrompt.id}`}
+                                    onClick={() =>
+                                      void decideViewing(openPrompt.id, 'DETAIL')
+                                    }
+                                    className="border-slate-700 bg-slate-950 text-slate-300"
+                                  >
+                                    Detay
+                                  </Button>
+                                </div>
+                              )}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Yanıt bekleyen işlem yok.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {workflow.lastError && (
+                      <p className="mt-3 rounded-md border border-rose-500/20 bg-rose-500/5 p-2 text-xs text-rose-300">
+                        {workflow.lastError}
+                      </p>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </TabsContent>
 
         <TabsContent value="tasks" className="pt-4">
           <div className="grid gap-5 xl:grid-cols-2">
@@ -1539,4 +1913,3 @@ export default function DigitalManagerOperations() {
     </section>
   );
 }
-

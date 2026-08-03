@@ -7,7 +7,7 @@ import { safeWebsiteArchiveName } from '@/lib/website-integration';
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: RouteContext<
     '/api/platform-admin/website-integrations/[id]/download'
   >
@@ -21,11 +21,18 @@ export async function GET(
 
   try {
     const { id } = await context.params;
+    const requestedVersion = Number(new URL(request.url).searchParams.get('version'));
     const integration = await prisma.websiteIntegration.findUnique({
       where: { id },
       select: {
         sourceBlobPathname: true,
         sourceFileName: true,
+        versions: {
+          where: Number.isInteger(requestedVersion) && requestedVersion > 0 ? { version: requestedVersion } : undefined,
+          orderBy: { version: 'desc' },
+          take: 1,
+          select: { sourceBlobPathname: true, sourceFileName: true, sourceSha256: true },
+        },
       },
     });
     if (!integration) {
@@ -35,7 +42,8 @@ export async function GET(
       );
     }
 
-    const blob = await get(integration.sourceBlobPathname, {
+    const source = integration.versions[0] || integration;
+    const blob = await get(source.sourceBlobPathname, {
       access: 'private',
       useCache: false,
     });
@@ -52,10 +60,13 @@ export async function GET(
         'Content-Type': 'application/zip',
         'Content-Length': String(blob.blob.size),
         'Content-Disposition': `attachment; filename="${safeWebsiteArchiveName(
-          integration.sourceFileName
+          source.sourceFileName
         )}"`,
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
+        ...('sourceSha256' in source && source.sourceSha256
+          ? { 'X-Archive-SHA256': source.sourceSha256 }
+          : {}),
       },
     });
   } catch (error) {

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type { TaskWorkflowState } from './domain';
 
 const concreteOutcomePattern =
-  /(imzalandı|imzalandi|randevu (oluştu|olustu|kesinleşti|kesinlesti)|satış (tamamlandı|tamamlandi)|kiralama (tamamlandı|tamamlandi)|ödeme alındı|odeme alindi|müşteri reddetti|musteri reddetti|yetki alındı|yetki alindi)/i;
+  /(imzalandı|imzalandi|randevu (oluştu|olustu|kesinleşti|kesinlesti)|gösterim (tamamlandı|tamamlandi|sonuçlandı|sonuclandi)|satış (tamamlandı|tamamlandi)|kiralama (tamamlandı|tamamlandi)|ödeme alındı|odeme alindi|müşteri reddetti|musteri reddetti|yetki alındı|yetki alindi)/i;
 
 const allowedTaskTransitions: Record<
   TaskWorkflowState,
@@ -84,6 +84,7 @@ const allowedTaskTransitions: Record<
   APPOINTMENT_CONFIRMED: [
     'IN_PROGRESS',
     'COMPLETED',
+    'REASSIGNMENT_REQUIRED',
     'CANCELLED',
     'FAILED',
   ],

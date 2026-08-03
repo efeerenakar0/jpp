@@ -101,8 +101,25 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('set-property-status'),
     id: z.string().trim().min(1),
-    status: z.enum(['DRAFT', 'ACTIVE']),
+    status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']),
     idempotencyKey: z.string().trim().min(8).max(160),
+  }),
+  z.object({
+    action: z.literal('approve-property-publication'),
+    id: z.string().trim().min(1),
+    authorizationDocumentId: z.string().trim().min(1),
+    authorityExpiresAt: z.string().datetime().optional().nullable(),
+    eidsRequired: z.boolean().default(true),
+    eidsVerificationReference: z.string().trim().max(240).optional().nullable(),
+    eidsExemptionReason: z.string().trim().max(1000).optional().nullable(),
+    idempotencyKey: z.string().trim().min(8).max(160),
+  }).superRefine((value, context) => {
+    if (value.eidsRequired && !value.eidsVerificationReference) {
+      context.addIssue({ code: 'custom', path: ['eidsVerificationReference'], message: 'EİDS doğrulama referansı gerekli.' });
+    }
+    if (!value.eidsRequired && !value.eidsExemptionReason) {
+      context.addIssue({ code: 'custom', path: ['eidsExemptionReason'], message: 'EİDS muafiyet gerekçesi gerekli.' });
+    }
   }),
   z.object({
     action: z.literal('create-deal'),
@@ -1024,13 +1041,39 @@ export async function POST(request: Request) {
 
         const previous = await tx.crmProperty.findFirst({
           where: { id: propertyId!, companyAccountId: account.id },
-          select: { status: true, title: true },
+          select: {
+            status: true,
+            title: true,
+            publicationApprovedAt: true,
+            authorityDocumentVerifiedAt: true,
+            authorityExpiresAt: true,
+            eidsRequired: true,
+            eidsVerifiedAt: true,
+            eidsVerificationReference: true,
+            eidsExemptionReason: true,
+            publicationBlockedAt: true,
+          },
         });
         if (!previous) throw new Error('Portföy bulunamadı.');
 
+        if (input.status === 'ACTIVE') {
+          const { isPropertyPublishable } = await import('@/lib/property-publication');
+          if (
+            !isPropertyPublishable(
+              { ...previous, companyAccountId: account.id, status: 'ACTIVE' },
+              { companyAccountId: account.id, now: new Date() }
+            )
+          ) {
+            throw new Error('Portföy yayın onayı, yetki belgesi ve EİDS doğrulaması tamamlanmalıdır.');
+          }
+        }
+
         await tx.crmProperty.update({
           where: { id: propertyId! },
-          data: { status: input.status },
+          data: {
+            status: input.status,
+            publishedAt: input.status === 'ACTIVE' ? new Date() : null,
+          },
         });
         const event = await tx.operationEvent.create({
           data: {
@@ -1088,6 +1131,81 @@ export async function POST(request: Request) {
             policyDecision: 'USER_INITIATED_REVERSIBLE',
             result: 'COMPLETED',
             completedAt: new Date(),
+          },
+        });
+      });
+    }
+
+    if (input.action === 'approve-property-publication') {
+      if (principal.type !== 'OWNER') return forbidden();
+      const propertyId = await ensureOwnedResource('property', input.id, account.id);
+      const document = await prisma.companyDocument.findFirst({
+        where: {
+          id: input.authorizationDocumentId,
+          companyAccountId: account.id,
+          status: 'GENERATED',
+          legalStatus: { in: ['COMPANY_APPROVED', 'LEGAL_REVIEWED'] },
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (!document) {
+        return NextResponse.json(
+          { success: false, error: 'Doğrulanmış ve şirketçe onaylanmış yetki belgesi bulunamadı.' },
+          { status: 409 }
+        );
+      }
+      const now = new Date();
+      const authorityExpiresAt = input.authorityExpiresAt ? new Date(input.authorityExpiresAt) : null;
+      if (authorityExpiresAt && authorityExpiresAt.getTime() <= now.getTime()) {
+        return NextResponse.json(
+          { success: false, error: 'Yetki belgesinin geçerlilik süresi dolmuş.' },
+          { status: 409 }
+        );
+      }
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.operationEvent.findUnique({
+          where: {
+            companyAccountId_idempotencyKey: {
+              companyAccountId: account.id,
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+        });
+        if (existing) return;
+        await tx.crmProperty.update({
+          where: { id: propertyId! },
+          data: {
+            status: 'ACTIVE',
+            publicationApprovedAt: now,
+            publicationApprovedById: account.id,
+            publicationAuthorizationDocumentId: document.id,
+            authorityDocumentVerifiedAt: now,
+            authorityExpiresAt,
+            eidsRequired: input.eidsRequired,
+            eidsVerifiedAt: input.eidsRequired ? now : null,
+            eidsVerificationReference: input.eidsRequired ? input.eidsVerificationReference : null,
+            eidsExemptionReason: input.eidsRequired ? null : input.eidsExemptionReason,
+            publicationBlockedAt: null,
+            publicationBlockReason: null,
+            publishedAt: now,
+          },
+        });
+        await tx.operationEvent.create({
+          data: {
+            companyAccountId: account.id,
+            eventType: 'PROPERTY_PUBLISHED',
+            entityType: 'CrmProperty',
+            entityId: propertyId,
+            propertyId,
+            actorType: principal.type,
+            actorId: account.id,
+            metadata: {
+              version: 1,
+              authorizationDocumentId: document.id,
+              eidsRequired: input.eidsRequired,
+            },
+            idempotencyKey: input.idempotencyKey,
           },
         });
       });

@@ -7,6 +7,10 @@ import {
   websiteApiPreflight,
   websiteApiResponse,
 } from '@/lib/website-api-auth';
+import {
+  isPropertyPublishable,
+  publicationEligibilityWhere,
+} from '@/lib/property-publication';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +53,10 @@ export async function GET(
     const principal = await requireWebsiteApiPrincipal(request);
     const { id } = await context.params;
     const property = await prisma.crmProperty.findFirst({
-      where: { id, companyAccountId: principal.account.id },
+      where: {
+        id,
+        ...publicationEligibilityWhere(principal.account.id, new Date()),
+      },
       select: propertySelect,
     });
     if (!property) {
@@ -102,6 +109,40 @@ export async function PATCH(
     }
 
     const input = parsed.data;
+    if (input.status === 'ACTIVE' || input.status === 'RESERVED') {
+      const current = await prisma.crmProperty.findFirst({
+        where: { id, companyAccountId: principal.account.id },
+        select: {
+          companyAccountId: true,
+          status: true,
+          publicationApprovedAt: true,
+          authorityDocumentVerifiedAt: true,
+          authorityExpiresAt: true,
+          eidsRequired: true,
+          eidsVerifiedAt: true,
+          eidsVerificationReference: true,
+          eidsExemptionReason: true,
+          publicationBlockedAt: true,
+        },
+      });
+      if (
+        !current ||
+        !isPropertyPublishable(
+          { ...current, status: input.status },
+          { companyAccountId: principal.account.id, now: new Date() }
+        )
+      ) {
+        return websiteApiResponse(
+          request,
+          principal,
+          {
+            success: false,
+            error: 'Portföy insan, yetki belgesi ve EİDS yayın onayları tamamlanmadan aktifleştirilemez.',
+          },
+          { status: 409 }
+        );
+      }
+    }
     const property = await prisma.$transaction(async (tx) => {
       const saved = await tx.crmProperty.update({
         where: { id },

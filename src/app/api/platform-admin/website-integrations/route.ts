@@ -9,6 +9,7 @@ import {
   websiteApiKeyHint,
   websiteIntegrationStatuses,
 } from '@/lib/website-integration';
+import { assertWebsiteDeliveryTransition } from '@/lib/website-delivery-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,14 +39,36 @@ function apiBaseUrl(request: Request) {
   );
 }
 
+function safeVersion(version: Record<string, unknown>) {
+  const safe = { ...version };
+  delete safe.sourceBlobPathname;
+  delete safe.resultBlobPathname;
+  return safe;
+}
+
 function safeIntegration<
-  T extends { apiKeyLookup: string; sourceBlobPathname: string },
+  T extends {
+    apiKeyLookup: string;
+    sourceBlobPathname: string;
+    versions?: Array<Record<string, unknown>>;
+  },
 >(integration: T) {
-  const { apiKeyLookup: _lookup, sourceBlobPathname: _pathname, ...safe } =
-    integration;
+  const {
+    apiKeyLookup: _lookup,
+    sourceBlobPathname: _pathname,
+    versions,
+    ...safe
+  } = integration;
   void _lookup;
   void _pathname;
-  return safe;
+  return {
+    ...safe,
+    ...(versions
+      ? {
+          versions: versions.map(safeVersion),
+        }
+      : {}),
+  };
 }
 
 export async function GET() {
@@ -62,6 +85,18 @@ export async function GET() {
               slug: true,
               ownerName: true,
               ownerEmail: true,
+            },
+          },
+          versions: { orderBy: { version: 'desc' }, take: 10 },
+          apiKeys: {
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              environment: true,
+              status: true,
+              keyHint: true,
+              expiresAt: true,
+              createdAt: true,
             },
           },
         },
@@ -122,25 +157,52 @@ export async function PATCH(request: Request) {
     }
 
     if (parsed.data.action === 'rotate_key') {
+      if (current.status !== 'APPROVED' && current.status !== 'DELIVERED') {
+        return NextResponse.json(
+          { success: false, error: 'Production anahtarı yalnız QA onayından sonra yenilenebilir.' },
+          { status: 409 }
+        );
+      }
       const apiKey = generateWebsiteApiKey();
-      const integration = await prisma.websiteIntegration.update({
-        where: { id: current.id },
-        data: {
-          apiKeyLookup: createWebsiteApiKeyLookup(apiKey),
-          apiKeyHint: websiteApiKeyHint(apiKey),
-          apiKeyCreatedAt: new Date(),
-        },
-        include: {
-          companyAccount: {
-            select: {
-              id: true,
-              companyName: true,
-              slug: true,
-              ownerName: true,
-              ownerEmail: true,
+      const integration = await prisma.$transaction(async (tx) => {
+        await tx.websiteIntegrationApiKey.updateMany({
+          where: {
+            websiteIntegrationId: current.id,
+            environment: 'PRODUCTION',
+            status: 'ACTIVE',
+          },
+          data: { status: 'REVOKED', revokedAt: new Date() },
+        });
+        await tx.websiteIntegrationApiKey.create({
+          data: {
+            companyAccountId: current.companyAccountId,
+            websiteIntegrationId: current.id,
+            environment: 'PRODUCTION',
+            keyLookup: createWebsiteApiKeyLookup(apiKey),
+            keyHint: websiteApiKeyHint(apiKey),
+            createdByType: 'PLATFORM_ADMIN',
+            createdById: 'platform-admin',
+          },
+        });
+        return tx.websiteIntegration.update({
+          where: { id: current.id },
+          data: {
+            apiKeyLookup: createWebsiteApiKeyLookup(apiKey),
+            apiKeyHint: websiteApiKeyHint(apiKey),
+            apiKeyCreatedAt: new Date(),
+          },
+          include: {
+            companyAccount: {
+              select: {
+                id: true,
+                companyName: true,
+                slug: true,
+                ownerName: true,
+                ownerEmail: true,
+              },
             },
           },
-        },
+        });
       });
       return NextResponse.json({
         success: true,
@@ -156,14 +218,18 @@ export async function PATCH(request: Request) {
       });
     }
 
+    if (parsed.data.status === 'APPROVED' || parsed.data.status === 'DELIVERED') {
+      return NextResponse.json(
+        { success: false, error: 'Onay ve teslim işlemlerini QA teslim akışından tamamlayın.' },
+        { status: 409 }
+      );
+    }
+    assertWebsiteDeliveryTransition(current.status, parsed.data.status);
     const integration = await prisma.websiteIntegration.update({
       where: { id: current.id },
       data: {
         status: parsed.data.status,
-        deliveredAt:
-          parsed.data.status === 'DELIVERED'
-            ? current.deliveredAt || new Date()
-            : null,
+        deliveredAt: null,
       },
       include: {
         companyAccount: {

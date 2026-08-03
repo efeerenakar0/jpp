@@ -31,6 +31,16 @@ vi.mock('@/lib/website-integration', async () =>
   import('../../../../../lib/website-integration')
 );
 
+vi.mock('@/lib/property-publication', () => ({
+  publicationEligibilityWhere: (companyAccountId: string) => ({
+    companyAccountId,
+    status: { in: ['ACTIVE', 'RESERVED'] },
+    publicationApprovedAt: { not: null },
+    authorityDocumentVerifiedAt: { not: null },
+    publicationBlockedAt: null,
+  }),
+}));
+
 vi.mock('@/lib/prisma', () => {
   const transactionClient = {
     crmProperty: {
@@ -73,10 +83,13 @@ describe('/api/site/v1/portfolio', () => {
     expect(response.status).toBe(200);
     expect(mocks.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
+        where: expect.objectContaining({
           companyAccountId: 'company-a',
-          status: { not: 'ARCHIVED' },
-        },
+          status: { in: ['ACTIVE', 'RESERVED'] },
+          publicationApprovedAt: { not: null },
+          authorityDocumentVerifiedAt: { not: null },
+          publicationBlockedAt: null,
+        }),
       })
     );
   });

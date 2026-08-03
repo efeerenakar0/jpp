@@ -5,6 +5,7 @@ import {
   sendAssistantWhatsAppMessage,
 } from '@/lib/assistant-messaging';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
+import { processAppointmentLifecycle } from '@/lib/viewing-workflow/lifecycle';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -39,17 +40,24 @@ export async function GET(request: Request) {
   const appointments = await prisma.appointmentRequest.findMany({
     where: {
       status: 'APPROVED',
-      reminderSentAt: null,
-      proposedDate: { not: null },
-      proposedTime: { not: null },
+      customerReminderSentAt: null,
+      OR: [
+        { startAt: { not: null } },
+        {
+          proposedDate: { not: null },
+          proposedTime: { not: null },
+        },
+      ],
     },
     include: { conversation: true },
   });
   const dueAppointments = appointments.filter((appointment) => {
-    const appointmentAt = getAppointmentDateTime(
-      appointment.proposedDate!,
-      appointment.proposedTime!
-    );
+    const appointmentAt =
+      appointment.startAt ||
+      getAppointmentDateTime(
+        appointment.proposedDate!,
+        appointment.proposedTime!
+      );
     return appointmentAt > now && appointmentAt <= horizon;
   });
   const results: Array<{
@@ -66,16 +74,30 @@ export async function GET(request: Request) {
       if (!appointment.customerPhone) {
         throw new Error('Müşteri telefon numarası eksik.');
       }
+      const appointmentAt =
+        appointment.startAt ||
+        getAppointmentDateTime(
+          appointment.proposedDate!,
+          appointment.proposedTime!
+        );
+      const appointmentTime = appointmentAt.toLocaleTimeString('tr-TR', {
+        timeZone: appointment.timezone || 'Europe/Istanbul',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
       const content = `Merhaba ${appointment.customerName}, ${formatDate(
-        appointment.proposedDate!
-      )} saat ${appointment.proposedTime} için Business CEO AI randevunuzu hatırlatmak isteriz. Görüşmek üzere.`;
+        appointmentAt
+      )} saat ${appointmentTime} için randevunuzu hatırlatmak isteriz. Görüşmek üzere.`;
       const delivery = await sendAssistantWhatsAppMessage({
         companyAccountId: appointment.conversation.companyAccountId,
         to: appointment.customerPhone,
         text: content,
         lastCustomerMessageAt: appointment.conversation.lastCustomerMessageAt,
         conversationId: appointment.conversationId,
+        correlationId: appointment.id,
+        idempotencyKey: `appointment:${appointment.id}:customer-reminder`,
         createdByType: 'SYSTEM',
+        createdById: appointment.id,
       });
       await saveOutgoingConversationMessage({
         conversationId: appointment.conversationId,
@@ -86,7 +108,10 @@ export async function GET(request: Request) {
       await prisma.$transaction([
         prisma.appointmentRequest.update({
           where: { id: appointment.id },
-          data: { reminderSentAt: new Date() },
+          data: {
+            reminderSentAt: now,
+            customerReminderSentAt: now,
+          },
         }),
         prisma.customerConversation.update({
           where: { id: appointment.conversationId },
@@ -117,11 +142,14 @@ export async function GET(request: Request) {
     }
   }
 
+  const lifecycle = await processAppointmentLifecycle(now);
+
   return NextResponse.json({
     checked: appointments.length,
     due: dueAppointments.length,
     sent: results.filter((result) => result.status === 'sent').length,
     failed: results.filter((result) => result.status === 'failed').length,
     results,
+    appointmentLifecycleActions: lifecycle,
   });
 }

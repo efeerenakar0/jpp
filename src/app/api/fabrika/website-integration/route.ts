@@ -11,15 +11,21 @@ import {
 } from "@/lib/fabrika-session";
 import { createCompanyNotification } from "@/lib/fabrika-notifications";
 import {
+  buildWebsiteCodexWorkOrder,
   buildWebsiteIntegrationPrompt,
   createWebsiteApiKeyLookup,
   generateWebsiteApiKey,
   MAX_SITE_SOURCE_BYTES,
   normalizeWebsiteOrigin,
   safeWebsiteArchiveName,
+  sha256Hex,
   websiteApiKeyHint,
   websiteIntegrationMetadataSchema,
 } from "@/lib/website-integration";
+import {
+  inspectWebsiteArchive,
+  WebsiteArchiveSecurityError,
+} from "@/lib/website-archive-security";
 
 export const dynamic = "force-dynamic";
 
@@ -46,17 +52,30 @@ function apiBaseUrl(request: Request) {
   );
 }
 
-function safeIntegration<
-  T extends { apiKeyLookup: string; sourceBlobPathname: string },
->(integration: T) {
+function safeVersion(version: Record<string, unknown>) {
+  const safe = { ...version };
+  delete safe.sourceBlobPathname;
+  delete safe.resultBlobPathname;
+  return safe;
+}
+
+function safeIntegration<T extends { apiKeyLookup: string; sourceBlobPathname: string; versions?: Array<Record<string, unknown>> }>(integration: T) {
   const {
     apiKeyLookup: _lookup,
     sourceBlobPathname: _pathname,
+    versions,
     ...safe
   } = integration;
   void _lookup;
   void _pathname;
-  return safe;
+  return {
+    ...safe,
+    ...(versions
+      ? {
+          versions: versions.map(safeVersion),
+        }
+      : {}),
+  };
 }
 
 function authError(error: unknown) {
@@ -75,16 +94,6 @@ function authError(error: unknown) {
   return null;
 }
 
-async function isZipArchive(file: File) {
-  const signature = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-  return (
-    signature[0] === 0x50 &&
-    signature[1] === 0x4b &&
-    [0x03, 0x05, 0x07].includes(signature[2] || -1) &&
-    [0x04, 0x06, 0x08].includes(signature[3] || -1)
-  );
-}
-
 export async function GET() {
   try {
     const principal = await requireFabrikaOwner();
@@ -92,6 +101,21 @@ export async function GET() {
       where: { companyAccountId: principal.account.id },
       orderBy: { updatedAt: "desc" },
       include: {
+        versions: {
+          orderBy: { version: "desc" },
+          take: 10,
+        },
+        apiKeys: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            environment: true,
+            status: true,
+            keyHint: true,
+            expiresAt: true,
+            createdAt: true,
+          },
+        },
         promptVersions: {
           orderBy: { version: "desc" },
           take: 10,
@@ -177,11 +201,18 @@ export async function POST(request: Request) {
         { status: 413 },
       );
     }
-    if (!(await isZipArchive(sourceValue))) {
-      return NextResponse.json(
-        { success: false, error: "Yalnızca geçerli ZIP arşivi yüklenebilir." },
-        { status: 415 },
-      );
+    const sourceBuffer = Buffer.from(await sourceValue.arrayBuffer());
+    let sourceSecurityReport: ReturnType<typeof inspectWebsiteArchive>;
+    try {
+      sourceSecurityReport = inspectWebsiteArchive(sourceBuffer);
+    } catch (error) {
+      if (error instanceof WebsiteArchiveSecurityError) {
+        return NextResponse.json(
+          { success: false, error: error.message, code: error.code },
+          { status: error.code === "INVALID_ARCHIVE" ? 415 : 400 },
+        );
+      }
+      throw error;
     }
 
     const input = parsed.data;
@@ -197,7 +228,7 @@ export async function POST(request: Request) {
     const sourceFileName = safeWebsiteArchiveName(sourceValue.name);
     const blob = await put(
       `website-integrations/${principal.account.id}/${randomUUID()}-${sourceFileName}`,
-      sourceValue,
+      sourceBuffer,
       {
         access: "private",
         contentType: "application/zip",
@@ -208,8 +239,22 @@ export async function POST(request: Request) {
     uploadedPathname = blob.pathname;
 
     const apiKey = generateWebsiteApiKey();
+    const integrationId = existing?.id || randomUUID();
+    const sourceVersion = existing ? existing.currentSourceVersion + 1 : 1;
     const promptTemplate = buildWebsiteIntegrationPrompt({
       companyName: principal.account.companyName,
+      apiBaseUrl: apiBaseUrl(request),
+    });
+    const workOrder = buildWebsiteCodexWorkOrder({
+      integrationId,
+      version: sourceVersion,
+      companyName: principal.account.companyName,
+      displayName: input.displayName,
+      framework: input.framework,
+      hostingProvider: input.hostingProvider,
+      websiteUrl: input.websiteUrl,
+      portfolioPath: input.portfolioPath,
+      sourceDownloadUrl: `${apiBaseUrl(request)}/api/platform-admin/website-integrations/${integrationId}/download?version=${sourceVersion}`,
       apiBaseUrl: apiBaseUrl(request),
     });
     const integration = await prisma.$transaction(async (tx) => {
@@ -221,6 +266,7 @@ export async function POST(request: Request) {
           },
         },
         create: {
+          id: integrationId,
           companyAccountId: principal.account.id,
           displayName: input.displayName,
           websiteUrl: input.websiteUrl,
@@ -237,6 +283,8 @@ export async function POST(request: Request) {
           apiKeyLookup: createWebsiteApiKeyLookup(apiKey),
           apiKeyHint: websiteApiKeyHint(apiKey),
           promptTemplate,
+          status: "SUBMITTED",
+          currentSourceVersion: sourceVersion,
         },
         update: {
           displayName: input.displayName,
@@ -254,9 +302,53 @@ export async function POST(request: Request) {
           apiKeyHint: websiteApiKeyHint(apiKey),
           apiKeyCreatedAt: new Date(),
           promptTemplate,
-          status: "PENDING",
+          status: "SUBMITTED",
+          currentSourceVersion: sourceVersion,
+          deliveryType: null,
+          previewUrl: null,
+          finalUrl: null,
+          approvedAt: null,
+          approvedByAdminId: null,
+          lastError: null,
           submittedAt: new Date(),
           deliveredAt: null,
+        },
+      });
+      await tx.websiteIntegrationApiKey.updateMany({
+        where: {
+          websiteIntegrationId: saved.id,
+          environment: "STAGING",
+          status: "ACTIVE",
+        },
+        data: { status: "REVOKED", revokedAt: new Date() },
+      });
+      await tx.websiteIntegrationApiKey.create({
+        data: {
+          companyAccountId: principal.account.id,
+          websiteIntegrationId: saved.id,
+          environment: "STAGING",
+          status: "ACTIVE",
+          keyLookup: createWebsiteApiKeyLookup(apiKey),
+          keyHint: websiteApiKeyHint(apiKey),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          createdByType: principal.type,
+          createdById: principal.account.id,
+        },
+      });
+      await tx.websiteIntegrationVersion.create({
+        data: {
+          companyAccountId: principal.account.id,
+          websiteIntegrationId: saved.id,
+          version: sourceVersion,
+          sourceBlobPathname: blob.pathname,
+          sourceFileName,
+          sourceSize: sourceBuffer.byteLength,
+          sourceSha256: sha256Hex(sourceBuffer),
+          sourceSecurityReport,
+          workOrderVersion: 1,
+          workOrder,
+          submittedByType: principal.type,
+          submittedById: principal.account.id,
         },
       });
       const latest = await tx.websitePromptVersion.aggregate({
@@ -299,14 +391,6 @@ export async function POST(request: Request) {
       return saved;
     });
 
-    if (
-      existing?.sourceBlobPathname &&
-      existing.sourceBlobPathname !== blob.pathname
-    ) {
-      void del(existing.sourceBlobPathname).catch((error) => {
-        console.error("[Old website archive cleanup failed]", error);
-      });
-    }
     await createCompanyNotification({
       companyAccountId: principal.account.id,
       type: NotificationType.WEBSITE_GENERATED,
@@ -324,6 +408,8 @@ export async function POST(request: Request) {
         success: true,
         integration: safeIntegration(integration),
         oneTimeApiKey: apiKey,
+        stagingKeyExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        workOrder,
         codexPrompt: buildWebsiteIntegrationPrompt({
           companyName: principal.account.companyName,
           apiBaseUrl: apiBaseUrl(request),
@@ -419,14 +505,44 @@ export async function PATCH(request: Request) {
       });
     }
 
+    if (integration.status !== "APPROVED" && integration.status !== "DELIVERED") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Production anahtarı yalnız QA onayından sonra oluşturulabilir.",
+        },
+        { status: 409 },
+      );
+    }
+
     const apiKey = generateWebsiteApiKey();
     const updated = await prisma.$transaction(async (tx) => {
+      await tx.websiteIntegrationApiKey.updateMany({
+        where: {
+          websiteIntegrationId: integration.id,
+          environment: "PRODUCTION",
+          status: "ACTIVE",
+        },
+        data: { status: "REVOKED", revokedAt: new Date() },
+      });
       const saved = await tx.websiteIntegration.update({
         where: { id: integration.id },
         data: {
           apiKeyLookup: createWebsiteApiKeyLookup(apiKey),
           apiKeyHint: websiteApiKeyHint(apiKey),
           apiKeyCreatedAt: new Date(),
+        },
+      });
+      await tx.websiteIntegrationApiKey.create({
+        data: {
+          companyAccountId: principal.account.id,
+          websiteIntegrationId: integration.id,
+          environment: "PRODUCTION",
+          status: "ACTIVE",
+          keyLookup: createWebsiteApiKeyLookup(apiKey),
+          keyHint: websiteApiKeyHint(apiKey),
+          createdByType: principal.type,
+          createdById: principal.account.id,
         },
       });
       await tx.managerAuditLog.create({

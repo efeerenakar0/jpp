@@ -30,6 +30,17 @@ vi.mock('@/lib/website-integration', async () =>
   import('../../../../../../lib/website-integration')
 );
 
+vi.mock('@/lib/property-publication', () => ({
+  isPropertyPublishable: vi.fn(() => true),
+  publicationEligibilityWhere: (companyAccountId: string) => ({
+    companyAccountId,
+    status: { in: ['ACTIVE', 'RESERVED'] },
+    publicationApprovedAt: { not: null },
+    authorityDocumentVerifiedAt: { not: null },
+    publicationBlockedAt: null,
+  }),
+}));
+
 vi.mock('@/lib/prisma', () => {
   const transactionClient = {
     crmProperty: { update: mocks.update },

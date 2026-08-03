@@ -11,6 +11,7 @@ import {
 import { recordOperationEvent } from './events';
 import { shouldNotifyOwnerNow } from './policy';
 import { transitionTaskInTransaction } from './tasks';
+import { applyViewingDeliveryTransitionInTransaction } from '@/lib/viewing-workflow/service';
 
 export type DeliveryAuditState =
   | 'QUEUED'
@@ -488,6 +489,22 @@ export async function applyMessageDeliveryTransition(
           });
         }
       }
+    }
+
+    if (
+      input.status === 'SENT' ||
+      input.status === 'DELIVERED' ||
+      input.status === 'READ' ||
+      input.status === 'FAILED'
+    ) {
+      await applyViewingDeliveryTransitionInTransaction(tx, {
+        companyAccountId: input.companyAccountId,
+        outboxMessageId: outbox.id,
+        status: input.status,
+        providerMessageId: actualProviderMessageId,
+        errorMessage: input.errorMessage,
+        occurredAt,
+      });
     }
 
     return {

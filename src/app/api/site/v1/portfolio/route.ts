@@ -11,6 +11,7 @@ import {
   websiteApiPreflight,
   websiteApiResponse,
 } from '@/lib/website-api-auth';
+import { publicationEligibilityWhere } from '@/lib/property-publication';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,20 +43,13 @@ export async function GET(request: Request) {
   try {
     const principal = await requireWebsiteApiPrincipal(request);
     const url = new URL(request.url);
-    const scope = url.searchParams.get('scope');
     const requestedLimit = Number(url.searchParams.get('limit') || '50');
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
       : 50;
 
     const properties = await prisma.crmProperty.findMany({
-      where: {
-        companyAccountId: principal.account.id,
-        status:
-          scope === 'all'
-            ? { not: 'ARCHIVED' }
-            : { in: ['ACTIVE', 'RESERVED'] },
-      },
+      where: publicationEligibilityWhere(principal.account.id, new Date()),
       select: propertySelect,
       orderBy: { updatedAt: 'desc' },
       take: limit,
@@ -64,7 +58,7 @@ export async function GET(request: Request) {
     return websiteApiResponse(request, principal, {
       success: true,
       data: properties,
-      meta: { count: properties.length, limit, scope: scope || 'public' },
+      meta: { count: properties.length, limit, scope: 'public' },
     });
   } catch (error) {
     return websiteApiError(error);
@@ -102,7 +96,7 @@ export async function POST(request: Request) {
       price: input.price ?? null,
       roomCount: nullable(input.roomCount),
       area: input.area ?? null,
-      status: input.status,
+      status: 'DRAFT' as const,
       description: nullable(input.description),
       imageUrl: nullable(input.imageUrl),
     };

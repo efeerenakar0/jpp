@@ -1,7 +1,12 @@
 import 'server-only';
 
 import { timingSafeEqual } from 'node:crypto';
-import { Prisma, type CompanyAccount, type WebsiteIntegration } from '@prisma/client';
+import {
+  Prisma,
+  type CompanyAccount,
+  type WebsiteApiKeyEnvironment,
+  type WebsiteIntegration,
+} from '@prisma/client';
 import prisma from '@/lib/prisma';
 import {
   apiKeyFromRequest,
@@ -17,6 +22,7 @@ import {
 type WebsiteApiPrincipal = {
   integration: WebsiteIntegration;
   account: CompanyAccount;
+  environment: WebsiteApiKeyEnvironment;
 };
 
 export class WebsiteApiAuthError extends Error {
@@ -136,14 +142,34 @@ export async function requireWebsiteApiPrincipal(
     throw new WebsiteApiAuthError(401, 'Geçerli API anahtarı gerekli.');
   }
 
-  const integration = await prisma.websiteIntegration.findUnique({
-    where: { apiKeyLookup: createWebsiteApiKeyLookup(apiKey) },
-    include: { companyAccount: true },
+  const keyLookup = createWebsiteApiKeyLookup(apiKey);
+  const keyRecord = await prisma.websiteIntegrationApiKey.findUnique({
+    where: { keyLookup },
+    include: {
+      websiteIntegration: { include: { companyAccount: true } },
+    },
   });
-  if (!integration) {
+  const legacy = keyRecord
+    ? null
+    : await prisma.websiteIntegration.findUnique({
+        where: { apiKeyLookup: keyLookup },
+        include: { companyAccount: true },
+      });
+  const integration = keyRecord?.websiteIntegration || legacy;
+  if (
+    !integration ||
+    (keyRecord &&
+      (keyRecord.status !== 'ACTIVE' ||
+        Boolean(keyRecord.expiresAt && keyRecord.expiresAt.getTime() <= Date.now())))
+  ) {
     throw new WebsiteApiAuthError(401, 'Geçerli API anahtarı gerekli.');
   }
-  if (!['READY', 'DELIVERED'].includes(integration.status)) {
+  const environment: WebsiteApiKeyEnvironment = keyRecord?.environment || 'PRODUCTION';
+  const allowedStatus =
+    environment === 'STAGING'
+      ? ['IN_PROGRESS', 'READY_FOR_QA', 'CHANGES_REQUESTED', 'APPROVED']
+      : ['APPROVED', 'DELIVERED'];
+  if (!allowedStatus.includes(integration.status)) {
     throw new WebsiteApiAuthError(403, 'Site entegrasyonu henüz etkin değil.');
   }
 
@@ -166,7 +192,13 @@ export async function requireWebsiteApiPrincipal(
 
   await verifySignedRequest(request, integration, apiKey);
 
-  return { integration, account };
+  if (keyRecord) {
+    void prisma.websiteIntegrationApiKey
+      .update({ where: { id: keyRecord.id }, data: { lastUsedAt: new Date() } })
+      .catch(() => undefined);
+  }
+
+  return { integration, account, environment };
 }
 
 export function websiteApiResponse(
@@ -230,7 +262,7 @@ export async function websiteApiPreflight(request: Request) {
   const integration = await prisma.websiteIntegration.findFirst({
     where: {
       websiteOrigin: normalizedOrigin,
-      status: { in: ['READY', 'DELIVERED'] },
+      status: { in: ['APPROVED', 'DELIVERED'] },
       companyAccount: {
         status: 'ACTIVE',
         workspaceEnabled: true,

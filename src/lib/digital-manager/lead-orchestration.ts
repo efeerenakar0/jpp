@@ -3,8 +3,8 @@ import type { GeneralManagerAction } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 import { selectAvailableCompanyMember } from './assignment';
-import { recordOperationEvent } from './events';
 import { proposeManagerAction } from './executor';
+import { createViewingWorkflow } from '@/lib/viewing-workflow/service';
 
 type ActionResult = GeneralManagerAction | null;
 
@@ -219,198 +219,37 @@ export async function orchestrateCustomerViewingRequest(input: {
   companyAccountId: string;
   conversationId: string;
   contactId: string;
+  propertyId: string;
   customerName: string;
   customerMessage: string;
   provider: string;
   providerMessageId: string;
   location?: string | null;
   appointmentRequestId: string;
+  now?: Date;
 }) {
-  const viewingEvent = await recordOperationEvent({
-    companyAccountId: input.companyAccountId,
-    eventType: 'VIEWING_REQUESTED',
-    entityType: 'CUSTOMER_CONVERSATION',
-    entityId: input.conversationId,
-    actorType: 'CRM_CONTACT',
-    actorId: input.contactId,
-    contactId: input.contactId,
-    conversationId: input.conversationId,
-    sourceProvider: input.provider,
-    sourceMessageId: input.providerMessageId,
-    metadata: {
-      appointmentRequestId: input.appointmentRequestId,
-      untrustedText: input.customerMessage.slice(0, 2000),
-    },
-    idempotencyKey: `viewing:${input.provider}:${input.providerMessageId}`,
-  });
-  const hotLeadEvent = await recordOperationEvent({
-    companyAccountId: input.companyAccountId,
-    eventType: 'HOT_LEAD_DETECTED',
-    entityType: 'CRM_CONTACT',
-    entityId: input.contactId,
-    actorType: 'RULE_ENGINE',
-    actorId: 'viewing-request-detector',
-    contactId: input.contactId,
-    conversationId: input.conversationId,
-    sourceProvider: input.provider,
-    sourceMessageId: input.providerMessageId,
-    metadata: {
-      reason: 'Müşteri gösterim veya randevu talep etti.',
-      appointmentRequestId: input.appointmentRequestId,
-    },
-    idempotencyKey: `hot-lead:${input.provider}:${input.providerMessageId}`,
-  });
+  if (!input.propertyId) {
+    throw new Error(
+      'Gösterim görevi kesin bir tenant portföyü olmadan oluşturulamaz.'
+    );
+  }
   const employee = await selectAvailableCompanyMember({
     companyAccountId: input.companyAccountId,
     region: input.location,
+    now: input.now,
   });
-  const prefix = `viewing:${viewingEvent.id}`;
-  const taskAction = await proposeManagerAction({
+  return createViewingWorkflow({
     companyAccountId: input.companyAccountId,
-    operationEventId: viewingEvent.id,
-    triggerMessageId: input.providerMessageId,
-    action: {
-      actionType: 'CREATE_TASK',
-      title: `Gösterim talebini ara: ${input.customerName}`,
-      description: `Müşteri mesajı: ${input.customerMessage.slice(0, 1500)}`,
-      taskType: 'VIEWING',
-      contactId: input.contactId,
-      propertyId: null,
-      assignedMemberId: employee?.id || null,
-      dueAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-      priority: 5,
-    },
-    reason:
-      'Doğrulanmış müşteri gösterim talebi hızlı insan takibi gerektiriyor.',
-    evidence: {
-      appointmentRequestId: input.appointmentRequestId,
-      conversationId: input.conversationId,
-      sourceMessageId: input.providerMessageId,
-      selectedEmployeeId: employee?.id || null,
-    },
-    confidence: 1,
-    riskLevel: 'LOW',
-    requestedByType: 'CRM_CONTACT',
-    requestedById: input.contactId,
-    idempotencyKey: `${prefix}:task`,
+    conversationId: input.conversationId,
+    contactId: input.contactId,
+    propertyId: input.propertyId,
+    appointmentRequestId: input.appointmentRequestId,
+    provider: input.provider,
+    providerMessageId: input.providerMessageId,
+    customerMessage: input.customerMessage,
+    assignedMemberId: employee?.id || null,
+    now: input.now,
   });
-  const task = await createdTaskForAction(
-    input.companyAccountId,
-    taskAction
-  );
-  const [stageAction, activityAction] = await Promise.all([
-    proposeManagerAction({
-      companyAccountId: input.companyAccountId,
-      operationEventId: viewingEvent.id,
-      triggerMessageId: input.providerMessageId,
-      action: {
-        actionType: 'UPDATE_LEAD_STAGE',
-        contactId: input.contactId,
-        stage: 'VIEWING',
-      },
-      reason: 'Gösterim isteyen müşteri sıcak lead olarak işaretleniyor.',
-      evidence: {
-        appointmentRequestId: input.appointmentRequestId,
-        hotLeadEventId: hotLeadEvent.id,
-      },
-      confidence: 1,
-      riskLevel: 'LOW',
-      requestedByType: 'CRM_CONTACT',
-      requestedById: input.contactId,
-      idempotencyKey: `${prefix}:lead-stage`,
-    }),
-    proposeManagerAction({
-      companyAccountId: input.companyAccountId,
-      operationEventId: viewingEvent.id,
-      triggerMessageId: input.providerMessageId,
-      action: {
-        actionType: 'CREATE_CRM_ACTIVITY',
-        contactId: input.contactId,
-        propertyId: null,
-        dealId: null,
-        activityType: 'VIEWING_REQUESTED',
-        title: 'WhatsApp üzerinden gösterim talebi',
-        description: input.customerMessage.slice(0, 1500),
-      },
-      reason: 'Gösterim talebi CRM geçmişine kaydediliyor.',
-      evidence: {
-        appointmentRequestId: input.appointmentRequestId,
-        conversationId: input.conversationId,
-      },
-      confidence: 1,
-      riskLevel: 'LOW',
-      requestedByType: 'CRM_CONTACT',
-      requestedById: input.contactId,
-      idempotencyKey: `${prefix}:activity`,
-    }),
-  ]);
-  const employeeWhatsAppAction =
-    task && employee
-      ? await proposeEmployeeTaskMessage({
-          companyAccountId: input.companyAccountId,
-          operationEventId: viewingEvent.id,
-          sourceMessageId: input.providerMessageId,
-          taskId: task.id,
-          employee,
-          message: `${input.customerName} WhatsApp üzerinden gösterim/randevu talep etti. Mesaj: “${input.customerMessage.slice(
-            0,
-            600
-          )}” Müşteriyi arayıp uygun saat ve portföyü doğrula; henüz kesin randevu sözü verme.`,
-          idempotencyPrefix: prefix,
-          requestedByType: 'CRM_CONTACT',
-          requestedById: input.contactId,
-        })
-      : null;
-  const handoffAction = await proposeManagerAction({
-    companyAccountId: input.companyAccountId,
-    operationEventId: viewingEvent.id,
-    triggerMessageId: input.providerMessageId,
-    action: {
-      actionType: 'OFFER_CONVERSATION_HANDOFF',
-      conversationId: input.conversationId,
-      employeeId: employee?.id || null,
-      summary: `${input.customerName} gösterim istiyor. İhtiyaç: ${input.customerMessage.slice(
-        0,
-        900
-      )}. Önerilen sonraki adım: müşteri aranarak portföy ve saat doğrulansın; kesin randevu insan onayı olmadan verilmesin.`,
-    },
-    reason: 'Sıcak müşteri konuşmasının insana devri öneriliyor.',
-    evidence: {
-      hotLeadEventId: hotLeadEvent.id,
-      appointmentRequestId: input.appointmentRequestId,
-      employeeId: employee?.id || null,
-    },
-    confidence: 1,
-    riskLevel: 'HIGH',
-    requestedByType: 'CRM_CONTACT',
-    requestedById: input.contactId,
-    idempotencyKey: `${prefix}:handoff`,
-  });
-  const ownerAlertAction = await proposeOwnerAlert({
-    companyAccountId: input.companyAccountId,
-    operationEventId: hotLeadEvent.id,
-    sourceMessageId: input.providerMessageId,
-    message: `${input.customerName} gösterim/randevu talep etti. ${
-      employee
-        ? `Takip için ${employee.name} seçildi.`
-        : 'Uygun çalışan bulunamadı; hızlı atama gerekiyor.'
-    }`,
-    idempotencyPrefix: prefix,
-    requestedByType: 'CRM_CONTACT',
-    requestedById: input.contactId,
-  });
-  return {
-    viewingEvent,
-    hotLeadEvent,
-    employee,
-    taskAction,
-    task,
-    stageAction,
-    activityAction,
-    employeeWhatsAppAction,
-    handoffAction,
-    ownerAlertAction,
-  };
 }
 
 export type LeadOrchestrationResult = Awaited<
