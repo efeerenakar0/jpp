@@ -29,6 +29,7 @@ export const PORTFOLIO_PROMO_VIDEO_FIXTURE_PROPS: PortfolioPromoVideoProps = {
     advisorName: 'Efe Eren',
     advisorPhone: '+90 555 111 22 33',
     advisorEmail: 'efe@example.com',
+    instagramUrl: 'https://instagram.com/jasminegroup',
     direction: {
       style: 'BALANCED',
       pace: 'MEDIUM',
@@ -41,12 +42,38 @@ export const PORTFOLIO_PROMO_VIDEO_FIXTURE_PROPS: PortfolioPromoVideoProps = {
       closingMessage: 'Ev alma komşu al',
       commandSummary: 'Resimler sıra sıra çıkarken güzel animasyonlar görünsün, en son kısımda “Ev alma komşu al” yazsın',
     },
+    planSummary: 'Ana fotoğraf, gecikmeli fiyat, sıralı fotoğraflar ve animasyonlu Instagram kapanışı',
     scenes: [
-      { id: 'hook', type: 'HOOK', fromFrame: 0, toFrame: 60, headline: 'Denize Yakın Modern Yaşam', body: 'Yeni yaşamınıza yakından bakın' },
-      { id: 'gallery', type: 'GALLERY', fromFrame: 60, toFrame: 210, headline: 'Portföyü keşfedin', body: 'Seçilmiş portföy detayları' },
-      { id: 'features', type: 'FEATURES', fromFrame: 210, toFrame: 300, headline: 'Öne çıkan özellikler', body: 'Deniz manzarası · Geniş balkon · Açık havuz' },
-      { id: 'details', type: 'DETAILS', fromFrame: 300, toFrame: 375, headline: '6.500.000 TL', body: 'Alanya / Kestel · 3+1 oda · 165 m²' },
-      { id: 'contact', type: 'CONTACT', fromFrame: 375, toFrame: 450, headline: 'Ev alma komşu al', body: 'Efe Eren · +90 555 111 22 33 · efe@example.com' },
+      {
+        id: 'hook', type: 'HOOK', fromFrame: 0, toFrame: 60, headline: 'Denize Yakın Modern Yaşam', body: 'Yeni yaşamınıza yakından bakın',
+        photoIndices: [0], layout: 'FULL_BLEED', transition: 'FADE', photoMotion: 'ZOOM',
+        overlays: [
+          { type: 'BRAND', text: null, animation: 'FADE', position: 'TOP', revealAtFrame: 0 },
+          { type: 'TITLE', text: null, animation: 'SLIDE_UP', position: 'BOTTOM', revealAtFrame: 8 },
+        ],
+      },
+      {
+        id: 'price', type: 'DETAILS', fromFrame: 60, toFrame: 135, headline: 'Fiyat', body: 'Alanya / Kestel',
+        photoIndices: [0], layout: 'FULL_BLEED', transition: 'CUT', photoMotion: 'STILL',
+        overlays: [
+          { type: 'PRICE', text: null, animation: 'POP', position: 'CENTER', revealAtFrame: 18 },
+          { type: 'LOCATION', text: null, animation: 'SLIDE_UP', position: 'BOTTOM', revealAtFrame: 28 },
+        ],
+      },
+      {
+        id: 'gallery', type: 'GALLERY', fromFrame: 135, toFrame: 330, headline: 'Portföyün diğer kareleri', body: 'Seçilmiş portföy detayları',
+        photoIndices: [1, 2], layout: 'FRAMED', transition: 'SLIDE', photoMotion: 'PAN',
+        overlays: [{ type: 'DESCRIPTION', text: null, animation: 'FADE', position: 'BOTTOM', revealAtFrame: 8 }],
+      },
+      {
+        id: 'contact', type: 'CONTACT', fromFrame: 330, toFrame: 450, headline: 'Instagram’da bizi takip edin', body: 'Efe Eren · +90 555 111 22 33',
+        photoIndices: [2], layout: 'CONTACT_CARD', transition: 'SLIDE', photoMotion: 'PAN',
+        overlays: [
+          { type: 'BRAND', text: null, animation: 'FADE', position: 'TOP', revealAtFrame: 0 },
+          { type: 'INSTAGRAM', text: 'https://instagram.com/jasminegroup', animation: 'SLIDE_UP', position: 'CENTER', revealAtFrame: 12 },
+          { type: 'CONTACT', text: null, animation: 'POP', position: 'BOTTOM', revealAtFrame: 20 },
+        ],
+      },
     ],
   },
 };

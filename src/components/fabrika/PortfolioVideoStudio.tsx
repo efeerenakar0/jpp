@@ -26,8 +26,10 @@ import {
 import { buildPortfolioStoryboard } from '@/lib/portfolio-video/storyboard';
 import {
   portfolioVideoCatalogSchema,
+  portfolioVideoStoryboardSchema,
   type PortfolioVideoCreativeChoice,
   type PortfolioVideoPortfolio,
+  type PortfolioVideoStoryboard,
 } from '@/lib/portfolio-video/types';
 import { PortfolioPromoVideo } from '@/remotion/portfolio-video/PortfolioPromoVideo';
 import {
@@ -92,6 +94,13 @@ export default function PortfolioVideoStudio() {
   const [showLocation, setShowLocation] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [directedStoryboard, setDirectedStoryboard] = useState<PortfolioVideoStoryboard | null>(null);
+  const [directorStatus, setDirectorStatus] = useState<{
+    status: 'IDLE' | 'LOADING' | 'SUCCESS' | 'ERROR';
+    error: string;
+    source: string;
+    usedFallback: boolean;
+  }>({ status: 'IDLE', error: '', source: '', usedFallback: false });
   const [renderState, dispatchRender] = useReducer(
     portfolioVideoRenderReducer,
     initialPortfolioVideoRenderState
@@ -113,7 +122,7 @@ export default function PortfolioVideoStudio() {
     [command, creativeChoice, director]
   );
 
-  const storyboard = useMemo(() => {
+  const localStoryboard = useMemo(() => {
     if (!selectedPortfolio) return null;
     return buildPortfolioStoryboard({
       portfolio: selectedPortfolio,
@@ -123,6 +132,61 @@ export default function PortfolioVideoStudio() {
       showLocation,
     });
   }, [direction, selectedPhotoIds, selectedPortfolio, showLocation, showPrice]);
+  const storyboard = directedStoryboard ?? localStoryboard;
+
+  function clearDirectedStoryboard() {
+    setDirectedStoryboard(null);
+    setDirectorStatus({ status: 'IDLE', error: '', source: '', usedFallback: false });
+  }
+
+  async function applyCreativeDirection(): Promise<PortfolioVideoStoryboard | null> {
+    if (!selectedPortfolio || selectedPhotoIds.length === 0 || command.trim().length < 3) {
+      setDirectorStatus({
+        status: 'ERROR',
+        error: 'Önce en az bir fotoğraf seçin ve yaratıcı talimatınızı yazın.',
+        source: '',
+        usedFallback: false,
+      });
+      return null;
+    }
+    setDirectorStatus({ status: 'LOADING', error: '', source: '', usedFallback: false });
+    try {
+      const response = await fetch('/api/fabrika/studio/video/direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portfolioId: selectedPortfolio.id,
+          command,
+          ...(creativeChoice === 'CUSTOM' ? {} : { preferredStyle: creativeChoice }),
+          selectedPhotoIds,
+          showPrice,
+          showLocation,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Yaratıcı talimat videoya uygulanamadı.');
+      }
+      const nextStoryboard = portfolioVideoStoryboardSchema.parse(data.storyboard);
+      setDirectedStoryboard(nextStoryboard);
+      setDirectorStatus({
+        status: 'SUCCESS',
+        error: '',
+        source: data.director?.source || 'RULE_ENGINE',
+        usedFallback: Boolean(data.director?.usedFallback),
+      });
+      dispatchRender({ type: 'RESET' });
+      return nextStoryboard;
+    } catch (error) {
+      setDirectorStatus({
+        status: 'ERROR',
+        error: error instanceof Error ? error.message : 'Yaratıcı talimat videoya uygulanamadı.',
+        source: '',
+        usedFallback: false,
+      });
+      return null;
+    }
+  }
 
   async function retryCatalog() {
     setIsLoading(true);
@@ -170,6 +234,7 @@ export default function PortfolioVideoStudio() {
   }, []);
 
   function chooseStyle(option: (typeof STYLE_OPTIONS)[number]) {
+    clearDirectedStoryboard();
     setCreativeChoice(option.id);
     setCommand(option.command);
     if (option.id === 'CUSTOM') {
@@ -181,10 +246,12 @@ export default function PortfolioVideoStudio() {
     const portfolio = portfolios.find((item) => item.id === portfolioId);
     setSelectedPortfolioId(portfolioId);
     setSelectedPhotoIds(portfolio?.photos.slice(0, 6).map((photo) => photo.id) ?? []);
+    clearDirectedStoryboard();
     dispatchRender({ type: 'RESET' });
   }
 
   function togglePhoto(photoId: string) {
+    clearDirectedStoryboard();
     setSelectedPhotoIds((current) => {
       if (current.includes(photoId)) return current.filter((id) => id !== photoId);
       if (current.length >= 8) return current;
@@ -193,6 +260,7 @@ export default function PortfolioVideoStudio() {
   }
 
   function movePhoto(photoId: string, directionValue: -1 | 1) {
+    clearDirectedStoryboard();
     setSelectedPhotoIds((current) => {
       const index = current.indexOf(photoId);
       const target = index + directionValue;
@@ -204,7 +272,11 @@ export default function PortfolioVideoStudio() {
   }
 
   async function renderVideo() {
-    if (!storyboard || !selectedPortfolio || selectedPhotoIds.length === 0) return;
+    let renderStoryboard = storyboard;
+    if (creativeChoice === 'CUSTOM' && !directedStoryboard) {
+      renderStoryboard = await applyCreativeDirection();
+    }
+    if (!renderStoryboard || !selectedPortfolio || selectedPhotoIds.length === 0) return;
     if (downloadUrlRef.current) {
       URL.revokeObjectURL(downloadUrlRef.current);
       downloadUrlRef.current = null;
@@ -233,13 +305,13 @@ export default function PortfolioVideoStudio() {
         composition: {
           id: PORTFOLIO_PROMO_VIDEO_ID,
           component: PortfolioPromoVideo,
-          defaultProps: { storyboard },
+          defaultProps: { storyboard: renderStoryboard },
           durationInFrames: PORTFOLIO_PROMO_VIDEO_DURATION,
           fps: PORTFOLIO_PROMO_VIDEO_FPS,
           width: PORTFOLIO_PROMO_VIDEO_WIDTH,
           height: PORTFOLIO_PROMO_VIDEO_HEIGHT,
         },
-        inputProps: { storyboard },
+        inputProps: { storyboard: renderStoryboard },
         container: 'mp4',
         videoCodec: 'h264',
         audioCodec: null,
@@ -376,6 +448,7 @@ export default function PortfolioVideoStudio() {
               maxLength={1000}
               rows={4}
               onChange={(event) => {
+                clearDirectedStoryboard();
                 setCommand(event.target.value);
                 setCreativeChoice('CUSTOM');
               }}
@@ -388,21 +461,51 @@ export default function PortfolioVideoStudio() {
               <small>{command.length}/1000</small>
             </div>
             {creativeChoice === 'CUSTOM' && (
-              <p className={styles.inlineNote}>
-                Portföy fotoğrafları ve kayıtlı bilgiler otomatik kullanılır; buraya yalnızca videonun nasıl görünmesini istediğinizi yazın.
-              </p>
+              <div className={styles.directorPanel}>
+                <p>
+                  Portföy fotoğrafları ve kayıtlı bilgiler otomatik kullanılır. Yönetmen; sahne sırasını, yazıların geliş anını ve animasyonları talimatınıza göre yeniden kurar.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void applyCreativeDirection()}
+                  disabled={directorStatus.status === 'LOADING' || command.trim().length < 3 || selectedPhotoIds.length === 0}
+                >
+                  {directorStatus.status === 'LOADING' ? <Loader2 className={styles.spin} /> : <Sparkles />}
+                  {directorStatus.status === 'LOADING' ? 'Sahne planı hazırlanıyor…' : 'Özel talimatı videoya uygula'}
+                </button>
+                {directorStatus.status === 'ERROR' && <span role="alert" className={styles.directorError}>{directorStatus.error}</span>}
+                {directorStatus.status === 'SUCCESS' && (
+                  <span className={styles.directorSuccess}>
+                    <Check /> Talimat uygulandı · {directorStatus.usedFallback ? 'Güvenli yerel plan' : 'AI yaratıcı yönetmen'}
+                  </span>
+                )}
+              </div>
             )}
             <div className={styles.toggles}>
               <label>
-                <input type="checkbox" checked={showPrice && direction.showPrice} disabled={!direction.showPrice} onChange={(event) => setShowPrice(event.target.checked)} />
+                <input type="checkbox" checked={showPrice && direction.showPrice} disabled={!direction.showPrice} onChange={(event) => { clearDirectedStoryboard(); setShowPrice(event.target.checked); }} />
                 <span>Fiyatı göster</span>
               </label>
               <label>
-                <input type="checkbox" checked={showLocation} onChange={(event) => setShowLocation(event.target.checked)} />
+                <input type="checkbox" checked={showLocation} onChange={(event) => { clearDirectedStoryboard(); setShowLocation(event.target.checked); }} />
                 <span>Konumu göster</span>
               </label>
             </div>
             {!direction.showPrice && <p className={styles.inlineNote}>Komutunuzdaki “fiyatı gösterme” talimatı uygulanıyor.</p>}
+            {storyboard && (
+              <div className={styles.planPreview} aria-live="polite">
+                <b>Uygulanacak akış</b>
+                <span>{storyboard.planSummary}</span>
+                <ol>
+                  {storyboard.scenes.map((scene) => (
+                    <li key={scene.id}>
+                      <small>{Math.round((scene.toFrame - scene.fromFrame) / 3) / 10} sn</small>
+                      {scene.type === 'HOOK' ? 'Açılış' : scene.type === 'GALLERY' ? 'Fotoğraf akışı' : scene.type === 'FEATURES' ? 'Özellikler' : scene.type === 'DETAILS' ? 'Fiyat ve detay' : 'Kapanış'}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </section>
 
           <section className={styles.card}>
@@ -450,7 +553,7 @@ export default function PortfolioVideoStudio() {
 
         <aside className={styles.previewColumn}>
           <section className={styles.previewCard}>
-            <div className={styles.previewTitle}><div><h3>Canlı önizleme</h3><p>Değişiklikler anında videoya uygulanır.</p></div><span>{direction.style}</span></div>
+            <div className={styles.previewTitle}><div><h3>Canlı önizleme</h3><p>Özel talimat uygulandığında sahne planı baştan kurulur.</p></div><span>{directorStatus.status === 'SUCCESS' ? directorStatus.source : direction.style}</span></div>
             <div className={styles.playerFrame}>
               {storyboard && (
                 <Player
@@ -493,7 +596,7 @@ export default function PortfolioVideoStudio() {
               {isRendering ? (
                 <button type="button" className={styles.cancelButton} onClick={cancelRender}><Square /> İptal et</button>
               ) : (
-                <button type="button" className={styles.renderButton} disabled={!storyboard || selectedPhotoIds.length === 0} onClick={() => void renderVideo()}>
+                <button type="button" className={styles.renderButton} disabled={!storyboard || selectedPhotoIds.length === 0 || directorStatus.status === 'LOADING'} onClick={() => void renderVideo()}>
                   {renderState.status === 'SUCCESS' ? <RotateCcw /> : <Clapperboard />}
                   {renderState.status === 'SUCCESS' ? 'Yeniden oluştur' : 'MP4 oluştur'}
                 </button>

@@ -16,7 +16,8 @@ type VideoCatalogPrincipal = {
   displayName: string;
 };
 
-type VideoCatalogClient = Pick<PrismaClient, 'crmProperty'>;
+type VideoCatalogClient = Pick<PrismaClient, 'crmProperty'> &
+  Partial<Pick<PrismaClient, 'whatsAppConfig'>>;
 
 function cleanFeature(value: string) {
   return value.replace(/\s+/g, ' ').replace(/^[-•\s]+/, '').trim().slice(0, 120);
@@ -42,36 +43,42 @@ export async function loadPortfolioVideoCatalog(
   principal: VideoCatalogPrincipal,
   client: VideoCatalogClient = prisma
 ): Promise<PortfolioVideoCatalog> {
-  const properties = await client.crmProperty.findMany({
-    where: {
-      companyAccountId: principal.account.id,
-      status: { in: ['DRAFT', 'ACTIVE', 'RESERVED'] },
-    },
-    include: {
-      assignedMember: {
-        select: { name: true, phone: true, email: true },
+  const [properties, socialConfig] = await Promise.all([
+    client.crmProperty.findMany({
+      where: {
+        companyAccountId: principal.account.id,
+        status: { in: ['DRAFT', 'ACTIVE', 'RESERVED'] },
       },
-      media: {
-        where: {
-          companyAccountId: principal.account.id,
-          archivedAt: null,
-          mediaType: 'PHOTO',
-          usageRightsStatus: { not: 'RESTRICTED' },
+      include: {
+        assignedMember: {
+          select: { name: true, phone: true, email: true },
         },
-        select: {
-          id: true,
-          url: true,
-          fileName: true,
-          width: true,
-          height: true,
-          isCover: true,
-          usageRightsStatus: true,
+        media: {
+          where: {
+            companyAccountId: principal.account.id,
+            archivedAt: null,
+            mediaType: 'PHOTO',
+            usageRightsStatus: { not: 'RESTRICTED' },
+          },
+          select: {
+            id: true,
+            url: true,
+            fileName: true,
+            width: true,
+            height: true,
+            isCover: true,
+            usageRightsStatus: true,
+          },
+          orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
         },
-        orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
       },
-    },
-    orderBy: [{ updatedAt: 'desc' }],
-  });
+      orderBy: [{ updatedAt: 'desc' }],
+    }),
+    client.whatsAppConfig?.findUnique({
+      where: { companyAccountId: principal.account.id },
+      select: { instagramUrl: true },
+    }) ?? Promise.resolve(null),
+  ]);
 
   return portfolioVideoCatalogSchema.parse({
     portfolios: properties.map((property) => {
@@ -104,6 +111,7 @@ export async function loadPortfolioVideoCatalog(
         company: {
           name: principal.account.companyName,
           logoUrl: principal.account.brandLogoData,
+          instagramUrl: socialConfig?.instagramUrl ?? null,
         },
         advisor: {
           name: advisor.name,

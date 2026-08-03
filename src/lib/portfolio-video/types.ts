@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { portfolioVideoOverlaySchema } from './scene-plan';
 
 export const portfolioVideoPhotoSchema = z.object({
   id: z.string().min(1).max(120),
@@ -24,6 +25,7 @@ export const portfolioVideoPortfolioSchema = z.object({
   company: z.object({
     name: z.string().min(1).max(200),
     logoUrl: z.string().max(2_000_000).nullable(),
+    instagramUrl: z.string().max(1_000).nullable().default(null),
   }),
   advisor: z.object({
     name: z.string().min(1).max(200),
@@ -70,6 +72,11 @@ export const portfolioVideoSceneSchema = z.object({
   toFrame: z.number().int().positive(),
   headline: z.string().max(120),
   body: z.string().max(260).nullable(),
+  photoIndices: z.array(z.number().int().min(0).max(23)).max(8).default([]),
+  layout: z.enum(['FULL_BLEED', 'FRAMED', 'FEATURE_GRID', 'CONTACT_CARD']).default('FULL_BLEED'),
+  transition: z.enum(['CUT', 'FADE', 'SLIDE']).default('FADE'),
+  photoMotion: z.enum(['ZOOM', 'PAN', 'STILL']).default('ZOOM'),
+  overlays: z.array(portfolioVideoOverlaySchema).max(10).default([]),
 });
 
 export const portfolioVideoStoryboardSchema = z.object({
@@ -91,8 +98,10 @@ export const portfolioVideoStoryboardSchema = z.object({
   advisorName: z.string().min(1).max(120),
   advisorPhone: z.string().max(80).nullable(),
   advisorEmail: z.string().max(200).nullable(),
+  instagramUrl: z.string().max(1_000).nullable().default(null),
   direction: portfolioVideoDirectionSchema,
-  scenes: z.array(portfolioVideoSceneSchema).length(5),
+  planSummary: z.string().min(1).max(240).default('Portföye özel tanıtım akışı'),
+  scenes: z.array(portfolioVideoSceneSchema).min(3).max(10),
 });
 
 export type PortfolioVideoPhoto = z.infer<typeof portfolioVideoPhotoSchema>;
