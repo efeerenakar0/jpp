@@ -22,6 +22,7 @@ const portfolio: PortfolioVideoPortfolio = {
   company: {
     name: 'Jasmine Group',
     logoUrl: null,
+    instagramUrl: null,
   },
   advisor: {
     name: 'Efe Eren',

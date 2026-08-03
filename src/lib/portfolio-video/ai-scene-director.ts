@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { parseJSONResponse, type ChatMessage } from '../ai';
+import { callAI, parseJSONResponse, type ChatMessage } from '../ai';
 import {
   callCompanyMarketingAI,
   type MarketingAIResult,
@@ -80,9 +80,39 @@ Doğrulanmış portföy: ${JSON.stringify(verifiedPortfolioFacts(input.portfolio
   ];
 }
 
+async function callPlatformSceneDirector(
+  _accountId: string,
+  messages: ChatMessage[]
+): Promise<MarketingAIResult> {
+  try {
+    const response = await callAI(messages, 'marketing-video-director');
+    return {
+      content: response.content,
+      provider: response.provider,
+      model: response.model,
+    };
+  } catch {
+    return { content: '', provider: 'RULE_ENGINE', model: null };
+  }
+}
+
+function validatedScenePlan(
+  result: MarketingAIResult,
+  photoCount: number
+): PortfolioVideoScenePlan | null {
+  const parsedJson = result.content ? parseJSONResponse(result.content) : null;
+  if (!parsedJson) return null;
+  try {
+    return parseCreativeScenePlan(parsedJson, { photoCount });
+  } catch {
+    return null;
+  }
+}
+
 export async function createCreativeScenePlan(
   input: CreativeSceneDirectorInput,
-  callDirector: SceneDirectorCaller = callCompanyMarketingAI
+  callDirector: SceneDirectorCaller = callCompanyMarketingAI,
+  callFallbackDirector: SceneDirectorCaller = callPlatformSceneDirector
 ): Promise<CreativeSceneDirectorResult> {
   const fallback = buildLocalScenePlan({
     command: input.command,
@@ -91,19 +121,30 @@ export async function createCreativeScenePlan(
     showLocation: input.showLocation,
     instagramUrl: input.portfolio.company.instagramUrl,
   });
-  const ai = await callDirector(input.companyAccountId, directorMessages(input));
-  const parsedJson = ai.content ? parseJSONResponse(ai.content) : null;
-  if (!parsedJson) {
-    return { plan: fallback, source: 'RULE_ENGINE', model: null, usedFallback: true };
-  }
-  try {
+  const messages = directorMessages(input);
+  const ai = await callDirector(input.companyAccountId, messages);
+  const primaryPlan = validatedScenePlan(ai, input.photoCount);
+  if (primaryPlan) {
     return {
-      plan: parseCreativeScenePlan(parsedJson, { photoCount: input.photoCount }),
+      plan: primaryPlan,
       source: ai.provider,
       model: ai.model,
       usedFallback: false,
     };
-  } catch {
-    return { plan: fallback, source: 'RULE_ENGINE', model: null, usedFallback: true };
   }
+
+  if (ai.provider === 'OPENROUTER') {
+    const platformAI = await callFallbackDirector(input.companyAccountId, messages);
+    const platformPlan = validatedScenePlan(platformAI, input.photoCount);
+    if (platformPlan) {
+      return {
+        plan: platformPlan,
+        source: platformAI.provider,
+        model: platformAI.model,
+        usedFallback: false,
+      };
+    }
+  }
+
+  return { plan: fallback, source: 'RULE_ENGINE', model: null, usedFallback: true };
 }

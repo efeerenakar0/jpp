@@ -130,4 +130,40 @@ describe('createCreativeScenePlan', () => {
     });
     expect(result.plan.scenes[2]?.overlays[0]?.type).toBe('CUSTOM');
   });
+
+  it('şirket OpenRouter cevabı geçersizse platform AI sağlayıcısını dener', async () => {
+    const companyCaller = vi.fn().mockResolvedValue({
+      provider: 'OPENROUTER',
+      model: 'company-model',
+      content: '{"summary":"eksik","scenes":[]}',
+    });
+    const platformCaller = vi.fn().mockResolvedValue({
+      provider: 'CLOUDFLARE',
+      model: '@cf/qwen/qwen3-30b-a3b-fp8',
+      content: JSON.stringify({
+        summary: 'Platform AI sahne planı',
+        scenes: [
+          {
+            type: 'HOOK', durationSeconds: 3, photoIndices: [0], layout: 'FULL_BLEED', transition: 'FADE', photoMotion: 'ZOOM', headline: 'Açılış', body: null, overlays: [],
+          },
+          {
+            type: 'GALLERY', durationSeconds: 7, photoIndices: [1, 2], layout: 'FRAMED', transition: 'SLIDE', photoMotion: 'PAN', headline: 'Galeri', body: null, overlays: [],
+          },
+          {
+            type: 'CONTACT', durationSeconds: 5, photoIndices: [2], layout: 'CONTACT_CARD', transition: 'FADE', photoMotion: 'STILL', headline: 'İletişim', body: null, overlays: [],
+          },
+        ],
+      }),
+    });
+
+    const result = await createCreativeScenePlan(input, companyCaller, platformCaller);
+
+    expect(companyCaller).toHaveBeenCalledOnce();
+    expect(platformCaller).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      source: 'CLOUDFLARE',
+      usedFallback: false,
+    });
+    expect(result.plan.summary).toBe('Platform AI sahne planı');
+  });
 });
