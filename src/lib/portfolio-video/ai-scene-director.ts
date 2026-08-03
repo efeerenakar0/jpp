@@ -96,6 +96,24 @@ async function callPlatformSceneDirector(
   }
 }
 
+async function callCompanySceneDirector(
+  accountId: string,
+  messages: ChatMessage[]
+): Promise<MarketingAIResult> {
+  return callCompanyMarketingAI(accountId, messages, { jsonMode: true });
+}
+
+function repairMessages(messages: ChatMessage[]): ChatMessage[] {
+  return [
+    ...messages,
+    {
+      role: 'user',
+      content:
+        'Önceki yanıt zorunlu sahne şemasına uymadı. Talimatı yeniden yorumla; bu kez yalnızca belirtilen JSON şemasını, en az 3 sahneyle ve desteklenen enum değerleriyle döndür.',
+    },
+  ];
+}
+
 function validatedScenePlan(
   result: MarketingAIResult,
   photoCount: number
@@ -111,7 +129,7 @@ function validatedScenePlan(
 
 export async function createCreativeScenePlan(
   input: CreativeSceneDirectorInput,
-  callDirector: SceneDirectorCaller = callCompanyMarketingAI,
+  callDirector: SceneDirectorCaller = callCompanySceneDirector,
   callFallbackDirector: SceneDirectorCaller = callPlatformSceneDirector
 ): Promise<CreativeSceneDirectorResult> {
   const fallback = buildLocalScenePlan({
@@ -133,7 +151,27 @@ export async function createCreativeScenePlan(
     };
   }
 
-  if (ai.provider === 'OPENROUTER') {
+  let repairedAI: MarketingAIResult | null = null;
+  if (ai.provider !== 'RULE_ENGINE') {
+    repairedAI = await callDirector(
+      input.companyAccountId,
+      repairMessages(messages)
+    );
+    const repairedPlan = validatedScenePlan(repairedAI, input.photoCount);
+    if (repairedPlan) {
+      return {
+        plan: repairedPlan,
+        source: repairedAI.provider,
+        model: repairedAI.model,
+        usedFallback: false,
+      };
+    }
+  }
+
+  if (
+    ai.provider === 'OPENROUTER' ||
+    repairedAI?.provider === 'OPENROUTER'
+  ) {
     const platformAI = await callFallbackDirector(input.companyAccountId, messages);
     const platformPlan = validatedScenePlan(platformAI, input.photoCount);
     if (platformPlan) {

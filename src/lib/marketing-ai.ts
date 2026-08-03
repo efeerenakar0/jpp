@@ -17,6 +17,26 @@ export type MarketingAIResult = {
   model: string | null;
 };
 
+type MarketingAIOptions = {
+  jsonMode?: boolean;
+};
+
+export function buildOpenRouterRequestBody(
+  model: string,
+  messages: ChatMessage[],
+  options: MarketingAIOptions = {}
+) {
+  return {
+    model,
+    messages,
+    temperature: options.jsonMode ? 0.25 : 0.45,
+    max_tokens: 1800,
+    ...(options.jsonMode
+      ? { response_format: { type: 'json_object' as const } }
+      : {}),
+  };
+}
+
 export async function saveCompanyMarketingCredential(input: {
   accountId: string;
   apiKey?: string;
@@ -86,7 +106,8 @@ export async function getCompanyMarketingCredential(accountId: string) {
 async function callOpenRouter(
   apiKey: string,
   model: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  options: MarketingAIOptions = {}
 ) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -96,12 +117,7 @@ async function callOpenRouter(
       'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://jpp-ufeb.vercel.app',
       'X-Title': 'Business CEO AI Pazarlamacı',
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.45,
-      max_tokens: 1800,
-    }),
+    body: JSON.stringify(buildOpenRouterRequestBody(model, messages, options)),
     signal: AbortSignal.timeout(30_000),
   });
   const data = (await response.json()) as {
@@ -117,13 +133,19 @@ async function callOpenRouter(
 
 export async function callCompanyMarketingAI(
   accountId: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  options: MarketingAIOptions = {}
 ): Promise<MarketingAIResult> {
   const credential = await getCompanyMarketingCredential(accountId);
   if (credential) {
     try {
       return {
-        content: await callOpenRouter(credential.apiKey, credential.model, messages),
+        content: await callOpenRouter(
+          credential.apiKey,
+          credential.model,
+          messages,
+          options
+        ),
         provider: 'OPENROUTER',
         model: credential.model,
       };

@@ -158,12 +158,61 @@ describe('createCreativeScenePlan', () => {
 
     const result = await createCreativeScenePlan(input, companyCaller, platformCaller);
 
-    expect(companyCaller).toHaveBeenCalledOnce();
+    expect(companyCaller).toHaveBeenCalledTimes(2);
     expect(platformCaller).toHaveBeenCalledOnce();
     expect(result).toMatchObject({
       source: 'CLOUDFLARE',
       usedFallback: false,
     });
     expect(result.plan.summary).toBe('Platform AI sahne planı');
+  });
+
+  it('geçersiz ilk AI cevabını aynı sağlayıcıda bir kez onarır', async () => {
+    const companyCaller = vi
+      .fn()
+      .mockResolvedValueOnce({
+        provider: 'OPENROUTER',
+        model: 'openrouter/free',
+        content: '{"summary":"eksik","scenes":[]}',
+      })
+      .mockResolvedValueOnce({
+        provider: 'OPENROUTER',
+        model: 'openrouter/free',
+        content: JSON.stringify({
+          summary: 'Onarılmış özel video planı',
+          scenes: [
+            {
+              type: 'HOOK', durationSeconds: 3, photoIndices: [0], layout: 'FULL_BLEED', transition: 'CUT', photoMotion: 'ZOOM', headline: 'Açılış', body: null, overlays: [],
+            },
+            {
+              type: 'DETAILS', durationSeconds: 4, photoIndices: [0], layout: 'FULL_BLEED', transition: 'FADE', photoMotion: 'STILL', headline: 'Fiyat', body: null,
+              overlays: [{ type: 'PRICE', text: null, animation: 'POP', position: 'CENTER', revealAtFrame: 18 }],
+            },
+            {
+              type: 'CONTACT', durationSeconds: 8, photoIndices: [1, 2], layout: 'CONTACT_CARD', transition: 'SLIDE', photoMotion: 'PAN', headline: 'Instagram', body: null,
+              overlays: [{ type: 'INSTAGRAM', text: null, animation: 'SLIDE_UP', position: 'BOTTOM', revealAtFrame: 12 }],
+            },
+          ],
+        }),
+      });
+    const platformCaller = vi.fn();
+
+    const result = await createCreativeScenePlan(input, companyCaller, platformCaller);
+
+    expect(companyCaller).toHaveBeenCalledTimes(2);
+    expect(companyCaller.mock.calls[1]?.[1]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'user',
+          content: expect.stringContaining('şemasına uymadı'),
+        }),
+      ])
+    );
+    expect(platformCaller).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      source: 'OPENROUTER',
+      usedFallback: false,
+    });
+    expect(result.plan.summary).toBe('Onarılmış özel video planı');
   });
 });
