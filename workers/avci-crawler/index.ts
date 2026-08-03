@@ -6,7 +6,7 @@ const pollMs = Math.max(
 );
 
 async function main() {
-  process.stdout.write('Avcı worker başlatıldı.\n');
+  process.stdout.write('Business AI Portföy Bulucu worker başlatıldı.\n');
   while (true) {
     try {
       const result = await runNextHuntJob();
