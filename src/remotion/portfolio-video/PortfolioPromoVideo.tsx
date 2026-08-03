@@ -27,12 +27,28 @@ function safePhoto(storyboard: PortfolioVideoStoryboard, index: number) {
   return storyboard.photoUrls[index % storyboard.photoUrls.length] ?? null;
 }
 
-function PhotoLayer({ src, frame, intensity = 0.5 }: { src: string | null; frame: number; intensity?: number }) {
-  const scale = interpolate(frame, [0, 150], [1.03, 1.03 + intensity * 0.08], {
+function PhotoLayer({
+  src,
+  frame,
+  intensity = 0.5,
+  motion = 'ZOOM',
+}: {
+  src: string | null;
+  frame: number;
+  intensity?: number;
+  motion?: PortfolioVideoStoryboard['direction']['photoMotion'];
+}) {
+  const progress = interpolate(frame, [0, 150], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
     easing: Easing.out(Easing.quad),
   });
+  const scale = motion === 'STILL'
+    ? 1.025
+    : motion === 'PAN'
+      ? 1.08 + intensity * 0.025
+      : 1.03 + progress * intensity * 0.08;
+  const translateX = motion === 'PAN' ? interpolate(progress, [0, 1], [-28, 28]) : 0;
   return (
     <AbsoluteFill style={{ overflow: 'hidden', background: '#0b2533' }}>
       {src ? (
@@ -42,7 +58,7 @@ function PhotoLayer({ src, frame, intensity = 0.5 }: { src: string | null; frame
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            transform: `scale(${scale})`,
+            transform: `translate3d(${translateX}px, 0, 0) scale(${scale})`,
           }}
         />
       ) : (
@@ -119,7 +135,7 @@ function HookScene({ storyboard }: PortfolioPromoVideoProps) {
   const headlineSize = storyboard.title.length > 48 ? 74 : 92;
   return (
     <AbsoluteFill>
-      <PhotoLayer src={photo} frame={frame} intensity={storyboard.direction.effectIntensity} />
+      <PhotoLayer src={photo} frame={frame} intensity={storyboard.direction.effectIntensity} motion={storyboard.direction.photoMotion} />
       <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(3,15,23,.18), rgba(3,15,23,.35) 42%, rgba(3,15,23,.96))' }} />
       <SceneFrame style={{ justifyContent: 'space-between' }}>
         <AnimatedIn><BrandMark storyboard={storyboard} /></AnimatedIn>
@@ -146,17 +162,28 @@ function HookScene({ storyboard }: PortfolioPromoVideoProps) {
 function GalleryScene({ storyboard }: PortfolioPromoVideoProps) {
   const frame = useCurrentFrame();
   const count = Math.max(1, storyboard.photoUrls.length);
-  const slot = Math.min(count - 1, Math.floor(frame / Math.max(1, Math.floor(150 / count))));
-  const localSlotFrame = frame % Math.max(1, Math.floor(150 / count));
-  const opacity = interpolate(localSlotFrame, [0, 6, 30], [0, 1, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const slotDuration = Math.max(1, Math.floor(150 / count));
+  const slot = Math.min(count - 1, Math.floor(frame / slotDuration));
+  const localSlotFrame = frame % slotDuration;
+  const transition = storyboard.direction.galleryTransition;
+  const opacity = transition === 'CUT'
+    ? 1
+    : interpolate(localSlotFrame, [0, Math.min(7, slotDuration / 3), Math.max(8, slotDuration - 5), slotDuration], [0, 1, 1, 0], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      });
+  const slideX = transition === 'SLIDE'
+    ? interpolate(localSlotFrame, [0, Math.min(10, slotDuration / 2)], [110, 0], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+        easing: Easing.out(Easing.cubic),
+      })
+    : 0;
   return (
     <AbsoluteFill style={{ background: colors.ink }}>
       <div style={{ position: 'absolute', inset: '92px 58px 330px', borderRadius: 34, overflow: 'hidden' }}>
-        <div style={{ opacity, width: '100%', height: '100%' }}>
-          <PhotoLayer src={safePhoto(storyboard, slot)} frame={localSlotFrame} intensity={0.25} />
+        <div style={{ opacity, transform: `translateX(${slideX}px)`, width: '100%', height: '100%' }}>
+          <PhotoLayer src={safePhoto(storyboard, slot)} frame={localSlotFrame} intensity={storyboard.direction.effectIntensity} motion={storyboard.direction.photoMotion} />
         </div>
       </div>
       <SceneFrame style={{ justifyContent: 'flex-end' }}>
@@ -183,7 +210,7 @@ function FeaturesScene({ storyboard }: PortfolioPromoVideoProps) {
   const features = storyboard.featureLabels.length ? storyboard.featureLabels : storyboard.detailLabels;
   return (
     <AbsoluteFill>
-      <PhotoLayer src={safePhoto(storyboard, 1)} frame={frame} intensity={0.22} />
+      <PhotoLayer src={safePhoto(storyboard, 1)} frame={frame} intensity={0.22} motion={storyboard.direction.photoMotion} />
       <AbsoluteFill style={{ background: 'linear-gradient(135deg, rgba(3,18,27,.97), rgba(3,18,27,.72))' }} />
       <SceneFrame>
         <BrandMark storyboard={storyboard} />
@@ -216,7 +243,7 @@ function DetailsScene({ storyboard }: PortfolioPromoVideoProps) {
   const frame = useCurrentFrame();
   return (
     <AbsoluteFill>
-      <PhotoLayer src={safePhoto(storyboard, 2)} frame={frame} intensity={0.18} />
+      <PhotoLayer src={safePhoto(storyboard, 2)} frame={frame} intensity={0.18} motion={storyboard.direction.photoMotion} />
       <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(2,13,20,.35), rgba(2,13,20,.94))' }} />
       <SceneFrame style={{ justifyContent: 'flex-end' }}>
         <AnimatedIn>
@@ -252,7 +279,7 @@ function ContactScene({ storyboard }: PortfolioPromoVideoProps) {
           <AnimatedIn>
             <div style={{ color: '#177c59', fontSize: 30, fontWeight: 850, letterSpacing: 4, textTransform: 'uppercase' }}>Gösterim planlayın</div>
             <div style={{ marginTop: 24, fontSize: 84, lineHeight: 1.05, fontWeight: 860, letterSpacing: -3 }}>
-              Bu portföyü<br />yakından görün.
+              {storyboard.scenes[4].headline}
             </div>
           </AnimatedIn>
           <AnimatedIn delay={9}>

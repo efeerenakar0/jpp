@@ -55,7 +55,11 @@ export const portfolioVideoDirectionSchema = z.object({
   pace: z.enum(['FAST', 'MEDIUM', 'SLOW']),
   tone: z.enum(['CONFIDENT', 'ELEGANT', 'WARM', 'ANALYTICAL', 'CLEAN']),
   effectIntensity: z.number().min(0).max(1),
+  galleryTransition: z.enum(['CUT', 'FADE', 'SLIDE']),
+  photoMotion: z.enum(['ZOOM', 'PAN', 'STILL']),
   showPrice: z.boolean(),
+  openingMessage: z.string().max(120).nullable(),
+  closingMessage: z.string().max(120).nullable(),
   commandSummary: z.string().max(240),
 });
 

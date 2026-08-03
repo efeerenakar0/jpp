@@ -97,4 +97,14 @@ describe('buildPortfolioStoryboard', () => {
     expect(result.locationLabel).toBe('Konum bilgisi için iletişime geçin');
     expect(result.photoUrls).toEqual([]);
   });
+
+  it('özel açılış ve kapanış metnini ilgili sahnelere taşır', () => {
+    const direction = new LocalRuleCreativeDirector().direct({
+      command: 'İlk kısımda "Yeni hayat burada" yazsın, en son kısımda "Ev alma komşu al" yazsın',
+    });
+    const result = buildPortfolioStoryboard({ portfolio, direction });
+
+    expect(result.scenes[0].body).toBe('Yeni hayat burada');
+    expect(result.scenes[4].headline).toBe('Ev alma komşu al');
+  });
 });

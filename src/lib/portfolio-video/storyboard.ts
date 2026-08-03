@@ -106,11 +106,11 @@ export function buildPortfolioStoryboard(rawInput: StoryboardInput): PortfolioVi
     advisorEmail: portfolio.advisor.email,
     direction,
     scenes: [
-      scene('hook', 'HOOK', 0, 60, title, direction.style === 'INVESTMENT' ? 'Değerli bir yatırım fırsatı' : 'Yeni yaşamınıza yakından bakın'),
+      scene('hook', 'HOOK', 0, 60, title, direction.openingMessage ?? (direction.style === 'INVESTMENT' ? 'Değerli bir yatırım fırsatı' : 'Yeni yaşamınıza yakından bakın')),
       scene('gallery', 'GALLERY', 60, 210, 'Portföyü keşfedin', clampText(portfolio.description, 220, 'Seçilmiş portföy detayları')),
       scene('features', 'FEATURES', 210, 300, 'Öne çıkan özellikler', featureLabels.join(' · ') || detailLabels.join(' · ') || 'Detaylar için iletişime geçin'),
       scene('details', 'DETAILS', 300, 375, showPrice && priceLabel ? priceLabel : locationLabel, detailBody || null),
-      scene('contact', 'CONTACT', 375, 450, 'Detaylı bilgi ve gösterim', contactBody || portfolio.company.name),
+      scene('contact', 'CONTACT', 375, 450, direction.closingMessage ?? 'Bu portföyü yakından görün', contactBody || portfolio.company.name),
     ],
   });
 }

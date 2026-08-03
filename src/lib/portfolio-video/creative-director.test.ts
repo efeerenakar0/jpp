@@ -55,4 +55,30 @@ describe('LocalRuleCreativeDirector', () => {
   it('arayüzün özel yaratıcı talimat seçimini doğrular', () => {
     expect(portfolioVideoCreativeChoiceSchema.parse('CUSTOM')).toBe('CUSTOM');
   });
+
+  it('özel talimattaki animasyon, sıralama ve kapanış sözünü yapısal yönergeye dönüştürür', () => {
+    const result = director.direct({
+      command: 'Bu portföydeki resimler sıra sıra çıkarken güzel animasyonlar görünsün, en son kısımda da "Ev alma komşu al" yazsın',
+    });
+
+    expect(result.galleryTransition).toBe('SLIDE');
+    expect(result.photoMotion).toBe('PAN');
+    expect(result.closingMessage).toBe('Ev alma komşu al');
+    expect(result.effectIntensity).toBeGreaterThan(0.5);
+  });
+
+  it('hazır stillere gerçekten farklı görsel hareketler verir', () => {
+    const bold = director.direct({ command: 'dikkat çekici ve enerjik yap' });
+    const cinematic = director.direct({ command: 'lüks ve sinematik olsun' });
+    const minimal = director.direct({ command: 'sade ve minimal olsun' });
+
+    expect([bold.galleryTransition, bold.photoMotion]).not.toEqual([
+      cinematic.galleryTransition,
+      cinematic.photoMotion,
+    ]);
+    expect([minimal.galleryTransition, minimal.photoMotion]).not.toEqual([
+      bold.galleryTransition,
+      bold.photoMotion,
+    ]);
+  });
 });
