@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 import EmptyState from '@/components/fabrika/EmptyState';
 import DigitalManagerOperations from '@/components/fabrika/DigitalManagerOperations';
 import { compactCriticalNotifications } from '@/lib/fabrika-critical-notifications';
+import SwitchToExecutiveFlowButton from '@/components/fabrika/executive-dashboard/SwitchToExecutiveFlowButton';
 
 type Notification = {
   id: string;
@@ -301,16 +302,19 @@ export default function CommandCenter() {
                 Portföy, müşteri iletişimi, pazarlama ve operasyon süreçlerinizi tek bir merkezden yönetin.
               </p>
             </div>
-            <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[#34445a] bg-[#0b1827] px-3.5 text-[11px] text-[#c3cbd5] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
-              <CalendarDays className="h-4 w-4 text-[#d6a55a]" />
-              {new Date().toLocaleDateString('tr-TR', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                weekday: 'long',
-              })}
-              <ChevronRight className="h-3.5 w-3.5 rotate-90 text-[#66758a]" />
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <SwitchToExecutiveFlowButton />
+              <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-[#34445a] bg-[#0b1827] px-3.5 text-[11px] text-[#c3cbd5] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+                <CalendarDays className="h-4 w-4 text-[#d6a55a]" />
+                {new Date().toLocaleDateString('tr-TR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  weekday: 'long',
+                })}
+                <ChevronRight className="h-3.5 w-3.5 rotate-90 text-[#66758a]" />
+              </span>
+            </div>
           </header>
 
           <div className="order-2 grid grid-cols-2 gap-3 lg:grid-cols-5">
