@@ -143,12 +143,13 @@ export default function HuntJobPanel({
           body: JSON.stringify({
             provider: 'SAHIBINDEN',
             searchUrl: searchUrl.trim(),
+            idempotencyKey: crypto.randomUUID(),
           }),
         }
       );
       window.localStorage.setItem(STORAGE_KEY, created.jobId);
       await loadJob(created.jobId);
-      toast.success('Av işi güvenli kuyruğa alındı.');
+      toast.success('Portföy içe aktarma işi kuyruğa alındı.');
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Av işi başlatılamadı.'
@@ -187,11 +188,12 @@ export default function HuntJobPanel({
           </div>
           <div>
             <h2 className="text-base font-semibold text-white">
-              Filtrelenmiş aramayı kuyruğa al
+              Portföyü tek bağlantıyla içe aktar
             </h2>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">
-              Yalnızca yazılı kaynak yetkisi bulunan filtreli arama adresleri
-              işlenir. Telefon bilgisi tarama sırasında toplanmaz.
+              Filtrelediğin sonuç bağlantısını yapıştır. Business AI Portföy
+              Bulucu sonuçları ve ilan detaylarını sırayla işler, aday
+              portföyüne ekler ve son sayfada kendiliğinden tamamlar.
             </p>
           </div>
         </div>
@@ -221,14 +223,16 @@ export default function HuntJobPanel({
                 ) : (
                   <Radar className="mr-2 h-4 w-4" />
                 )}
-                Yeni av başlat
+                Portföyü içe aktar
               </Button>
             </div>
           </label>
           <div className="flex items-start gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5 text-xs leading-5 text-sky-200">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-            Canlı bağlayıcı; aktif sözleşme kaydı, gerekli kapsamlar ve sunucu
-            ayarı olmadan güvenli biçimde kapalı kalır.
+            Sayfa sınırı veya bekleme ayarı gerekmez. İşlem sunucuda tek tek ve
+            kontrollü yürütülür; kaynak doğrulaması gösterirse güvenli biçimde
+            duraklar. İletişim verileri yalnızca ayrı, doğrulanmış sağlayıcı
+            akışından eklenir.
           </div>
         </form>
       </div>

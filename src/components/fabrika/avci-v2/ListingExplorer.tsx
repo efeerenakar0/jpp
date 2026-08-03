@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Check,
   Clipboard,
+  Download,
   ExternalLink,
   FileText,
   ImageIcon,
@@ -164,6 +165,16 @@ export default function ListingExplorer({
     await loadListings();
   }
 
+  function downloadCurrentJob() {
+    if (!jobId) return;
+    const link = document.createElement('a');
+    link.href = `/api/fabrika/hunting/jobs/${encodeURIComponent(jobId)}/export`;
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   async function evaluateContact(contact: HuntingContactSummary) {
     if (!detail) return;
     setActionLoading('evaluate');
@@ -299,6 +310,16 @@ export default function ListingExplorer({
             />
             Sadece iletişime hazır
           </label>
+          <Button
+            className="h-9 border-slate-700 bg-slate-950 px-3 text-xs text-slate-300 hover:bg-slate-800"
+            disabled={!jobId}
+            onClick={downloadCurrentJob}
+            type="button"
+            variant="outline"
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            JSON indir
+          </Button>
           <Button
             aria-label="İlanları yenile"
             className="h-9 border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800"

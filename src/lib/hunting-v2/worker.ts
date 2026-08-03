@@ -19,6 +19,11 @@ import {
   parseSearchResultsHtml,
 } from './parsers';
 import { copyHuntingImage } from './media';
+import {
+  buildCrawlerPolicy,
+  buildSourceRequest,
+  failedRequestDelta,
+} from './crawler-policy';
 import type {
   ParsedListingDetail,
   ParsedSearchListing,
@@ -327,19 +332,9 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
   let failed = 0;
   let challengeSeen = false;
   let authorizationInvalidated = false;
+  const discoveredListingIds = new Set<string>();
   const crawler = new CheerioCrawler({
-    maxConcurrency: Math.max(
-      1,
-      Math.min(3, Number(process.env.AVCI_CRAWLER_CONCURRENCY || 2))
-    ),
-    maxRequestsPerCrawl: Math.max(
-      1,
-      Math.min(500, Number(process.env.AVCI_CRAWLER_MAX_REQUESTS || 100))
-    ),
-    requestHandlerTimeoutSecs: 45,
-    maxRequestRetries: 0,
-    retryOnBlocked: false,
-    respectRobotsTxtFile: true,
+    ...buildCrawlerPolicy(),
     async requestHandler({ request, body, addRequests }) {
       if (await isJobCancelled(job.id)) {
         crawler.stop('Av işi kullanıcı tarafından durduruldu.');
@@ -378,22 +373,24 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
         const page = parseSearchResultsHtml(html, loadedUrl);
         for (const item of page.listings) {
           await upsertDiscoveredListing(job, item);
+          discoveredListingIds.add(item.sourceListingId);
         }
-        discovered += page.listings.length;
+        discovered = discoveredListingIds.size;
         await addRequests(
-          page.listings.map((item) => ({
-            url: item.sourceUrl,
-            uniqueKey: `DETAIL:${item.sourceListingId}`,
-            userData: { kind: 'DETAIL' },
-          }))
+          page.listings.map((item) =>
+            buildSourceRequest({
+              kind: 'DETAIL',
+              sourceListingId: item.sourceListingId,
+              url: item.sourceUrl,
+            })
+          )
         );
         if (page.nextPageUrl) {
           await addRequests([
-            {
+            buildSourceRequest({
+              kind: 'LIST',
               url: page.nextPageUrl,
-              uniqueKey: `LIST:${page.nextPageUrl}`,
-              userData: { kind: 'LIST' },
-            },
+            }),
           ]);
         }
       }
@@ -416,19 +413,20 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
       ) {
         challengeSeen = true;
         await markChallenge(job.id);
+        crawler.stop('Kaynak güvenlik doğrulaması gösterdi.');
         return;
       }
-      failed += 1;
-      if (request.userData.kind === 'DETAIL') partial += 1;
+      const delta = failedRequestDelta(request.userData.kind);
+      failed += delta.failed;
+      partial += delta.partial;
     },
   });
 
   await crawler.run([
-    {
+    buildSourceRequest({
+      kind: 'LIST',
       url: job.searchUrl,
-      uniqueKey: `LIST:${job.searchUrl}`,
-      userData: { kind: 'LIST' },
-    },
+    }),
   ]);
   if (
     challengeSeen ||

@@ -8,7 +8,7 @@ KVKK, İYS ve sektörel yükümlülükler yetkili hukuk uzmanıyla doğrulanmal�
 
 ```mermaid
 flowchart LR
-    UI["Avcı paneli veya güvenli Chrome eklentisi"]
+    UI["Avcı paneli: tek filtre bağlantısı"]
     API["Next.js HuntJob API"]
     AUTH["SourceAuthorization"]
     QUEUE["HuntJob kuyruğu"]
@@ -42,6 +42,8 @@ gönderilebileceği anlamına gelmez.
 ## Bileşenler
 
 - `POST /api/fabrika/hunting/jobs`: tenant oturumundan iş oluşturur.
+- `GET /api/fabrika/hunting/jobs/:id/export`: yalnız aynı tenant içindeki işi,
+  ilan detayları ve görselleriyle indirilebilir JSON olarak verir.
 - `workers/avci-crawler/index.ts`: Next.js request sürecinden bağımsız,
   sürekli çalışan worker girişidir.
 - `src/lib/hunting-v2/worker.ts`: LIST, DETAIL ve MEDIA akışını yürütür.
@@ -53,8 +55,9 @@ gönderilebileceği anlamına gelmez.
   değerlendirir.
 - `src/lib/company-whatsapp.ts`: kuyruğa alma ve gerçek dispatch öncesinde
   politikayı tekrar çalıştırır.
-- `jasmine-extension/`: yalnız aktif sekmedeki filtre URL'sini ve görünür
-  satır snapshot'ını güvenli API'ye iletir. Detay sayfası açmaz, telefon aramaz.
+- Eski tarayıcı eklentisi entegrasyonu geriye dönük uyumluluk için kalabilir;
+  standart kullanımda eklenti gerekmez. Kullanıcı Avcı paneline yalnız filtreli
+  sonuç bağlantısını yapıştırır.
 
 ## Yerel kurulum
 
@@ -109,10 +112,31 @@ iletişim için kullanılamaz.
 | `CANCELLED` | Kullanıcı işi durdurdu; worker ara kontrolünde bırakır. |
 | `SOURCE_CHALLENGE` | Kaynak challenge gösterdi; aşma denenmedi. |
 
-Aynı tenant ve filtre URL'si varsayılan olarak aynı idempotency anahtarını
-üretir. İlanlar `companyAccountId + provider + sourceListingId` ile
-tekilleştirilir. Resume, yalnız durdurulabilir durumları yeniden `QUEUED`
-yapar.
+Panel her başlatmada yeni bir idempotency anahtarı üretir; böylece aynı filtre
+daha sonra yeniden taranabilir. İlanlar
+`companyAccountId + provider + sourceListingId` ile tekilleştirilir. Resume,
+yalnız durdurulabilir durumları yeniden `QUEUED` yapar.
+
+## Tarama temposu ve doğal bitiş
+
+- Kullanıcı arayüzünde sayfa, bekleme veya eşzamanlılık ayarı yoktur.
+- Worker tek istek eşzamanlılığıyla çalışır ve aynı alan adına varsayılan olarak
+  20 saniye ara verir.
+- `AVCI_CRAWLER_DELAY_SECS` 10–300 saniye,
+  `AVCI_CRAWLER_MAX_REQUESTS_PER_MINUTE` 1–6 aralığında sunucudan
+  yapılandırılabilir.
+- Sabit bir sayfa sınırı uygulanmaz. Sonraki sayfa bağlantısı kalmadığında kuyruk
+  doğal olarak tamamlanır; yinelenen URL ve ilanlar benzersiz anahtarla elenir.
+- Worker kendini `Business-AI-Portfoy-Bulucu/1.0` adıyla bildirir; oturum
+  döndürme, gizlenme veya challenge aşma kullanmaz.
+
+## JSON çıktısı
+
+İlan gezginindeki `JSON indir` düğmesi seçili av işinin başlık, fiyat,
+açıklama, konum, dinamik özellik ve görsel alanlarını tek dosyada dışa aktarır.
+Endpoint iş kimliğini oturumdaki `companyAccountId` ile birlikte doğrular,
+`private, no-store` döner ve ham telefon/şifreli contact alanlarını çıktıya
+eklemez. Yalnız politika katmanından gelen maskeli iletişim özeti bulunabilir.
 
 ## SourceAuthorization oluşturma süreci
 
@@ -177,7 +201,7 @@ doğrulanmalıdır.
 
 - Filtreli sonuç sayfasındaki görünür ilanları okur.
 - İlan numarasıyla tekilleştirir.
-- İzin ve iş limiti içinde sonraki liste sayfası ile DETAIL isteklerini kuyruğa
+- Sonraki liste sayfası kalmayana kadar DETAIL isteklerini sırayla kuyruğa
   ekler.
 - Telefon veya gizli alan aramaz.
 
