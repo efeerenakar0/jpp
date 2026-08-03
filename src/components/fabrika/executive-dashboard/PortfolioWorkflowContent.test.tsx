@@ -1,0 +1,55 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import { createExecutivePortfolioDraft, executivePortfolioReducer } from '../../../lib/executive-portfolio-workflow';
+import { PortfolioWorkflowContent } from './PortfolioWorkflowContent';
+
+const noOp = vi.fn();
+const noOpAsync = vi.fn(async () => undefined);
+
+describe('PortfolioWorkflowContent', () => {
+  it('offers the three agreed Studio entry choices inside one small popup shell', () => {
+    const draft = createExecutivePortfolioDraft();
+    const html = renderToStaticMarkup(
+      <PortfolioWorkflowContent
+        draft={draft}
+        entryMode="studio"
+        onAction={noOp}
+        onFilesSelected={noOpAsync}
+        onRetryMedia={noOpAsync}
+        onContinue={noOpAsync}
+        onClose={noOp}
+      />
+    );
+
+    expect(html).toContain('Mevcut portföyünü seç');
+    expect(html).toContain('Sadece resim düzenlemek istiyorum');
+    expect(html).toContain('Yeni bir portföy');
+    expect(html).toContain('Adım 1 / 6');
+  });
+
+  it('shows upload, background processing, autosave and consistent navigation on portfolio step', () => {
+    const draft = executivePortfolioReducer(createExecutivePortfolioDraft(), {
+      type: 'choose-source',
+      source: 'studio',
+    });
+    const html = renderToStaticMarkup(
+      <PortfolioWorkflowContent
+        draft={draft}
+        entryMode="studio"
+        onAction={noOp}
+        onFilesSelected={noOpAsync}
+        onRetryMedia={noOpAsync}
+        onContinue={noOpAsync}
+        onClose={noOp}
+      />
+    );
+
+    expect(html).toContain('Portföy görselleri ve bilgileri');
+    expect(html).toContain('Arka planda işlenir');
+    expect(html).toContain('Otomatik kaydedildi');
+    expect(html).toContain('Geri');
+    expect(html).toContain('Kaydet ve çık');
+    expect(html).toContain('Devam et');
+    expect(html).toContain('Adım 2 / 6');
+  });
+});

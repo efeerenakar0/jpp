@@ -10,6 +10,10 @@ import {
 } from './FabrikaSessionContext';
 import { resolveWorkspaceBrand } from '@/lib/business-ceo-brand';
 import OnboardingWizard from './OnboardingWizard';
+import {
+  isImmersiveFabrikaRoute,
+  shouldShowFabrikaOnboarding,
+} from '@/lib/fabrika-route-display';
 
 interface FabrikaAppShellProps {
   children: React.ReactNode;
@@ -30,6 +34,34 @@ export default function FabrikaAppShell({
     account.onboardingComplete
   );
   const pathname = usePathname();
+  const showOnboarding = shouldShowFabrikaOnboarding({
+    principalType: session.principalType,
+    onboardingComplete,
+  });
+
+  if (isImmersiveFabrikaRoute(pathname)) {
+    return (
+      <FabrikaSessionProvider value={session}>
+        <>
+          <a
+            href="#fabrika-main"
+            className="sr-only z-[100] rounded-md bg-cyan-300 px-4 py-2 font-semibold text-slate-950 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+          >
+            Ana içeriğe geç
+          </a>
+          <main id="fabrika-main" data-ceo-route={pathname} tabIndex={-1}>
+            {children}
+          </main>
+          {showOnboarding ? (
+            <OnboardingWizard
+              initialCompanyName={account.companyName}
+              onComplete={() => setOnboardingComplete(true)}
+            />
+          ) : null}
+        </>
+      </FabrikaSessionProvider>
+    );
+  }
 
   return (
     <FabrikaSessionProvider value={session}>
@@ -63,7 +95,7 @@ export default function FabrikaAppShell({
             </div>
           </main>
         </div>
-        {session.principalType === 'OWNER' && !onboardingComplete ? (
+        {showOnboarding ? (
           <OnboardingWizard
             initialCompanyName={account.companyName}
             onComplete={() => setOnboardingComplete(true)}
