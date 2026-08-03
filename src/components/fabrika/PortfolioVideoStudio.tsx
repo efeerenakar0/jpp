@@ -26,8 +26,8 @@ import {
 import { buildPortfolioStoryboard } from '@/lib/portfolio-video/storyboard';
 import {
   portfolioVideoCatalogSchema,
+  type PortfolioVideoCreativeChoice,
   type PortfolioVideoPortfolio,
-  type PortfolioVideoStyle,
 } from '@/lib/portfolio-video/types';
 import { PortfolioPromoVideo } from '@/remotion/portfolio-video/PortfolioPromoVideo';
 import {
@@ -40,7 +40,7 @@ import {
 import styles from './PortfolioVideoStudio.module.css';
 
 const STYLE_OPTIONS: Array<{
-  id: PortfolioVideoStyle;
+  id: PortfolioVideoCreativeChoice;
   label: string;
   command: string;
   description: string;
@@ -50,6 +50,7 @@ const STYLE_OPTIONS: Array<{
   { id: 'FAMILY', label: 'Aile', command: 'Ailelere hitap etsin', description: 'Sıcak ve yaşam odaklı' },
   { id: 'INVESTMENT', label: 'Yatırım', command: 'Yatırım fırsatını ve getiriyi öne çıkar', description: 'Fiyat ve getiri odaklı' },
   { id: 'MINIMAL', label: 'Minimal', command: 'Sade ve minimal olsun', description: 'Az efektli ve temiz' },
+  { id: 'CUSTOM', label: 'Özel', command: '', description: 'Aklınızdaki fikri yazın' },
 ];
 
 function fileNameFor(portfolio: PortfolioVideoPortfolio) {
@@ -86,7 +87,7 @@ export default function PortfolioVideoStudio() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState('');
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   const [command, setCommand] = useState('Dikkat çekici ve enerjik yap');
-  const [preferredStyle, setPreferredStyle] = useState<PortfolioVideoStyle>('BOLD');
+  const [creativeChoice, setCreativeChoice] = useState<PortfolioVideoCreativeChoice>('BOLD');
   const [showPrice, setShowPrice] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,6 +98,7 @@ export default function PortfolioVideoStudio() {
   );
   const abortControllerRef = useRef<AbortController | null>(null);
   const downloadUrlRef = useRef<string | null>(null);
+  const commandInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const selectedPortfolio = useMemo(
     () => portfolios.find((portfolio) => portfolio.id === selectedPortfolioId) ?? null,
@@ -104,8 +106,11 @@ export default function PortfolioVideoStudio() {
   );
 
   const direction = useMemo(
-    () => director.direct({ command, preferredStyle }),
-    [command, director, preferredStyle]
+    () => director.direct({
+      command,
+      preferredStyle: creativeChoice === 'CUSTOM' ? undefined : creativeChoice,
+    }),
+    [command, creativeChoice, director]
   );
 
   const storyboard = useMemo(() => {
@@ -165,8 +170,11 @@ export default function PortfolioVideoStudio() {
   }, []);
 
   function chooseStyle(option: (typeof STYLE_OPTIONS)[number]) {
-    setPreferredStyle(option.id);
+    setCreativeChoice(option.id);
     setCommand(option.command);
+    if (option.id === 'CUSTOM') {
+      requestAnimationFrame(() => commandInputRef.current?.focus());
+    }
   }
 
   function selectPortfolio(portfolioId: string) {
@@ -349,28 +357,41 @@ export default function PortfolioVideoStudio() {
                 <button
                   type="button"
                   key={option.id}
-                  className={direction.style === option.id ? styles.styleActive : undefined}
-                  aria-pressed={direction.style === option.id}
+                  className={creativeChoice === option.id ? styles.styleActive : undefined}
+                  aria-pressed={creativeChoice === option.id}
                   onClick={() => chooseStyle(option)}
                 >
                   <b>{option.label}</b><span>{option.description}</span>
                 </button>
               ))}
             </div>
-            <label className={styles.fieldLabel} htmlFor="video-command">Video komutu</label>
+            <label className={styles.fieldLabel} htmlFor="video-command">
+              {creativeChoice === 'CUSTOM' ? 'Özel yaratıcı talimatınız' : 'Video komutu'}
+            </label>
             <textarea
+              ref={commandInputRef}
               id="video-command"
               className={styles.command}
               value={command}
               maxLength={1000}
               rows={4}
-              onChange={(event) => setCommand(event.target.value)}
-              placeholder="Örn. Lüks ve sinematik olsun, fiyatı gösterme"
+              onChange={(event) => {
+                setCommand(event.target.value);
+                setCreativeChoice('CUSTOM');
+              }}
+              placeholder={creativeChoice === 'CUSTOM'
+                ? 'Örn. İlk karede havuzu göster, sakin başlayıp son bölümde iletişim bilgilerini öne çıkar; fiyatı gösterme.'
+                : 'Örn. Lüks ve sinematik olsun, fiyatı gösterme'}
             />
             <div className={styles.commandMeta}>
               <span><Sparkles /> {direction.style === 'BOLD' ? 'Hızlı ve güçlü' : direction.style === 'CINEMATIC' ? 'Zarif ve yavaş' : direction.style === 'FAMILY' ? 'Sıcak ve yaşam odaklı' : direction.style === 'INVESTMENT' ? 'Yatırım odaklı' : direction.style === 'MINIMAL' ? 'Az efektli' : 'Dengeli'}</span>
               <small>{command.length}/1000</small>
             </div>
+            {creativeChoice === 'CUSTOM' && (
+              <p className={styles.inlineNote}>
+                Portföy fotoğrafları ve kayıtlı bilgiler otomatik kullanılır; buraya yalnızca videonun nasıl görünmesini istediğinizi yazın.
+              </p>
+            )}
             <div className={styles.toggles}>
               <label>
                 <input type="checkbox" checked={showPrice && direction.showPrice} disabled={!direction.showPrice} onChange={(event) => setShowPrice(event.target.checked)} />

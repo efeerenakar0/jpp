@@ -3,6 +3,7 @@ import {
   LocalRuleCreativeDirector,
   creativeDirectionInputSchema,
 } from './creative-director';
+import { portfolioVideoCreativeChoiceSchema } from './types';
 
 const director = new LocalRuleCreativeDirector();
 
@@ -49,5 +50,9 @@ describe('LocalRuleCreativeDirector', () => {
     expect(() =>
       creativeDirectionInputSchema.parse({ command: 'a'.repeat(1001) })
     ).toThrow();
+  });
+
+  it('arayüzün özel yaratıcı talimat seçimini doğrular', () => {
+    expect(portfolioVideoCreativeChoiceSchema.parse('CUSTOM')).toBe('CUSTOM');
   });
 });

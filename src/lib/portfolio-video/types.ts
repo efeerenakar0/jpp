@@ -45,6 +45,11 @@ export const portfolioVideoStyleSchema = z.enum([
   'MINIMAL',
 ]);
 
+export const portfolioVideoCreativeChoiceSchema = z.union([
+  portfolioVideoStyleSchema,
+  z.literal('CUSTOM'),
+]);
+
 export const portfolioVideoDirectionSchema = z.object({
   style: portfolioVideoStyleSchema,
   pace: z.enum(['FAST', 'MEDIUM', 'SLOW']),
@@ -90,6 +95,7 @@ export type PortfolioVideoPhoto = z.infer<typeof portfolioVideoPhotoSchema>;
 export type PortfolioVideoPortfolio = z.infer<typeof portfolioVideoPortfolioSchema>;
 export type PortfolioVideoCatalog = z.infer<typeof portfolioVideoCatalogSchema>;
 export type PortfolioVideoStyle = z.infer<typeof portfolioVideoStyleSchema>;
+export type PortfolioVideoCreativeChoice = z.infer<typeof portfolioVideoCreativeChoiceSchema>;
 export type PortfolioVideoDirection = z.infer<typeof portfolioVideoDirectionSchema>;
 export type PortfolioVideoScene = z.infer<typeof portfolioVideoSceneSchema>;
 export type PortfolioVideoStoryboard = z.infer<typeof portfolioVideoStoryboardSchema>;
