@@ -80,8 +80,8 @@
 
 .studioTabs {
   display: grid;
-  width: min(490px, 100%);
-  grid-template-columns: 1fr 1fr;
+  width: min(735px, 100%);
+  grid-template-columns: repeat(3, 1fr);
   margin-top: 12px;
   border-bottom: 1px solid var(--studio-border);
 }

@@ -1,0 +1,5 @@
+export const PORTFOLIO_PROMO_VIDEO_ID = 'PortfolioPromoVideo';
+export const PORTFOLIO_PROMO_VIDEO_WIDTH = 1080;
+export const PORTFOLIO_PROMO_VIDEO_HEIGHT = 1920;
+export const PORTFOLIO_PROMO_VIDEO_FPS = 30;
+export const PORTFOLIO_PROMO_VIDEO_DURATION = 450;

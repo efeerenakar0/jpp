@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Download,
   ExternalLink,
+  Film,
   History,
   Home,
   ImagePlus,
@@ -21,6 +22,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import PosterMaker from '@/components/fabrika/PosterMaker';
 import {
@@ -40,6 +42,11 @@ import {
 } from '@/lib/studio-enhancement';
 import toast from 'react-hot-toast';
 import styles from './studio.module.css';
+
+const PortfolioVideoStudio = dynamic(
+  () => import('@/components/fabrika/PortfolioVideoStudio'),
+  { ssr: false }
+);
 
 type StudioScreen = 'upload' | 'results';
 
@@ -145,7 +152,7 @@ const PROVIDER_DETAILS: Record<StudioProvider, {
 
 export default function StudioPage() {
   const { permissions } = useFabrikaSession();
-  const [studioArea, setStudioArea] = useState<'enhancer' | 'poster'>('enhancer');
+  const [studioArea, setStudioArea] = useState<'enhancer' | 'poster' | 'video'>('enhancer');
   const [screen, setScreen] = useState<StudioScreen>('upload');
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -747,11 +754,16 @@ export default function StudioPage() {
         <button type="button" role="tab" aria-selected={studioArea === 'poster'} onClick={() => setStudioArea('poster')}>
           <ImagePlus /> Poster Yapıcı
         </button>
+        <button type="button" role="tab" aria-selected={studioArea === 'video'} onClick={() => setStudioArea('video')}>
+          <Film /> Video Stüdyosu
+        </button>
       </div>
 
 
       <main className={styles.studioBody}>
-        {studioArea === 'poster' ? <section className={styles.posterWorkspace}><PosterMaker /></section> : screen === 'upload' ? (
+        {studioArea === 'video' ? (
+          <section className={styles.posterWorkspace}><PortfolioVideoStudio /></section>
+        ) : studioArea === 'poster' ? <section className={styles.posterWorkspace}><PosterMaker /></section> : screen === 'upload' ? (
           <section className={styles.enhancerWorkspace}>
             <div className={styles.hiddenIntro}>
               <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300">

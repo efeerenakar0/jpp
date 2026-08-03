@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "verify:portfolio-video-browser": "node scripts/verify-portfolio-video-browser.mjs",
     "seed:documents": "tsx prisma/seed-document-templates.ts",
     "worker:avci": "tsx workers/avci-crawler/index.ts"
   },
@@ -25,6 +26,8 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@react-three/postprocessing": "^3.0.4",
+    "@remotion/player": "4.0.505",
+    "@remotion/web-renderer": "4.0.505",
     "@rive-app/react-webgl2": "^4.30.0",
     "@tiptap/react": "^3.27.3",
     "@tiptap/starter-kit": "^3.27.3",
@@ -61,6 +64,7 @@
     "react-hook-form": "^7.81.0",
     "react-hot-toast": "^2.6.0",
     "recharts": "^3.9.2",
+    "remotion": "4.0.505",
     "sanitize-html": "^2.17.6",
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
@@ -71,6 +75,7 @@
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5.15.12",
+    "@remotion/cli": "4.0.505",
     "@tailwindcss/postcss": "^4",
     "@types/adm-zip": "^0.5.8",
     "@types/bcryptjs": "^2.4.6",
