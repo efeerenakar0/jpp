@@ -91,4 +91,43 @@ describe('createCreativeScenePlan', () => {
       expect.arrayContaining([expect.objectContaining({ type: 'INSTAGRAM' })])
     );
   });
+
+  it('Cloudflare tarafından kullanılan güvenli sahne eş anlamlılarını normalize eder', async () => {
+    const caller = vi.fn().mockResolvedValue({
+      provider: 'CLOUDFLARE',
+      model: '@cf/qwen/qwen3-30b-a3b-fp8',
+      content: JSON.stringify({
+        summary: 'Fiyat, galeri ve Instagram kapanışı',
+        scenes: [
+          {
+            type: 'HOOK', durationSeconds: 2, photoIndices: [0], layout: 'FULL_BLEED', transition: 'FADE', photoMotion: 'ZOOM', headline: '6.500.000 TL', body: null,
+            overlays: [{ type: 'PRICE', text: null, animation: 'POP', position: 'CENTER', revealAtFrame: 18 }],
+          },
+          {
+            type: 'GALLERY', durationSeconds: 6, photoIndices: [1, 2], layout: 'GRID', transition: 'SLIDE_LEFT', photoMotion: 'NONE', headline: 'Diğer kareler', body: null,
+            overlays: [],
+          },
+          {
+            type: 'CONTACT', durationSeconds: 4, photoIndices: [2], layout: 'CENTER', transition: 'FADE', photoMotion: 'NONE', headline: 'Instagram', body: null,
+            overlays: [{ type: 'TEXT', text: '@jasminegroup', animation: 'SLIDE_UP', position: 'BOTTOM', revealAtFrame: 12 }],
+          },
+        ],
+      }),
+    });
+
+    const result = await createCreativeScenePlan(input, caller);
+
+    expect(result.usedFallback).toBe(false);
+    expect(result.source).toBe('CLOUDFLARE');
+    expect(result.plan.scenes[1]).toMatchObject({
+      layout: 'FRAMED',
+      transition: 'SLIDE',
+      photoMotion: 'STILL',
+    });
+    expect(result.plan.scenes[2]).toMatchObject({
+      layout: 'CONTACT_CARD',
+      photoMotion: 'STILL',
+    });
+    expect(result.plan.scenes[2]?.overlays[0]?.type).toBe('CUSTOM');
+  });
 });

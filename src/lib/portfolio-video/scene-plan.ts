@@ -41,7 +41,71 @@ export const portfolioVideoScenePlanSchema = z.object({
 
 export type PortfolioVideoScenePlan = z.infer<typeof portfolioVideoScenePlanSchema>;
 
+function normalizedToken(value: unknown, aliases: Record<string, string>) {
+  if (typeof value !== 'string') return value;
+  const token = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return aliases[token] ?? token;
+}
+
+const aiOverlayTypeSchema = z.preprocess(
+  (value) => normalizedToken(value, {
+    TEXT: 'CUSTOM',
+    CTA: 'CONTACT',
+    LOGO: 'BRAND',
+    SOCIAL: 'INSTAGRAM',
+  }),
+  portfolioVideoOverlayTypeSchema
+);
+
+const aiAnimationSchema = z.preprocess(
+  (value) => normalizedToken(value, {
+    SLIDE: 'SLIDE_UP',
+    SLIDE_IN: 'SLIDE_UP',
+    SCALE: 'POP',
+    NONE: 'FADE',
+  }),
+  z.enum(['FADE', 'SLIDE_UP', 'POP', 'TYPE'])
+);
+
+const aiPositionSchema = z.preprocess(
+  (value) => normalizedToken(value, { MIDDLE: 'CENTER' }),
+  z.enum(['TOP', 'CENTER', 'BOTTOM'])
+);
+
+const aiLayoutSchema = z.preprocess(
+  (value) => normalizedToken(value, {
+    GRID: 'FRAMED',
+    GALLERY_GRID: 'FRAMED',
+    CENTER: 'CONTACT_CARD',
+    CARD: 'CONTACT_CARD',
+  }),
+  z.enum(['FULL_BLEED', 'FRAMED', 'FEATURE_GRID', 'CONTACT_CARD'])
+);
+
+const aiTransitionSchema = z.preprocess(
+  (value) => normalizedToken(value, {
+    NONE: 'CUT',
+    SLIDE_LEFT: 'SLIDE',
+    SLIDE_RIGHT: 'SLIDE',
+    WIPE: 'SLIDE',
+  }),
+  z.enum(['CUT', 'FADE', 'SLIDE'])
+);
+
+const aiPhotoMotionSchema = z.preprocess(
+  (value) => normalizedToken(value, {
+    NONE: 'STILL',
+    STATIC: 'STILL',
+    KEN_BURNS: 'ZOOM',
+    PARALLAX: 'PAN',
+  }),
+  z.enum(['ZOOM', 'PAN', 'STILL'])
+);
+
 const aiOverlaySchema = portfolioVideoOverlaySchema.extend({
+  type: aiOverlayTypeSchema,
+  animation: aiAnimationSchema.default('FADE'),
+  position: aiPositionSchema.default('BOTTOM'),
   revealAtFrame: z.coerce.number().int().min(0).max(300).default(0),
 });
 
@@ -49,9 +113,9 @@ const aiSceneSchema = z.object({
   type: z.enum(['HOOK', 'GALLERY', 'FEATURES', 'DETAILS', 'CONTACT']),
   durationSeconds: z.coerce.number().min(1).max(12),
   photoIndices: z.array(z.coerce.number().int()).max(8).default([]),
-  layout: z.enum(['FULL_BLEED', 'FRAMED', 'FEATURE_GRID', 'CONTACT_CARD']),
-  transition: z.enum(['CUT', 'FADE', 'SLIDE']),
-  photoMotion: z.enum(['ZOOM', 'PAN', 'STILL']),
+  layout: aiLayoutSchema,
+  transition: aiTransitionSchema,
+  photoMotion: aiPhotoMotionSchema,
   headline: z.string().max(300).default(''),
   body: z.string().max(800).nullable().default(null),
   overlays: z.array(aiOverlaySchema).max(10).default([]),

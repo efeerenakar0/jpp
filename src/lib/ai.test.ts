@@ -119,6 +119,39 @@ describe('AI router', () => {
     });
   });
 
+  it('accepts structured JSON returned by Cloudflare Workers AI', async () => {
+    delete process.env.GROQ_API_KEY;
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            response: {
+              summary: 'Özel sahne planı',
+              scenes: [{ type: 'HOOK' }],
+            },
+          },
+        }),
+        { status: 200 }
+      )
+    );
+    global.fetch = fetchMock;
+
+    const result = await callAI(
+      [{ role: 'user', content: 'Sahne planı üret' }],
+      'marketing-video-director'
+    );
+
+    expect(result).toMatchObject({
+      provider: 'CLOUDFLARE',
+      model: '@cf/qwen/qwen3-30b-a3b-fp8',
+    });
+    expect(JSON.parse(result.content)).toEqual({
+      summary: 'Özel sahne planı',
+      scenes: [{ type: 'HOOK' }],
+    });
+  });
+
   it('reports both configured providers without exposing credentials', () => {
     expect(sharedAssistantAIStatus()).toEqual({
       configured: true,

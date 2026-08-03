@@ -220,13 +220,17 @@ async function callCloudflareAPI(messages: ChatMessage[]) {
     const data = (await response.json()) as {
       success?: boolean;
       result?: {
-        response?: string;
+        response?: unknown;
         choices?: Array<{ message?: { content?: string } }>;
       };
     };
+    const structuredResponse = data.result?.response;
     const content =
-      data.result?.response?.trim() ||
-      data.result?.choices?.[0]?.message?.content?.trim();
+      (typeof structuredResponse === 'string'
+        ? structuredResponse.trim()
+        : structuredResponse && typeof structuredResponse === 'object'
+          ? JSON.stringify(structuredResponse)
+          : '') || data.result?.choices?.[0]?.message?.content?.trim();
     return response.ok && data.success !== false && content ? content : null;
   } catch {
     return null;
