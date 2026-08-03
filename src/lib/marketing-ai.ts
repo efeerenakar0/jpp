@@ -131,6 +131,20 @@ async function callOpenRouter(
   return content;
 }
 
+async function callOpenRouterWithFormatFallback(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  options: MarketingAIOptions
+) {
+  try {
+    return await callOpenRouter(apiKey, model, messages, options);
+  } catch (error) {
+    if (!options.jsonMode) throw error;
+    return callOpenRouter(apiKey, model, messages);
+  }
+}
+
 export async function callCompanyMarketingAI(
   accountId: string,
   messages: ChatMessage[],
@@ -140,7 +154,7 @@ export async function callCompanyMarketingAI(
   if (credential) {
     try {
       return {
-        content: await callOpenRouter(
+        content: await callOpenRouterWithFormatFallback(
           credential.apiKey,
           credential.model,
           messages,
