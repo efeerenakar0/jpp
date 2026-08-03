@@ -67,6 +67,18 @@ describe('LocalRuleCreativeDirector', () => {
     expect(result.effectIntensity).toBeGreaterThan(0.5);
   });
 
+  it('tırnak içindeki kapanış sloganını video stili komutu gibi yorumlamaz', () => {
+    const result = director.direct({
+      command:
+        'Fotoğraflar tek tek sağdan kayarak gelsin. En son kısımda "Bu fırsatı kaçırmayın" yazsın.',
+    });
+
+    expect(result.style).toBe('BALANCED');
+    expect(result.galleryTransition).toBe('SLIDE');
+    expect(result.photoMotion).toBe('PAN');
+    expect(result.closingMessage).toBe('Bu fırsatı kaçırmayın');
+  });
+
   it('hazır stillere gerçekten farklı görsel hareketler verir', () => {
     const bold = director.direct({ command: 'dikkat çekici ve enerjik yap' });
     const cinematic = director.direct({ command: 'lüks ve sinematik olsun' });

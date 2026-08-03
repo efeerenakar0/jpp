@@ -28,6 +28,10 @@ function normalizeTurkish(value: string) {
     .trim();
 }
 
+function withoutQuotedCopy(value: string) {
+  return value.replace(/["“”'‘’][^"“”'‘’]{1,240}["“”'‘’]/gu, ' ');
+}
+
 function inferStyle(command: string, preferredStyle?: PortfolioVideoStyle) {
   if (/dikkat cekici|enerjik|guclu|hizli/.test(command)) return 'BOLD' as const;
   if (/luks|sinematik|zarif|prestij/.test(command)) return 'CINEMATIC' as const;
@@ -120,7 +124,7 @@ function applyCommandOverrides(command: string, settings: ReturnType<typeof styl
   if (/sert gecis|hizli kes|cut/.test(command)) galleryTransition = 'CUT';
 
   if (/sabit|hareketsiz/.test(command)) photoMotion = 'STILL';
-  else if (/kaydir|pan|sira sira|animasyon/.test(command)) photoMotion = 'PAN';
+  else if (/kaydir|kayarak|pan|sira sira|tek tek|animasyon/.test(command)) photoMotion = 'PAN';
   else if (/yakinlas|zoom/.test(command)) photoMotion = 'ZOOM';
 
   if (/animasyon|hareketli|dinamik/.test(command)) {
@@ -140,7 +144,8 @@ export class LocalRuleCreativeDirector implements CreativeDirector {
   direct(rawInput: CreativeDirectionInput): PortfolioVideoDirection {
     const input = creativeDirectionInputSchema.parse(rawInput);
     const command = normalizeTurkish(input.command);
-    const style = inferStyle(command, input.preferredStyle);
+    const styleCommand = normalizeTurkish(withoutQuotedCopy(input.command));
+    const style = inferStyle(styleCommand, input.preferredStyle);
     const settings = styleSettings(style);
     const overrides = applyCommandOverrides(command, settings);
     return portfolioVideoDirectionSchema.parse({
