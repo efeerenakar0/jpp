@@ -4,18 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
-  Clipboard,
   Code2,
   Download,
   FileArchive,
   FolderOpen,
-  History,
-  KeyRound,
   Loader2,
-  PencilLine,
   RefreshCw,
-  RotateCw,
-  Save,
   Send,
   ShieldCheck,
   X,
@@ -39,7 +33,6 @@ type WebsiteIntegration = {
   notes: string | null;
   sourceFileName: string;
   sourceSize: number;
-  apiKeyHint: string;
   status:
     | "SUBMITTED"
     | "IN_PROGRESS"
@@ -55,7 +48,6 @@ type WebsiteIntegration = {
   lastError: string | null;
   submittedAt: string;
   deliveredAt: string | null;
-  promptTemplate: string;
   versions: Array<{
     id: string;
     version: number;
@@ -67,19 +59,6 @@ type WebsiteIntegration = {
     approvedAt: string | null;
     deliveredAt: string | null;
   }>;
-  promptVersions: Array<{
-    id: string;
-    version: number;
-    promptTemplate: string;
-    source: string;
-    createdByType: string;
-    createdAt: string;
-  }>;
-};
-
-type CredentialResult = {
-  oneTimeApiKey: string;
-  codexPrompt: string;
 };
 
 type FormState = {
@@ -163,11 +142,6 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
   const [sourceLabel, setSourceLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [rotating, setRotating] = useState<string | null>(null);
-  const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
-  const [promptDraft, setPromptDraft] = useState("");
-  const [savingPrompt, setSavingPrompt] = useState(false);
-  const [credentials, setCredentials] = useState<CredentialResult | null>(null);
 
   useEffect(() => {
     folderInputRef.current?.setAttribute("webkitdirectory", "");
@@ -282,23 +256,12 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
       });
       const data = (await response.json()) as {
         integration?: WebsiteIntegration;
-        oneTimeApiKey?: string;
-        codexPrompt?: string;
         error?: string;
       };
-      if (
-        !response.ok ||
-        !data.integration ||
-        !data.oneTimeApiKey ||
-        !data.codexPrompt
-      ) {
+      if (!response.ok || !data.integration) {
         throw new Error(data.error || "Site paketi gönderilemedi.");
       }
 
-      setCredentials({
-        oneTimeApiKey: data.oneTimeApiKey,
-        codexPrompt: data.codexPrompt,
-      });
       setForm(initialForm);
       setSourceZip(null);
       setFolderFiles([]);
@@ -314,99 +277,6 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
     }
   }
 
-  async function copy(value: string, label: string) {
-    await navigator.clipboard.writeText(value);
-    toast.success(`${label} kopyalandı.`);
-  }
-
-  function downloadPrompt() {
-    if (!credentials) return;
-    const url = URL.createObjectURL(
-      new Blob([credentials.codexPrompt], { type: "text/plain;charset=utf-8" }),
-    );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "jasmine-codex-entegrasyon-promptu.txt";
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function rotateKey(integration: WebsiteIntegration) {
-    if (
-      !window.confirm(
-        "Eski API anahtarı hemen geçersiz olacak. Yeni anahtar oluşturulsun mu?",
-      )
-    ) {
-      return;
-    }
-    setRotating(integration.id);
-    try {
-      const response = await fetch("/api/fabrika/website-integration", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "rotate_key", id: integration.id }),
-      });
-      const data = (await response.json()) as {
-        oneTimeApiKey?: string;
-        codexPrompt?: string;
-        error?: string;
-      };
-      if (!response.ok || !data.oneTimeApiKey || !data.codexPrompt) {
-        throw new Error(data.error || "API anahtarı yenilenemedi.");
-      }
-      setCredentials({
-        oneTimeApiKey: data.oneTimeApiKey,
-        codexPrompt: data.codexPrompt,
-      });
-      await loadIntegrations();
-      toast.success("Yeni API anahtarı oluşturuldu.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "API anahtarı yenilenemedi.",
-      );
-    } finally {
-      setRotating(null);
-    }
-  }
-
-  function editPrompt(integration: WebsiteIntegration) {
-    setEditingPromptId(integration.id);
-    setPromptDraft(integration.promptTemplate);
-  }
-
-  async function savePrompt(integration: WebsiteIntegration) {
-    if (promptDraft.trim().length < 120) {
-      toast.error("Codex promptu en az 120 karakter olmalıdır.");
-      return;
-    }
-    setSavingPrompt(true);
-    try {
-      const response = await fetch("/api/fabrika/website-integration", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_prompt",
-          id: integration.id,
-          promptTemplate: promptDraft,
-        }),
-      });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        throw new Error(data.error || "Codex promptu kaydedilemedi.");
-      }
-      setEditingPromptId(null);
-      setPromptDraft("");
-      await loadIntegrations();
-      toast.success("Codex promptunun yeni sürümü kaydedildi.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Codex promptu kaydedilemedi.",
-      );
-    } finally {
-      setSavingPrompt(false);
-    }
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-4 flex items-start justify-between gap-4">
@@ -416,8 +286,8 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
             Mevcut siteyi bağla
           </h3>
           <p className="mt-1 text-xs leading-5 text-slate-400">
-            Site kodunu ve teknik bilgileri gönderin; şirketinize özel API ve
-            Codex promptu otomatik hazırlansın.
+            Site kodunu ve teknik bilgileri gönderin; güvenli bağlantı ve kalite
+            kontrol sürecini Business CEO AI ekibi yönetsin.
           </p>
         </div>
         <button
@@ -431,71 +301,6 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
-        {credentials ? (
-          <section className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h4 className="flex items-center gap-2 text-sm font-black text-emerald-200">
-                  <ShieldCheck className="h-4 w-4" />
-                  Tek seferlik entegrasyon paketi
-                </h4>
-                <p className="mt-1 text-[11px] leading-5 text-emerald-100/70">
-                  Anahtarı şimdi güvenli biçimde saklayın. Tam hâli tekrar
-                  gösterilmez.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCredentials(null)}
-                className="rounded-lg p-1.5 text-emerald-100 hover:bg-white/10"
-                aria-label="Entegrasyon paketini kapat"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="rounded-xl border border-emerald-400/20 bg-slate-950/70 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/70">
-                Şirkete özel API anahtarı
-              </p>
-              <div className="mt-1 flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate text-[11px] text-white">
-                  {credentials.oneTimeApiKey}
-                </code>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void copy(credentials.oneTimeApiKey, "API anahtarı")
-                  }
-                  className="rounded-lg p-2 text-emerald-200 hover:bg-emerald-300/10"
-                  aria-label="API anahtarını kopyala"
-                >
-                  <Clipboard className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  void copy(credentials.codexPrompt, "Codex promptu")
-                }
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 text-xs font-black text-slate-950 transition hover:bg-emerald-200"
-              >
-                <Clipboard className="h-4 w-4" />
-                Promptu kopyala
-              </button>
-              <button
-                type="button"
-                onClick={downloadPrompt}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-slate-950/50 px-3 text-xs font-bold text-emerald-100"
-              >
-                <FileArchive className="h-4 w-4" />
-                Promptu indir
-              </button>
-            </div>
-          </section>
-        ) : null}
-
         <form onSubmit={submit} className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-[11px] font-bold text-slate-300">
@@ -668,7 +473,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
             )}
             {submitting
               ? "Site paketi hazırlanıyor ve gönderiliyor..."
-              : "Kodları, API paketini ve promptu gönder"}
+              : "Site paketini güvenli incelemeye gönder"}
           </button>
         </form>
 
@@ -679,7 +484,7 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                 Gönderilen siteler
               </h4>
               <p className="mt-1 text-[10px] text-slate-500">
-                Teslim durumunu ve API anahtarını buradan yönetin.
+                İnceleme, kalite kontrol ve teslim durumunu buradan izleyin.
               </p>
             </div>
             <button
@@ -732,11 +537,11 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                       {formatBytes(integration.sourceSize)}
                     </div>
                     <div className="rounded-lg bg-slate-900 p-2 text-slate-400">
-                      <KeyRound className="mb-1 h-3.5 w-3.5 text-emerald-300" />
-                      <p className="truncate font-mono text-slate-200">
-                        {integration.apiKeyHint}
+                      <ShieldCheck className="mb-1 h-3.5 w-3.5 text-emerald-300" />
+                      <p className="truncate text-slate-200">
+                        Platform tarafından yönetiliyor
                       </p>
-                      Şirkete özel API
+                      Güvenli site bağlantısı
                     </div>
                   </div>
                   {integration.lastError ? (
@@ -783,111 +588,6 @@ export default function ExistingWebsiteIntegration({ onBack }: Props) {
                       Tamamlanmış ZIP yalnız admin kalite kontrolünden sonra burada görünür.
                     </p>
                   )}
-                  <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="flex items-center gap-1.5 text-[10px] font-black text-slate-200">
-                          <History className="h-3.5 w-3.5 text-cyan-300" />
-                          Codex entegrasyon promptu
-                        </p>
-                        <p className="mt-1 text-[9px] text-slate-500">
-                          {integration.promptVersions[0]
-                            ? `Sürüm ${integration.promptVersions[0].version} · ${new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(integration.promptVersions[0].createdAt))}`
-                            : "İlk sürüm hazırlanıyor"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => editPrompt(integration)}
-                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 text-[9px] font-bold text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
-                      >
-                        <PencilLine className="h-3 w-3" /> Düzenle
-                      </button>
-                    </div>
-                    {editingPromptId === integration.id ? (
-                      <div className="mt-3 space-y-2">
-                        <textarea
-                          value={promptDraft}
-                          onChange={(event) =>
-                            setPromptDraft(event.target.value)
-                          }
-                          rows={12}
-                          aria-label={`${integration.displayName} Codex promptu`}
-                          className="w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-[10px] leading-5 text-slate-200 outline-none focus:border-cyan-400"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setEditingPromptId(null)}
-                            className="min-h-9 rounded-lg border border-slate-700 px-3 text-[10px] font-bold text-slate-300"
-                          >
-                            Vazgeç
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void savePrompt(integration)}
-                            disabled={savingPrompt}
-                            className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-cyan-300 px-3 text-[10px] font-black text-slate-950 disabled:opacity-60"
-                          >
-                            {savingPrompt ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Save className="h-3.5 w-3.5" />
-                            )}
-                            Yeni sürümü kaydet
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                    {integration.promptVersions.length > 1 ? (
-                      <details className="mt-3 border-t border-slate-800 pt-2 text-[9px] text-slate-400">
-                        <summary className="cursor-pointer font-bold text-slate-300">
-                          Sürüm geçmişini göster (
-                          {integration.promptVersions.length})
-                        </summary>
-                        <ol className="mt-2 space-y-1.5">
-                          {integration.promptVersions.map((version) => (
-                            <li
-                              key={version.id}
-                              className="flex items-center justify-between gap-3 rounded-md bg-slate-950/70 px-2 py-1.5"
-                            >
-                              <span>
-                                Sürüm {version.version} · {version.source}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void copy(
-                                    version.promptTemplate,
-                                    `Prompt sürüm ${version.version}`,
-                                  )
-                                }
-                                className="font-bold text-cyan-300"
-                              >
-                                Kopyala
-                              </button>
-                            </li>
-                          ))}
-                        </ol>
-                      </details>
-                    ) : null}
-                  </div>
-                  {integration.status === "APPROVED" ||
-                  integration.status === "DELIVERED" ? (
-                    <button
-                      type="button"
-                      onClick={() => void rotateKey(integration)}
-                      disabled={rotating === integration.id}
-                      className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-300 transition hover:text-cyan-200 disabled:opacity-50"
-                    >
-                      {rotating === integration.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <RotateCw className="h-3.5 w-3.5" />
-                      )}
-                      Production API anahtarını yenile
-                    </button>
-                  ) : null}
                 </article>
               ))}
             </div>

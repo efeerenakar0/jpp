@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 
 import prisma from '@/lib/prisma';
+import { getCompanyOperationalStatus } from '@/lib/digital-manager/company-guard';
 import { recordOperationEvent } from '@/lib/digital-manager/events';
 import { transitionTaskInTransaction } from '@/lib/digital-manager/tasks';
 import { publicationEligibility } from '@/lib/property-publication';
@@ -25,9 +26,12 @@ import {
   type InteractionReply,
   type PromptExpectedResponseType,
 } from './rules';
+import {
+  loadViewingWorkflowTimings,
+  type ViewingWorkflowTimings,
+} from './timing-policy';
 
 const DEFAULT_TIMEZONE = 'Europe/Istanbul';
-const OWNER_REMINDER_MINUTES = 15;
 
 type Tx = Prisma.TransactionClient;
 
@@ -271,6 +275,10 @@ export async function createViewingWorkflow(input: {
       });
       return { workflow: existing, duplicate: true };
     }
+    const timings = await loadViewingWorkflowTimings(
+      input.companyAccountId,
+      tx
+    );
 
     let memberId = input.assignedMemberId || null;
     if (!memberId) {
@@ -369,7 +377,7 @@ export async function createViewingWorkflow(input: {
     });
     const propertyLabel =
       relations.property.referenceCode || relations.property.title;
-    const content = `[İş #${code}] ${relations.member.name}, ${relations.contact.name} ${propertyLabel} portföyünü görmek istiyor. 15 dakika içinde “#${code} KABUL” veya “#${code} RED: neden” yaz.`;
+    const content = `[İş #${code}] ${relations.member.name}, ${relations.contact.name} ${propertyLabel} portföyünü görmek istiyor. ${timings.employeeAcknowledgementMinutes} dakika içinde “#${code} KABUL” veya “#${code} RED: neden” yaz.`;
     const outbox = await createWorkflowOutboxInTransaction(tx, {
       companyAccountId: input.companyAccountId,
       toPhone: relations.member.phoneNormalized,
@@ -560,7 +568,14 @@ export async function applyViewingDeliveryTransitionInTransaction(
     return;
   }
 
-  const deadline = acknowledgementDeadline(input.occurredAt);
+  const timings = await loadViewingWorkflowTimings(
+    input.companyAccountId,
+    tx
+  );
+  const deadline = acknowledgementDeadline(
+    input.occurredAt,
+    timings.employeeAcknowledgementMinutes
+  );
   if (attempt?.status === 'AWAITING_SEND') {
     const changed = await tx.viewingAssignmentAttempt.updateMany({
       where: {
@@ -661,8 +676,12 @@ export async function ownerDecisionPrompt(
     idempotencySuffix: string;
     appointmentRequestId?: string | null;
     promptType?: 'OWNER_REASSIGNMENT' | 'OWNER_APPOINTMENT_ESCALATION';
+    timings?: ViewingWorkflowTimings;
   }
 ) {
+  const timings =
+    input.timings ||
+    (await loadViewingWorkflowTimings(input.companyAccountId, tx));
   const workflow = await tx.viewingWorkflow.findFirstOrThrow({
     where: { id: input.workflowId, companyAccountId: input.companyAccountId },
     include: {
@@ -711,7 +730,9 @@ export async function ownerDecisionPrompt(
       shortCode: workflow.shortCode,
       candidateMemberSnapshot: json(snapshot),
       status: 'OPEN',
-      deadlineAt: new Date(input.now.getTime() + OWNER_REMINDER_MINUTES * 60_000),
+      deadlineAt: new Date(
+        input.now.getTime() + timings.ownerEscalationMinutes * 60_000
+      ),
       expiresAt: new Date(input.now.getTime() + 24 * 60 * 60_000),
       idempotencyKey: `viewing:${workflow.id}:owner:${input.idempotencySuffix}`,
     },
@@ -778,6 +799,18 @@ export async function processDueViewingAcknowledgements(now = new Date()) {
   const results: Array<{ attemptId: string; status: string }> = [];
   for (const candidate of candidates) {
     const result = await prisma.$transaction(async (tx) => {
+      const operational = await getCompanyOperationalStatus(
+        candidate.companyAccountId,
+        tx,
+        now
+      );
+      if (!operational.allowed) {
+        return `SKIPPED_${operational.reason}`;
+      }
+      const timings = await loadViewingWorkflowTimings(
+        candidate.companyAccountId,
+        tx
+      );
       const attempt = await tx.viewingAssignmentAttempt.findFirst({
         where: {
           id: candidate.id,
@@ -820,7 +853,7 @@ export async function processDueViewingAcknowledgements(now = new Date()) {
         companyAccountId: attempt.companyAccountId,
         taskId: attempt.taskId,
         toStatus: 'REASSIGNMENT_REQUIRED',
-        evidenceText: 'Çalışan gerçek teslimattan sonraki 15 dakika içinde cevap vermedi.',
+        evidenceText: `Çalışan gerçek teslimattan sonraki ${timings.employeeAcknowledgementMinutes} dakika içinde cevap vermedi.`,
         sourceMessageId: `timeout:${attempt.id}`,
         actorType: 'SCHEDULER',
         actorId: 'viewing-ack-monitor',
@@ -831,8 +864,9 @@ export async function processDueViewingAcknowledgements(now = new Date()) {
         workflowId: attempt.workflowId,
         attemptId: attempt.id,
         now,
-        reason: '15 dakika içinde cevap vermedi',
+        reason: `${timings.employeeAcknowledgementMinutes} dakika içinde cevap vermedi`,
         idempotencySuffix: `attempt-${attempt.sequence}-timeout`,
+        timings,
       });
       if (ownerPrompt.outboxId) outboxIds.push(ownerPrompt.outboxId);
       return 'TIMED_OUT';
@@ -1247,6 +1281,10 @@ async function applyOwnerReassignmentReply(
     const answered = await answerPrompt(tx, input.prompt, input.providerMessageId, input.now);
     if (!answered) return { handled: true as const, mutated: false, duplicate: true };
     const owner = await ownerRecipient(tx, workflow.companyAccountId);
+    const timings = await loadViewingWorkflowTimings(
+      workflow.companyAccountId,
+      tx
+    );
     const retryPrompt = await tx.whatsAppInteractionPrompt.create({
       data: {
         companyAccountId: workflow.companyAccountId,
@@ -1262,7 +1300,9 @@ async function applyOwnerReassignmentReply(
         shortCode: workflow.shortCode,
         candidateMemberSnapshot: input.prompt.candidateMemberSnapshot || undefined,
         status: 'OPEN',
-        deadlineAt: new Date(input.now.getTime() + OWNER_REMINDER_MINUTES * 60_000),
+        deadlineAt: new Date(
+          input.now.getTime() + timings.ownerEscalationMinutes * 60_000
+        ),
         expiresAt: new Date(input.now.getTime() + 24 * 60 * 60_000),
         idempotencyKey: `viewing:${workflow.id}:owner-wait:${input.providerMessageId}`,
       },
@@ -1282,7 +1322,9 @@ async function applyOwnerReassignmentReply(
         correlationId: retryPrompt.id,
         createdByType: 'VIEWING_WORKFLOW',
         createdById: workflow.id,
-        nextAttemptAt: new Date(input.now.getTime() + OWNER_REMINDER_MINUTES * 60_000),
+        nextAttemptAt: new Date(
+          input.now.getTime() + timings.ownerEscalationMinutes * 60_000
+        ),
       });
       await tx.whatsAppInteractionPrompt.update({
         where: { id: retryPrompt.id },
@@ -1388,8 +1430,12 @@ async function applyOwnerReassignmentReply(
       property: { select: { title: true, referenceCode: true } },
     },
   });
+  const timings = await loadViewingWorkflowTimings(
+    workflow.companyAccountId,
+    tx
+  );
   const propertyLabel = details.property.referenceCode || details.property.title;
-  const content = `[İş #${workflow.shortCode}] ${member.name}, ${details.contact.name} ${propertyLabel} portföyünü görmek istiyor. 15 dakika içinde “#${workflow.shortCode} KABUL” veya “#${workflow.shortCode} RED: neden” yaz.`;
+  const content = `[İş #${workflow.shortCode}] ${member.name}, ${details.contact.name} ${propertyLabel} portföyünü görmek istiyor. ${timings.employeeAcknowledgementMinutes} dakika içinde “#${workflow.shortCode} KABUL” veya “#${workflow.shortCode} RED: neden” yaz.`;
   const outbox = await createWorkflowOutboxInTransaction(tx, {
     companyAccountId: workflow.companyAccountId,
     toPhone: member.phoneNormalized,
@@ -1908,6 +1954,10 @@ async function applyAppointmentOutcomeReply(
 
   if (outcomeType === 'SOLD_REPORTED') {
     const owner = await ownerRecipient(tx, workflow.companyAccountId);
+    const timings = await loadViewingWorkflowTimings(
+      workflow.companyAccountId,
+      tx
+    );
     const details = await tx.viewingWorkflow.findFirstOrThrow({
       where: { id: workflow.id, companyAccountId: workflow.companyAccountId },
       include: {
@@ -1941,7 +1991,9 @@ async function applyAppointmentOutcomeReply(
         expectedResponseType: 'SALE_DECISION',
         shortCode: saleCode,
         status: 'OPEN',
-        deadlineAt: new Date(input.now.getTime() + OWNER_REMINDER_MINUTES * 60_000),
+        deadlineAt: new Date(
+          input.now.getTime() + timings.ownerEscalationMinutes * 60_000
+        ),
         expiresAt: new Date(input.now.getTime() + 48 * 60 * 60_000),
         idempotencyKey: `appointment:${appointment.id}:sale-decision`,
       },

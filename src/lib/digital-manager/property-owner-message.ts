@@ -1,6 +1,7 @@
 import { callAI } from '@/lib/ai';
 import { queueCompanyWhatsAppMessage } from '@/lib/company-whatsapp';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
+import { phoneHmac } from '@/lib/hunting-v2/contact-crypto';
 import { prisma } from '@/lib/prisma';
 
 import { recordOperationEvent } from './events';
@@ -37,13 +38,28 @@ export async function processVerifiedPropertyOwnerWhatsAppMessage(input: {
         select: { id: true },
       })
     : null;
-  const listing = await prisma.huntedListing.findFirst({
-    where: {
-      id: input.listingId,
-      companyAccountId: input.companyAccountId,
-    },
-  });
+  const [listing, huntedContact] = await Promise.all([
+    prisma.huntedListing.findFirst({
+      where: {
+        id: input.listingId,
+        companyAccountId: input.companyAccountId,
+      },
+    }),
+    prisma.huntedContact.findFirst({
+      where: {
+        companyAccountId: input.companyAccountId,
+        listingId: input.listingId,
+        phoneHmac: phoneHmac(input.fromPhone),
+      },
+      select: { id: true },
+    }),
+  ]);
   if (!listing) throw new Error('Portföy adayı bu şirkette bulunamadı.');
+  if (!huntedContact) {
+    throw new Error(
+      'Malik yanıtı doğrulanmış ve bu şirkete ait iletişim kaydıyla eşleşmedi.'
+    );
+  }
 
   const signal = authorizationSignal(input.text);
   const event = signal.interested
@@ -140,14 +156,16 @@ export async function processVerifiedPropertyOwnerWhatsAppMessage(input: {
     to: input.fromPhone,
     text: reply,
     listingId: listing.id,
+    huntedContactId: huntedContact.id,
     recipientType: 'PROPERTY_OWNER',
-    recipientId: listing.id,
-    purpose: 'AUTHORIZATION_CONVERSATION',
+    recipientId: huntedContact.id,
+    purpose: 'SALES_AUTHORITY_DISCUSSION',
     operationEventId: event?.id,
     correlationId: input.providerMessageId,
     replyToProviderMessageId: input.providerMessageId,
     idempotencyKey: `property-owner:${input.providerMessageId}:response`,
     createdByType: 'DIGITAL_GENERAL_MANAGER',
+    firstContact: false,
   });
   const orchestration =
     signal.interested && event

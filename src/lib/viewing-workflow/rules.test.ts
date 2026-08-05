@@ -43,6 +43,19 @@ describe('viewing prompt correlation and ACK rules', () => {
     ).toBe(false);
   });
 
+  it('uses a validated tenant ACK duration and rejects unsafe values', () => {
+    const sentAt = new Date('2026-08-02T12:00:00.000Z');
+    expect(acknowledgementDeadline(sentAt, 35).toISOString()).toBe(
+      '2026-08-02T12:35:00.000Z'
+    );
+    expect(acknowledgementDeadline(sentAt, 0).toISOString()).toBe(
+      '2026-08-02T12:15:00.000Z'
+    );
+    expect(acknowledgementDeadline(sentAt, Number.NaN).toISOString()).toBe(
+      '2026-08-02T12:15:00.000Z'
+    );
+  });
+
   it('prioritizes quoted provider id, then short code, then a sole prompt', () => {
     const other = {
       ...prompt,
@@ -158,6 +171,42 @@ describe('viewing prompt correlation and ACK rules', () => {
         hasOutcome: false,
       })
     ).toBe('SEND_CONFIRMATION');
+    expect(
+      appointmentLifecycleDecision({
+        appointmentReminderHours: 36,
+        appointmentOutcomeDelayMinutes: 90,
+        now: new Date('2026-08-03T23:00:00.000Z'),
+        startAt,
+        endAt,
+        employeeReminderSentAt: null,
+        outcomePromptSentAt: null,
+        hasOutcome: false,
+      })
+    ).toBe('SEND_CONFIRMATION');
+    expect(
+      appointmentLifecycleDecision({
+        appointmentReminderHours: 36,
+        appointmentOutcomeDelayMinutes: 90,
+        now: new Date('2026-08-05T13:29:59.000Z'),
+        startAt,
+        endAt,
+        employeeReminderSentAt: new Date('2026-08-03T23:00:00.000Z'),
+        outcomePromptSentAt: null,
+        hasOutcome: false,
+      })
+    ).toBe('NONE');
+    expect(
+      appointmentLifecycleDecision({
+        appointmentReminderHours: 36,
+        appointmentOutcomeDelayMinutes: 90,
+        now: new Date('2026-08-05T13:30:00.000Z'),
+        startAt,
+        endAt,
+        employeeReminderSentAt: new Date('2026-08-03T23:00:00.000Z'),
+        outcomePromptSentAt: null,
+        hasOutcome: false,
+      })
+    ).toBe('SEND_OUTCOME');
     expect(
       appointmentLifecycleDecision({
         now: new Date('2026-08-05T12:30:00.000Z'),

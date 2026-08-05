@@ -33,11 +33,14 @@ export default function FabrikaAppShell({
   const [onboardingComplete, setOnboardingComplete] = useState(
     account.onboardingComplete
   );
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const pathname = usePathname();
-  const showOnboarding = shouldShowFabrikaOnboarding({
-    principalType: session.principalType,
-    onboardingComplete,
-  });
+  const showOnboarding =
+    !onboardingDismissed &&
+    shouldShowFabrikaOnboarding({
+      principalType: session.principalType,
+      onboardingComplete,
+    });
 
   if (isImmersiveFabrikaRoute(pathname)) {
     return (
@@ -56,6 +59,7 @@ export default function FabrikaAppShell({
             <OnboardingWizard
               initialCompanyName={account.companyName}
               onComplete={() => setOnboardingComplete(true)}
+              onDismiss={() => setOnboardingDismissed(true)}
             />
           ) : null}
         </>
@@ -99,6 +103,7 @@ export default function FabrikaAppShell({
           <OnboardingWizard
             initialCompanyName={account.companyName}
             onComplete={() => setOnboardingComplete(true)}
+            onDismiss={() => setOnboardingDismissed(true)}
           />
         ) : null}
       </div>

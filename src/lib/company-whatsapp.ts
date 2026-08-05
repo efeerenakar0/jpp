@@ -50,6 +50,8 @@ import { requireContactPolicyApproval } from '@/lib/hunting-v2/contact-service';
 
 export type WhatsAppProvider = 'WAHA' | 'EVOLUTION' | 'META';
 
+type CompanyWhatsAppDb = Prisma.TransactionClient | typeof prisma;
+
 export function normalizeWhatsAppProvider(
   value: string | null | undefined
 ): WhatsAppProvider {
@@ -81,8 +83,11 @@ function publicAppUrl() {
   return value.replace(/\/+$/, '');
 }
 
-export async function ensureCompanyWhatsAppConfig(companyAccountId: string) {
-  const account = await prisma.companyAccount.findUnique({
+export async function ensureCompanyWhatsAppConfig(
+  companyAccountId: string,
+  db: CompanyWhatsAppDb = prisma
+) {
+  const account = await db.companyAccount.findUnique({
     where: { id: companyAccountId },
     select: { id: true, slug: true, companyName: true },
   });
@@ -90,7 +95,7 @@ export async function ensureCompanyWhatsAppConfig(companyAccountId: string) {
     throw new Error('Şirket hesabı bulunamadı.');
   }
 
-  return prisma.whatsAppConfig.upsert({
+  return db.whatsAppConfig.upsert({
     where: { companyAccountId },
     update: { provider: 'WAHA' },
     create: {
@@ -884,7 +889,7 @@ export async function dispatchWhatsAppOutboxMessage(id: string) {
   });
 }
 
-export async function queueCompanyWhatsAppMessage(input: {
+export type CompanyWhatsAppQueueInput = {
   companyAccountId: string;
   to: string;
   text: string;
@@ -911,14 +916,31 @@ export async function queueCompanyWhatsAppMessage(input: {
   createdByType?: string;
   createdById?: string;
   firstContact?: boolean;
-}) {
+  /**
+   * Internal-only transaction support. When supplied, dispatch must be
+   * deferred so the caller can atomically create its local projections.
+   */
+  tx?: Prisma.TransactionClient;
+  deferDispatch?: boolean;
+};
+
+export async function queueCompanyWhatsAppMessage(
+  input: CompanyWhatsAppQueueInput
+) {
+  if (input.tx && !input.deferDispatch) {
+    throw new Error(
+      'Veritabanı transactionı içinde dış WhatsApp gönderimi yapılamaz.'
+    );
+  }
+  const db: CompanyWhatsAppDb = input.tx || prisma;
   const operational = await getCompanyOperationalStatus(
-    input.companyAccountId
+    input.companyAccountId,
+    db
   );
   if (!operational.allowed) {
     throw new Error(`Şirket işlemlere kapalı: ${operational.reason}.`);
   }
-  const config = await ensureCompanyWhatsAppConfig(input.companyAccountId);
+  const config = await ensureCompanyWhatsAppConfig(input.companyAccountId, db);
   const provider = 'WAHA' as const;
   if (!config.platformEnabled) {
     throw new Error('WhatsApp otomasyonu platform yöneticisi tarafından durduruldu.');
@@ -950,6 +972,7 @@ export async function queueCompanyWhatsAppMessage(input: {
       channel: 'WHATSAPP',
       purpose: input.purpose,
       evaluatedBy: `${input.createdByType || 'SYSTEM'}:${input.createdById || 'UNKNOWN'}`,
+      tx: input.tx,
     });
     if (!policy.phone || policy.phone !== phone) {
       throw new Error('Alıcı, onaylanmış Avcı iletişim kaydıyla eşleşmiyor.');
@@ -960,7 +983,7 @@ export async function queueCompanyWhatsAppMessage(input: {
     throw new Error('Geçerli, ülke kodlu bir telefon numarası girin.');
   }
   const idempotencyKey = input.idempotencyKey || randomUUID();
-  const outbox = await prisma.$transaction(async (tx) => {
+  const createOutbox = async (tx: Prisma.TransactionClient) => {
     const [
       conversation,
       listing,
@@ -1114,7 +1137,8 @@ export async function queueCompanyWhatsAppMessage(input: {
     if (
       record.toPhone !== phone ||
       record.content !== input.text ||
-      record.conversationId !== (input.conversationId || null) ||
+      (input.conversationId &&
+        record.conversationId !== input.conversationId) ||
       record.listingId !== (input.listingId || null) ||
       record.contactId !== (input.contactId || null) ||
       record.huntedContactId !== (input.huntedContactId || null) ||
@@ -1148,8 +1172,13 @@ export async function queueCompanyWhatsAppMessage(input: {
       skipDuplicates: true,
     });
     return record;
-  });
-  const dispatched = await dispatchWhatsAppOutboxMessage(outbox.id);
+  };
+  const outbox = input.tx
+    ? await createOutbox(input.tx)
+    : await prisma.$transaction(createOutbox);
+  const dispatched = input.deferDispatch
+    ? outbox
+    : await dispatchWhatsAppOutboxMessage(outbox.id);
   const deliveryStatus: MessageDeliveryStatus = clientDeliveryStatus(
     (dispatched?.status || 'QUEUED') as DeliveryRuntimeStatus
   );
@@ -1160,6 +1189,8 @@ export async function queueCompanyWhatsAppMessage(input: {
     deliveryStatus,
     queued: deliveryStatus === 'QUEUED',
     lastError: dispatched?.lastError || null,
+    toPhone: outbox.toPhone,
+    conversationId: outbox.conversationId,
   };
 }
 

@@ -66,19 +66,15 @@ export async function getGeneralManagerContext(principal: ManagerPrincipal) {
     prisma.huntedListing.count({
       where: { companyAccountId: accountId, status: 'AUTHORIZED' },
     }),
-    isJasmineAccount
-      ? prisma.appointmentRequest.count({
-          where: {
-            status: 'PENDING',
-            conversation: { companyAccountId: accountId },
-          },
-        })
-      : Promise.resolve(0),
-    isJasmineAccount
-      ? prisma.customerConversation.count({
-          where: { companyAccountId: accountId, isActive: true },
-        })
-      : Promise.resolve(0),
+    prisma.appointmentRequest.count({
+      where: {
+        status: 'PENDING',
+        conversation: { companyAccountId: accountId },
+      },
+    }),
+    prisma.customerConversation.count({
+      where: { companyAccountId: accountId, isActive: true },
+    }),
     prisma.notification.count({
       where: {
         companyAccountId: accountId,

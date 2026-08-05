@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { del, put } from "@vercel/blob";
 import { NotificationType } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import prisma from "@/lib/prisma";
 import {
   FabrikaForbiddenError,
@@ -26,56 +25,15 @@ import {
   inspectWebsiteArchive,
   WebsiteArchiveSecurityError,
 } from "@/lib/website-archive-security";
+import { toCustomerWebsiteIntegration } from "@/lib/website-integration-customer";
 
 export const dynamic = "force-dynamic";
-
-const rotateSchema = z.object({
-  action: z.literal("rotate_key"),
-  id: z.string().trim().min(1),
-});
-
-const updatePromptSchema = z.object({
-  action: z.literal("update_prompt"),
-  id: z.string().trim().min(1),
-  promptTemplate: z.string().trim().min(120).max(50_000),
-});
-
-const patchSchema = z.discriminatedUnion("action", [
-  rotateSchema,
-  updatePromptSchema,
-]);
 
 function apiBaseUrl(request: Request) {
   return (
     process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ||
     new URL(request.url).origin
   );
-}
-
-function safeVersion(version: Record<string, unknown>) {
-  const safe = { ...version };
-  delete safe.sourceBlobPathname;
-  delete safe.resultBlobPathname;
-  return safe;
-}
-
-function safeIntegration<T extends { apiKeyLookup: string; sourceBlobPathname: string; versions?: Array<Record<string, unknown>> }>(integration: T) {
-  const {
-    apiKeyLookup: _lookup,
-    sourceBlobPathname: _pathname,
-    versions,
-    ...safe
-  } = integration;
-  void _lookup;
-  void _pathname;
-  return {
-    ...safe,
-    ...(versions
-      ? {
-          versions: versions.map(safeVersion),
-        }
-      : {}),
-  };
 }
 
 function authError(error: unknown) {
@@ -105,34 +63,11 @@ export async function GET() {
           orderBy: { version: "desc" },
           take: 10,
         },
-        apiKeys: {
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            environment: true,
-            status: true,
-            keyHint: true,
-            expiresAt: true,
-            createdAt: true,
-          },
-        },
-        promptVersions: {
-          orderBy: { version: "desc" },
-          take: 10,
-          select: {
-            id: true,
-            version: true,
-            promptTemplate: true,
-            source: true,
-            createdByType: true,
-            createdAt: true,
-          },
-        },
       },
     });
     return NextResponse.json({
       success: true,
-      integrations: integrations.map(safeIntegration),
+      integrations: integrations.map(toCustomerWebsiteIntegration),
     });
   } catch (error) {
     return (
@@ -406,17 +341,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
-        integration: safeIntegration(integration),
-        oneTimeApiKey: apiKey,
-        stagingKeyExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        workOrder,
-        codexPrompt: buildWebsiteIntegrationPrompt({
-          companyName: principal.account.companyName,
-          apiBaseUrl: apiBaseUrl(request),
-          apiKey,
-        }),
-        warning:
-          "API anahtarı yalnızca bu yanıtta tam olarak gösterilir. Güvenli biçimde saklayın.",
+        integration: toCustomerWebsiteIntegration(integration),
+        message:
+          "Site paketi platform yöneticisinin güvenli iş emri ve kalite kontrol kuyruğuna alındı.",
       },
       { status: existing ? 200 : 201 },
     );
@@ -437,146 +364,24 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH() {
   try {
-    const principal = await requireFabrikaOwner();
-    const parsed = patchSchema.safeParse(await request.json());
-    if (!parsed.success) {
-      return NextResponse.json(
-        { success: false, error: "Geçersiz site entegrasyonu isteği." },
-        { status: 400 },
-      );
-    }
-    const integration = await prisma.websiteIntegration.findFirst({
-      where: {
-        id: parsed.data.id,
-        companyAccountId: principal.account.id,
-      },
-    });
-    if (!integration) {
-      return NextResponse.json(
-        { success: false, error: "Site entegrasyonu bulunamadı." },
-        { status: 404 },
-      );
-    }
-
-    if (parsed.data.action === "update_prompt") {
-      const promptTemplate = parsed.data.promptTemplate;
-      const updated = await prisma.$transaction(async (tx) => {
-        const latest = await tx.websitePromptVersion.aggregate({
-          where: { websiteIntegrationId: integration.id },
-          _max: { version: true },
-        });
-        const saved = await tx.websiteIntegration.update({
-          where: { id: integration.id },
-          data: { promptTemplate },
-        });
-        const version = await tx.websitePromptVersion.create({
-          data: {
-            companyAccountId: principal.account.id,
-            websiteIntegrationId: integration.id,
-            version: (latest._max.version || 0) + 1,
-            promptTemplate,
-            source: "OWNER_EDIT",
-            createdByType: principal.type,
-            createdById: principal.account.id,
-          },
-          select: { id: true, version: true, createdAt: true },
-        });
-        await tx.managerAuditLog.create({
-          data: {
-            companyAccountId: principal.account.id,
-            actorType: principal.type,
-            actorId: principal.account.id,
-            operation: "WEBSITE_PROMPT_UPDATED",
-            entityType: "WebsiteIntegration",
-            entityId: integration.id,
-            evidence: { version: version.version },
-            result: "SUCCESS",
-            completedAt: new Date(),
-          },
-        });
-        return { saved, version };
-      });
-      return NextResponse.json({
-        success: true,
-        integration: safeIntegration(updated.saved),
-        promptVersion: updated.version,
-      });
-    }
-
-    if (integration.status !== "APPROVED" && integration.status !== "DELIVERED") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Production anahtarı yalnız QA onayından sonra oluşturulabilir.",
-        },
-        { status: 409 },
-      );
-    }
-
-    const apiKey = generateWebsiteApiKey();
-    const updated = await prisma.$transaction(async (tx) => {
-      await tx.websiteIntegrationApiKey.updateMany({
-        where: {
-          websiteIntegrationId: integration.id,
-          environment: "PRODUCTION",
-          status: "ACTIVE",
-        },
-        data: { status: "REVOKED", revokedAt: new Date() },
-      });
-      const saved = await tx.websiteIntegration.update({
-        where: { id: integration.id },
-        data: {
-          apiKeyLookup: createWebsiteApiKeyLookup(apiKey),
-          apiKeyHint: websiteApiKeyHint(apiKey),
-          apiKeyCreatedAt: new Date(),
-        },
-      });
-      await tx.websiteIntegrationApiKey.create({
-        data: {
-          companyAccountId: principal.account.id,
-          websiteIntegrationId: integration.id,
-          environment: "PRODUCTION",
-          status: "ACTIVE",
-          keyLookup: createWebsiteApiKeyLookup(apiKey),
-          keyHint: websiteApiKeyHint(apiKey),
-          createdByType: principal.type,
-          createdById: principal.account.id,
-        },
-      });
-      await tx.managerAuditLog.create({
-        data: {
-          companyAccountId: principal.account.id,
-          actorType: principal.type,
-          actorId: principal.account.id,
-          operation: "WEBSITE_API_KEY_ROTATED",
-          entityType: "WebsiteIntegration",
-          entityId: integration.id,
-          result: "SUCCESS",
-          completedAt: new Date(),
-        },
-      });
-      return saved;
-    });
-    return NextResponse.json({
-      success: true,
-      integration: safeIntegration(updated),
-      oneTimeApiKey: apiKey,
-      codexPrompt: buildWebsiteIntegrationPrompt({
-        companyName: principal.account.companyName,
-        apiBaseUrl: apiBaseUrl(request),
-        apiKey,
-      }),
-      warning: "Eski site API anahtarı hemen geçersiz oldu.",
-    });
-  } catch (error) {
-    const response = authError(error);
-    if (response) return response;
-    console.error("[Website integration rotate error]", error);
+    await requireFabrikaOwner();
     return NextResponse.json(
-      { success: false, error: "Site API anahtarı yenilenemedi." },
-      { status: 500 },
+      {
+        success: false,
+        error:
+          "Site iş emri ve bağlantı anahtarları yalnız platform yöneticisi tarafından yönetilir.",
+      },
+      { status: 405, headers: { Allow: "GET, POST" } },
+    );
+  } catch (error) {
+    return (
+      authError(error) ||
+      NextResponse.json(
+        { success: false, error: "İstek tamamlanamadı." },
+        { status: 500 },
+      )
     );
   }
 }

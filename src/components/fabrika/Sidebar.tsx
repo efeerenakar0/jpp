@@ -87,6 +87,14 @@ const realEstatePackages = [
     description: 'Telefon & Otomasyon',
     ownerOnly: true,
   },
+  {
+    name: 'Ayarlar',
+    href: '/fabrika/ayarlar',
+    icon: Settings2,
+    color: 'from-slate-400 to-slate-500',
+    description: 'Kurulum & Otomasyon',
+    ownerOnly: true,
+  },
 ];
 
 interface FabrikaSidebarProps {

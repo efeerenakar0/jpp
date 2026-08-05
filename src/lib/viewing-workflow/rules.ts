@@ -16,8 +16,17 @@ export type CorrelatablePrompt = {
   status: 'OPEN' | 'ANSWERED' | 'EXPIRED' | 'CANCELLED';
 };
 
-export function acknowledgementDeadline(sentAt: Date) {
-  return new Date(sentAt.getTime() + VIEWING_ACK_MINUTES * 60_000);
+export function acknowledgementDeadline(
+  sentAt: Date,
+  acknowledgementMinutes = VIEWING_ACK_MINUTES
+) {
+  const minutes =
+    Number.isInteger(acknowledgementMinutes) &&
+    acknowledgementMinutes >= 5 &&
+    acknowledgementMinutes <= 120
+      ? acknowledgementMinutes
+      : VIEWING_ACK_MINUTES;
+  return new Date(sentAt.getTime() + minutes * 60_000);
 }
 
 export function shouldTimeoutAssignment(input: {
@@ -331,17 +340,33 @@ export function appointmentLifecycleDecision(input: {
   employeeReminderSentAt: Date | null;
   outcomePromptSentAt: Date | null;
   hasOutcome: boolean;
+  appointmentReminderHours?: number;
+  appointmentOutcomeDelayMinutes?: number;
 }) {
+  const reminderHours =
+    Number.isInteger(input.appointmentReminderHours) &&
+    input.appointmentReminderHours! >= 1 &&
+    input.appointmentReminderHours! <= 72
+      ? input.appointmentReminderHours!
+      : 24;
+  const outcomeDelayMinutes =
+    Number.isInteger(input.appointmentOutcomeDelayMinutes) &&
+    input.appointmentOutcomeDelayMinutes! >= 5 &&
+    input.appointmentOutcomeDelayMinutes! <= 1_440
+      ? input.appointmentOutcomeDelayMinutes!
+      : 30;
   if (
     !input.hasOutcome &&
     !input.outcomePromptSentAt &&
-    input.now.getTime() >= input.endAt.getTime() + 30 * 60_000
+    input.now.getTime() >=
+      input.endAt.getTime() + outcomeDelayMinutes * 60_000
   ) {
     return 'SEND_OUTCOME' as const;
   }
   if (
     !input.employeeReminderSentAt &&
-    input.now.getTime() >= input.startAt.getTime() - 24 * 60 * 60_000 &&
+    input.now.getTime() >=
+      input.startAt.getTime() - reminderHours * 60 * 60_000 &&
     input.now.getTime() < input.startAt.getTime()
   ) {
     return 'SEND_CONFIRMATION' as const;

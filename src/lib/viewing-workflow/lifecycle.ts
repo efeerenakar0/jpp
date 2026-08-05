@@ -3,9 +3,11 @@ import 'server-only';
 import type { Prisma } from '@prisma/client';
 
 import prisma from '@/lib/prisma';
+import { getCompanyOperationalStatus } from '@/lib/digital-manager/company-guard';
 
 import { createWorkflowOutboxInTransaction } from './outbox';
 import { appointmentLifecycleDecision } from './rules';
+import { resolveViewingWorkflowTimings } from './timing-policy';
 import {
   dispatchOutboxes,
   ownerDecisionPrompt,
@@ -19,6 +21,7 @@ const MAX_EMPLOYEE_REMINDERS = 1;
 type LifecycleAppointment = Prisma.AppointmentRequestGetPayload<{
   include: {
     outcome: true;
+    companyAccount: { select: { companyName: true; onboardingState: true } };
     assignedMember: { select: { id: true; name: true; phoneNormalized: true } };
     viewingWorkflow: {
       include: {
@@ -236,6 +239,9 @@ export async function processAppointmentLifecycle(now = new Date()) {
     },
     include: {
       outcome: true,
+      companyAccount: {
+        select: { companyName: true, onboardingState: true },
+      },
       assignedMember: { select: { id: true, name: true, phoneNormalized: true } },
       viewingWorkflow: {
         include: {
@@ -251,6 +257,10 @@ export async function processAppointmentLifecycle(now = new Date()) {
   const results: Array<{ appointmentId: string; action: string }> = [];
 
   for (const appointment of appointments) {
+    const timings = resolveViewingWorkflowTimings(
+      appointment.companyAccount.onboardingState,
+      appointment.companyAccount.companyName
+    );
     const decision = appointmentLifecycleDecision({
       now,
       startAt: appointment.startAt!,
@@ -258,18 +268,35 @@ export async function processAppointmentLifecycle(now = new Date()) {
       employeeReminderSentAt: appointment.employeeReminderSentAt,
       outcomePromptSentAt: appointment.outcomePromptSentAt,
       hasOutcome: Boolean(appointment.outcome),
+      appointmentReminderHours: timings.appointmentReminderHours,
+      appointmentOutcomeDelayMinutes:
+        timings.appointmentOutcomeDelayMinutes,
     });
     if (decision === 'NONE') continue;
-    const outboxId = await prisma.$transaction((tx) =>
-      queueEmployeeAppointmentPrompt(tx, {
-        appointment,
-        kind: decision === 'SEND_CONFIRMATION' ? 'CONFIRMATION' : 'OUTCOME',
-        reminder: 0,
-        now,
-      })
-    );
-    if (outboxId) outboxIds.push(outboxId);
-    results.push({ appointmentId: appointment.id, action: decision });
+    const queued = await prisma.$transaction(async (tx) => {
+      const operational = await getCompanyOperationalStatus(
+        appointment.companyAccountId,
+        tx,
+        now
+      );
+      if (!operational.allowed) {
+        return {
+          outboxId: null,
+          action: `SKIPPED_${operational.reason}`,
+        };
+      }
+      return {
+        outboxId: await queueEmployeeAppointmentPrompt(tx, {
+          appointment,
+          kind: decision === 'SEND_CONFIRMATION' ? 'CONFIRMATION' : 'OUTCOME',
+          reminder: 0,
+          now,
+        }),
+        action: decision,
+      };
+    });
+    if (queued.outboxId) outboxIds.push(queued.outboxId);
+    results.push({ appointmentId: appointment.id, action: queued.action });
   }
 
   const duePrompts = await prisma.whatsAppInteractionPrompt.findMany({
@@ -284,12 +311,24 @@ export async function processAppointmentLifecycle(now = new Date()) {
       },
       deadlineAt: { not: null, lte: now },
     },
-    select: { id: true, companyAccountId: true },
+    select: { id: true, companyAccountId: true, appointmentRequestId: true },
     orderBy: { deadlineAt: 'asc' },
     take: 250,
   });
   for (const candidate of duePrompts) {
     const result = await prisma.$transaction(async (tx) => {
+      const operational = await getCompanyOperationalStatus(
+        candidate.companyAccountId,
+        tx,
+        now
+      );
+      if (!operational.allowed) {
+        return {
+          appointmentId: candidate.appointmentRequestId || candidate.id,
+          outboxId: null,
+          action: `SKIPPED_${operational.reason}`,
+        };
+      }
       const prompt = await tx.whatsAppInteractionPrompt.findFirst({
         where: {
           id: candidate.id,
@@ -301,6 +340,9 @@ export async function processAppointmentLifecycle(now = new Date()) {
           appointmentRequest: {
             include: {
               outcome: true,
+              companyAccount: {
+                select: { companyName: true, onboardingState: true },
+              },
               assignedMember: {
                 select: { id: true, name: true, phoneNormalized: true },
               },

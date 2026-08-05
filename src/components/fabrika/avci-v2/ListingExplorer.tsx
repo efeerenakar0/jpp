@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Check,
@@ -83,6 +83,9 @@ export default function ListingExplorer({
   const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const manualSendRequestRef = useRef<{ key: string; id: string } | null>(
+    null
+  );
   const [draftTone, setDraftTone] = useState<'samimi' | 'resmi' | 'acil'>(
     'samimi'
   );
@@ -260,17 +263,26 @@ export default function ListingExplorer({
   async function sendApprovedDraft() {
     if (!detail || !activeContact || !draft.trim()) return;
     setActionLoading('send');
+    const requestKey = `${detail.id}:${activeContact.id}:${draft.trim()}`;
+    if (manualSendRequestRef.current?.key !== requestKey) {
+      manualSendRequestRef.current = {
+        key: requestKey,
+        id: crypto.randomUUID(),
+      };
+    }
     try {
       await apiJson('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: draft.trim(),
+          requestId: manualSendRequestRef.current.id,
           listingId: detail.id,
           huntedContactId: activeContact.id,
           purpose: 'SALES_AUTHORITY_DISCUSSION',
         }),
       });
+      manualSendRequestRef.current = null;
       toast.success('Onaylı mesaj güvenli gönderim kuyruğuna alındı.');
     } catch (error) {
       toast.error(

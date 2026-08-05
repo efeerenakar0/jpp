@@ -6,6 +6,7 @@ import {
 } from '@/lib/assistant-messaging';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
 import { processAppointmentLifecycle } from '@/lib/viewing-workflow/lifecycle';
+import { resolveViewingWorkflowTimings } from '@/lib/viewing-workflow/timing-policy';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -36,7 +37,6 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const horizon = new Date(now.getTime() + 26 * 60 * 60 * 1000);
   const appointments = await prisma.appointmentRequest.findMany({
     where: {
       status: 'APPROVED',
@@ -49,7 +49,12 @@ export async function GET(request: Request) {
         },
       ],
     },
-    include: { conversation: true },
+    include: {
+      conversation: true,
+      companyAccount: {
+        select: { companyName: true, onboardingState: true },
+      },
+    },
   });
   const dueAppointments = appointments.filter((appointment) => {
     const appointmentAt =
@@ -58,11 +63,19 @@ export async function GET(request: Request) {
         appointment.proposedDate!,
         appointment.proposedTime!
       );
-    return appointmentAt > now && appointmentAt <= horizon;
+    const timings = resolveViewingWorkflowTimings(
+      appointment.companyAccount.onboardingState,
+      appointment.companyAccount.companyName
+    );
+    const reminderAt = new Date(
+      appointmentAt.getTime() -
+        timings.appointmentReminderHours * 60 * 60 * 1_000
+    );
+    return appointmentAt > now && reminderAt <= now;
   });
   const results: Array<{
     appointmentId: string;
-    status: 'sent' | 'failed';
+    status: 'sent' | 'pending' | 'failed';
     error?: string;
   }> = [];
 
@@ -105,19 +118,35 @@ export async function GET(request: Request) {
         delivery,
         role: 'patron',
       });
-      await prisma.$transaction([
-        prisma.appointmentRequest.update({
-          where: { id: appointment.id },
+      if (delivery.deliveryStatus === 'QUEUED') {
+        results.push({ appointmentId: appointment.id, status: 'pending' });
+        continue;
+      }
+      if (
+        !['SENT', 'DELIVERED', 'READ'].includes(delivery.deliveryStatus)
+      ) {
+        throw new Error(
+          `WhatsApp hatırlatması teslim edilemedi (${delivery.deliveryStatus}).`
+        );
+      }
+      await prisma.$transaction(async (tx) => {
+        const claimed = await tx.appointmentRequest.updateMany({
+          where: {
+            id: appointment.id,
+            customerReminderSentAt: null,
+          },
           data: {
             reminderSentAt: now,
             customerReminderSentAt: now,
           },
-        }),
-        prisma.customerConversation.update({
-          where: { id: appointment.conversationId },
-          data: { summary: content },
-        }),
-      ]);
+        });
+        if (claimed.count === 1) {
+          await tx.customerConversation.update({
+            where: { id: appointment.conversationId },
+            data: { summary: content },
+          });
+        }
+      });
       results.push({ appointmentId: appointment.id, status: 'sent' });
     } catch (error) {
       const errorMessage =
@@ -148,6 +177,7 @@ export async function GET(request: Request) {
     checked: appointments.length,
     due: dueAppointments.length,
     sent: results.filter((result) => result.status === 'sent').length,
+    pending: results.filter((result) => result.status === 'pending').length,
     failed: results.filter((result) => result.status === 'failed').length,
     results,
     appointmentLifecycleActions: lifecycle,

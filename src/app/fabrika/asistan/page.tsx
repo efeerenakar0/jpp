@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Bot, Plus, MessageSquare, Calendar, Clock, Loader2,
-  X, Settings, Key, Phone, ShieldCheck, ExternalLink, Save, Trash2,
-  Search, Sparkles, HelpCircle, Flame, Timer, Users, SlidersHorizontal,
+  Bot, Plus, MessageSquare, Calendar, Loader2,
+  X, Settings, Save, Trash2,
+  Search, Sparkles, Flame, Timer, Users, SlidersHorizontal,
   UserRound, MapPin, Home, WalletCards, CircleCheckBig, Circle,
   CalendarPlus
 } from 'lucide-react';
@@ -134,21 +134,14 @@ export default function AsistanPage() {
 
   // AI & company profile settings. WhatsApp itself is connected by QR.
   const [configForm, setConfigForm] = useState({
-    token: '',
-    phoneNumberId: '',
-    businessAccountId: '',
-    verifyToken: '',
-    geminiApiKey: '',
-    companyName: 'Business CEO AI',
+    companyName: '',
     assistantName: 'Efe',
     serviceCity: 'Alanya',
     companyAddress: '',
     companyDetails: '',
     websiteUrl: '',
     instagramUrl: '',
-    languages: 'Türkçe',
-    fallbackTemplateName: '',
-    templateLanguage: 'tr'
+    languages: 'Türkçe'
   });
 
   // Modal State
@@ -807,185 +800,6 @@ export default function AsistanPage() {
                     </span>
                   </div>
                 </div>
-              </div>
-
-              {/* Legacy Cloud API controls are deliberately hidden. WhatsApp now
-                  uses the QR-connected company device only. */}
-              <div className="hidden" aria-hidden="true">
-              <div className="flex items-center justify-between pt-1">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-rose-400" /> Bağlantı yönetimi
-                </label>
-                <a 
-                  href="https://developers.facebook.com/apps/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors hover:underline"
-                >
-                  <span>WhatsApp Merkezi&apos;ni aç</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-
-              <div>
-                <textarea
-                  rows={2}
-                  value={configForm.token}
-                  onChange={(e) => setConfigForm({ ...configForm, token: e.target.value })}
-                  placeholder="EAAG... (Meta Cloud API Jetonu)"
-                  className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none placeholder:text-slate-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-rose-400" /> Phone Number ID
-                    </label>
-                    <a 
-                  href="/fabrika/whatsapp"
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-0.5"
-                    >
-                      Al <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  </div>
-                  <input
-                    type="text"
-                    value={configForm.phoneNumberId}
-                    onChange={(e) => setConfigForm({ ...configForm, phoneNumberId: e.target.value })}
-                    placeholder="102938475612345"
-                    className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none placeholder:text-slate-600"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-rose-400" /> Business Account ID
-                    </label>
-                    <a 
-                      href="https://developers.facebook.com/apps/" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-0.5"
-                    >
-                      Al <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  </div>
-                  <input
-                    type="text"
-                    value={configForm.businessAccountId}
-                    onChange={(e) => setConfigForm({ ...configForm, businessAccountId: e.target.value })}
-                    placeholder="987654321012345"
-                    className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-800 focus:border-rose-500 outline-none placeholder:text-slate-600"
-                  />
-                </div>
-              </div>
-
-              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4">
-                <div className="flex items-start gap-3 mb-3">
-                  <Clock className="w-4 h-4 text-amber-300 mt-0.5 shrink-0" />
-                  <div>
-                    <h4 className="text-xs font-bold text-amber-200">
-                      24 Saat Sonrası Meta Şablonu
-                    </h4>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Meta’da onaylanmış ve gövdesinde tek metin değişkeni bulunan
-                      şablonun adını girin. Süre dolduğunda manuel mesajlar ve
-                      randevu bildirimleri bu şablonla gönderilir.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px] gap-3">
-                  <div>
-                    <label
-                      htmlFor="fallback-template-name"
-                      className="block text-[11px] font-semibold text-slate-300 mb-1"
-                    >
-                      Onaylı şablon adı
-                    </label>
-                    <input
-                      id="fallback-template-name"
-                      type="text"
-                      value={configForm.fallbackTemplateName}
-                      onChange={(event) =>
-                        setConfigForm({
-                          ...configForm,
-                          fallbackTemplateName: event.target.value,
-                        })
-                      }
-                      placeholder="jasmine_bildirim"
-                      className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-700 focus-visible:ring-2 focus-visible:ring-amber-400 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="template-language"
-                      className="block text-[11px] font-semibold text-slate-300 mb-1"
-                    >
-                      Dil kodu
-                    </label>
-                    <input
-                      id="template-language"
-                      type="text"
-                      value={configForm.templateLanguage}
-                      onChange={(event) =>
-                        setConfigForm({
-                          ...configForm,
-                          templateLanguage: event.target.value,
-                        })
-                      }
-                      placeholder="tr"
-                      className="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded-xl border border-slate-700 focus-visible:ring-2 focus-visible:ring-amber-400 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Webhook Callback Display & Quick Guide Box */}
-              <div className="bg-emerald-950/20 p-4 rounded-2xl border border-emerald-500/30 text-xs space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-300">🟢 Canlı Meta Webhook Callback URL:</span>
-                  <a 
-                    href="https://developers.facebook.com/apps/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 hover:underline"
-                  >
-                  <span>WhatsApp Merkezi&apos;ni aç</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-
-                <input
-                  readOnly
-                  value={typeof window !== 'undefined' ? `${window.location.origin}/api/whatsapp/webhook` : 'https://jpp-ufeb.vercel.app/api/whatsapp/webhook'}
-                  className="w-full bg-slate-950 text-emerald-400 font-mono text-xs p-3 rounded-xl border border-emerald-500/20 outline-none select-all"
-                />
-
-                <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-emerald-500/10">
-                  <span>Verify Token: <code className="text-white font-mono">Vercel ortam değişkeninde saklanır</code></span>
-                  <span className="text-emerald-400 font-semibold">HTTP 200 OK Bekleme Süresi: 0.05sn</span>
-                </div>
-
-                {/* Quick Step Guide */}
-                <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-1 mt-2">
-                  <div className="font-bold text-rose-400 flex items-center gap-1">
-                    <HelpCircle className="w-3.5 h-3.5" /> Meta Webhook Kurulum Adımları:
-                  </div>
-                  <ol className="list-decimal list-inside space-y-0.5 text-slate-400 pl-1">
-                    <li><a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer" className="text-rose-300 underline">Meta App Dashboard</a> &gt; <b>WhatsApp</b> &gt; <b>Configuration</b> sayfasına gidin.</li>
-                    <li><b>Webhook</b> kısmındaki <b>Edit (Düzenle)</b> butonuna tıklayın.</li>
-                    <li><b>Callback URL</b> alanına yukarıdaki canlı URL&apos;i yapıştırın.</li>
-                    <li><b>Verify Token</b> değerini güvenli Vercel ortam ayarınızdan alın.</li>
-                    <li>Kaydedip <b>messages</b> olayına abone olun.</li>
-                  </ol>
-                </div>
-              </div>
-
               </div>
 
               <div className="pt-2 flex flex-wrap justify-end items-center gap-3">

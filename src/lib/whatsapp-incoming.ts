@@ -21,6 +21,7 @@ import { recordOperationEvent } from '@/lib/digital-manager/events';
 import { getCompanyOperationalStatus } from '@/lib/digital-manager/company-guard';
 import { orchestrateCustomerViewingRequest } from '@/lib/digital-manager/lead-orchestration';
 import { processViewingInteractionReply } from '@/lib/viewing-workflow/service';
+import { buildViewingReplyReceipt } from '@/lib/whatsapp-operation-reply';
 import {
   propertyClarificationText,
 } from '@/lib/viewing-workflow/property-resolution';
@@ -129,26 +130,17 @@ export async function processIncomingWhatsAppMessage(
     });
     if (operationReply.handled) {
       if (!('duplicate' in operationReply && operationReply.duplicate)) {
-        const clarification =
-          'clarificationRequired' in operationReply &&
-          operationReply.clarificationRequired;
-        const openCodes =
-          'openPrompts' in operationReply && Array.isArray(operationReply.openPrompts)
-            ? operationReply.openPrompts
-                .map((prompt) => `#${prompt.shortCode}`)
-                .join(', ')
-            : '';
+        const receipt = buildViewingReplyReceipt(operationReply, 'EMPLOYEE');
         await queueCompanyWhatsAppMessage({
           companyAccountId: input.companyAccountId,
           to: normalizedPhone,
-          text: clarification
-            ? `Yanıtı tek bir açık işe bağlayamadım. Lütfen iş koduyla yanıtla${openCodes ? `: ${openCodes}` : '.'}`
-            : 'Operasyon yanıtınız doğrulandı ve ilgili işe kaydedildi.',
+          text: receipt.text,
           recipientType: 'EMPLOYEE',
           recipientId: identity.resolution.entityId,
-          purpose: clarification
-            ? 'VIEWING_REPLY_CLARIFICATION'
-            : 'VIEWING_REPLY_CONFIRMATION',
+          purpose:
+            receipt.kind === 'CONFIRMED'
+              ? 'VIEWING_REPLY_CONFIRMATION'
+              : 'VIEWING_REPLY_CLARIFICATION',
           replyToProviderMessageId: input.providerMessageId,
           correlationId: input.providerMessageId,
           idempotencyKey: `viewing-reply:${input.providerMessageId}:response`,
@@ -182,26 +174,17 @@ export async function processIncomingWhatsAppMessage(
     });
     if (operationReply.handled) {
       if (!('duplicate' in operationReply && operationReply.duplicate)) {
-        const clarification =
-          'clarificationRequired' in operationReply &&
-          operationReply.clarificationRequired;
-        const openCodes =
-          'openPrompts' in operationReply && Array.isArray(operationReply.openPrompts)
-            ? operationReply.openPrompts
-                .map((prompt) => `#${prompt.shortCode}`)
-                .join(', ')
-            : '';
+        const receipt = buildViewingReplyReceipt(operationReply, 'OWNER');
         await queueCompanyWhatsAppMessage({
           companyAccountId: input.companyAccountId,
           to: normalizedPhone,
-          text: clarification
-            ? `Yanıtı tek bir açık karara bağlayamadım. Lütfen iş koduyla yanıtlayın${openCodes ? `: ${openCodes}` : '.'}`
-            : 'Kararınız doğrulandı ve ilgili operasyona uygulandı.',
+          text: receipt.text,
           recipientType: 'OWNER',
           recipientId: identity.resolution.entityId,
-          purpose: clarification
-            ? 'VIEWING_REPLY_CLARIFICATION'
-            : 'VIEWING_REPLY_CONFIRMATION',
+          purpose:
+            receipt.kind === 'CONFIRMED'
+              ? 'VIEWING_REPLY_CONFIRMATION'
+              : 'VIEWING_REPLY_CLARIFICATION',
           replyToProviderMessageId: input.providerMessageId,
           correlationId: input.providerMessageId,
           idempotencyKey: `viewing-reply:${input.providerMessageId}:response`,

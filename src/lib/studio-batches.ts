@@ -15,9 +15,13 @@ import {
 } from '@/lib/property-media';
 import { summarizeStudioBatch } from '@/lib/studio-batch-rules';
 import {
-  enhanceWithStableImageUltra,
-  StabilityUltraError,
-} from '@/lib/stability-ultra';
+  enhanceStudioImage,
+  resolveStudioImageEngine,
+} from '@/lib/studio-image-engine';
+import {
+  studioItemFailureTransition,
+  studioItemLeaseExpiry,
+} from '@/lib/studio-batch-lease';
 
 export const STUDIO_BATCH_MAX_ITEMS = 12;
 const STUDIO_BATCH_RETENTION_DAYS = 7;
@@ -98,8 +102,14 @@ export async function createStudioBatch(input: {
       propertyId: input.propertyId || null,
       prompt,
       preset: input.preset || null,
-      provider: 'STABILITY',
-      model: 'stable-image-ultra',
+      provider:
+        resolveStudioImageEngine(input.preset) === 'CREATIVE'
+          ? 'STABILITY'
+          : 'SHARP',
+      model:
+        resolveStudioImageEngine(input.preset) === 'CREATIVE'
+          ? 'stable-image-ultra'
+          : 'realistic-real-estate-v1',
       status: 'UPLOADING',
       createdByMemberId: input.actor.memberId,
       idempotencyKey,
@@ -268,6 +278,7 @@ export async function processStudioBatchItem(input: {
   actor: PropertyMediaActor;
   batchId: string;
   itemId: string;
+  leaseOwner?: string;
 }) {
   const item = await prisma.studioBatchItem.findFirst({
     where: {
@@ -295,7 +306,8 @@ export async function processStudioBatchItem(input: {
     const source = await fetchOwnedMediaBytes(item.originalUrl, {
       maxBytes: 9 * 1024 * 1024,
     });
-    const processed = await enhanceWithStableImageUltra({
+    const processed = await enhanceStudioImage({
+      engine: resolveStudioImageEngine(item.batch.preset),
       image: source.bytes,
       mimeType: source.mimeType,
       prompt: item.batch.prompt,
@@ -318,39 +330,56 @@ export async function processStudioBatchItem(input: {
         outputStorageKey: stored.storageKey,
         outputFileName: stored.fileName,
         outputMimeType: stored.mimeType,
+        outputWidth: processed.width,
+        outputHeight: processed.height,
         outputByteSize: stored.byteSize,
         errorMessage: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        nextAttemptAt: null,
       },
     });
     await refreshBatchStatus(item.batchId);
     return updated;
   } catch (error) {
     const message =
-      error instanceof StabilityUltraError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Görsel işlenemedi.';
-    await prisma.studioBatchItem.update({
-      where: { id: item.id },
-      data: { status: 'FAILED', errorMessage: message.slice(0, 2_000) },
-    });
-    await refreshBatchStatus(item.batchId);
+      error instanceof Error ? error.message : 'Görsel işlenemedi.';
+    if (!input.leaseOwner) {
+      await prisma.studioBatchItem.update({
+        where: { id: item.id },
+        data: { status: 'FAILED', errorMessage: message.slice(0, 2_000) },
+      });
+      await refreshBatchStatus(item.batchId);
+    }
     throw error;
   }
 }
 
-export async function processNextStudioBatchItem() {
-  const staleBefore = new Date(Date.now() - 15 * 60 * 1000);
+type ProcessStudioItem = typeof processStudioBatchItem;
+
+export async function processNextStudioBatchItem(input: {
+  now?: Date;
+  workerId?: string;
+  processItem?: ProcessStudioItem;
+} = {}) {
+  const now = input.now ?? new Date();
+  const workerId = input.workerId ?? `studio-worker:${randomUUID()}`;
+  const processItem = input.processItem ?? processStudioBatchItem;
   const candidate = await prisma.studioBatchItem.findFirst({
     where: {
       batch: {
-        expiresAt: { gt: new Date() },
+        expiresAt: { gt: now },
         status: { in: ['PENDING', 'PROCESSING', 'PARTIAL'] },
       },
       OR: [
-        { status: 'PENDING' },
-        { status: 'PROCESSING', updatedAt: { lt: staleBefore } },
+        {
+          status: 'PENDING',
+          AND: [
+            { OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }] },
+            { OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }] },
+          ],
+        },
+        { status: 'PROCESSING', leaseExpiresAt: { lte: now } },
       ],
     },
     include: {
@@ -363,30 +392,58 @@ export async function processNextStudioBatchItem() {
   const claimed = await prisma.studioBatchItem.updateMany({
     where: {
       id: candidate.id,
-      ...(candidate.status === 'PENDING'
-        ? { status: 'PENDING' }
-        : { status: 'PROCESSING', updatedAt: { lt: staleBefore } }),
+      status: candidate.status,
+      AND: [
+        { OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }] },
+        { OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }] },
+      ],
     },
-    data: { status: 'PROCESSING', errorMessage: null },
+    data: {
+      status: 'PROCESSING',
+      errorMessage: null,
+      leaseOwner: workerId,
+      leaseExpiresAt: studioItemLeaseExpiry(now),
+      nextAttemptAt: null,
+      lastAttemptAt: now,
+      attemptCount: { increment: 1 },
+    },
   });
   if (!claimed.count) return null;
 
   try {
-    const item = await processStudioBatchItem({
+    const item = await processItem({
       actor: {
         companyAccountId: candidate.batch.companyAccountId,
         memberId: candidate.batch.createdByMemberId,
       },
       batchId: candidate.batch.id,
       itemId: candidate.id,
+      leaseOwner: workerId,
     });
     return { ok: true as const, batchId: candidate.batch.id, itemId: item.id };
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Görsel işlenemedi.';
+    const transition = studioItemFailureTransition({
+      attemptCount: candidate.attemptCount + 1,
+      now,
+      message,
+    });
+    await prisma.studioBatchItem.updateMany({
+      where: {
+        id: candidate.id,
+        status: 'PROCESSING',
+        leaseOwner: workerId,
+      },
+      data: transition,
+    });
+    await refreshBatchStatus(candidate.batch.id);
     return {
       ok: false as const,
       batchId: candidate.batch.id,
       itemId: candidate.id,
-      error: error instanceof Error ? error.message : 'Görsel işlenemedi.',
+      error: message,
+      retryScheduled: transition.status === 'PENDING',
     };
   }
 }

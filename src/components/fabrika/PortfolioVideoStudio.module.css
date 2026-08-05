@@ -70,6 +70,59 @@
   font-weight: 750;
 }
 
+.modeSwitcher {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 14px 0;
+}
+
+.modeSwitcher button {
+  display: flex;
+  min-width: 0;
+  min-height: 64px;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid rgba(100, 129, 151, 0.3);
+  border-radius: 9px;
+  color: #91a5b3;
+  text-align: left;
+  background: rgba(4, 18, 29, 0.72);
+  cursor: pointer;
+}
+
+.modeSwitcher button[aria-pressed='true'] {
+  border-color: rgba(82, 217, 157, 0.68);
+  color: #eaf7f1;
+  background: linear-gradient(135deg, rgba(47, 181, 122, 0.17), rgba(6, 28, 43, 0.9));
+  box-shadow: inset 0 0 0 1px rgba(82, 217, 157, 0.08);
+}
+
+.modeSwitcher svg {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  color: #59dda2;
+}
+
+.modeSwitcher span,
+.modeSwitcher b,
+.modeSwitcher small {
+  display: block;
+}
+
+.modeSwitcher b {
+  font-size: 0.76rem;
+}
+
+.modeSwitcher small {
+  margin-top: 3px;
+  color: #79909f;
+  font-size: 0.61rem;
+  line-height: 1.35;
+}
+
 .workspaceGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(330px, 0.72fr);
@@ -174,6 +227,12 @@
 .renderActions button:focus-visible {
   border-color: #5be0a5;
   box-shadow: 0 0 0 3px rgba(91, 224, 165, 0.18);
+}
+
+.modeSwitcher button:focus-visible,
+.aiHistory button:focus-visible {
+  outline: 2px solid #5be0a5;
+  outline-offset: 2px;
 }
 
 .portfolioSummary {
@@ -321,6 +380,36 @@
   border: 1px solid rgba(82, 217, 157, 0.24);
   border-radius: 8px;
   background: rgba(36, 164, 107, 0.07);
+}
+
+.aiPromptNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 11px;
+  padding: 11px 12px;
+  border: 1px solid rgba(98, 170, 222, 0.28);
+  border-radius: 8px;
+  color: #a9bbc8;
+  background: rgba(33, 104, 156, 0.09);
+}
+
+.aiPromptNote svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #72c9ff;
+}
+
+.aiPromptNote p {
+  margin: 0;
+  font-size: 0.65rem;
+  line-height: 1.55;
+}
+
+.aiPromptNote b {
+  color: #dcebf4;
 }
 
 .directorPanel p {
@@ -658,6 +747,234 @@
   background: rgba(177, 133, 47, 0.1);
 }
 
+.aiJobCard {
+  display: grid;
+  gap: 13px;
+}
+
+.aiReadiness {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  border: 1px solid rgba(231, 180, 84, 0.28);
+  border-radius: 8px;
+  color: #e3c98e;
+  background: rgba(145, 99, 29, 0.1);
+}
+
+.aiReadiness[data-ready='true'] {
+  border-color: rgba(82, 217, 157, 0.28);
+  color: #9ce9c5;
+  background: rgba(44, 172, 115, 0.1);
+}
+
+.aiReadiness > span {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.aiReadiness > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.aiReadiness div,
+.aiReadiness b,
+.aiReadiness small {
+  display: block;
+}
+
+.aiReadiness b {
+  font-size: 0.68rem;
+}
+
+.aiReadiness small {
+  margin-top: 3px;
+  color: #879ba9;
+  font-size: 0.59rem;
+  line-height: 1.4;
+}
+
+.aiJobDetail {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(100, 129, 151, 0.25);
+  border-radius: 9px;
+  background: rgba(3, 16, 26, 0.7);
+}
+
+.aiJobHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.aiJobHeading div,
+.aiJobHeading small,
+.aiJobHeading b {
+  display: block;
+}
+
+.aiJobHeading small {
+  color: #728897;
+  font-size: 0.58rem;
+}
+
+.aiJobHeading b {
+  margin-top: 3px;
+  color: #e7f1ed;
+  font-size: 0.75rem;
+}
+
+.aiJobHeading > span {
+  color: #69dfa9;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.aiVideo {
+  width: min(100%, 330px);
+  aspect-ratio: 9 / 16;
+  margin: 0 auto;
+  border: 1px solid rgba(112, 144, 165, 0.42);
+  border-radius: 10px;
+  background: #020b11;
+}
+
+.aiProgressVisual,
+.aiEmptyState {
+  display: grid;
+  min-height: 170px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 20px;
+  border: 1px dashed rgba(104, 143, 170, 0.32);
+  border-radius: 8px;
+  color: #6adfac;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(49, 180, 130, 0.14), transparent 45%),
+    #03121d;
+}
+
+.aiProgressVisual svg,
+.aiEmptyState svg {
+  width: 27px;
+  height: 27px;
+}
+
+.aiProgressVisual p,
+.aiEmptyState p {
+  max-width: 310px;
+  margin: 0;
+  color: #8fa4b2;
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+
+.aiJobError,
+.retentionNotice,
+.retentionFootnote {
+  margin: 0;
+  font-size: 0.62rem;
+  line-height: 1.5;
+}
+
+.aiJobError {
+  color: #f3a5b0;
+}
+
+.retentionNotice {
+  color: #d6bd83;
+}
+
+.retentionFootnote {
+  padding-top: 2px;
+  color: #748a99;
+}
+
+.aiHistory {
+  display: grid;
+  gap: 7px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(100, 129, 151, 0.2);
+}
+
+.aiHistory > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #b8c6ce;
+  font-size: 0.68rem;
+}
+
+.aiHistory > div:first-child button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(100, 129, 151, 0.26);
+  border-radius: 6px;
+  color: #8fa4b2;
+  background: #071b2a;
+}
+
+.aiHistory > div:first-child svg {
+  width: 13px;
+  height: 13px;
+}
+
+.aiHistoryList {
+  display: grid;
+  gap: 5px;
+}
+
+.aiHistoryList > button {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(100, 129, 151, 0.2);
+  border-radius: 7px;
+  color: #91a5b2;
+  text-align: left;
+  background: rgba(4, 18, 29, 0.58);
+}
+
+.aiHistoryList > button[aria-current='true'] {
+  border-color: rgba(82, 217, 157, 0.45);
+  background: rgba(44, 172, 115, 0.08);
+}
+
+.aiHistoryList span,
+.aiHistoryList b,
+.aiHistoryList small {
+  display: block;
+}
+
+.aiHistoryList b {
+  color: #c8d5dc;
+  font-size: 0.64rem;
+}
+
+.aiHistoryList small {
+  margin-top: 2px;
+  color: #718796;
+  font-size: 0.56rem;
+}
+
 .renderActions {
   flex-wrap: wrap;
   gap: 8px;
@@ -765,11 +1082,13 @@
 @media (max-width: 1050px) {
   .workspaceGrid { grid-template-columns: 1fr; }
   .previewColumn { position: static; grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1fr); }
+  .aiJobCard { grid-column: 1 / -1; }
   .playerFrame { max-height: 620px; }
 }
 
 @media (max-width: 760px) {
   .videoHeader { align-items: flex-start; flex-direction: column; }
+  .modeSwitcher { grid-template-columns: 1fr; }
   .workspaceGrid { padding: 9px; }
   .styleGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .photoGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -786,6 +1105,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .loadingPanel svg { animation-duration: 1.8s; }
+  .loadingPanel svg, .spin { animation-duration: 1.8s; }
   .progressTrack span, .styleGrid button { transition: none; }
 }

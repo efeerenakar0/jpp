@@ -9,7 +9,6 @@ export const businessCeoBrand = {
 const legacyDefaultNames = new Set([
   '',
   'jasmine ai',
-  'jasmine group',
   'jasmine ai fabrikası',
   'jasmine proje pazarlama',
 ]);

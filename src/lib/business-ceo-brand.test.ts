@@ -13,11 +13,11 @@ describe('Business CEO AI marka kimliği', () => {
 
   it('eski varsayılan marka adlarını yeni ürün adına dönüştürür', () => {
     expect(resolveWorkspaceBrand('Jasmine AI')).toBe('Business CEO AI');
-    expect(resolveWorkspaceBrand('Jasmine Group')).toBe('Business CEO AI');
     expect(resolveWorkspaceBrand('')).toBe('Business CEO AI');
   });
 
   it('müşterinin açıkça tanımladığı şirket adını korur', () => {
     expect(resolveWorkspaceBrand('Akar Group')).toBe('Akar Group');
+    expect(resolveWorkspaceBrand('Jasmine Group')).toBe('Jasmine Group');
   });
 });

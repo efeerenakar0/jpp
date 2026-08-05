@@ -955,6 +955,78 @@
   gap: 10px;
 }
 
+.publicationFlow {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(63, 206, 135, 0.24);
+  border-radius: 6px;
+  background: rgba(7, 30, 39, 0.76);
+}
+
+.publicationFlow h3 {
+  margin: 0;
+  color: #eef7f2;
+  font-size: 0.78rem;
+}
+
+.publicationFlow p,
+.publicationFlow small {
+  margin: 4px 0 0;
+  color: #91a7b3;
+  font-size: 0.64rem;
+  line-height: 1.55;
+}
+
+.publicationActions,
+.publicationEvidence > div,
+.publicationConfirmed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.publicationActions svg,
+.publicationEvidence svg,
+.publicationConfirmed svg {
+  width: 14px;
+  height: 14px;
+}
+
+.publicationEvidence {
+  display: grid;
+  gap: 5px;
+}
+
+.publicationEvidence label {
+  color: #bac7ce;
+  font-size: 0.65rem;
+}
+
+.publicationEvidence input {
+  min-width: min(430px, 100%);
+  flex: 1 1 260px;
+}
+
+.publicationConfirmed {
+  justify-content: space-between;
+  padding: 9px 10px;
+  border: 1px solid rgba(63, 206, 135, 0.24);
+  border-radius: 5px;
+  color: #8ee6b8;
+  background: rgba(34, 135, 84, 0.1);
+  font-size: 0.66rem;
+}
+
+.publicationConfirmed a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #d7bd82;
+}
+
 .websitePlan {
   padding: 12px;
 }

@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => {
       update: vi.fn(),
     },
     appointmentRequest: { updateMany: vi.fn() },
-    companyAccount: { findFirst: vi.fn() },
+    companyAccount: { findFirst: vi.fn(), findUnique: vi.fn() },
     companyMember: { findFirst: vi.fn(), findMany: vi.fn() },
     crmActivity: { create: vi.fn() },
     crmDeal: { updateMany: vi.fn() },
@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
     viewingAssignmentAttempt: {
       findFirst: vi.fn(),
       findFirstOrThrow: vi.fn(),
+      updateMany: vi.fn(),
     },
     viewingWorkflow: {
       findFirstOrThrow: vi.fn(),
@@ -38,6 +39,7 @@ const mocks = vi.hoisted(() => {
   };
   return {
     tx,
+    findAssignmentAttempts: vi.fn(),
     transaction: vi.fn(async (callback: (client: typeof tx) => unknown) =>
       callback(tx)
     ),
@@ -49,6 +51,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('@/lib/prisma', () => ({
   default: {
     $transaction: mocks.transaction,
+    viewingAssignmentAttempt: { findMany: mocks.findAssignmentAttempts },
     whatsAppInteractionPrompt: mocks.tx.whatsAppInteractionPrompt,
   },
 }));
@@ -70,6 +73,7 @@ vi.mock('./outbox', () => ({
 }));
 
 import {
+  processDueViewingAcknowledgements,
   processViewingInteractionReply,
   processViewingPanelDecision,
 } from './service';
@@ -169,6 +173,12 @@ describe('viewing workflow deterministic reply mutations', () => {
       id: 'company-a',
       ownerName: 'Patron',
       ownerPhoneNormalized: null,
+    });
+    mocks.tx.companyAccount.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      subscriptionStatus: 'ACTIVE',
+      subscriptionEndsAt: null,
+      workspaceEnabled: true,
     });
     mocks.tx.managerNotificationPreference.findUnique.mockResolvedValue(null);
     mocks.tx.whatsAppConfig.findUnique.mockResolvedValue(null);
@@ -498,5 +508,26 @@ describe('viewing workflow deterministic reply mutations', () => {
       })
     );
     expect(mocks.tx.crmProperty.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('askıya alınmış tenant için ACK timeout durumunu ilerletmez', async () => {
+    mocks.findAssignmentAttempts.mockResolvedValue([
+      { id: 'attempt-a', companyAccountId: 'company-a' },
+    ]);
+    mocks.tx.companyAccount.findUnique.mockResolvedValue({
+      status: 'SUSPENDED',
+      subscriptionStatus: 'ACTIVE',
+      subscriptionEndsAt: null,
+      workspaceEnabled: true,
+    });
+
+    const result = await processDueViewingAcknowledgements(now);
+
+    expect(result).toEqual([
+      { attemptId: 'attempt-a', status: 'SKIPPED_ACCOUNT_INACTIVE' },
+    ]);
+    expect(mocks.tx.viewingAssignmentAttempt.findFirst).not.toHaveBeenCalled();
+    expect(mocks.tx.viewingAssignmentAttempt.updateMany).not.toHaveBeenCalled();
+    expect(mocks.transitionTask).not.toHaveBeenCalled();
   });
 });

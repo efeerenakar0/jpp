@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Bot,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -12,14 +11,12 @@ import {
   ExternalLink,
   Globe2,
   ImageIcon,
-  KeyRound,
   Loader2,
   MapPin,
   Megaphone,
   MousePointerClick,
   Plus,
   Rocket,
-  Settings2,
   Sparkles,
   Target,
   Users2,
@@ -38,14 +35,6 @@ import {
 import type { AdPlatform } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import styles from "./marketing.module.css";
@@ -83,9 +72,25 @@ type Campaign = {
   generatedBy: string | null;
   generatedModel: string | null;
   internationalPlan: InternationalMarketingPlan | null;
+  publicationStatus:
+    | "DRAFT"
+    | "READY_TO_PUBLISH"
+    | "EXPORTED"
+    | "MANUALLY_CONFIRMED";
+  exportedAt: string | null;
+  externalPublicationUrl: string | null;
+  publicationProofUrl: string | null;
+  manuallyConfirmedAt: string | null;
   createdAt: string;
   property: Omit<Property, "status"> | null;
   adCopies: AdCopy[];
+};
+
+const PUBLICATION_LABELS: Record<Campaign["publicationStatus"], string> = {
+  DRAFT: "Taslak",
+  READY_TO_PUBLISH: "Yayına hazır",
+  EXPORTED: "Paket hazır",
+  MANUALLY_CONFIRMED: "Manuel yayın doğrulandı",
 };
 
 type WebsiteAnalysis = {
@@ -103,13 +108,9 @@ type WebsiteAnalysis = {
 
 type MarketingData = {
   company: { name: string };
-  permissions: { canManageSecrets: boolean };
   ai: {
-    configured: boolean;
-    active: boolean;
-    keyHint: string | null;
-    model: string;
-    fallbackAvailable: boolean;
+    managedByPlatform: boolean;
+    ready: boolean;
   };
   campaigns: Campaign[];
   properties: Property[];
@@ -146,8 +147,6 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [campaignType, setCampaignType] = useState<"listing" | "brand">(
     "listing",
@@ -161,9 +160,10 @@ export default function MarketingPage() {
     DEFAULT_MARKETING_CHANNELS,
   );
   const [websiteUrl, setWebsiteUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("openrouter/free");
-  const [aiActive, setAiActive] = useState(true);
+  const [publicationBusy, setPublicationBusy] = useState<string | null>(null);
+  const [publicationUrls, setPublicationUrls] = useState<
+    Record<string, string>
+  >({});
 
   const fetchData = useCallback(async () => {
     try {
@@ -176,8 +176,6 @@ export default function MarketingPage() {
       if (!response.ok)
         throw new Error(body.error || "Pazarlama verileri alınamadı.");
       setData(body);
-      setModel(body.ai.model);
-      setAiActive(body.ai.active || !body.ai.configured);
       setPropertyId((current) => {
         if (
           requestedPropertyId &&
@@ -345,19 +343,7 @@ export default function MarketingPage() {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error || "Onay durumu değiştirilemedi.");
       }
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              campaigns: current.campaigns.map((campaign) => ({
-                ...campaign,
-                adCopies: campaign.adCopies.map((copy) =>
-                  copy.id === adCopyId ? { ...copy, approved } : copy,
-                ),
-              })),
-            }
-          : current,
-      );
+      await fetchData();
       toast.success(
         approved ? "İçerik onaylandı." : "İçerik yeniden taslağa alındı.",
       );
@@ -368,31 +354,47 @@ export default function MarketingPage() {
     }
   }
 
-  async function saveSettings() {
-    setSavingSettings(true);
+  async function updatePublication(
+    campaignId: string,
+    action: "PREPARE" | "EXPORT" | "CONFIRM",
+  ) {
+    const externalUrl = publicationUrls[campaignId]?.trim();
+    if (action === "CONFIRM" && !externalUrl) {
+      toast.error("Önce dış platformdaki yayın bağlantısını girin.");
+      return;
+    }
+
+    setPublicationBusy(`${campaignId}:${action}`);
     try {
-      const response = await fetch("/api/fabrika/marketing/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey: apiKey || undefined,
-          model,
-          active: aiActive,
-        }),
-      });
+      const response = await fetch(
+        `/api/fabrika/marketing/campaigns/${campaignId}/publication`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            ...(action === "CONFIRM" ? { externalUrl } : {}),
+          }),
+        },
+      );
       const body = (await response.json()) as { error?: string };
-      if (!response.ok)
-        throw new Error(body.error || "AI ayarı kaydedilemedi.");
-      toast.success("Pazarlamacı AI ayarı güvenle kaydedildi.");
-      setApiKey("");
-      setSettingsOpen(false);
+      if (!response.ok) {
+        throw new Error(body.error || "Yayın adımı tamamlanamadı.");
+      }
       await fetchData();
+      toast.success(
+        action === "PREPARE"
+          ? "Kampanya yayın paketine hazır."
+          : action === "EXPORT"
+            ? "Yayın paketi oluşturuldu."
+            : "Dış platform yayını manuel olarak doğrulandı.",
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "AI ayarı kaydedilemedi.",
+        error instanceof Error ? error.message : "Yayın adımı tamamlanamadı.",
       );
     } finally {
-      setSavingSettings(false);
+      setPublicationBusy(null);
     }
   }
 
@@ -422,12 +424,9 @@ export default function MarketingPage() {
     }
   }
 
-  const aiLabel =
-    data?.ai.configured && data.ai.active
-      ? `OpenRouter · ${data.ai.model}`
-      : data?.ai.fallbackAvailable
-        ? "Business CEO AI Router · Groq + Cloudflare"
-        : "Akıllı kural motoru";
+  const aiLabel = data?.ai.ready
+    ? "Business CEO AI hazır"
+    : "Akıllı kural motoru";
 
   return (
     <main className={styles.page}>
@@ -464,16 +463,6 @@ export default function MarketingPage() {
           >
             <ImageIcon /> Şablonlar
           </Button>
-          {data?.permissions.canManageSecrets && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setSettingsOpen(true)}
-              className={styles.secondaryButton}
-            >
-              <Settings2 /> AI ayarları
-            </Button>
-          )}
           <Badge className={styles.aiBadge}>
             <Bot /> {aiLabel}
           </Badge>
@@ -495,7 +484,7 @@ export default function MarketingPage() {
           <section className={styles.metrics} aria-label="Pazarlama özeti">
             {[
               {
-                label: "Aktif kampanya",
+                label: "Kampanya",
                 value: domesticCampaigns.length,
                 icon: Megaphone,
                 note: "şirket kampanyası",
@@ -818,8 +807,8 @@ export default function MarketingPage() {
                 <div>
                   <h2>Kampanyalarım</h2>
                   <p>
-                    Metinleri onaylayın, posterleri indirin ve kampanya
-                    detaylarını açın.
+                    Metinleri onaylayın, yayın paketini indirin ve dış platform
+                    yayınını bağlantıyla doğrulayın.
                   </p>
                 </div>
                 <Badge>{domesticCampaigns.length} kampanya</Badge>
@@ -856,7 +845,7 @@ export default function MarketingPage() {
                         aria-expanded={Boolean(expanded[campaign.id])}
                       >
                         <span>
-                          <b>Aktif</b>
+                          <b>{PUBLICATION_LABELS[campaign.publicationStatus]}</b>
                         </span>
                         <strong>{campaign.name}</strong>
                         <span>
@@ -929,6 +918,146 @@ export default function MarketingPage() {
                               />
                             ))}
                           </div>
+                          <section
+                            className={styles.publicationFlow}
+                            aria-label={`${campaign.name} yayın akışı`}
+                          >
+                            <div>
+                              <h3>Yayın akışı</h3>
+                              <p>
+                                Business CEO AI reklamı dış platformda otomatik
+                                yayınlamaz. Onaylı içerikleri paketler; gerçek
+                                yayın, bağlantı girildiğinde doğrulanır.
+                              </p>
+                            </div>
+                            <div className={styles.publicationActions}>
+                              {campaign.publicationStatus === "DRAFT" && (
+                                <Button
+                                  type="button"
+                                  onClick={() =>
+                                    void updatePublication(
+                                      campaign.id,
+                                      "PREPARE",
+                                    )
+                                  }
+                                  disabled={
+                                    publicationBusy !== null ||
+                                    !campaign.posterHeadline ||
+                                    campaign.adCopies.length === 0 ||
+                                    campaign.adCopies.some(
+                                      (copy) => !copy.approved,
+                                    )
+                                  }
+                                  className={styles.primaryButton}
+                                >
+                                  {publicationBusy ===
+                                  `${campaign.id}:PREPARE` ? (
+                                    <Loader2 className="animate-spin" />
+                                  ) : (
+                                    <Rocket />
+                                  )}
+                                  Yayına hazırla
+                                </Button>
+                              )}
+                              {campaign.publicationStatus ===
+                                "READY_TO_PUBLISH" && (
+                                <Button
+                                  type="button"
+                                  onClick={() =>
+                                    void updatePublication(campaign.id, "EXPORT")
+                                  }
+                                  disabled={publicationBusy !== null}
+                                  className={styles.primaryButton}
+                                >
+                                  {publicationBusy ===
+                                  `${campaign.id}:EXPORT` ? (
+                                    <Loader2 className="animate-spin" />
+                                  ) : (
+                                    <Download />
+                                  )}
+                                  Yayın paketini oluştur
+                                </Button>
+                              )}
+                              {[
+                                "EXPORTED",
+                                "MANUALLY_CONFIRMED",
+                              ].includes(campaign.publicationStatus) && (
+                                <Button
+                                  asChild
+                                  variant="outline"
+                                  className={styles.secondaryButton}
+                                >
+                                  <a
+                                    href={`/api/fabrika/marketing/campaigns/${campaign.id}/publication?download=1`}
+                                  >
+                                    <Download /> Yayın paketini indir
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                            {campaign.publicationStatus === "DRAFT" && (
+                              <small>
+                                Devam etmek için poster ile bütün kanal
+                                metinlerinin hazır ve onaylı olması gerekir.
+                              </small>
+                            )}
+                            {campaign.publicationStatus === "EXPORTED" && (
+                              <div className={styles.publicationEvidence}>
+                                <label htmlFor={`publication-url-${campaign.id}`}>
+                                  Dış platformdaki gerçek yayın bağlantısı
+                                </label>
+                                <div>
+                                  <Input
+                                    id={`publication-url-${campaign.id}`}
+                                    type="url"
+                                    value={publicationUrls[campaign.id] || ""}
+                                    onChange={(event) =>
+                                      setPublicationUrls((current) => ({
+                                        ...current,
+                                        [campaign.id]: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="https://instagram.com/p/..."
+                                    className={inputClass}
+                                  />
+                                  <Button
+                                    type="button"
+                                    onClick={() =>
+                                      void updatePublication(
+                                        campaign.id,
+                                        "CONFIRM",
+                                      )
+                                    }
+                                    disabled={publicationBusy !== null}
+                                    className={styles.primaryButton}
+                                  >
+                                    {publicationBusy ===
+                                    `${campaign.id}:CONFIRM` ? (
+                                      <Loader2 className="animate-spin" />
+                                    ) : (
+                                      <ExternalLink />
+                                    )}
+                                    Manuel yayını doğrula
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            {campaign.publicationStatus ===
+                              "MANUALLY_CONFIRMED" && (
+                              <div className={styles.publicationConfirmed}>
+                                <span>Yayın bağlantıyla doğrulandı.</span>
+                                {campaign.externalPublicationUrl && (
+                                  <a
+                                    href={campaign.externalPublicationUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Dış yayını aç <ExternalLink />
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </section>
                         </div>
                       )}
                     </div>
@@ -1043,113 +1172,6 @@ export default function MarketingPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="border border-slate-700 bg-slate-900 text-white sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <KeyRound className="h-4 w-4 text-emerald-400" /> Pazarlamacı AI
-              ayarları
-            </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              OpenRouter anahtarı yalnızca sunucuda şifreli saklanır ve
-              tarayıcıya geri gönderilmez.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {data?.ai.configured && (
-              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-200">
-                Kayıtlı anahtar: {data.ai.keyHint} · Değiştirmek istemiyorsanız
-                alanı boş bırakın.
-              </div>
-            )}
-            <div>
-              <label
-                htmlFor="openrouter-key"
-                className="mb-2 block text-xs font-semibold text-slate-300"
-              >
-                OpenRouter API anahtarı
-              </label>
-              <Input
-                id="openrouter-key"
-                type="password"
-                autoComplete="off"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="sk-or-v1-..."
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="openrouter-model"
-                className="mb-2 block text-xs font-semibold text-slate-300"
-              >
-                Model yönlendirmesi
-              </label>
-              <Input
-                id="openrouter-model"
-                value={model}
-                onChange={(event) => setModel(event.target.value)}
-                className={inputClass}
-              />
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                <code>openrouter/free</code> pilot kullanımda uygun ücretsiz
-                modeli otomatik seçer. Ücretsiz modellerin kapasitesi ve
-                erişilebilirliği değişebilir.
-              </p>
-            </div>
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-800 bg-slate-950 p-3">
-              <input
-                type="checkbox"
-                checked={aiActive}
-                onChange={(event) => setAiActive(event.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-emerald-500"
-              />
-              <span>
-                <span className="block text-sm font-medium text-white">
-                  AI üretimini etkinleştir
-                </span>
-                <span className="mt-1 block text-xs text-slate-500">
-                  Kapalıysa doğrulanabilir verilerden profesyonel kural motoru
-                  metin üretir.
-                </span>
-              </span>
-            </label>
-            <a
-              href="https://openrouter.ai/settings/keys"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300"
-            >
-              OpenRouter’dan anahtar alma sayfası{" "}
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
-          <DialogFooter className="border-slate-800 bg-slate-950/60">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setSettingsOpen(false)}
-              className="border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
-            >
-              Vazgeç
-            </Button>
-            <Button
-              type="button"
-              onClick={saveSettings}
-              disabled={savingSettings}
-              className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-            >
-              {savingSettings ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <CheckCircle2 />
-              )}
-              Ayarları kaydet
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </main>
   );
 }

@@ -74,7 +74,11 @@ export async function listPartners(companyAccountId: string, filters: { countryC
   return partners.map(publicPartnerDto);
 }
 
-export async function getPartner(companyAccountId: string, partnerId: string) {
+export async function getPartner(
+  companyAccountId: string,
+  partnerId: string,
+  options: { includeCommercialDetails?: boolean } = {}
+) {
   const partner = await prisma.partnerOrganization.findFirst({
     where: { id: partnerId, companyAccountId },
     include: {
@@ -84,8 +88,12 @@ export async function getPartner(companyAccountId: string, partnerId: string) {
       drafts: { orderBy: { updatedAt: 'desc' }, take: 10, include: { approvals: { orderBy: { approvedAt: 'desc' }, take: 1 } } },
       messages: { orderBy: { createdAt: 'desc' }, take: 20, select: { id: true, status: true, recipientEmailMasked: true, subjectSnapshot: true, attemptCount: true, sentAt: true, failedAt: true, lastErrorCode: true, createdAt: true } },
       activities: { orderBy: { createdAt: 'desc' }, take: 50 },
-      agreements: { orderBy: { createdAt: 'desc' } },
-      commissions: { orderBy: { createdAt: 'desc' } },
+      agreements: options.includeCommercialDetails
+        ? { orderBy: { createdAt: 'desc' as const } }
+        : false,
+      commissions: options.includeCommercialDetails
+        ? { orderBy: { createdAt: 'desc' as const } }
+        : false,
     },
   });
   if (!partner) throw new Error('Partner kaydı bulunamadı.');
@@ -117,6 +125,17 @@ export async function importPartnerOrganizations(input: {
   sourceType: PartnerSourceType;
   candidates: ProviderOrganization[];
 }) {
+  const discoveryRun = await prisma.partnerDiscoveryRun.findFirst({
+    where: {
+      id: input.runId,
+      companyAccountId: input.companyAccountId,
+    },
+    select: { id: true },
+  });
+  if (!discoveryRun) {
+    throw new Error('Partner keşif çalışması bulunamadı.');
+  }
+
   const candidates = dedupePartnerCandidates(input.candidates.map((candidate) => ({
     ...candidate,
     name: candidate.displayName,
@@ -205,10 +224,19 @@ export async function importPartnerOrganizations(input: {
     });
     acceptedCount += 1;
   }
-  await prisma.partnerDiscoveryRun.update({ where: { id: input.runId }, data: {
-    status: 'COMPLETED', discoveredCount: input.candidates.length, acceptedCount,
-    rejectedCount: Math.max(0, input.candidates.length - acceptedCount), completedAt: new Date(),
-  } });
+  await prisma.partnerDiscoveryRun.updateMany({
+    where: {
+      id: discoveryRun.id,
+      companyAccountId: input.companyAccountId,
+    },
+    data: {
+      status: 'COMPLETED',
+      discoveredCount: input.candidates.length,
+      acceptedCount,
+      rejectedCount: Math.max(0, input.candidates.length - acceptedCount),
+      completedAt: new Date(),
+    },
+  });
   return { discoveredCount: input.candidates.length, acceptedCount };
 }
 

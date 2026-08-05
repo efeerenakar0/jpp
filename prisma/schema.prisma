@@ -445,6 +445,17 @@ enum StudioBatchItemStatus {
   ATTACHED
 }
 
+enum StudioVideoJobStatus {
+  QUEUED
+  SUBMITTING
+  GENERATING
+  PERSISTING
+  COMPLETED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
 enum CrmDealStage {
   NEW
   CONTACTED
@@ -963,6 +974,7 @@ model CompanyAccount {
   websitePromptVersions       WebsitePromptVersion[]
   propertyMedia               CrmPropertyMedia[]
   studioBatches               StudioBatch[]
+  studioVideoJobs             StudioVideoJob[]
   websiteIntegrationVersions  WebsiteIntegrationVersion[]
   websiteIntegrationApiKeys   WebsiteIntegrationApiKey[]
   websiteDeliveryTokens       WebsiteDeliveryToken[]
@@ -1150,6 +1162,7 @@ model CompanyMember {
   commitments                 OperationalCommitment[]
   createdMedia                CrmPropertyMedia[]
   studioBatches               StudioBatch[]
+  createdStudioVideoJobs      StudioVideoJob[]
   viewingAssignmentAttempts   ViewingAssignmentAttempt[]
   interactionPrompts          WhatsAppInteractionPrompt[] @relation("PromptRecipientMember")
   assignedAppointments        AppointmentRequest[]        @relation("AppointmentAssignedMember")
@@ -1250,6 +1263,7 @@ model CrmProperty {
   adCampaigns         AdCampaign[]
   media               CrmPropertyMedia[]
   studioBatches       StudioBatch[]
+  studioVideoJobs     StudioVideoJob[]
   viewingWorkflows    ViewingWorkflow[]
   appointmentRequests AppointmentRequest[]
 
@@ -1355,6 +1369,11 @@ model StudioBatchItem {
   sortOrder          Int                   @default(0)
   status             StudioBatchItemStatus @default(PENDING)
   errorMessage       String?               @db.Text
+  attemptCount       Int                   @default(0)
+  lastAttemptAt      DateTime?
+  nextAttemptAt      DateTime?
+  leaseOwner         String?
+  leaseExpiresAt     DateTime?
   attachedMediaId    String?
   attachedMedia      CrmPropertyMedia?     @relation("StudioAttachedMedia", fields: [attachedMediaId], references: [id], onDelete: SetNull)
   fingerprint        String
@@ -1363,8 +1382,56 @@ model StudioBatchItem {
 
   @@unique([batchId, fingerprint])
   @@index([batchId, status, sortOrder])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
   @@index([sourceMediaId])
   @@index([attachedMediaId])
+}
+
+model StudioVideoJob {
+  id                 String               @id @default(cuid())
+  companyAccountId   String
+  companyAccount     CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyId         String
+  property           CrmProperty          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdByMemberId  String?
+  createdByMember    CompanyMember?       @relation(fields: [createdByMemberId], references: [id], onDelete: SetNull)
+  prompt             String               @db.Text
+  userCommand        String               @db.Text
+  referenceMediaIds  String[]
+  referenceSnapshot  Json
+  provider           String               @default("BYTEPLUS")
+  model              String
+  providerTaskId     String?              @unique
+  providerOutputUrl  String?              @db.Text
+  durationSeconds    Int                  @default(10)
+  ratio              String               @default("9:16")
+  resolution         String               @default("720p")
+  generateAudio      Boolean              @default(false)
+  status             StudioVideoJobStatus @default(QUEUED)
+  progress           Int                  @default(5)
+  idempotencyKey     String
+  attemptCount       Int                  @default(0)
+  nextAttemptAt      DateTime?
+  leaseOwner         String?
+  leaseExpiresAt     DateTime?
+  outputStorageKey   String?
+  outputFileName     String?
+  outputMimeType     String?
+  outputByteSize     Int?
+  errorCode          String?
+  errorMessage       String?              @db.Text
+  submittedAt        DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  expiresAt          DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@unique([companyAccountId, idempotencyKey])
+  @@index([companyAccountId, createdAt])
+  @@index([companyAccountId, propertyId, createdAt])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@index([expiresAt, status])
 }
 
 model CrmDeal {
