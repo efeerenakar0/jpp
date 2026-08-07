@@ -293,6 +293,70 @@ describe('property media tenant and lifecycle rules', () => {
     expect(mocks.tx.crmActivity.create).not.toHaveBeenCalled();
   });
 
+  it('Orijinale dön seçiminde AI çıktısı yerine kaynak medyayı bağlar', async () => {
+    mocks.tx.studioBatch.findFirst.mockResolvedValue({
+      id: 'batch-original',
+      propertyId: null,
+      items: [
+        {
+          id: 'item-original',
+          sortOrder: 0,
+          attachedMediaId: null,
+          sourceMediaId: null,
+          originalUrl: 'https://blob.example/original.jpg',
+          originalStorageKey: 'original-key',
+          originalFileName: 'salon.jpg',
+          originalMimeType: 'image/jpeg',
+          originalWidth: 1600,
+          originalHeight: 1200,
+          originalByteSize: 1_024,
+          outputUrl: 'https://blob.example/enhanced.jpg',
+          outputStorageKey: 'enhanced-key',
+          outputFileName: 'salon-enhanced.jpg',
+          outputMimeType: 'image/jpeg',
+          outputWidth: 1600,
+          outputHeight: 1200,
+          outputByteSize: 1_100,
+        },
+      ],
+    });
+    mocks.tx.crmPropertyMedia.findFirst.mockResolvedValue(null);
+    mocks.tx.crmPropertyMedia.create.mockResolvedValue({
+      id: 'media-original',
+      variantType: 'ORIGINAL',
+      url: 'https://blob.example/original.jpg',
+    });
+    mocks.tx.studioBatchItem.update.mockResolvedValue({ id: 'item-original' });
+    mocks.tx.studioBatchItem.count.mockResolvedValue(0);
+    mocks.tx.studioBatch.update.mockResolvedValue({ id: 'batch-original' });
+
+    const result = await attachStudioBatchItems({
+      actor,
+      batchId: 'batch-original',
+      propertyId: 'property-a',
+      itemIds: ['item-original'],
+      originalItemIds: ['item-original'],
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'media-original', variantType: 'ORIGINAL' }),
+    ]);
+    expect(mocks.tx.crmPropertyMedia.create).toHaveBeenCalledTimes(1);
+    expect(mocks.tx.crmPropertyMedia.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        url: 'https://blob.example/original.jpg',
+        variantType: 'ORIGINAL',
+      }),
+    });
+    expect(mocks.tx.studioBatchItem.update).toHaveBeenCalledWith({
+      where: { id: 'item-original' },
+      data: expect.objectContaining({
+        attachedMediaId: 'media-original',
+        status: 'ATTACHED',
+      }),
+    });
+  });
+
   it('Avcı medyasını doğrulanmamış hak durumuyla ve idempotent biçimde aktarır', async () => {
     const image = {
       id: 'hunter-image-a',

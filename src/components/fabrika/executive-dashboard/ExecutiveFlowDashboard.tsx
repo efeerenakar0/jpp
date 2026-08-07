@@ -27,35 +27,21 @@ import {
 } from 'lucide-react';
 import {
   type FormEvent,
-  useCallback,
   useEffect,
-  useMemo,
-  useReducer,
   useRef,
   useState,
 } from 'react';
-import toast from 'react-hot-toast';
 import {
-  createExecutivePortfolioDraft,
-  deserializeExecutivePortfolioDraft,
-  executivePortfolioReducer,
-  EXECUTIVE_WORKFLOW_STEPS,
-  resolveExecutiveWorkflowEntryStep,
-  serializeExecutivePortfolioDraft,
-  type ExecutivePortfolioAction,
   type ExecutivePortfolioDraft,
-  type ExecutivePortfolioMedia,
   type ExecutiveWorkflowSource,
   type ExecutiveWorkflowStep,
 } from '../../../lib/executive-portfolio-workflow';
-import {
-  isExecutiveStudioBatchTerminal,
-  mapStudioBatchItems,
-  type ExecutiveStudioBatchItem,
-} from '../../../lib/executive-studio-client';
 import { PortfolioWorkflowDialog } from './PortfolioWorkflowContent';
+import {
+  getPortfolioWorkflowStatus,
+  usePortfolioWorkflowController,
+} from './usePortfolioWorkflowController';
 
-const DRAFT_STORAGE_KEY = 'business-ceo:executive-portfolio-draft:v1';
 const DESIGN_STORAGE_KEY = 'business-ceo:dashboard-design';
 
 type AssistantMessage = {
@@ -253,21 +239,7 @@ function useExecutiveAssistant() {
 }
 
 function activeWorkflowStatus(draft: ExecutivePortfolioDraft) {
-  if (!draft.source) return null;
-  const step = EXECUTIVE_WORKFLOW_STEPS.indexOf(draft.currentStep) + 1;
-  const activeMedia = draft.media.filter((media) => !media.removed);
-  const progress = activeMedia.length === 0
-    ? 0
-    : Math.round(activeMedia.reduce((total, media) => total + media.progress, 0) / activeMedia.length);
-  const labels: Record<ExecutiveWorkflowStep, string> = {
-    source: 'Başlangıç seçiliyor',
-    portfolio: activeMedia.some((media) => media.status === 'processing') ? 'Görseller işleniyor' : 'Portföy hazırlanıyor',
-    review: 'Görseller kontrol ediliyor',
-    advertising: 'Reklam tasarımı',
-    marketing: 'Pazarlama seçimleri',
-    results: 'Sonuçlar hazır',
-  };
-  return { step, progress, label: labels[draft.currentStep] };
+  return getPortfolioWorkflowStatus(draft);
 }
 
 function ExecutiveAssistantPanel({
@@ -408,342 +380,10 @@ function WorkflowCanvas({
 }
 
 export default function ExecutiveFlowDashboard() {
-  const [draft, dispatch] = useReducer(executivePortfolioReducer, undefined, createExecutivePortfolioDraft);
-  const draftRef = useRef(draft);
-  const storageReadyRef = useRef(false);
-  const notifiedBatchRef = useRef<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [entryMode, setEntryMode] = useState<ExecutiveWorkflowSource>('studio');
+  const workflow = usePortfolioWorkflowController();
+  const { draft } = workflow;
   const [topSearch, setTopSearch] = useState('');
   const assistant = useExecutiveAssistant();
-
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const saved = deserializeExecutivePortfolioDraft(window.localStorage.getItem(DRAFT_STORAGE_KEY));
-      storageReadyRef.current = true;
-      if (saved) dispatch({ type: 'replace-draft', draft: saved });
-      window.localStorage.setItem(DESIGN_STORAGE_KEY, 'executive-flow');
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!storageReadyRef.current) return;
-    window.localStorage.setItem(DRAFT_STORAGE_KEY, serializeExecutivePortfolioDraft(draft));
-  }, [draft]);
-
-  const handleAction = (action: ExecutivePortfolioAction) => dispatch(action);
-
-  const syncStudioBatch = useCallback(
-    (batchId: string, items: ExecutiveStudioBatchItem[]) => {
-      dispatch({
-        type: 'sync-studio-batch',
-        batchId,
-        media: mapStudioBatchItems(items, draftRef.current.media),
-      });
-    },
-    []
-  );
-
-  const loadStudioBatch = useCallback(
-    async (batchId: string) => {
-      const response = await fetch(
-        `/api/fabrika/studio/batches/${encodeURIComponent(batchId)}`,
-        { cache: 'no-store' }
-      );
-      const data = await response.json();
-      if (!response.ok || !data.success || !data.batch) {
-        throw new Error(data.error || 'Stüdyo çalışması yüklenemedi.');
-      }
-      const items = (data.batch.items || []) as ExecutiveStudioBatchItem[];
-      syncStudioBatch(batchId, items);
-      return items;
-    },
-    [syncStudioBatch]
-  );
-
-  useEffect(() => {
-    const batchId = draft.studioBatchId;
-    if (!batchId) return;
-
-    let cancelled = false;
-    let timer: number | undefined;
-    const poll = async () => {
-      try {
-        const items = await loadStudioBatch(batchId);
-        if (cancelled) return;
-        if (isExecutiveStudioBatchTerminal(items)) {
-          if (notifiedBatchRef.current !== batchId) {
-            notifiedBatchRef.current = batchId;
-            toast.success('Stüdyo görsel işlemleri tamamlandı. Sonuçları kontrol edebilirsin.');
-          }
-          return;
-        }
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : 'Stüdyo çalışma durumu alınamadı.'
-          );
-        }
-      }
-      if (!cancelled) timer = window.setTimeout(() => void poll(), 4_000);
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [draft.studioBatchId, loadStudioBatch]);
-
-  const uploadStudioFiles = async (files: File[]) => {
-    if (!files.length) return;
-    const localMedia = files.map((file) => ({
-      id: crypto.randomUUID(),
-      name: file.name,
-      size: file.size,
-      previewUrl: URL.createObjectURL(file),
-    }));
-    dispatch({ type: 'add-media', media: localMedia });
-    localMedia.forEach((media) =>
-      dispatch({
-        type: 'update-media',
-        id: media.id,
-        progress: 5,
-        status: 'uploading',
-      })
-    );
-
-    try {
-      const formData = new FormData();
-      files.forEach((file) => formData.append('photos', file));
-      formData.set(
-        'prompt',
-        'Gayrimenkul fotoğraflarını doğal ışık, doğru perspektif ve gerçekçi renklerle profesyonel biçimde iyileştir. Yapısal unsurları değiştirme.'
-      );
-      formData.set('preset', 'professional-camera');
-      const response = await fetch('/api/fabrika/studio/batches', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success || !data.batch) {
-        throw new Error(data.error || 'Stüdyo işlemi başlatılamadı.');
-      }
-      const batchId = String(data.batch.id);
-      syncStudioBatch(
-        batchId,
-        (data.batch.items || []) as ExecutiveStudioBatchItem[]
-      );
-      toast.success(
-        'Görseller arka planda işleniyor; portföy bilgilerini doldurmaya devam edebilirsin.'
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Görseller yüklenemedi.';
-      localMedia.forEach((media) =>
-        dispatch({
-          type: 'update-media',
-          id: media.id,
-          progress: 0,
-          status: 'error',
-          error: message,
-        })
-      );
-      toast.error(message);
-    }
-  };
-
-  const retryStudioMedia = async (media: ExecutivePortfolioMedia) => {
-    const batchId = draftRef.current.studioBatchId;
-    if (!batchId) {
-      dispatch({ type: 'retry-media', id: media.id });
-      toast.error('Bu görselin Stüdyo çalışması bulunamadı; dosyayı yeniden seç.');
-      return;
-    }
-    dispatch({ type: 'retry-media', id: media.id });
-    try {
-      const response = await fetch(
-        `/api/fabrika/studio/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(media.id)}/process`,
-        { method: 'POST' }
-      );
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Görsel yeniden işlenemedi.');
-      }
-      notifiedBatchRef.current = null;
-      await loadStudioBatch(batchId);
-      toast.success('Görsel yeniden işleme sırasına alındı.');
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Görsel yeniden işlenemedi.';
-      dispatch({
-        type: 'update-media',
-        id: media.id,
-        progress: media.progress,
-        status: 'error',
-        error: message,
-      });
-      toast.error(message);
-    }
-  };
-
-  const ensurePortfolioRecord = async () => {
-    const currentDraft = draftRef.current;
-    if (currentDraft.propertyId) return currentDraft.propertyId;
-    if (currentDraft.details.title.trim().length < 3) {
-      toast.error('Devam etmek için en az 3 karakterlik bir portföy başlığı yaz.');
-      return null;
-    }
-
-    const referenceCode = `FLOW-${currentDraft.id
-      .replace(/[^a-z0-9]/gi, '')
-      .slice(-12)
-      .toUpperCase()}`;
-    try {
-      const existingResponse = await fetch('/api/fabrika/workspace', {
-        cache: 'no-store',
-      });
-      const existingData = await existingResponse.json();
-      const existingProperty = existingData.workspace?.properties?.find(
-        (property: { id: string; referenceCode?: string | null }) =>
-          property.referenceCode === referenceCode
-      );
-      if (existingResponse.ok && existingProperty?.id) {
-        dispatch({ type: 'set-property-id', propertyId: existingProperty.id });
-        return String(existingProperty.id);
-      }
-
-      const numericPrice = Number(
-        currentDraft.details.price.replace(/[^0-9]/g, '')
-      );
-      const response = await fetch('/api/fabrika/workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create-property',
-          title: currentDraft.details.title,
-          referenceCode,
-          location: currentDraft.details.location || null,
-          price: Number.isFinite(numericPrice) && numericPrice > 0 ? numericPrice : null,
-          roomCount: null,
-          area: null,
-          status: 'DRAFT',
-          description: [
-            currentDraft.details.propertyType,
-            currentDraft.details.description,
-          ]
-            .filter(Boolean)
-            .join('\n\n'),
-          imageUrl: '',
-          ownerContactId: null,
-          assignedMemberId: null,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Portföy kaydı oluşturulamadı.');
-      }
-      const property = data.workspace?.properties?.find(
-        (item: { id: string; referenceCode?: string | null }) =>
-          item.referenceCode === referenceCode
-      );
-      if (!property?.id) {
-        throw new Error('Oluşturulan portföy kaydı doğrulanamadı.');
-      }
-      dispatch({ type: 'set-property-id', propertyId: String(property.id) });
-      toast.success('Portföy taslağı güvenle oluşturuldu.');
-      return String(property.id);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Portföy kaydı oluşturulamadı.'
-      );
-      return null;
-    }
-  };
-
-  const attachReadyStudioMedia = useCallback(async () => {
-    const currentDraft = draftRef.current;
-    if (!currentDraft.propertyId || !currentDraft.studioBatchId) return;
-    const itemIds = currentDraft.media
-      .filter(
-        (media) =>
-          media.status === 'ready' && !media.removed && !media.attachedMediaId
-      )
-      .map((media) => media.id);
-    if (!itemIds.length) return;
-
-    try {
-      const response = await fetch(
-        `/api/fabrika/studio/batches/${encodeURIComponent(currentDraft.studioBatchId)}/attach`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            propertyId: currentDraft.propertyId,
-            itemIds,
-          }),
-        }
-      );
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Hazır görseller portföye eklenemedi.');
-      }
-      const items = await loadStudioBatch(currentDraft.studioBatchId);
-      const coverItem = items.find(
-        (item) => item.id === currentDraft.coverMediaId && item.attachedMediaId
-      );
-      if (coverItem?.attachedMediaId) {
-        const coverResponse = await fetch(
-          `/api/fabrika/properties/${encodeURIComponent(currentDraft.propertyId)}/media/${encodeURIComponent(coverItem.attachedMediaId)}`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isCover: true }),
-          }
-        );
-        const coverData = await coverResponse.json();
-        if (!coverResponse.ok || !coverData.success) {
-          throw new Error(coverData.error || 'Kapak fotoğrafı kaydedilemedi.');
-        }
-      }
-      toast.success('Onaylanan Stüdyo görselleri portföye eklendi.');
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Hazır görseller portföye eklenemedi.'
-      );
-    }
-  }, [loadStudioBatch]);
-
-  useEffect(() => {
-    if (draft.currentStep !== 'results') return;
-    void attachReadyStudioMedia();
-  }, [attachReadyStudioMedia, draft.currentStep, draft.media]);
-
-  const continuePortfolioWorkflow = async () => {
-    if (draftRef.current.currentStep === 'portfolio') {
-      const propertyId = await ensurePortfolioRecord();
-      if (!propertyId) return;
-    }
-    dispatch({ type: 'next' });
-  };
-
-  const openWorkflow = (source: ExecutiveWorkflowSource, step: ExecutiveWorkflowStep) => {
-    setEntryMode(source);
-    dispatch({
-      type: 'go-to-step',
-      step: resolveExecutiveWorkflowEntryStep(draftRef.current, step),
-    });
-    setDialogOpen(true);
-  };
 
   const submitTopSearch = async (event: FormEvent) => {
     event.preventDefault();
@@ -752,9 +392,9 @@ export default function ExecutiveFlowDashboard() {
     await assistant.sendMessage(query);
   };
 
-  const updatedLabel = useMemo(() => {
-    return draft.source ? 'Taslak otomatik kaydediliyor' : 'Yeni işlem başlatmaya hazır';
-  }, [draft.source]);
+  const updatedLabel = draft.source
+    ? 'Taslak otomatik kaydediliyor'
+    : 'Yeni işlem başlatmaya hazır';
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden bg-[#040b14] text-slate-100 selection:bg-cyan-300/25">
@@ -800,22 +440,26 @@ export default function ExecutiveFlowDashboard() {
               </div>
               <span className="text-[10px] text-slate-500">{updatedLabel}</span>
             </div>
-            <WorkflowCanvas draft={draft} onOpen={openWorkflow} />
+            <WorkflowCanvas draft={draft} onOpen={workflow.openWorkflow} />
           </div>
-          <ExecutiveAssistantPanel draft={draft} onResume={() => openWorkflow(draft.source || 'studio', draft.currentStep)} assistant={assistant} />
+          <ExecutiveAssistantPanel
+            draft={draft}
+            onResume={workflow.resumeWorkflow}
+            assistant={assistant}
+          />
         </div>
       </main>
 
       <PortfolioWorkflowDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        open={workflow.dialogOpen}
+        onOpenChange={workflow.onOpenChange}
         draft={draft}
-        entryMode={entryMode}
-        onAction={handleAction}
-        onFilesSelected={uploadStudioFiles}
-        onRetryMedia={retryStudioMedia}
-        onContinue={continuePortfolioWorkflow}
-        onClose={() => setDialogOpen(false)}
+        entryMode={workflow.entryMode}
+        onAction={workflow.onAction}
+        onFilesSelected={workflow.onFilesSelected}
+        onRetryMedia={workflow.onRetryMedia}
+        onContinue={workflow.onContinue}
+        onClose={workflow.onClose}
       />
     </div>
   );

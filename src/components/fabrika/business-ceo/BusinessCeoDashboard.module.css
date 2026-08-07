@@ -1,0 +1,1224 @@
+.dashboard {
+  --bceo-bg: #020a13;
+  --bceo-panel: #061421;
+  --bceo-panel-soft: #081a2a;
+  --bceo-border: rgba(111, 155, 184, 0.34);
+  --bceo-border-strong: rgba(120, 184, 221, 0.5);
+  --bceo-text: #ecf8ff;
+  --bceo-muted: #8ca4b5;
+  --bceo-cyan: #13d9ff;
+  --bceo-cyan-soft: rgba(19, 217, 255, 0.12);
+  --bceo-violet: #d391ff;
+  --bceo-violet-soft: rgba(211, 145, 255, 0.12);
+  --bceo-blue: #368dff;
+  --bceo-green: #36d58b;
+  --bceo-amber: #f3b84b;
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  color: var(--bceo-text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background:
+    radial-gradient(circle at 82% 3%, rgba(0, 147, 255, 0.15), transparent 25rem),
+    radial-gradient(circle at 17% 42%, rgba(92, 79, 255, 0.08), transparent 24rem),
+    linear-gradient(145deg, #020912 0%, #03101c 48%, #020912 100%);
+}
+
+.dashboard::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  opacity: 0.3;
+  background-image:
+    linear-gradient(rgba(83, 165, 208, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(83, 165, 208, 0.055) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 72%);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  width: min(100%, 1760px);
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.primaryGrid {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--bceo-border);
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, rgba(8, 24, 38, 0.95), rgba(3, 14, 25, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 22px 70px rgba(0, 0, 0, 0.22);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 12px;
+}
+
+.panelTitle,
+.dialogTitle {
+  margin: 0;
+  color: var(--bceo-text) !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-size: clamp(1.12rem, 2.2vw, 1.55rem);
+  font-weight: 500;
+  letter-spacing: 0.035em !important;
+}
+
+.panelDescription,
+.dialogDescription {
+  margin: 5px 0 0;
+  color: var(--bceo-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.quickWorkflowButton {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 46px;
+  cursor: pointer;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(19, 217, 255, 0.52);
+  border-radius: 10px;
+  color: #dcfaff;
+  text-align: left;
+  background: rgba(19, 217, 255, 0.08);
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.quickWorkflowButton:hover {
+  border-color: var(--bceo-cyan);
+  background: rgba(19, 217, 255, 0.14);
+}
+
+.quickWorkflowButton:focus-visible {
+  outline: 2px solid var(--bceo-cyan);
+  outline-offset: 2px;
+}
+
+.quickWorkflowButton > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.quickWorkflowCopy {
+  display: block;
+  min-width: 0;
+}
+
+.quickWorkflowCopy strong,
+.quickWorkflowCopy small {
+  display: block;
+}
+
+.quickWorkflowCopy strong {
+  font-size: 0.7rem;
+  font-weight: 680;
+}
+
+.quickWorkflowCopy small {
+  max-width: 220px;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--bceo-muted);
+  font-size: 0.58rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickWorkflowProgress {
+  flex: 0 0 auto;
+  padding: 3px 5px;
+  border: 1px solid rgba(19, 217, 255, 0.3);
+  border-radius: 6px;
+  color: var(--bceo-cyan);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6rem;
+}
+
+.workflowBody {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 16px;
+}
+
+.workflowDesktop {
+  display: none;
+}
+
+.workflowMobile {
+  display: grid;
+  gap: 9px;
+}
+
+.sourceStack {
+  display: grid;
+  gap: 10px;
+}
+
+.workflowConnector,
+.workflowConnectorVertical {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  color: var(--bceo-cyan);
+}
+
+.workflowConnector::before,
+.workflowConnectorVertical::before {
+  width: 1px;
+  height: 100%;
+  content: '';
+  background: linear-gradient(to bottom, var(--bceo-cyan), var(--bceo-violet));
+  box-shadow: 0 0 10px rgba(19, 217, 255, 0.65);
+}
+
+.workflowConnector span,
+.workflowConnectorVertical span {
+  position: absolute;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid rgba(19, 217, 255, 0.55);
+  border-radius: 999px;
+  background: #061421;
+  font-size: 0.8rem;
+}
+
+.workflowCard {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 154px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 58%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--card-accent) 9%, transparent), transparent 58%),
+    rgba(2, 12, 22, 0.92);
+  box-shadow:
+    inset 0 0 24px color-mix(in srgb, var(--card-accent) 8%, transparent),
+    0 0 22px color-mix(in srgb, var(--card-accent) 8%, transparent);
+}
+
+.workflowCard[data-accent='cyan'] {
+  --card-accent: var(--bceo-cyan);
+}
+
+.workflowCard[data-accent='violet'] {
+  --card-accent: var(--bceo-violet);
+}
+
+.workflowCard[data-accent='blue'] {
+  --card-accent: var(--bceo-blue);
+}
+
+.secondaryCard[data-accent='cyan'],
+.moduleDialogVisual[data-accent='cyan'] {
+  --card-accent: var(--bceo-cyan);
+}
+
+.secondaryCard[data-accent='violet'],
+.moduleDialogVisual[data-accent='violet'] {
+  --card-accent: var(--bceo-violet);
+}
+
+.secondaryCard[data-accent='blue'],
+.moduleDialogVisual[data-accent='blue'] {
+  --card-accent: var(--bceo-blue);
+}
+
+.workflowButton {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 100%;
+  min-height: 100%;
+  cursor: pointer;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  padding: 12px;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+}
+
+.workflowButton:hover .moduleCore,
+.workflowButton:focus-visible .moduleCore {
+  border-color: color-mix(in srgb, var(--card-accent) 85%, white);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--card-accent) 35%, transparent);
+}
+
+.workflowButton:focus-visible,
+.secondaryCard:focus-visible,
+.messageButton:focus-visible,
+.whatsappButton:focus-visible,
+.retryButton:focus-visible,
+.dialogAction:focus-visible,
+.dialogClose:focus-visible,
+.inlineError:focus-visible,
+.sendButton:focus-visible {
+  outline: 2px solid var(--bceo-cyan);
+  outline-offset: -3px;
+}
+
+.stepBadge {
+  position: absolute;
+  z-index: 3;
+  top: 9px;
+  left: 9px;
+  display: inline-flex;
+  min-width: 34px;
+  min-height: 25px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 65%, transparent);
+  border-radius: 7px;
+  color: var(--card-accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  background: rgba(2, 14, 24, 0.86);
+}
+
+.workflowCopy {
+  position: relative;
+  z-index: 2;
+  display: block;
+  padding-top: 4px;
+  text-align: center;
+}
+
+.workflowCopy strong,
+.secondaryCopy strong {
+  display: block;
+  color: var(--bceo-text);
+  font-size: 0.93rem;
+  font-weight: 520;
+  line-height: 1.25;
+}
+
+.workflowCopy small,
+.secondaryCopy small {
+  display: block;
+  margin-top: 5px;
+  color: var(--bceo-muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.moduleVisual,
+.moduleVisualCompact {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--card-accent, var(--bceo-cyan)) 22%, transparent), transparent 45%),
+    linear-gradient(180deg, rgba(11, 37, 58, 0.72), rgba(2, 12, 21, 0.35));
+}
+
+.moduleVisual {
+  min-height: 94px;
+}
+
+.moduleVisualCompact {
+  width: 100%;
+  min-height: 92px;
+}
+
+.moduleGrid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(19, 217, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(19, 217, 255, 0.12) 1px, transparent 1px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(to top, #000, transparent 88%);
+}
+
+.moduleGlow {
+  position: absolute;
+  width: 62%;
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--card-accent, var(--bceo-cyan)) 45%, transparent);
+  border-radius: 999px;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--card-accent, var(--bceo-cyan)) 25%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--card-accent, var(--bceo-cyan)) 16%, transparent);
+}
+
+.moduleCore {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--card-accent, var(--bceo-cyan)) 62%, transparent);
+  border-radius: 14px;
+  color: var(--card-accent, var(--bceo-cyan));
+  background: rgba(4, 22, 36, 0.92);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.moduleCore svg {
+  width: 25px;
+  height: 25px;
+  stroke-width: 1.5;
+}
+
+.moduleSatellite {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgba(116, 190, 228, 0.4);
+  border-radius: 999px;
+  color: #96dcff;
+  background: rgba(5, 26, 42, 0.9);
+}
+
+.moduleSatellite[data-position='1'] {
+  top: 12px;
+  right: 16%;
+}
+
+.moduleSatellite[data-position='2'] {
+  bottom: 11px;
+  left: 15%;
+}
+
+.moduleSatellite[data-position='3'] {
+  right: 10%;
+  bottom: 8px;
+}
+
+.moduleSatellite svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.5;
+}
+
+.workflowMetrics {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(105, 158, 188, 0.3);
+  border-radius: 10px;
+  background: rgba(4, 17, 28, 0.8);
+}
+
+.workflowMetricsTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #9cdcf3;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.workflowMetricsTitle svg {
+  width: 15px;
+  height: 15px;
+  color: var(--bceo-cyan);
+}
+
+.workflowMetricList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.workflowMetric {
+  min-width: 0;
+  padding: 0 10px;
+  border-left: 1px solid rgba(111, 155, 184, 0.25);
+}
+
+.workflowMetric:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.workflowMetric dt {
+  display: block;
+  overflow: hidden;
+  margin: 0;
+  color: var(--bceo-muted);
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflowMetric dd {
+  display: block;
+  margin-top: 3px;
+  color: var(--bceo-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.secondaryGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.secondaryCard {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 196px;
+  overflow: hidden;
+  cursor: pointer;
+  grid-template-rows: minmax(92px, 1fr) auto;
+  border: 1px solid var(--bceo-border);
+  border-radius: 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  background: linear-gradient(155deg, rgba(8, 28, 45, 0.96), rgba(3, 13, 23, 0.98));
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.secondaryCard:hover {
+  border-color: rgba(19, 217, 255, 0.58);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+  transform: translateY(-2px);
+}
+
+.secondaryCopy {
+  position: relative;
+  display: block;
+  min-height: 84px;
+  padding: 12px 42px 13px 13px;
+  border-top: 1px solid rgba(111, 155, 184, 0.2);
+}
+
+.secondaryArrow {
+  position: absolute;
+  right: 14px;
+  bottom: 16px;
+  width: 18px;
+  height: 18px;
+  color: #d8f4ff;
+}
+
+.salesPanel {
+  display: flex;
+  min-height: 500px;
+  flex-direction: column;
+}
+
+.salesHeader {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(111, 155, 184, 0.22);
+}
+
+.salesHeaderCopy {
+  min-width: 0;
+}
+
+.whatsappButton,
+.retryButton,
+.dialogAction,
+.dialogClose,
+.sendButton {
+  display: inline-flex;
+  min-height: 44px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 9px;
+  font-size: 0.76rem;
+  font-weight: 620;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.whatsappButton {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  border: 1px solid rgba(54, 213, 139, 0.55);
+  color: #a3f4cd;
+  background: rgba(54, 213, 139, 0.08);
+}
+
+.whatsappButton:hover {
+  border-color: rgba(54, 213, 139, 0.86);
+  background: rgba(54, 213, 139, 0.14);
+}
+
+.whatsappButton svg,
+.retryButton svg,
+.dialogAction svg,
+.dialogClose svg,
+.sendButton svg {
+  width: 17px;
+  height: 17px;
+}
+
+.salesMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 14px 16px 10px;
+}
+
+.salesMetric {
+  display: grid;
+  min-width: 0;
+  min-height: 66px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid rgba(111, 155, 184, 0.3);
+  border-radius: 9px;
+  background: rgba(3, 16, 27, 0.82);
+}
+
+.salesMetricIcon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: var(--bceo-cyan);
+}
+
+.salesMetricIcon svg {
+  width: 23px;
+  height: 23px;
+  stroke-width: 1.5;
+}
+
+.salesMetric dt,
+.salesMetric dd {
+  display: block;
+  margin: 0;
+}
+
+.salesMetric dt {
+  overflow: hidden;
+  color: var(--bceo-muted);
+  font-size: 0.65rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.salesMetric dd {
+  margin-top: 2px;
+  color: var(--bceo-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.02rem;
+  font-weight: 520;
+}
+
+.salesList {
+  display: grid;
+  min-height: 0;
+  max-height: 420px;
+  gap: 7px;
+  overflow-y: auto;
+  padding: 2px 16px 16px;
+  scrollbar-color: rgba(19, 217, 255, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.conversationRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 74px;
+  padding: 9px 10px;
+  border: 1px solid rgba(111, 155, 184, 0.27);
+  border-radius: 10px;
+  background: rgba(3, 15, 25, 0.72);
+}
+
+.conversationAvatar {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  place-items: center;
+  border: 1px solid rgba(19, 217, 255, 0.4);
+  border-radius: 999px;
+  color: #bdeeff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(19, 217, 255, 0.3), transparent 45%),
+    #092035;
+}
+
+.conversationCopy {
+  min-width: 0;
+}
+
+.conversationName,
+.conversationPhone,
+.conversationPreview {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversationName {
+  color: var(--bceo-text);
+  font-size: 0.79rem;
+  font-weight: 570;
+}
+
+.conversationPhone,
+.conversationPreview,
+.conversationTime {
+  color: var(--bceo-muted);
+  font-size: 0.64rem;
+}
+
+.conversationPreview {
+  margin-top: 3px;
+}
+
+.conversationTime {
+  align-self: start;
+  padding-top: 2px;
+  white-space: nowrap;
+}
+
+.statusBadge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-size: 0.6rem;
+  white-space: nowrap;
+}
+
+.statusBadge[data-status='NEW'] {
+  color: #39a8ff;
+  background: rgba(57, 168, 255, 0.08);
+}
+
+.statusBadge[data-status='WAITING'] {
+  color: var(--bceo-amber);
+  background: rgba(243, 184, 75, 0.08);
+}
+
+.statusBadge[data-status='APPOINTMENT'] {
+  color: var(--bceo-green);
+  background: rgba(54, 213, 139, 0.08);
+}
+
+.statusBadge[data-status='ACTIVE'] {
+  color: #a7b8c5;
+  background: rgba(167, 184, 197, 0.07);
+}
+
+.messageButton {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid rgba(111, 155, 184, 0.42);
+  border-radius: 9px;
+  color: #d5f5ff;
+  background: rgba(3, 18, 30, 0.85);
+  transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+}
+
+.messageButton:hover {
+  border-color: var(--bceo-cyan);
+  color: var(--bceo-cyan);
+  background: var(--bceo-cyan-soft);
+}
+
+.messageButton svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.5;
+}
+
+.emptyState,
+.errorState,
+.loadingState {
+  display: grid;
+  min-height: 214px;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  margin: 2px 16px 16px;
+  padding: 24px;
+  border: 1px dashed rgba(111, 155, 184, 0.32);
+  border-radius: 11px;
+  color: var(--bceo-muted);
+  text-align: center;
+  background: rgba(3, 16, 27, 0.55);
+}
+
+.emptyState svg,
+.errorState svg {
+  width: 28px;
+  height: 28px;
+  color: var(--bceo-cyan);
+}
+
+.emptyState strong,
+.errorState strong {
+  color: var(--bceo-text);
+  font-size: 0.82rem;
+}
+
+.emptyState p,
+.errorState p {
+  max-width: 30rem;
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.errorState {
+  border-color: rgba(251, 113, 133, 0.32);
+}
+
+.errorState svg {
+  color: #fb7185;
+}
+
+.retryButton {
+  padding: 0 13px;
+  border: 1px solid rgba(251, 113, 133, 0.36);
+  color: #fecdd3;
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.skeleton {
+  width: 100%;
+  height: 64px;
+  border-radius: 9px;
+  background: linear-gradient(100deg, rgba(16, 43, 64, 0.72) 20%, rgba(27, 67, 94, 0.82) 45%, rgba(16, 43, 64, 0.72) 70%);
+  background-size: 240% 100%;
+  animation: shimmer 1.45s linear infinite;
+}
+
+.dialogContent,
+.whatsappDialogContent {
+  width: min(calc(100vw - 24px), 760px) !important;
+  max-width: 760px !important;
+  max-height: min(88dvh, 780px);
+  overflow: hidden;
+  padding: 0 !important;
+  border: 1px solid var(--bceo-border-strong) !important;
+  color: var(--bceo-text) !important;
+  background: #061421 !important;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55) !important;
+}
+
+.whatsappDialogContent {
+  width: min(calc(100vw - 24px), 980px) !important;
+  max-width: 980px !important;
+}
+
+.dialogHeader {
+  position: relative;
+  padding: 20px 54px 17px 20px;
+  border-bottom: 1px solid rgba(111, 155, 184, 0.24);
+}
+
+.dialogClose {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  width: 44px;
+  padding: 0;
+  border: 1px solid rgba(111, 155, 184, 0.32);
+  color: #d7e8f1;
+  background: rgba(3, 15, 25, 0.75);
+}
+
+.dialogCloseSecondary {
+  display: inline-flex;
+  min-height: 42px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0 15px;
+  border: 1px solid rgba(111, 155, 184, 0.34);
+  border-radius: 9px;
+  color: #d7e8f1;
+  font-size: 0.76rem;
+  font-weight: 620;
+  background: rgba(3, 15, 25, 0.75);
+}
+
+.dialogCloseSecondary:focus-visible {
+  outline: 2px solid var(--bceo-cyan);
+  outline-offset: 2px;
+}
+
+.dialogBody {
+  display: grid;
+  max-height: calc(min(88dvh, 780px) - 151px);
+  gap: 14px;
+  overflow-y: auto;
+  padding: 18px 20px;
+  scrollbar-color: rgba(19, 217, 255, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.dialogFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 13px 20px;
+  border-top: 1px solid rgba(111, 155, 184, 0.24);
+}
+
+.dialogAction {
+  padding: 0 15px;
+  border: 1px solid rgba(19, 217, 255, 0.5);
+  color: #dff9ff;
+  text-decoration: none;
+  background: rgba(19, 217, 255, 0.1);
+}
+
+.dialogAction:hover {
+  border-color: var(--bceo-cyan);
+  background: rgba(19, 217, 255, 0.17);
+}
+
+.moduleDialogVisual {
+  --card-accent: var(--bceo-cyan);
+  min-height: 190px;
+}
+
+.moduleDialogHint,
+.chatEmpty {
+  margin: 0;
+  color: var(--bceo-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.whatsappDialogBody {
+  max-height: calc(min(88dvh, 860px) - 110px);
+}
+
+.whatsappDialogBody :global([data-slot='page-header']) {
+  display: none;
+}
+
+.chatHistory {
+  display: grid;
+  max-height: 360px;
+  gap: 9px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.chatMessage {
+  width: fit-content;
+  max-width: 84%;
+  padding: 9px 11px;
+  border: 1px solid rgba(111, 155, 184, 0.28);
+  border-radius: 11px 11px 11px 3px;
+  color: #d9e7ef;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  background: rgba(10, 31, 48, 0.78);
+}
+
+.chatMessage[data-outbound='true'] {
+  justify-self: end;
+  border-color: rgba(19, 217, 255, 0.34);
+  border-radius: 11px 11px 3px 11px;
+  color: #e7fbff;
+  background: rgba(12, 101, 129, 0.35);
+}
+
+.chatMessage time {
+  display: block;
+  margin-top: 4px;
+  color: #7893a6;
+  font-size: 0.58rem;
+}
+
+.chatForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.chatInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid rgba(111, 155, 184, 0.38);
+  border-radius: 9px;
+  color: var(--bceo-text);
+  outline: none;
+  background: #020d17;
+}
+
+.chatInput:focus-visible {
+  border-color: var(--bceo-cyan);
+  box-shadow: 0 0 0 2px rgba(19, 217, 255, 0.14);
+}
+
+.sendButton {
+  width: 44px;
+  padding: 0;
+  border: 1px solid rgba(19, 217, 255, 0.56);
+  color: #001018;
+  background: var(--bceo-cyan);
+}
+
+.sendButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.chatError {
+  margin: 0;
+  color: #fecdd3;
+  font-size: 0.7rem;
+}
+
+.inlineError {
+  width: 100%;
+  cursor: pointer;
+  padding: 8px 10px;
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  border-radius: 8px;
+  color: #fecdd3;
+  font-size: 0.68rem;
+  text-align: left;
+  background: rgba(251, 113, 133, 0.07);
+}
+
+.spinningIcon {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -240% 0;
+  }
+}
+
+@media (min-width: 640px) {
+  .content {
+    padding: 16px;
+  }
+
+  .secondaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .secondaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .secondaryCard:nth-child(4),
+  .secondaryCard:nth-child(5) {
+    grid-column: span 1;
+  }
+}
+
+@media (min-width: 1120px) {
+  .primaryGrid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
+    align-items: stretch;
+  }
+
+  .workflowMobile {
+    display: none;
+  }
+
+  .workflowDesktop {
+    display: grid;
+    min-height: 420px;
+    grid-template-columns: minmax(150px, 0.88fr) 62px minmax(170px, 0.95fr) 54px minmax(170px, 0.95fr);
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .workflowDesktop .sourceStack {
+    align-self: center;
+  }
+
+  .workflowDesktop .workflowCard {
+    min-height: 198px;
+  }
+
+  .workflowDesktop > .workflowCard {
+    align-self: center;
+  }
+
+  .workflowConnector {
+    min-height: 100%;
+  }
+
+  .workflowConnector::before {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(to right, var(--bceo-cyan), var(--bceo-violet));
+  }
+
+  .workflowConnector[data-merge='true']::after {
+    position: absolute;
+    top: 25%;
+    bottom: 25%;
+    left: 50%;
+    width: 1px;
+    content: '';
+    background: linear-gradient(to bottom, var(--bceo-cyan), var(--bceo-violet));
+    box-shadow: 0 0 10px rgba(19, 217, 255, 0.5);
+  }
+
+  .secondaryGrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1500px) {
+  .content {
+    gap: 12px;
+    padding: 16px 18px;
+  }
+
+  .workflowDesktop {
+    grid-template-columns: minmax(170px, 0.9fr) 70px minmax(190px, 1fr) 62px minmax(190px, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .panelHeader {
+    flex-direction: column;
+  }
+
+  .quickWorkflowButton {
+    width: 100%;
+  }
+
+  .quickWorkflowCopy {
+    flex: 1;
+  }
+
+  .salesHeader {
+    flex-direction: column;
+  }
+
+  .whatsappButton {
+    width: 100%;
+  }
+
+  .salesMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .conversationRow {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .conversationTime {
+    display: none;
+  }
+
+  .statusBadge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .messageButton {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .workflowMetricList {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .workflowMetric,
+  .workflowMetric:first-child {
+    padding: 6px 0 0;
+    border-top: 1px solid rgba(111, 155, 184, 0.22);
+    border-left: 0;
+  }
+
+  .workflowMetric:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard *,
+  .dashboard *::before,
+  .dashboard *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .secondaryCard:hover {
+    transform: none;
+  }
+}

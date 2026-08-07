@@ -20,6 +20,7 @@ import {
   appointmentOutcomeForAction,
   correlateInteractionPrompt,
   expectedResponseTypesForAction,
+  nextAssignmentReminder,
   parseAppointmentInstruction,
   parseFollowUpDate,
   parseInteractionReply,
@@ -34,6 +35,22 @@ import {
 const DEFAULT_TIMEZONE = 'Europe/Istanbul';
 
 type Tx = Prisma.TransactionClient;
+
+export async function pauseConversationAutomationForViewing(
+  tx: Tx,
+  input: { companyAccountId: string; conversationId: string }
+) {
+  const paused = await tx.customerConversation.updateMany({
+    where: {
+      id: input.conversationId,
+      companyAccountId: input.companyAccountId,
+    },
+    data: { aiEnabled: false },
+  });
+  if (paused.count !== 1) {
+    throw new Error('İnsan devrine alınacak sohbet bu şirkette bulunamadı.');
+  }
+}
 
 function shortCode(prefix: 'V' | 'R' | 'S', seed: string) {
   return `${prefix}${createHash('sha256')
@@ -260,6 +277,7 @@ export async function createViewingWorkflow(input: {
   const idempotencyKey = `viewing:${input.provider}:${input.providerMessageId}`;
   const outboxIds: string[] = [];
   const result = await prisma.$transaction(async (tx) => {
+    await pauseConversationAutomationForViewing(tx, input);
     const existing = await tx.viewingWorkflow.findUnique({
       where: {
         companyAccountId_idempotencyKey: {
@@ -503,33 +521,41 @@ export async function applyViewingDeliveryTransitionInTransaction(
   });
   const providerMessageId = input.providerMessageId || null;
   if (input.status === 'FAILED') {
-    if (attempt && attempt.status === 'AWAITING_SEND') {
-      await tx.viewingAssignmentAttempt.updateMany({
+    if (
+      attempt &&
+      (attempt.status === 'AWAITING_SEND' || attempt.status === 'AWAITING_ACK')
+    ) {
+      const changed = await tx.viewingAssignmentAttempt.updateMany({
         where: {
           id: attempt.id,
           companyAccountId: input.companyAccountId,
-          status: 'AWAITING_SEND',
+          status: { in: ['AWAITING_SEND', 'AWAITING_ACK'] },
         },
         data: {
           status: 'DELIVERY_FAILED',
           failureReason: input.errorMessage?.slice(0, 500),
           providerMessageId,
+          ackDeadlineAt: null,
         },
       });
-      await tx.viewingWorkflow.updateMany({
-        where: {
-          id: attempt.workflowId,
-          companyAccountId: input.companyAccountId,
-          status: 'AWAITING_ASSIGNMENT_SEND',
-        },
-        data: {
-          status: 'FAILED',
-          version: { increment: 1 },
-          lastError:
-            input.errorMessage?.slice(0, 500) ||
-            'Çalışan görev mesajı teslim edilemedi.',
-        },
-      });
+      if (changed.count === 1) {
+        await tx.viewingWorkflow.updateMany({
+          where: {
+            id: attempt.workflowId,
+            companyAccountId: input.companyAccountId,
+            status: {
+              in: ['AWAITING_ASSIGNMENT_SEND', 'AWAITING_EMPLOYEE_ACK'],
+            },
+          },
+          data: {
+            status: 'FAILED',
+            version: { increment: 1 },
+            lastError:
+              input.errorMessage?.slice(0, 500) ||
+              'Çalışan görev mesajı teslim edilemedi.',
+          },
+        });
+      }
     }
     if (prompt?.status === 'OPEN') {
       await tx.whatsAppInteractionPrompt.updateMany({
@@ -783,6 +809,171 @@ export async function ownerDecisionPrompt(
     },
   });
   return { prompt, outboxId };
+}
+
+export async function processDueViewingAcknowledgementReminders(
+  now = new Date()
+) {
+  const candidates = await prisma.whatsAppInteractionPrompt.findMany({
+    where: {
+      status: 'OPEN',
+      promptType: 'EMPLOYEE_ASSIGNMENT',
+      expectedResponseType: 'ASSIGNMENT_ACK',
+      assignmentAttempt: {
+        is: {
+          status: 'AWAITING_ACK',
+          sentAt: { not: null },
+          ackDeadlineAt: { not: null, gt: now },
+        },
+      },
+    },
+    select: { id: true, companyAccountId: true },
+    orderBy: { createdAt: 'asc' },
+    take: 200,
+  });
+  const outboxIds: string[] = [];
+  const results: Array<{
+    promptId: string;
+    status: string;
+    reminderCount?: number;
+  }> = [];
+
+  for (const candidate of candidates) {
+    const result = await prisma.$transaction(async (tx) => {
+      const operational = await getCompanyOperationalStatus(
+        candidate.companyAccountId,
+        tx,
+        now
+      );
+      if (!operational.allowed) {
+        return {
+          status: `SKIPPED_${operational.reason}`,
+        };
+      }
+      const timings = await loadViewingWorkflowTimings(
+        candidate.companyAccountId,
+        tx
+      );
+      const prompt = await tx.whatsAppInteractionPrompt.findFirst({
+        where: {
+          id: candidate.id,
+          companyAccountId: candidate.companyAccountId,
+          status: 'OPEN',
+          promptType: 'EMPLOYEE_ASSIGNMENT',
+          expectedResponseType: 'ASSIGNMENT_ACK',
+        },
+        include: {
+          assignmentAttempt: {
+            include: {
+              member: {
+                select: { id: true, name: true, phoneNormalized: true },
+              },
+              workflow: {
+                select: {
+                  id: true,
+                  shortCode: true,
+                  conversationId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      const attempt = prompt?.assignmentAttempt;
+      const reminder = attempt
+        ? nextAssignmentReminder({
+            status: attempt.status,
+            sentAt: attempt.sentAt,
+            ackDeadlineAt: attempt.ackDeadlineAt,
+            reminderCount: prompt.reminderCount,
+            lastReminderAt: prompt.lastReminderAt,
+            reminderMinutes: timings.employeeReminderMinutes,
+            now,
+          })
+        : null;
+      if (!prompt || !attempt || !reminder) {
+        return { status: 'SKIPPED_NOT_DUE' };
+      }
+      if (!attempt.member.phoneNormalized) {
+        return { status: 'SKIPPED_MEMBER_PHONE_MISSING' };
+      }
+
+      const claimed = await tx.whatsAppInteractionPrompt.updateMany({
+        where: {
+          id: prompt.id,
+          companyAccountId: prompt.companyAccountId,
+          status: 'OPEN',
+          reminderCount: prompt.reminderCount,
+          lastReminderAt: prompt.lastReminderAt,
+        },
+        data: {
+          reminderCount: { increment: 1 },
+          lastReminderAt: now,
+        },
+      });
+      if (claimed.count !== 1) return { status: 'SKIPPED_ALREADY_CLAIMED' };
+
+      const content = `[Hatırlatma #${attempt.workflow.shortCode}] ${attempt.member.name}, görev yanıtınız bekleniyor. Son süre dolmadan “#${attempt.workflow.shortCode} KABUL” veya “#${attempt.workflow.shortCode} RED: neden” yaz.`;
+      const outbox = await createWorkflowOutboxInTransaction(tx, {
+        companyAccountId: prompt.companyAccountId,
+        toPhone: attempt.member.phoneNormalized,
+        content,
+        recipientType: 'EMPLOYEE',
+        recipientId: attempt.member.id,
+        purpose: 'EMPLOYEE_ASSIGNMENT_REMINDER',
+        idempotencyKey: `viewing:${attempt.workflowId}:attempt:${attempt.sequence}:ack-reminder:${reminder.reminderCount}`,
+        conversationId: attempt.workflow.conversationId,
+        contactId: attempt.contactId,
+        propertyId: attempt.propertyId,
+        relatedTaskId: attempt.taskId,
+        correlationId: attempt.workflowId,
+        replyToProviderMessageId: attempt.providerMessageId,
+        createdByType: 'VIEWING_ACK_MONITOR',
+        createdById: prompt.id,
+        metadata: json({
+          workflowId: attempt.workflowId,
+          assignmentAttemptId: attempt.id,
+          promptId: prompt.id,
+          reminderCount: reminder.reminderCount,
+          dueAt: reminder.dueAt.toISOString(),
+        }),
+      });
+      await recordOperationEvent(
+        {
+          companyAccountId: prompt.companyAccountId,
+          // OperationEventType intentionally stays schema-compatible; the
+          // metadata and idempotency key distinguish this assignment reminder
+          // from the original assignment event.
+          eventType: 'TASK_ASSIGNED',
+          entityType: 'VIEWING_ASSIGNMENT_ATTEMPT',
+          entityId: attempt.id,
+          actorType: 'SCHEDULER',
+          actorId: 'viewing-ack-monitor',
+          contactId: attempt.contactId,
+          propertyId: attempt.propertyId,
+          taskId: attempt.taskId,
+          conversationId: attempt.workflow.conversationId,
+          sourceMessageId: `outbox:${outbox.id}`,
+          metadata: json({
+            promptId: prompt.id,
+            reminderCount: reminder.reminderCount,
+          }),
+          occurredAt: now,
+          idempotencyKey: `viewing:${attempt.workflowId}:attempt:${attempt.sequence}:ack-reminder:${reminder.reminderCount}:event`,
+        },
+        tx
+      );
+      outboxIds.push(outbox.id);
+      return {
+        status: 'REMINDER_QUEUED',
+        reminderCount: reminder.reminderCount,
+      };
+    });
+    results.push({ promptId: candidate.id, ...result });
+  }
+
+  await dispatchOutboxes(outboxIds);
+  return results;
 }
 
 export async function processDueViewingAcknowledgements(now = new Date()) {

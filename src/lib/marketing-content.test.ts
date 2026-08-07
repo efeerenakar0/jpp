@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { AdPlatform } from '@prisma/client';
 import {
   deterministicCampaign,
   parseGeneratedCampaign,
@@ -46,14 +47,49 @@ describe('marketing content', () => {
     const generated = parseGeneratedCampaign(
       JSON.stringify({
         name: 'AI kampanyası',
-        adCopies: [{ platform: 'INSTAGRAM', headline: 'Yeni başlık', body: 'Yeni metin' }],
+        adCopies: [
+          {
+            platform: 'INSTAGRAM',
+            headline: 'Yeni başlık',
+            body: JSON.stringify({ caption: 'Yeni metin', hashtags: ['#emlak'] }),
+          },
+        ],
       }),
       fallback
     );
 
     expect(generated.name).toBe('AI kampanyası');
     expect(generated.adCopies).toHaveLength(DEFAULT_MARKETING_CHANNELS.length);
-    expect(generated.adCopies.find((copy) => copy.platform === 'INSTAGRAM')?.body).toBe('Yeni metin');
+    expect(generated.adCopies.find((copy) => copy.platform === 'INSTAGRAM')?.body).toContain(
+      'Yeni metin'
+    );
     expect(generated.adCopies.find((copy) => copy.platform === 'WHATSAPP')?.body).toBeTruthy();
+  });
+
+  it('replaces duplicated AI copy with channel-specific safe fallbacks', () => {
+    const fallback = deterministicCampaign({
+      companyName: 'Jasmine Group',
+      property,
+      objective: 'Talep toplama',
+      audience: 'Alıcılar',
+      tone: 'warm',
+      channels: [AdPlatform.INSTAGRAM, AdPlatform.FACEBOOK, AdPlatform.TIKTOK],
+    });
+    const generated = parseGeneratedCampaign(
+      JSON.stringify({
+        adCopies: ['INSTAGRAM', 'FACEBOOK', 'TIKTOK'].map((platform) => ({
+          platform,
+          headline: 'Aynı başlık',
+          body: 'Her platform için yanlışlıkla aynı metin',
+          callToAction: 'Bilgi al',
+        })),
+      }),
+      fallback
+    );
+
+    expect(new Set(generated.adCopies.map((copy) => copy.body)).size).toBe(3);
+    expect(generated.adCopies.find((copy) => copy.platform === 'INSTAGRAM')?.body).toContain(
+      'caption'
+    );
   });
 });

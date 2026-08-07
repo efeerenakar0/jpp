@@ -23,6 +23,7 @@ const eliminationReasons = {
 const patchSchema = z.object({
   id: z.string().trim().min(1),
   status: z.nativeEnum(HuntingStatus),
+  idempotencyKey: z.string().trim().min(8).max(160),
   authorizationNote: z.string().trim().max(2000).optional().nullable(),
   eliminationReason: z
     .enum([
@@ -93,6 +94,11 @@ export async function GET() {
         location: true,
         ownerName: true,
         sourceUrl: true,
+        sourceProvider: true,
+        acquisitionStatus: true,
+        completenessScore: true,
+        lastSeenAt: true,
+        updatedAt: true,
         status: true,
         authorizationNote: true,
         eliminationReason: true,
@@ -108,6 +114,31 @@ export async function GET() {
             status: true,
             propertyId: true,
             reviewNote: true,
+            property: {
+              select: {
+                id: true,
+                status: true,
+                assignedMember: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+        contacts: {
+          orderBy: { updatedAt: 'desc' },
+          take: 1,
+          select: {
+            verificationStatus: true,
+            legalBasisStatus: true,
+            doNotContactAt: true,
+            policyDecisions: {
+              orderBy: { evaluatedAt: 'desc' },
+              take: 1,
+              select: {
+                allowed: true,
+                reasonCodes: true,
+                evaluatedAt: true,
+              },
+            },
           },
         },
       },
@@ -142,6 +173,26 @@ export async function PATCH(request: Request) {
       );
     }
     const input = parsed.data;
+    const existingEvent = await prisma.operationEvent.findUnique({
+      where: {
+        companyAccountId_idempotencyKey: {
+          companyAccountId: principal.account.id,
+          idempotencyKey: input.idempotencyKey,
+        },
+      },
+      select: { id: true },
+    });
+    if (existingEvent) {
+      const currentListing = await prisma.huntedListing.findFirst({
+        where: { id: input.id, companyAccountId: principal.account.id },
+      });
+      return NextResponse.json({
+        success: true,
+        listing: currentListing,
+        idempotent: true,
+        message: 'Bu durum değişikliği daha önce kaydedildi.',
+      });
+    }
     const listing = await prisma.huntedListing.findFirst({
       where: { id: input.id, companyAccountId: principal.account.id },
     });
@@ -166,76 +217,152 @@ export async function PATCH(request: Request) {
             note: input.eliminationNote,
           })
         : null;
-    const updated = await prisma.huntedListing.update({
-      where: { id: listing.id },
-      data: {
-        status: input.status,
-        authorizationNote:
-          input.status === HuntingStatus.AUTHORIZED
-            ? input.authorizationNote?.trim() || null
-            : listing.authorizationNote,
-        authorizedAt:
-          input.status === HuntingStatus.AUTHORIZED
-            ? listing.authorizedAt || new Date()
-            : listing.authorizedAt,
-        eliminationReason:
-          input.status === HuntingStatus.RED
-            ? input.eliminationReason
-            : null,
-        eliminationNote:
-          input.status === HuntingStatus.RED
-            ? input.eliminationNote?.trim() || null
-            : null,
-        eliminationSummary: summary,
-        eliminatedAt:
-          input.status === HuntingStatus.RED ? new Date() : null,
-      },
-    });
-
-    if (input.status === HuntingStatus.AUTHORIZED) {
-      const fingerprint = hunterFingerprint(
-        principal.account.id,
-        listing.id
-      );
-      await prisma.portfolioImportItem.upsert({
+    const transition = await prisma.$transaction(async (tx) => {
+      const duplicate = await tx.operationEvent.findUnique({
         where: {
-          companyAccountId_fingerprint: {
+          companyAccountId_idempotencyKey: {
             companyAccountId: principal.account.id,
-            fingerprint,
+            idempotencyKey: input.idempotencyKey,
           },
         },
-        create: {
-          companyAccountId: principal.account.id,
-          huntedListingId: listing.id,
-          fingerprint,
-          sourceUrl: listing.sourceUrl,
-          externalId: listing.id,
-          title: listing.title,
-          location: listing.location,
-          price: numberFromListing(listing.price),
-          roomCount: listing.roomCount,
-          area: numberFromListing(listing.area),
-          description: listing.notes,
-          imageUrl: listing.imageUrl,
-          rawPayload: listing.rawData,
-          status: 'PENDING',
-        },
-        update: {
-          sourceUrl: listing.sourceUrl,
-          title: listing.title,
-          location: listing.location,
-          price: numberFromListing(listing.price),
-          roomCount: listing.roomCount,
-          area: numberFromListing(listing.area),
-          description: listing.notes,
-          imageUrl: listing.imageUrl,
-          rawPayload: listing.rawData,
-          status: 'PENDING',
-          reviewNote: null,
-          reviewedAt: null,
-          reviewedBy: null,
+        select: { id: true },
+      });
+      if (duplicate) {
+        return {
+          applied: false,
+          updated: await tx.huntedListing.findUniqueOrThrow({
+            where: { id: listing.id },
+          }),
+        };
+      }
+
+      const updated = await tx.huntedListing.update({
+        where: { id: listing.id },
+        data: {
+          status: input.status,
+          authorizationNote:
+            input.status === HuntingStatus.AUTHORIZED
+              ? input.authorizationNote?.trim() || null
+              : listing.authorizationNote,
+          authorizedAt:
+            input.status === HuntingStatus.AUTHORIZED
+              ? listing.authorizedAt || new Date()
+              : listing.authorizedAt,
+          eliminationReason:
+            input.status === HuntingStatus.RED
+              ? input.eliminationReason
+              : null,
+          eliminationNote:
+            input.status === HuntingStatus.RED
+              ? input.eliminationNote?.trim() || null
+              : null,
+          eliminationSummary: summary,
+          eliminatedAt:
+            input.status === HuntingStatus.RED ? new Date() : null,
         },
       });
+
+      if (input.status === HuntingStatus.AUTHORIZED) {
+        const fingerprint = hunterFingerprint(
+          principal.account.id,
+          listing.id
+        );
+        await tx.portfolioImportItem.upsert({
+          where: {
+            companyAccountId_fingerprint: {
+              companyAccountId: principal.account.id,
+              fingerprint,
+            },
+          },
+          create: {
+            companyAccountId: principal.account.id,
+            huntedListingId: listing.id,
+            fingerprint,
+            sourceUrl: listing.sourceUrl,
+            externalId: listing.id,
+            title: listing.title,
+            location: listing.location,
+            price: numberFromListing(listing.price),
+            roomCount: listing.roomCount,
+            area: numberFromListing(listing.area),
+            description: listing.notes,
+            imageUrl: listing.imageUrl,
+            rawPayload: listing.rawData,
+            status: 'PENDING',
+          },
+          update: {
+            sourceUrl: listing.sourceUrl,
+            title: listing.title,
+            location: listing.location,
+            price: numberFromListing(listing.price),
+            roomCount: listing.roomCount,
+            area: numberFromListing(listing.area),
+            description: listing.notes,
+            imageUrl: listing.imageUrl,
+            rawPayload: listing.rawData,
+            status: 'PENDING',
+            reviewNote: null,
+            reviewedAt: null,
+            reviewedBy: null,
+          },
+        });
+      }
+
+      const operationEvent = await tx.operationEvent.create({
+        data: {
+          companyAccountId: principal.account.id,
+          eventType:
+            input.status === HuntingStatus.AUTHORIZED
+              ? 'AUTHORIZATION_CONFIRMED'
+              : 'PROPERTY_UPDATED',
+          entityType: 'HuntedListing',
+          entityId: listing.id,
+          listingId: listing.id,
+          actorType: principal.type,
+          actorId: principal.member?.id || principal.account.id,
+          sourceProvider: listing.sourceProvider,
+          metadata: {
+            version: 1,
+            previousStatus: listing.status,
+            status: input.status,
+            authorizationNote: input.authorizationNote || null,
+            eliminationReason: input.eliminationReason || null,
+            eliminationNote: input.eliminationNote || null,
+          },
+          idempotencyKey: input.idempotencyKey,
+        },
+      });
+      await tx.managerAuditLog.create({
+        data: {
+          companyAccountId: principal.account.id,
+          operationEventId: operationEvent.id,
+          actorType: principal.type,
+          actorId: principal.member?.id || principal.account.id,
+          operation: 'HUNTING_STATUS_CHANGE',
+          entityType: 'HuntedListing',
+          entityId: listing.id,
+          verifiedContext: {
+            previousStatus: listing.status,
+            status: input.status,
+          },
+          evidence: {
+            authorizationNote: input.authorizationNote || null,
+            eliminationReason: input.eliminationReason || null,
+            eliminationSummary: summary,
+          },
+          policyDecision: 'TENANT_SCOPED_USER_ACTION',
+          result: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
+
+      return { applied: true, updated };
+    });
+
+    if (
+      transition.applied &&
+      input.status === HuntingStatus.AUTHORIZED
+    ) {
       await createCompanyNotification({
         companyAccountId: principal.account.id,
         type: NotificationType.GREEN_LISTING,
@@ -250,7 +377,8 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
-      listing: updated,
+      listing: transition.updated,
+      idempotent: !transition.applied,
       message:
         input.status === HuntingStatus.AUTHORIZED
           ? 'Satış yetkisi kaydedildi; portföy onayı bekleniyor.'

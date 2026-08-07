@@ -31,6 +31,7 @@ export async function GET() {
       failedMessages,
       pendingAppointments,
       approvedToday,
+      conversationSnapshots,
     ] = await Promise.all([
       prisma.customerConversation.count({
         where: { companyAccountId: accountId, isActive: true },
@@ -86,7 +87,24 @@ export async function GET() {
           updatedAt: { gte: today },
         },
       }),
+      prisma.customerConversation.findMany({
+        where: { companyAccountId: accountId, isActive: true },
+        select: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { role: true, readAt: true },
+          },
+        },
+      }),
     ]);
+    const awaitingResponses = conversationSnapshots.filter(
+      (conversation) => conversation.messages[0]?.role === 'customer'
+    ).length;
+    const newMessages = conversationSnapshots.filter((conversation) => {
+      const latestMessage = conversation.messages[0];
+      return latestMessage?.role === 'customer' && !latestMessage.readAt;
+    }).length;
     return NextResponse.json({
       activeConversations,
       handoffConversations,
@@ -97,6 +115,8 @@ export async function GET() {
       failedMessages,
       pendingAppointments,
       approvedToday,
+      newMessages,
+      awaitingResponses,
     });
   } catch (error) {
     console.error('[Assistant Metrics Error]:', error);

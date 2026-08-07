@@ -34,8 +34,26 @@ export const portfolioVideoPlannedSceneSchema = z.object({
   overlays: z.array(portfolioVideoOverlaySchema).max(10),
 });
 
+export const portfolioVideoPaletteSchema = z.enum([
+  'MIDNIGHT_CYAN',
+  'EDITORIAL_GOLD',
+  'WARM_SAND',
+  'CLEAN_WHITE',
+  'BOLD_CORAL',
+]);
+
+export const portfolioVideoTypographySchema = z.enum([
+  'MODERN',
+  'EDITORIAL',
+  'FRIENDLY',
+  'MINIMAL',
+]);
+
 export const portfolioVideoScenePlanSchema = z.object({
   summary: z.string().min(1).max(240),
+  seed: z.number().int().min(0).max(2_147_483_647).default(0),
+  palette: portfolioVideoPaletteSchema.default('MIDNIGHT_CYAN'),
+  typography: portfolioVideoTypographySchema.default('MODERN'),
   scenes: z.array(portfolioVideoPlannedSceneSchema).min(3).max(10),
 });
 
@@ -123,6 +141,9 @@ const aiSceneSchema = z.object({
 
 const aiPlanSchema = z.object({
   summary: z.string().min(1).max(500),
+  seed: z.coerce.number().int().min(0).max(2_147_483_647).optional(),
+  palette: portfolioVideoPaletteSchema.optional(),
+  typography: portfolioVideoTypographySchema.optional(),
   scenes: z.array(aiSceneSchema).min(3).max(10),
 });
 
@@ -170,11 +191,17 @@ function validPhotoIndices(indices: number[], photoCount: number) {
   return [...new Set(indices.filter((index) => index >= 0 && index < photoCount))].slice(0, 8);
 }
 
-export function parseCreativeScenePlan(rawPlan: unknown, options: { photoCount: number }) {
+export function parseCreativeScenePlan(
+  rawPlan: unknown,
+  options: { photoCount: number; seed?: number },
+) {
   const parsed = aiPlanSchema.parse(rawPlan);
   const durations = normalizeDurations(parsed.scenes.map((scene) => scene.durationSeconds));
   return portfolioVideoScenePlanSchema.parse({
     summary: safeCopy(parsed.summary, 240) || 'Özel sahne planı',
+    seed: parsed.seed ?? options.seed ?? 0,
+    palette: parsed.palette ?? 'MIDNIGHT_CYAN',
+    typography: parsed.typography ?? 'MODERN',
     scenes: parsed.scenes.map((scene, index) => {
       const durationInFrames = durations[index];
       const photoIndices = validPhotoIndices(scene.photoIndices, options.photoCount);
@@ -207,6 +234,7 @@ type LocalScenePlanInput = {
   showPrice: boolean;
   showLocation: boolean;
   instagramUrl: string | null;
+  seed?: number;
 };
 
 type DraftScene = Omit<
@@ -223,10 +251,16 @@ function overlay(
 
 export function buildLocalScenePlan(input: LocalScenePlanInput): PortfolioVideoScenePlan {
   const command = normalizeTurkish(input.command);
-  const sequentialPhotos = Array.from(
+  const seed = Math.max(0, Math.floor(input.seed ?? 0)) % 2_147_483_647;
+  const baseSequentialPhotos = Array.from(
     { length: Math.max(0, input.photoCount - 1) },
     (_, index) => index + 1
   );
+  const rotation = baseSequentialPhotos.length ? seed % baseSequentialPhotos.length : 0;
+  const sequentialPhotos = [
+    ...baseSequentialPhotos.slice(rotation),
+    ...baseSequentialPhotos.slice(0, rotation),
+  ];
   const wantsPriceReveal = input.showPrice && /fiyat/.test(command) &&
     /bir anda|aniden|belir|patla|sonra/.test(command);
   const wantsInstagram = /instagram|insta/.test(command);
@@ -234,7 +268,24 @@ export function buildLocalScenePlan(input: LocalScenePlanInput): PortfolioVideoS
   const energetic = /dikkat cekici|enerjik|hizli|guclu|bir anda|patla|animasyon/.test(command);
   const cinematic = /luks|sinematik|zarif|yavas/.test(command);
   const transition = energetic ? 'SLIDE' : cinematic ? 'FADE' : minimal ? 'CUT' : 'FADE';
-  const motion = minimal ? 'STILL' : cinematic ? 'PAN' : 'ZOOM';
+  const seededMotion = seed % 3 === 0 ? 'PAN' : seed % 3 === 1 ? 'ZOOM' : 'STILL';
+  const motion = minimal ? 'STILL' : cinematic ? (seed % 2 ? 'ZOOM' : 'PAN') : energetic ? 'ZOOM' : seededMotion;
+  const palette = /sicak|aile/.test(command)
+    ? 'WARM_SAND'
+    : /yatirim|prestij|altin/.test(command)
+      ? 'EDITORIAL_GOLD'
+      : /sade|minimal|temiz/.test(command)
+        ? 'CLEAN_WHITE'
+        : /enerjik|dikkat cekici|guclu/.test(command)
+          ? 'BOLD_CORAL'
+          : (['MIDNIGHT_CYAN', 'EDITORIAL_GOLD', 'WARM_SAND'] as const)[seed % 3];
+  const typography = cinematic
+    ? 'EDITORIAL'
+    : /aile|sicak/.test(command)
+      ? 'FRIENDLY'
+      : minimal
+        ? 'MINIMAL'
+        : 'MODERN';
   const scenes: DraftScene[] = [
     {
       type: 'HOOK',
@@ -343,8 +394,11 @@ export function buildLocalScenePlan(input: LocalScenePlanInput): PortfolioVideoS
         : minimal
           ? 'Sade fotoğraf akışı ve iletişim kapanışı'
           : 'Portföye özel dinamik tanıtım akışı',
+      seed,
+      palette,
+      typography,
       scenes,
     },
-    { photoCount: input.photoCount }
+    { photoCount: input.photoCount, seed }
   );
 }

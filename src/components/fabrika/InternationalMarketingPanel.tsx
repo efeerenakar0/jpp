@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import {
   INTERNATIONAL_MARKETS,
+  isVerifiedPortalLink,
   type InternationalMarketingPlan,
 } from '@/lib/international-marketing';
 import EmptyState from '@/components/fabrika/EmptyState';
@@ -51,10 +52,8 @@ const selectClass =
   'min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20';
 
 function providerLabel(provider: string | null) {
-  if (provider === 'OPENROUTER') return 'OpenRouter AI';
-  if (provider === 'GROQ') return 'Groq AI';
-  if (provider === 'CLOUDFLARE') return 'Cloudflare AI';
-  return 'Doğrulanmış veri şablonu';
+  if (provider) return 'AI destekli';
+  return 'Doğrulanmış verilerle hazırlandı';
 }
 
 async function copyText(value: string, label: string) {
@@ -75,6 +74,7 @@ export default function InternationalMarketingPanel({
   const [propertyId, setPropertyId] = useState(properties[0]?.id || '');
   const [countryCode, setCountryCode] = useState('DE');
   const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const selectedMarket =
     INTERNATIONAL_MARKETS.find((market) => market.code === countryCode) ||
     INTERNATIONAL_MARKETS[0];
@@ -93,6 +93,7 @@ export default function InternationalMarketingPanel({
       return;
     }
     setGenerating(true);
+    setGenerationError(null);
     try {
       const response = await fetch('/api/fabrika/marketing/international', {
         method: 'POST',
@@ -108,11 +109,12 @@ export default function InternationalMarketingPanel({
       );
       await onGenerated();
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof Error
           ? error.message
-          : 'Yurt dışı ilan planı hazırlanamadı.'
-      );
+          : 'Yurt dışı ilan planı hazırlanamadı.';
+      setGenerationError(message);
+      toast.error(message);
     } finally {
       setGenerating(false);
     }
@@ -120,7 +122,10 @@ export default function InternationalMarketingPanel({
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+      <section
+        className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
+        aria-busy={generating}
+      >
         <div className="border-b border-slate-800 p-5">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
@@ -216,6 +221,23 @@ export default function InternationalMarketingPanel({
                 ? 'Portal planları hazırlanıyor…'
                 : `${selectedMarket.country} planını hazırla`}
             </Button>
+            {generationError && (
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200"
+              >
+                <p>{generationError}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void generatePlan()}
+                  className="mt-2 border-rose-400/30 text-rose-100"
+                >
+                  Yeniden dene
+                </Button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -265,33 +287,45 @@ export default function InternationalMarketingPanel({
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
-                      >
-                        <a
-                          href={portal.pricingUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                      {isVerifiedPortalLink(portal, portal.pricingUrl) ? (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
                         >
-                          Ücreti kontrol et <ExternalLink />
-                        </a>
-                      </Button>
-                      <Button
-                        asChild
-                        size="sm"
-                        className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-                      >
-                        <a
-                          href={portal.publishUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                          <a
+                            href={portal.pricingUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Ücreti kontrol et <ExternalLink />
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" disabled>
+                          Ücret bağlantısı doğrulanamadı
+                        </Button>
+                      )}
+                      {isVerifiedPortalLink(portal, portal.publishUrl) ? (
+                        <Button
+                          asChild
+                          size="sm"
+                          className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
                         >
-                          İlan ver <ExternalLink />
-                        </a>
-                      </Button>
+                          <a
+                            href={portal.publishUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            İlan ver <ExternalLink />
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button size="sm" disabled>
+                          Yayın bağlantısı doğrulanamadı
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -422,33 +456,54 @@ export default function InternationalMarketingPanel({
                         </ol>
                       </div>
                       <div className="mt-auto flex flex-wrap gap-2 pt-5">
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
-                        >
-                          <a
-                            href={copy.pricingUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Güncel fiyat <ExternalLink />
-                          </a>
-                        </Button>
-                        <Button
-                          asChild
-                          size="sm"
-                          className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-                        >
-                          <a
-                            href={copy.publishUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Yayın ekranını aç <ExternalLink />
-                          </a>
-                        </Button>
+                        {(() => {
+                          const portal = selectedMarket.portals.find(
+                            (item) => item.id === copy.portalId
+                          );
+                          const pricingReady = Boolean(
+                            portal &&
+                              isVerifiedPortalLink(portal, copy.pricingUrl)
+                          );
+                          const publishReady = Boolean(
+                            portal &&
+                              isVerifiedPortalLink(portal, copy.publishUrl)
+                          );
+                          return (
+                            <>
+                              {pricingReady ? (
+                                <Button
+                                  asChild
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+                                >
+                                  <a href={copy.pricingUrl} target="_blank" rel="noreferrer">
+                                    Güncel fiyat <ExternalLink />
+                                  </a>
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" disabled>
+                                  Fiyat bağlantısı doğrulanamadı
+                                </Button>
+                              )}
+                              {publishReady ? (
+                                <Button
+                                  asChild
+                                  size="sm"
+                                  className="bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                                >
+                                  <a href={copy.publishUrl} target="_blank" rel="noreferrer">
+                                    Yayın ekranını aç <ExternalLink />
+                                  </a>
+                                </Button>
+                              ) : (
+                                <Button size="sm" disabled>
+                                  Yayın bağlantısı doğrulanamadı
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}

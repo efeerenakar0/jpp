@@ -10,6 +10,7 @@ import {
   Download,
   ExternalLink,
   Globe2,
+  History,
   ImageIcon,
   Loader2,
   MapPin,
@@ -20,7 +21,9 @@ import {
   Sparkles,
   Target,
   Users2,
+  Video,
   WandSparkles,
+  WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import AdCopyCard from "@/components/fabrika/AdCopyCard";
@@ -28,6 +31,7 @@ import EmptyState from "@/components/fabrika/EmptyState";
 import InternationalMarketingPanel from "@/components/fabrika/InternationalMarketingPanel";
 import LoadingSkeleton from "@/components/fabrika/LoadingSkeleton";
 import type { InternationalMarketingPlan } from "@/lib/international-marketing";
+import type { MarketingCreativeAsset } from "@/lib/marketing-creative-assets";
 import {
   DEFAULT_MARKETING_CHANNELS,
   MARKETING_CHANNELS,
@@ -115,6 +119,7 @@ type MarketingData = {
   campaigns: Campaign[];
   properties: Property[];
   websiteAnalyses: WebsiteAnalysis[];
+  creativeAssets: MarketingCreativeAsset[];
 };
 
 const inputClass =
@@ -145,6 +150,9 @@ export default function MarketingPage() {
   const requestedPropertyId = searchParams.get("propertyId") || "";
   const [data, setData] = useState<MarketingData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [activeTab, setActiveTab] = useState("domestic");
   const [generating, setGenerating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -164,8 +172,10 @@ export default function MarketingPage() {
   const [publicationUrls, setPublicationUrls] = useState<
     Record<string, string>
   >({});
+  const [selectedCreativeKey, setSelectedCreativeKey] = useState("");
 
   const fetchData = useCallback(async () => {
+    setLoadError(null);
     try {
       const response = await fetch("/api/fabrika/marketing/campaigns", {
         cache: "no-store",
@@ -193,11 +203,12 @@ export default function MarketingPage() {
           : { [body.campaigns[0].id]: true },
       );
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof Error
           ? error.message
-          : "Pazarlama verileri alınamadı.",
-      );
+          : "Pazarlama verileri alınamadı.";
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -207,6 +218,17 @@ export default function MarketingPage() {
     const timer = window.setTimeout(() => void fetchData(), 0);
     return () => window.clearTimeout(timer);
   }, [fetchData]);
+
+  useEffect(() => {
+    const syncConnection = () => setIsOnline(navigator.onLine);
+    syncConnection();
+    window.addEventListener("online", syncConnection);
+    window.addEventListener("offline", syncConnection);
+    return () => {
+      window.removeEventListener("online", syncConnection);
+      window.removeEventListener("offline", syncConnection);
+    };
+  }, []);
 
   const domesticCampaigns = useMemo(
     () =>
@@ -240,6 +262,22 @@ export default function MarketingPage() {
       data?.properties[0] ||
       null,
     [data?.properties, propertyId],
+  );
+
+  const availableCreativeAssets = useMemo(
+    () =>
+      (data?.creativeAssets || []).filter(
+        (asset) => asset.propertyId === selectedProperty?.id,
+      ),
+    [data?.creativeAssets, selectedProperty?.id],
+  );
+
+  const selectedCreativeAsset = useMemo(
+    () =>
+      availableCreativeAssets.find(
+        (asset) => `${asset.kind}:${asset.id}` === selectedCreativeKey,
+      ) || null,
+    [availableCreativeAssets, selectedCreativeKey],
   );
 
   const previewCampaign = useMemo(
@@ -314,6 +352,12 @@ export default function MarketingPage() {
           posterTemplate,
           targetUrl,
           channels: selectedChannels,
+          creativeAsset: selectedCreativeAsset
+            ? {
+                id: selectedCreativeAsset.id,
+                kind: selectedCreativeAsset.kind,
+              }
+            : undefined,
         }),
       });
       const body = (await response.json()) as Campaign & { error?: string };
@@ -432,8 +476,8 @@ export default function MarketingPage() {
     <main className={styles.page}>
       <header className={styles.hero}>
         <div>
-          <p className={styles.eyebrow}>M3 · Akıllı pazarlama</p>
-          <h1>Pazarlamacı</h1>
+          <p className={styles.eyebrow}>AI Pazarlama Uzmanı</p>
+          <h1>Pazarlama merkezi</h1>
           <p>
             Aktif portföylerinizi doğru kitleye, doğru kanalda ve doğru mesajla
             ulaştırın.
@@ -458,10 +502,10 @@ export default function MarketingPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => document.getElementById("template")?.focus()}
+            onClick={() => setActiveTab("history")}
             className={styles.secondaryButton}
           >
-            <ImageIcon /> Şablonlar
+            <History /> Eski çalışmalarım
           </Button>
           <Badge className={styles.aiBadge}>
             <Bot /> {aiLabel}
@@ -469,11 +513,33 @@ export default function MarketingPage() {
         </div>
       </header>
 
-      <Tabs defaultValue="domestic" className={styles.marketTabs}>
+      {!isOnline && (
+        <div className={styles.statusBanner} data-tone="warning" role="status">
+          <WifiOff aria-hidden="true" />
+          <div>
+            <strong>İnternet bağlantısı yok</strong>
+            <span>Mevcut çalışmalar görünür; yeni üretim bağlantı gelince kullanılabilir.</span>
+          </div>
+        </div>
+      )}
+      {loadError && (
+        <div className={styles.statusBanner} data-tone="error" role="alert">
+          <div>
+            <strong>Veriler yüklenemedi</strong>
+            <span>{loadError}</span>
+          </div>
+          <Button type="button" variant="outline" onClick={() => void fetchData()}>
+            Yeniden dene
+          </Button>
+        </div>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={styles.marketTabs}>
         <div className={styles.marketBar}>
           <TabsList className={styles.countryTabs}>
             <TabsTrigger value="domestic">Yurt içi</TabsTrigger>
             <TabsTrigger value="international">Yurt dışı</TabsTrigger>
+            <TabsTrigger value="history">Eski çalışmalarım</TabsTrigger>
           </TabsList>
           <div className={styles.countrySelect}>
             <span>🇹🇷</span> Türkiye <ChevronDown />
@@ -528,6 +594,7 @@ export default function MarketingPage() {
             <article
               id="campaign-builder"
               className={`${styles.panel} ${styles.builder}`}
+              aria-busy={generating}
             >
               <div className={styles.panelTitle}>
                 <div>
@@ -547,7 +614,10 @@ export default function MarketingPage() {
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setCampaignType(value)}
+                    onClick={() => {
+                      setCampaignType(value);
+                      if (value === "brand") setSelectedCreativeKey("");
+                    }}
                     data-active={campaignType === value}
                   >
                     {label}
@@ -563,7 +633,10 @@ export default function MarketingPage() {
                   <select
                     id="property"
                     value={propertyId}
-                    onChange={(event) => setPropertyId(event.target.value)}
+                    onChange={(event) => {
+                      setPropertyId(event.target.value);
+                      setSelectedCreativeKey("");
+                    }}
                     className={styles.select}
                   >
                     <option value="">Portföy seçin</option>
@@ -615,6 +688,67 @@ export default function MarketingPage() {
                   </small>
                 </div>
               </div>
+
+              {campaignType === "listing" && (
+                <fieldset className={styles.assetPicker}>
+                  <legend>
+                    <span>Hazır görsel veya video</span>
+                    <small>İsteğe bağlı</small>
+                  </legend>
+                  {availableCreativeAssets.length === 0 ? (
+                    <div className={styles.assetEmpty}>
+                      <ImageIcon aria-hidden="true" />
+                      <span>
+                        Bu portföy için kayıtlı poster veya video yok. Kampanya
+                        portföy fotoğrafıyla hazırlanabilir.
+                      </span>
+                      <a href="/fabrika/studyo">Reklam tasarımına git</a>
+                    </div>
+                  ) : (
+                    <div className={styles.assetGrid}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCreativeKey("")}
+                        data-active={!selectedCreativeAsset}
+                      >
+                        <span className={styles.assetPlaceholder}>
+                          <ImageIcon aria-hidden="true" />
+                        </span>
+                        <b>Portföy kapağı</b>
+                        <small>Hazır çalışma kullanma</small>
+                      </button>
+                      {availableCreativeAssets.map((asset) => {
+                        const key = `${asset.kind}:${asset.id}`;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedCreativeKey(key)}
+                            data-active={selectedCreativeKey === key}
+                            aria-pressed={selectedCreativeKey === key}
+                          >
+                            <span className={styles.assetPreview}>
+                              {asset.kind === "VIDEO" ? (
+                                <video src={asset.previewUrl} muted preload="metadata" />
+                              ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={asset.previewUrl} alt="" />
+                              )}
+                              {asset.kind === "VIDEO" ? (
+                                <Video aria-hidden="true" />
+                              ) : (
+                                <ImageIcon aria-hidden="true" />
+                              )}
+                            </span>
+                            <b>{asset.title}</b>
+                            <small>{asset.kind === "VIDEO" ? "Video" : "Poster"}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </fieldset>
+              )}
 
               <div className={styles.readiness}>
                 <span>Veri tamlığı</span>
@@ -1169,6 +1303,77 @@ export default function MarketingPage() {
             loading={loading}
             onGenerated={fetchData}
           />
+        </TabsContent>
+
+        <TabsContent value="history" className={styles.historyPanel}>
+          <section className={styles.historyHeader}>
+            <div>
+              <p className={styles.eyebrow}>Gerçek kayıtlar</p>
+              <h2>Eski çalışmalarım</h2>
+              <p>
+                Stüdyo/Reklam Tasarımı çıktılarınız ve hazırladığınız kampanya
+                paketleri burada birlikte görünür.
+              </p>
+            </div>
+            <Badge>
+              {(data?.creativeAssets.length ?? 0) +
+                (data?.campaigns.length ?? 0)}{" "}
+              çalışma
+            </Badge>
+          </section>
+
+          {loading ? (
+            <LoadingSkeleton rows={4} />
+          ) : !data || (data.creativeAssets.length === 0 && data.campaigns.length === 0) ? (
+            <EmptyState
+              icon={History}
+              title="Henüz kayıtlı çalışma yok"
+              description="İlk kampanyanızı hazırladığınızda veya Stüdyo'dan bir çalışma kaydettiğinizde burada görünür."
+            />
+          ) : (
+            <div className={styles.historyGrid}>
+              {data.creativeAssets.map((asset) => (
+                <article key={`${asset.kind}:${asset.id}`} className={styles.historyCard}>
+                  <div className={styles.historyVisual}>
+                    {asset.kind === "VIDEO" ? (
+                      <video src={asset.previewUrl} controls preload="metadata" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={asset.previewUrl} alt={asset.title} />
+                    )}
+                  </div>
+                  <div>
+                    <Badge variant="outline">{asset.kind === "VIDEO" ? "Video" : "Poster"}</Badge>
+                    <h3>{asset.title}</h3>
+                    <p>{asset.property.referenceCode ? `${asset.property.referenceCode} · ` : ""}{asset.property.title}</p>
+                    <Button asChild variant="outline" className={styles.secondaryButton}>
+                      <a href={asset.downloadUrl} download>
+                        <Download /> İndir
+                      </a>
+                    </Button>
+                  </div>
+                </article>
+              ))}
+              {data.campaigns.map((campaign) => (
+                <article key={campaign.id} className={styles.historyCard}>
+                  <div className={styles.historyCampaignIcon}>
+                    <Megaphone aria-hidden="true" />
+                  </div>
+                  <div>
+                    <Badge variant="outline">{PUBLICATION_LABELS[campaign.publicationStatus]}</Badge>
+                    <h3>{campaign.name}</h3>
+                    <p>{campaign.property?.title || "Şirket kampanyası"} · {campaign.adCopies.length} kanal</p>
+                    <Button type="button" variant="outline" className={styles.secondaryButton} onClick={() => {
+                      setActiveTab(campaign.type === "international" ? "international" : "domestic");
+                      setExpanded((current) => ({ ...current, [campaign.id]: true }));
+                    }}>
+                      Çalışmayı aç
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -10,6 +10,9 @@ import { LocalRuleCreativeDirector } from '@/lib/portfolio-video/creative-direct
 import { loadPortfolioVideoCatalog } from '@/lib/portfolio-video/data';
 import { buildPortfolioStoryboard } from '@/lib/portfolio-video/storyboard';
 import { portfolioVideoStyleSchema } from '@/lib/portfolio-video/types';
+import {
+  ensureDistinctPortfolioVideoPlan,
+} from '@/lib/portfolio-video/plan-diversity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,6 +24,8 @@ const requestSchema = z.object({
   selectedPhotoIds: z.array(z.string().min(1).max(120)).min(1).max(8),
   showPrice: z.boolean(),
   showLocation: z.boolean(),
+  seed: z.number().int().min(0).max(2_147_483_647).default(0),
+  previousFingerprints: z.array(z.string().min(1).max(80)).max(12).default([]),
 });
 
 export async function POST(request: Request) {
@@ -65,6 +70,12 @@ export async function POST(request: Request) {
       photoCount: selectedPortfolio.photos.length,
       showPrice: parsed.data.showPrice && direction.showPrice,
       showLocation: parsed.data.showLocation,
+      seed: parsed.data.seed,
+    });
+    const distinct = ensureDistinctPortfolioVideoPlan({
+      plan: result.plan,
+      previousFingerprints: parsed.data.previousFingerprints,
+      seed: parsed.data.seed,
     });
     const storyboard = buildPortfolioStoryboard({
       portfolio,
@@ -72,15 +83,18 @@ export async function POST(request: Request) {
       selectedPhotoIds: parsed.data.selectedPhotoIds,
       showPrice: parsed.data.showPrice && direction.showPrice,
       showLocation: parsed.data.showLocation,
-      scenePlan: result.plan,
+      scenePlan: distinct.plan,
     });
     return NextResponse.json({
       success: true,
       storyboard,
+      fingerprint: distinct.fingerprint,
+      seed: distinct.plan.seed,
       director: {
         source: result.source,
         model: result.model,
         usedFallback: result.usedFallback,
+        diversified: distinct.wasDiversified,
       },
     });
   } catch (error) {

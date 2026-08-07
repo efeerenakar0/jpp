@@ -20,6 +20,16 @@ export async function GET() {
         messages: {
           orderBy: { createdAt: 'asc' },
         },
+        appointmentRequests: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: {
+            id: true,
+            status: true,
+            startAt: true,
+            proposedDate: true,
+          },
+        },
         _count: {
           select: { messages: true },
         },
@@ -64,6 +74,14 @@ export async function POST(request: Request) {
       },
       include: {
         messages: true,
+        appointmentRequests: {
+          select: {
+            id: true,
+            status: true,
+            startAt: true,
+            proposedDate: true,
+          },
+        },
         _count: { select: { messages: true } },
       },
     });
@@ -127,6 +145,16 @@ export async function PATCH(request: Request) {
       include: {
         messages: {
           orderBy: { createdAt: 'asc' },
+        },
+        appointmentRequests: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: {
+            id: true,
+            status: true,
+            startAt: true,
+            proposedDate: true,
+          },
         },
         _count: {
           select: { messages: true },

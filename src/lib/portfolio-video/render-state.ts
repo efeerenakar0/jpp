@@ -31,6 +31,13 @@ export const initialPortfolioVideoRenderState: PortfolioVideoRenderState = {
   error: null,
 };
 
+export function shouldRequestFreshPortfolioVideoPlan(input: {
+  hasDirectedStoryboard: boolean;
+  forceNewVariation: boolean;
+}) {
+  return input.forceNewVariation || !input.hasDirectedStoryboard;
+}
+
 export function portfolioVideoRenderReducer(
   state: PortfolioVideoRenderState,
   action: PortfolioVideoRenderAction

@@ -9,6 +9,7 @@ import {
   LayoutTemplate,
   Loader2,
   MessageCircle,
+  RotateCcw,
   Share2,
   Sparkles,
   UploadCloud,
@@ -49,6 +50,10 @@ type PosterResult = {
   campaignSource?: 'ai' | 'template';
   mediaIds: string[];
   mode: PosterMode;
+  generationId: string;
+  regenerationCount: number;
+  maxRegenerations: number;
+  remainingRegenerations: number;
   savedMediaId?: string;
 };
 
@@ -577,6 +582,7 @@ export default function PosterMaker() {
   const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const posterRequestInFlightRef = useRef(false);
 
   const photoPreviews = useMemo(
     () => photos.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -733,7 +739,8 @@ export default function PosterMaker() {
     addPhotos(Array.from(event.dataTransfer.files));
   };
 
-  const createPoster = async () => {
+  const createPoster = async (regenerateFrom?: PosterResult) => {
+    if (posterRequestInFlightRef.current) return;
     if (!selectedPosterSources.length) {
       toast.error('Portföyden veya bilgisayarınızdan en az bir görsel seçin.');
       return;
@@ -748,10 +755,18 @@ export default function PosterMaker() {
           : `${source.file?.name}-${source.file?.size}-${source.file?.lastModified}`
       ),
     });
-    if (results.some((result) => result.fingerprint === fingerprint)) {
+    if (
+      !regenerateFrom &&
+      results.some((result) => result.fingerprint === fingerprint)
+    ) {
       toast.error('Bu ayarlarla bir poster zaten oluşturuldu. Yeni varyasyon için ana görseli veya bilgileri değiştirin.');
       return;
     }
+    if (regenerateFrom && regenerateFrom.remainingRegenerations <= 0) {
+      toast.error('Bu poster için iki yeniden üretim hakkı kullanıldı.');
+      return;
+    }
+    posterRequestInFlightRef.current = true;
     setIsCreating(true);
     try {
       const data = new FormData();
@@ -780,38 +795,92 @@ export default function PosterMaker() {
       data.append('area', form.area);
       data.append('price', form.price);
       data.append('details', form.details);
+      data.append('posterName', form.posterName);
       data.append('highlight1', form.highlight1);
       data.append('highlight2', form.highlight2);
       data.append('highlight3', form.highlight3);
       data.append('format', form.format);
       data.append('mode', form.mode);
+      data.append(
+        'generationAction',
+        regenerateFrom ? 'REGENERATE' : 'INITIAL'
+      );
+      if (regenerateFrom) {
+        data.append('generationId', regenerateFrom.generationId);
+      }
+      data.append('idempotencyKey', crypto.randomUUID());
       data.append('rememberLogo', String(rememberLogo && permissions.canManageSecrets));
       const response = await fetch('/api/fabrika/studio/poster', { method: 'POST', body: data });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Poster üretilemedi.');
+      if (body.alreadyCompleted || !body.backgroundDataUrl) {
+        setResults((current) =>
+          current.map((item) =>
+            item.generationId === body.generation?.id
+              ? {
+                  ...item,
+                  regenerationCount: body.generation.regenerationCount,
+                  maxRegenerations: body.generation.maxRegenerations,
+                  remainingRegenerations:
+                    body.generation.remainingRegenerations,
+                }
+              : item
+          )
+        );
+        toast.success('Bu poster isteği daha önce tamamlandı; hakkınız tekrar kullanılmadı.');
+        return;
+      }
       const previewUrl = await createFinalPoster({
         backgroundUrl: body.backgroundDataUrl,
         photoUrls: selectedPosterSources.map((item) => item.url),
         logoUrl: body.logoDataUrl || logoPreview,
         form,
       });
+      if (!body.generation?.id) {
+        throw new Error('Poster hakkı bilgisi alınamadı. Lütfen yeniden deneyin.');
+      }
       const name = form.posterName.trim() || `Portföy posteri ${results.length + 1}`;
-      setResults((current) => [{
-        id: crypto.randomUUID(),
-        name,
-        previewUrl,
-        fingerprint,
-        brief: { ...form },
-        mediaIds: selectedPosterSources
-          .map((source) => source.mediaId)
-          .filter((id): id is string => Boolean(id)),
-        mode: form.mode,
-      }, ...current]);
+      setResults((current) => {
+        const synchronized = current.map((item) =>
+          item.generationId === body.generation.id
+            ? {
+                ...item,
+                regenerationCount: body.generation.regenerationCount,
+                maxRegenerations: body.generation.maxRegenerations,
+                remainingRegenerations:
+                  body.generation.remainingRegenerations,
+              }
+            : item
+        );
+        return [
+          {
+            id: crypto.randomUUID(),
+            name,
+            previewUrl,
+            fingerprint: `${fingerprint}:${body.generation.id}:${body.generation.regenerationCount}`,
+            brief: { ...form },
+            mediaIds: selectedPosterSources
+              .map((source) => source.mediaId)
+              .filter((id): id is string => Boolean(id)),
+            mode: form.mode,
+            generationId: body.generation.id,
+            regenerationCount: body.generation.regenerationCount,
+            maxRegenerations: body.generation.maxRegenerations,
+            remainingRegenerations: body.generation.remainingRegenerations,
+          },
+          ...synchronized,
+        ];
+      });
       if (body.logoDataUrl) setSavedLogoUrl(body.logoDataUrl);
-      toast.success('Posteriniz hazır. Şimdi buna özel kampanya metinleri üretebilirsiniz.');
+      toast.success(
+        regenerateFrom
+          ? `Yeni varyasyon hazır. ${body.generation.remainingRegenerations} yeniden üretim hakkı kaldı.`
+          : 'Posteriniz hazır. En fazla iki kez yeniden üretebilirsiniz.'
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Poster üretilemedi.');
     } finally {
+      posterRequestInFlightRef.current = false;
       setIsCreating(false);
     }
   };
@@ -1220,7 +1289,7 @@ export default function PosterMaker() {
             </>
           )}
           <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçek fotoğraflı modda seçtiğiniz ana görsel ve galeri fotoğrafları değiştirilmeden profesyonel şablona yerleştirilir.' : 'Kreatif modda yalnızca seçtiğiniz ana görsel Stable Image Ultra ile yeniden yorumlanır; diğer gerçek fotoğraflar galeri bölümünde aynen korunur.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
-          <button type="button" onClick={createPoster} disabled={isCreating || !selectedPosterSources.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
+          <button type="button" onClick={() => createPoster()} disabled={isCreating || !selectedPosterSources.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
         </div>
       </div>
 
@@ -1300,6 +1369,21 @@ export default function PosterMaker() {
                           : 'Portföye poster olarak kaydet'}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => createPoster(result)}
+                    disabled={isCreating || result.remainingRegenerations <= 0}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300/35 bg-amber-300/10 px-3 py-2.5 text-xs font-bold text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
+                  >
+                    {isCreating ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    )}
+                    {result.remainingRegenerations > 0
+                      ? `Yeniden üret · ${result.remainingRegenerations} hak`
+                      : 'Yeniden üretim hakkı kalmadı'}
+                  </button>
                   <button
                     type="button"
                     onClick={() => createCampaign(result.id)}

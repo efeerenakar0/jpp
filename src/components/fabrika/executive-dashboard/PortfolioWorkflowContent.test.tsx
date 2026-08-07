@@ -52,4 +52,31 @@ describe('PortfolioWorkflowContent', () => {
     expect(html).toContain('Devam et');
     expect(html).toContain('Adım 2 / 6');
   });
+
+  it('fails closed on the result screen and exposes a real summary download', () => {
+    const base = createExecutivePortfolioDraft();
+    const draft = {
+      ...base,
+      source: 'studio' as const,
+      currentStep: 'results' as const,
+      propertyId: 'property-1',
+      details: { ...base.details, title: 'Kestel Villa' },
+    };
+    const html = renderToStaticMarkup(
+      <PortfolioWorkflowContent
+        draft={draft}
+        entryMode="studio"
+        onAction={noOp}
+        onFilesSelected={noOpAsync}
+        onRetryMedia={noOpAsync}
+        onContinue={noOpAsync}
+        onClose={noOp}
+      />
+    );
+
+    expect(html).not.toContain('Bütün çıktılar hazır');
+    expect(html).toContain('Tamamlanacak işler var');
+    expect(html).toContain('download="kestel-villa-');
+    expect(html).toContain('data:application/json');
+  });
 });

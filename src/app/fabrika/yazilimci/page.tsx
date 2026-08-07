@@ -7,6 +7,7 @@ import {
   Download,
   Globe2,
   Headphones,
+  Info,
   LayoutTemplate,
   Loader2,
   MessageSquareText,
@@ -17,6 +18,10 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import ExistingWebsiteIntegration from "@/components/fabrika/ExistingWebsiteIntegration";
+import {
+  DEVELOPER_SITE_OPTIONS,
+  type DeveloperSiteOptionId,
+} from "@/lib/developer-site-options";
 import styles from "./YazilimciPage.module.css";
 
 type ChatMessage = { role: string; content: string };
@@ -96,20 +101,27 @@ export default function YazilimciPage() {
         }),
       });
       const data = await response.json();
-      if (data.reply) {
+      if (!response.ok) {
+        throw new Error(data.error || "Teknik danışmana ulaşılamadı.");
+      }
+      if (typeof data.reply === "string" && data.reply.trim()) {
         setChatMessages((previous) => [
           ...previous,
           { role: "model", content: data.reply },
         ]);
+      } else {
+        throw new Error("Yanıt oluşturulamadı. Lütfen yeniden deneyin.");
       }
-    } catch {
-      toast.error("Bağlantı hatası.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Bağlantı hatası.",
+      );
     } finally {
       setIsTyping(false);
     }
   };
 
-  function openProject(kind: "new" | "existing") {
+  function openProject(kind: DeveloperSiteOptionId) {
     setHasWebsite(kind === "existing");
     window.setTimeout(
       () =>
@@ -133,7 +145,7 @@ export default function YazilimciPage() {
       <header className={styles.hero}>
         <div>
           <p className={styles.eyebrow}>M1 · Web sitesi ve SEO</p>
-          <h1>Yazılımcı</h1>
+          <h1>AI Yazılımcı</h1>
           <p>
             Yapay zeka destekli site oluşturucu ve teknik bakım araçlarıyla
             gayrimenkul markanız için yüksek performanslı web deneyimi
@@ -146,7 +158,7 @@ export default function YazilimciPage() {
             onClick={() => openProject("new")}
             type="button"
           >
-            <Plus /> Yeni site projesi
+            <Plus /> Yeni ücretsiz site
           </button>
           <button
             className={styles.secondaryButton}
@@ -174,46 +186,49 @@ export default function YazilimciPage() {
                 </p>
               </div>
               <span className={styles.builderBadge}>
-                <CheckCircle2 /> Sürümlü Codex promptu
+                <CheckCircle2 /> Güvenli teslim akışı
               </span>
             </header>
             {hasWebsite === null ? (
               <div className={styles.onboardingPanel}>
                 <div className={styles.choiceGrid}>
-                  <button
-                    className={styles.choiceCard}
-                    onClick={() => openProject("existing")}
-                    type="button"
-                  >
-                    <Globe2 />
-                    <div>
-                      <small>MEVCUT SİTE</small>
-                      <strong>Web sitemi Jasmine’e bağla</strong>
-                      <span>
-                        Kaynak kodunuzu ve canlı adresinizi yükleyin. Sistem
-                        tasarımınızı koruyan güvenli entegrasyon promptunu
-                        oluştursun.
-                      </span>
-                    </div>
-                    <ArrowRight />
-                  </button>
-                  <button
-                    className={styles.choiceCard}
-                    onClick={() => openProject("new")}
-                    type="button"
-                  >
-                    <LayoutTemplate />
-                    <div>
-                      <small>YENİ SİTE</small>
-                      <strong>Sıfırdan site paketi oluştur</strong>
-                      <span>
-                        Marka bilgilerinizi girin. Portföy API bağlantısı ve
-                        Codex uygulama talimatıyla birlikte başlangıç paketini
-                        indirin.
-                      </span>
-                    </div>
-                    <ArrowRight />
-                  </button>
+                  {DEVELOPER_SITE_OPTIONS.map((option) => {
+                    const OptionIcon =
+                      option.id === "new" ? LayoutTemplate : Globe2;
+                    return (
+                      <button
+                        className={styles.choiceCard}
+                        data-recommended={option.recommended}
+                        key={option.id}
+                        onClick={() => openProject(option.id)}
+                        type="button"
+                      >
+                        <OptionIcon />
+                        <div>
+                          <span className={styles.choiceTopline}>
+                            <small>{option.kicker}</small>
+                            {option.recommended && (
+                              <span className={styles.recommendedBadge}>
+                                Önerilir
+                              </span>
+                            )}
+                            <Info
+                              aria-label={`${option.title} hakkında bilgi`}
+                              className={styles.infoIcon}
+                            />
+                          </span>
+                          <strong>{option.title}</strong>
+                          <span>{option.description}</span>
+                          <ul className={styles.optionBenefits}>
+                            {option.benefits.map((benefit) => (
+                              <li key={benefit}>{benefit}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <ArrowRight />
+                      </button>
+                    );
+                  })}
                 </div>
                 <div
                   className={styles.builderSteps}
@@ -223,10 +238,10 @@ export default function YazilimciPage() {
                     <b>1</b> Site bilgilerini girin
                   </span>
                   <span>
-                    <b>2</b> Sürümlü promptu alın
+                    <b>2</b> Hazırlık paketini alın
                   </span>
                   <span>
-                    <b>3</b> Sunucuda güvenle bağlayın
+                    <b>3</b> Alan adınızı bağlayın
                   </span>
                   <span>
                     <b>4</b> Aktif portföyleri yayınlayın

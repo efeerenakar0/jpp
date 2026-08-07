@@ -1,7 +1,7 @@
 .page {
-  --mk-gold: #d8a756;
-  --mk-green: #40c985;
-  --mk-border: rgba(216, 167, 86, 0.28);
+  --mk-gold: #55dff4;
+  --mk-green: #22d3ee;
+  --mk-border: rgba(34, 211, 238, 0.25);
   --mk-line: rgba(108, 132, 158, 0.25);
   --mk-panel: rgba(7, 22, 36, 0.86);
   --mk-panel-strong: rgba(8, 28, 44, 0.96);
@@ -57,12 +57,12 @@
 
 .primaryButton,
 .generateButton {
-  border: 1px solid rgba(87, 229, 154, 0.54) !important;
-  color: #effff6 !important;
-  background: linear-gradient(180deg, #269c62, #15764a) !important;
+  border: 1px solid rgba(103, 232, 249, 0.56) !important;
+  color: #ecfeff !important;
+  background: linear-gradient(180deg, #0e7490, #155e75) !important;
   box-shadow:
     inset 0 1px rgba(255, 255, 255, 0.13),
-    0 8px 20px rgba(4, 78, 45, 0.2);
+    0 8px 20px rgba(8, 145, 178, 0.18);
 }
 
 .primaryButton:hover,
@@ -85,9 +85,9 @@
 .aiBadge {
   min-height: 34px;
   gap: 6px;
-  border: 1px solid rgba(55, 209, 132, 0.25);
-  color: #82e7b3;
-  background: rgba(20, 118, 75, 0.13);
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  color: #a5f3fc;
+  background: rgba(8, 145, 178, 0.14);
 }
 
 .aiBadge svg {
@@ -124,9 +124,9 @@
 }
 
 .countryTabs button:global([data-state="active"]) {
-  color: #5de09e !important;
-  background: rgba(25, 137, 85, 0.14) !important;
-  box-shadow: inset 0 -1px #46d38f !important;
+  color: #a5f3fc !important;
+  background: rgba(8, 145, 178, 0.16) !important;
+  box-shadow: inset 0 -1px #22d3ee !important;
 }
 
 .countrySelect {
@@ -1174,6 +1174,280 @@
   background: rgba(6, 21, 34, 0.72);
 }
 
+.statusBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.34);
+  border-radius: 8px;
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.18);
+}
+
+.statusBanner[data-tone="error"] {
+  border-color: rgba(248, 113, 113, 0.38);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.18);
+}
+
+.statusBanner > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statusBanner strong {
+  font-size: 0.78rem;
+}
+
+.statusBanner span {
+  color: #b8c4ce;
+  font-size: 0.66rem;
+}
+
+.statusBanner svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.assetPicker {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 10px;
+  border: 1px solid var(--mk-line);
+  border-radius: 6px;
+  background: rgba(3, 15, 26, 0.58);
+}
+
+.assetPicker legend {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 4px;
+  color: #dbe5ec;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.assetPicker legend small {
+  color: #7f93a5;
+  font-size: 0.58rem;
+}
+
+.assetGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.assetGrid > button {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+  border: 1px solid rgba(100, 116, 139, 0.32);
+  border-radius: 6px;
+  color: #dbe5ec;
+  background: rgba(4, 17, 29, 0.82);
+  text-align: left;
+}
+
+.assetGrid > button:hover,
+.assetGrid > button:focus-visible,
+.assetGrid > button[data-active="true"] {
+  border-color: rgba(52, 211, 153, 0.75);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.12);
+}
+
+.assetGrid b,
+.assetGrid small {
+  width: 100%;
+  overflow: hidden;
+  padding: 0 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assetGrid b {
+  font-size: 0.62rem;
+}
+
+.assetGrid small {
+  color: #7f93a5;
+  font-size: 0.55rem;
+}
+
+.assetPreview,
+.assetPlaceholder {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 4px;
+  color: #7f93a5;
+  background: #0b1d2c;
+}
+
+.assetPreview img,
+.assetPreview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.assetPreview > svg {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 18px;
+  height: 18px;
+  padding: 3px;
+  border-radius: 50%;
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.76);
+}
+
+.assetPlaceholder svg {
+  width: 20px;
+}
+
+.assetEmpty {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border-radius: 5px;
+  color: #91a3b2;
+  background: rgba(15, 23, 42, 0.54);
+  font-size: 0.61rem;
+  line-height: 1.45;
+}
+
+.assetEmpty svg {
+  width: 18px;
+}
+
+.assetEmpty a {
+  color: #5ee2a0;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.historyPanel {
+  margin-top: 10px;
+  padding: 18px;
+  border: 1px solid var(--mk-border);
+  border-radius: 8px;
+  background: rgba(6, 21, 34, 0.72);
+}
+
+.historyHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.historyHeader h2 {
+  margin: 3px 0;
+  color: #f8fafc;
+  font-size: 1.15rem;
+}
+
+.historyHeader p:not(.eyebrow) {
+  max-width: 620px;
+  color: #91a3b2;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.historyGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.historyCard {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--mk-line);
+  border-radius: 8px;
+  background: rgba(4, 17, 29, 0.86);
+}
+
+.historyVisual,
+.historyCampaignIcon {
+  display: grid;
+  min-height: 132px;
+  place-items: center;
+  color: #5ee2a0;
+  background: #0b1d2c;
+}
+
+.historyVisual img,
+.historyVisual video {
+  width: 100%;
+  height: 100%;
+  min-height: 132px;
+  object-fit: cover;
+}
+
+.historyCampaignIcon svg {
+  width: 34px;
+  height: 34px;
+}
+
+.historyCard > div:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 12px;
+}
+
+.historyCard h3 {
+  width: 100%;
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyCard p {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #91a3b2;
+  font-size: 0.62rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.historyCard button,
+.historyCard a {
+  margin-top: auto;
+}
+
 @media (max-width: 1350px) {
   .commandGrid {
     grid-template-columns: minmax(300px, 0.8fr) minmax(430px, 1.2fr);
@@ -1228,6 +1502,10 @@
   .copyGrid {
     grid-template-columns: 1fr;
   }
+
+  .historyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -1245,6 +1523,15 @@
 
   .countryTabs,
   .countrySelect {
+    flex: 1;
+  }
+
+  .countrySelect {
+    display: none;
+  }
+
+  .countryTabs button {
+    min-width: 0;
     flex: 1;
   }
 
@@ -1287,5 +1574,21 @@
 
   .posterPack img {
     width: 100%;
+  }
+
+  .assetGrid,
+  .historyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .assetEmpty,
+  .historyCard {
+    grid-template-columns: 1fr;
+  }
+
+  .historyHeader,
+  .statusBanner {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

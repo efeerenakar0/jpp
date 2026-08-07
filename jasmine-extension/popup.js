@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = downloadUrl;
-      anchor.download = `jasmine_ilanlar_${Date.now()}.json`;
+      anchor.download = `business_ceo_ai_ilanlar_${Date.now()}.json`;
       anchor.click();
       URL.revokeObjectURL(downloadUrl);
       setStatus(

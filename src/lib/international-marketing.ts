@@ -10,6 +10,33 @@ export type InternationalPortal = {
   note: string;
 };
 
+function safeHttpsHostname(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.hostname.toLocaleLowerCase('en-US') : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Portal links are never accepted from generated text. A link is usable only
+ * when its HTTPS host matches one of the two catalog-owned official links.
+ */
+export function isVerifiedPortalLink(
+  portal: Pick<InternationalPortal, 'publishUrl' | 'pricingUrl'>,
+  candidate: string
+) {
+  const candidateHost = safeHttpsHostname(candidate);
+  if (!candidateHost) return false;
+  const officialHosts = new Set(
+    [portal.publishUrl, portal.pricingUrl]
+      .map(safeHttpsHostname)
+      .filter((host): host is string => Boolean(host))
+  );
+  return officialHosts.has(candidateHost);
+}
+
 export type InternationalMarket = {
   code: string;
   country: string;

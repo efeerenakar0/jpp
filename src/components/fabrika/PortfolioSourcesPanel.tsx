@@ -9,7 +9,6 @@ import {
   ExternalLink,
   FileCode2,
   Globe2,
-  KeyRound,
   Loader2,
   Network,
   Plus,
@@ -49,7 +48,6 @@ type PortfolioSource = {
   type: SourceType;
   baseUrl: string | null;
   feedPath: string | null;
-  credentialHint: string | null;
   active: boolean;
   lastSyncStatus: string;
   lastSyncError: string | null;
@@ -236,7 +234,6 @@ export default function PortfolioSourcesPanel({
           type: sourceType,
           baseUrl: form.get('baseUrl'),
           feedPath: form.get('feedPath') || null,
-          apiKey: form.get('apiKey') || null,
         }),
       });
       const data = await responseMessage(response);
@@ -526,12 +523,6 @@ export default function PortfolioSourcesPanel({
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-600">
                       <span>{dateTime(source.lastSyncedAt)}</span>
-                      {source.credentialHint && (
-                        <span className="inline-flex items-center gap-1">
-                          <KeyRound className="h-3 w-3" />
-                          {source.credentialHint}
-                        </span>
-                      )}
                     </div>
                     {source.lastSyncError && (
                       <p className="mt-3 rounded-md border border-rose-500/20 bg-rose-500/5 p-2 text-[11px] leading-4 text-rose-300">
@@ -793,20 +784,10 @@ export default function PortfolioSourcesPanel({
                 Standart kurulumda bu değeri değiştirmeniz gerekmez.
               </span>
             </label>
-            <label className="block space-y-1.5 text-xs text-slate-300">
-              <span>API anahtarı — isteğe bağlı</span>
-              <Input
-                autoComplete="new-password"
-                className={inputClass}
-                name="apiKey"
-                placeholder="Yalnızca kaynak site anahtar istiyorsa"
-                type="password"
-              />
-              <span className="block text-[10px] text-slate-500">
-                Anahtar şifrelenerek sunucuda saklanır ve tarayıcıya geri
-                gönderilmez.
-              </span>
-            </label>
+            <p className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] p-3 text-[11px] leading-5 text-slate-400">
+              Özel erişim gereken bağlantılar Business CEO AI tarafından güvenli
+              biçimde hazırlanır. Bu ekranda anahtar veya parola girmeniz gerekmez.
+            </p>
             <DialogFooter className="border-slate-700 bg-slate-950/60">
               <Button
                 onClick={() => setCreateOpen(false)}

@@ -73,9 +73,9 @@ Yeni site projesi için ek teslim kuralları:
       <a class="button" href="#portfoyler">Portföyleri incele</a>
     </section>
     <section id="portfoyler" class="section">
-      <div class="section-heading"><div><p class="eyebrow">PORTFÖYLER</p><h2>Öne çıkan ilanlar</h2></div><span>Jasmine ile canlı eşitlenir</span></div>
+      <div class="section-heading"><div><p class="eyebrow">PORTFÖYLER</p><h2>Öne çıkan ilanlar</h2></div><span>Business CEO AI ile canlı eşitlenir</span></div>
       <div id="portfolio-grid" class="portfolio-grid" aria-live="polite">
-        <article class="empty-state"><h3>Bağlantı kurulmaya hazır</h3><p>Codex entegrasyon promptunu uyguladıktan sonra aktif portföyler burada otomatik görünür.</p></article>
+        <article class="empty-state"><h3>Bağlantı kurulmaya hazır</h3><p>Güvenli entegrasyon talimatını uyguladıktan sonra aktif portföyler burada otomatik görünür.</p></article>
       </div>
     </section>
   </main>
@@ -89,13 +89,13 @@ Yeni site projesi için ek teslim kuralları:
     zip.addFile("index.html", Buffer.from(htmlContent, "utf8"));
     zip.addFile("style.css", Buffer.from(cssContent, "utf8"));
     zip.addFile(
-      "JASMINE_CODEX_PROMPT.md",
+      "BUSINESS_CEO_AI_INTEGRATION.md",
       Buffer.from(connectorPrompt, "utf8"),
     );
     zip.addFile(
       "README.md",
       Buffer.from(
-        `# ${input.companyName}\n\nBu paket görsel başlangıç şablonu ve Jasmine Website Connector v1 Codex promptunu içerir. Üretim entegrasyonu için JASMINE_CODEX_PROMPT.md dosyasındaki adımları uygulayın. API anahtarını hiçbir zaman tarayıcı koduna eklemeyin.`,
+        `# ${input.companyName}\n\nBu paket görsel başlangıç şablonu ve Business CEO AI Website Connector v1 entegrasyon talimatını içerir. Üretim entegrasyonu için BUSINESS_CEO_AI_INTEGRATION.md dosyasındaki adımları uygulayın. API anahtarını hiçbir zaman tarayıcı koduna eklemeyin.`,
         "utf8",
       ),
     );

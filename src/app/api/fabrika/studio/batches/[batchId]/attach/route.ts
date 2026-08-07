@@ -7,6 +7,7 @@ import { propertyMediaHttpError } from '@/lib/property-media-http';
 const bodySchema = z.object({
   propertyId: z.string().min(1),
   itemIds: z.array(z.string().min(1)).min(1).max(50).optional(),
+  originalItemIds: z.array(z.string().min(1)).max(50).optional(),
 });
 type Context = { params: Promise<{ batchId: string }> };
 
@@ -29,6 +30,7 @@ export async function POST(request: Request, context: Context) {
       batchId,
       propertyId: parsed.data.propertyId,
       itemIds: parsed.data.itemIds,
+      originalItemIds: parsed.data.originalItemIds,
     });
     return NextResponse.json({ success: true, items });
   } catch (error) {

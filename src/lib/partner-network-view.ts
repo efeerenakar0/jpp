@@ -8,6 +8,61 @@ export type PartnerQueueRecord = {
   }>;
 };
 
+export type PartnerDirectoryRecord = PartnerQueueRecord & {
+  displayName: string;
+  countryCode: string;
+  countryName: string;
+  city: string | null;
+  languages: string[];
+  specialties: string[];
+};
+
+export type PartnerDirectoryFilters = {
+  search: string;
+  countryCode: string;
+  city: string;
+  language: string;
+  specialty: string;
+};
+
+const PARTNER_STAGE_LABELS: Record<string, string> = {
+  DISCOVERED: 'Keşfedildi',
+  QUALIFIED: 'Nitelikli',
+  CONTACTED: 'İletişim kuruldu',
+  MEETING: 'Görüşme',
+  REVIEW: 'İnceleme',
+  AGREEMENT: 'Sözleşme',
+  ACTIVE: 'Aktif',
+  DISQUALIFIED: 'Uygun değil',
+  NOT_INTERESTED: 'İlgilenmiyor',
+  DO_NOT_CONTACT: 'İletişim kurma',
+  ARCHIVED: 'Arşiv',
+};
+
+const PARTNER_MESSAGE_STATUS_LABELS: Record<string, string> = {
+  QUEUED: 'Kuyrukta',
+  RETRY: 'Yeniden denenecek',
+  PROCESSING: 'Hazırlanıyor',
+  SENT: 'Gönderildi · yanıt durumu bilinmiyor',
+  DELIVERED: 'Teslim edildi · yanıt durumu bilinmiyor',
+  FAILED: 'Gönderilemedi',
+  CANCELLED: 'Durduruldu',
+};
+
+export function getPartnerStageLabel(
+  stage: string,
+  { inboxSynchronized = false }: { inboxSynchronized?: boolean } = {},
+) {
+  if (stage === 'ENGAGED') {
+    return inboxSynchronized ? 'Yanıt alındı' : 'Yanıt kaydedildi (manuel)';
+  }
+  return PARTNER_STAGE_LABELS[stage] || stage;
+}
+
+export function getPartnerMessageStatusLabel(status: string) {
+  return PARTNER_MESSAGE_STATUS_LABELS[status] || status;
+}
+
 const CANDIDATE_STAGES = new Set(['DISCOVERED', 'QUALIFIED']);
 const PIPELINE_STAGES = new Set(['CONTACTED', 'ENGAGED', 'MEETING', 'REVIEW', 'AGREEMENT']);
 
@@ -30,6 +85,40 @@ export function filterPartnersForQueue<T extends PartnerQueueRecord>(
   tab: PartnerQueueTab,
 ) {
   return partners.filter((partner) => getPartnerQueue(partner) === tab);
+}
+
+function normalizedDirectoryValue(value: string) {
+  return value.trim().toLocaleLowerCase('tr-TR');
+}
+
+export function filterPartnerDirectory<T extends PartnerDirectoryRecord>(
+  partners: T[],
+  filters: PartnerDirectoryFilters,
+) {
+  const search = normalizedDirectoryValue(filters.search);
+  const city = normalizedDirectoryValue(filters.city);
+  const language = normalizedDirectoryValue(filters.language);
+  const specialty = normalizedDirectoryValue(filters.specialty);
+
+  return partners.filter((partner) => {
+    const searchable = normalizedDirectoryValue(
+      [
+        partner.displayName,
+        partner.city || '',
+        partner.countryName,
+        ...partner.languages,
+        ...partner.specialties,
+      ].join(' '),
+    );
+
+    return (
+      (!filters.countryCode || partner.countryCode === filters.countryCode) &&
+      (!city || normalizedDirectoryValue(partner.city || '') === city) &&
+      (!language || partner.languages.some((item) => normalizedDirectoryValue(item) === language)) &&
+      (!specialty || partner.specialties.some((item) => normalizedDirectoryValue(item) === specialty)) &&
+      (!search || searchable.includes(search))
+    );
+  });
 }
 
 export function getPartnerQueueMetrics(partners: PartnerQueueRecord[]) {

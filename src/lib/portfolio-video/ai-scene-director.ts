@@ -19,6 +19,7 @@ type CreativeSceneDirectorInput = {
   photoCount: number;
   showPrice: boolean;
   showLocation: boolean;
+  seed?: number;
 };
 
 type SceneDirectorCaller = (
@@ -67,7 +68,9 @@ overlay animation: FADE, SLIDE_UP, POP, TYPE. position: TOP, CENTER, BOTTOM.
 revealAtFrame sahnenin kendi içindeki gecikmedir. Bir anda belirme için POP kullan.
 Yalnız verilen doğrulanmış portföy bilgilerini ve kullanıcının açıkça istediği özel metni kullan. Fiyat, özellik veya sosyal hesap uydurma.
 Kullanıcı sahne sırası ve zamanlama tarif ettiyse sabit şablon kullanma; sahneleri o sıraya göre kur.
-Çıktı şeması: {"summary":"...","scenes":[{"type":"HOOK","durationSeconds":2,"photoIndices":[0],"layout":"FULL_BLEED","transition":"FADE","photoMotion":"ZOOM","headline":"...","body":null,"overlays":[{"type":"TITLE","text":null,"animation":"SLIDE_UP","position":"BOTTOM","revealAtFrame":8}]}]}`,
+	Renk paleti seçenekleri: MIDNIGHT_CYAN, EDITORIAL_GOLD, WARM_SAND, CLEAN_WHITE, BOLD_CORAL.
+	Tipografi seçenekleri: MODERN, EDITORIAL, FRIENDLY, MINIMAL.
+	Çıktı şeması: {"summary":"...","palette":"MIDNIGHT_CYAN","typography":"MODERN","scenes":[{"type":"HOOK","durationSeconds":2,"photoIndices":[0],"layout":"FULL_BLEED","transition":"FADE","photoMotion":"ZOOM","headline":"...","body":null,"overlays":[{"type":"TITLE","text":null,"animation":"SLIDE_UP","position":"BOTTOM","revealAtFrame":8}]}]}`,
     },
     {
       role: 'user',
@@ -75,7 +78,8 @@ Kullanıcı sahne sırası ve zamanlama tarif ettiyse sabit şablon kullanma; sa
 Fiyat gösterilebilir: ${input.showPrice ? 'evet' : 'hayır'}
 Konum gösterilebilir: ${input.showLocation ? 'evet' : 'hayır'}
 Kullanılabilir fotoğraf indeksleri: ${JSON.stringify(photoIndices)}
-Doğrulanmış portföy: ${JSON.stringify(verifiedPortfolioFacts(input.portfolio))}`,
+	Üretim seed değeri: ${input.seed ?? 0}
+	Doğrulanmış portföy: ${JSON.stringify(verifiedPortfolioFacts(input.portfolio))}`,
     },
   ];
 }
@@ -116,12 +120,13 @@ function repairMessages(messages: ChatMessage[]): ChatMessage[] {
 
 function validatedScenePlan(
   result: MarketingAIResult,
-  photoCount: number
+  photoCount: number,
+  seed?: number,
 ): PortfolioVideoScenePlan | null {
   const parsedJson = result.content ? parseJSONResponse(result.content) : null;
   if (!parsedJson) return null;
   try {
-    return parseCreativeScenePlan(parsedJson, { photoCount });
+    return parseCreativeScenePlan(parsedJson, { photoCount, seed });
   } catch {
     return null;
   }
@@ -138,10 +143,11 @@ export async function createCreativeScenePlan(
     showPrice: input.showPrice,
     showLocation: input.showLocation,
     instagramUrl: input.portfolio.company.instagramUrl,
+    seed: input.seed,
   });
   const messages = directorMessages(input);
   const ai = await callDirector(input.companyAccountId, messages);
-  const primaryPlan = validatedScenePlan(ai, input.photoCount);
+  const primaryPlan = validatedScenePlan(ai, input.photoCount, input.seed);
   if (primaryPlan) {
     return {
       plan: primaryPlan,
@@ -157,7 +163,11 @@ export async function createCreativeScenePlan(
       input.companyAccountId,
       repairMessages(messages)
     );
-    const repairedPlan = validatedScenePlan(repairedAI, input.photoCount);
+    const repairedPlan = validatedScenePlan(
+      repairedAI,
+      input.photoCount,
+      input.seed,
+    );
     if (repairedPlan) {
       return {
         plan: repairedPlan,
@@ -173,7 +183,11 @@ export async function createCreativeScenePlan(
     repairedAI?.provider === 'OPENROUTER'
   ) {
     const platformAI = await callFallbackDirector(input.companyAccountId, messages);
-    const platformPlan = validatedScenePlan(platformAI, input.photoCount);
+    const platformPlan = validatedScenePlan(
+      platformAI,
+      input.photoCount,
+      input.seed,
+    );
     if (platformPlan) {
       return {
         plan: platformPlan,

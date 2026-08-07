@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { portfolioVideoOverlaySchema } from './scene-plan';
+import {
+  portfolioVideoOverlaySchema,
+  portfolioVideoPaletteSchema,
+  portfolioVideoTypographySchema,
+} from './scene-plan';
 
 export const portfolioVideoPhotoSchema = z.object({
   id: z.string().min(1).max(120),
@@ -99,6 +103,9 @@ export const portfolioVideoStoryboardSchema = z.object({
   advisorPhone: z.string().max(80).nullable(),
   advisorEmail: z.string().max(200).nullable(),
   instagramUrl: z.string().max(1_000).nullable().default(null),
+  seed: z.number().int().min(0).max(2_147_483_647).default(0),
+  palette: portfolioVideoPaletteSchema.default('MIDNIGHT_CYAN'),
+  typography: portfolioVideoTypographySchema.default('MODERN'),
   direction: portfolioVideoDirectionSchema,
   planSummary: z.string().min(1).max(240).default('Portföye özel tanıtım akışı'),
   scenes: z.array(portfolioVideoSceneSchema).min(3).max(10),

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filterPartnerDirectory,
   filterPartnersForQueue,
   getPartnerIdFromSearchParams,
+  getPartnerMessageStatusLabel,
   getPartnerQueue,
   getPartnerQueueMetrics,
+  getPartnerStageLabel,
 } from '@/lib/partner-network-view';
 
 type RecordFixture = {
@@ -70,5 +73,63 @@ describe('partner ağı görünüm kuralları', () => {
     expect(getPartnerIdFromSearchParams({ partner: ['one', 'two'] })).toBeNull();
     expect(getPartnerIdFromSearchParams({ partner: '../secret' })).toBeNull();
     expect(getPartnerIdFromSearchParams({})).toBeNull();
+  });
+
+  it('ülke, şehir, dil ve uzmanlık filtrelerini birlikte uygular', () => {
+    const directory = [
+      {
+        ...fixtures[0],
+        displayName: 'Berlin Homes',
+        countryCode: 'DE',
+        countryName: 'Almanya',
+        city: 'Berlin',
+        languages: ['Almanca', 'İngilizce'],
+        specialties: ['Konut', 'Yatırım'],
+      },
+      {
+        ...fixtures[2],
+        displayName: 'Dubai Estates',
+        countryCode: 'AE',
+        countryName: 'Birleşik Arap Emirlikleri',
+        city: 'Dubai',
+        languages: ['İngilizce', 'Arapça'],
+        specialties: ['Lüks konut'],
+      },
+    ];
+
+    expect(
+      filterPartnerDirectory(directory, {
+        search: 'homes',
+        countryCode: 'DE',
+        city: 'Berlin',
+        language: 'Almanca',
+        specialty: 'Yatırım',
+      }).map(({ displayName }) => displayName),
+    ).toEqual(['Berlin Homes']);
+
+    expect(
+      filterPartnerDirectory(directory, {
+        search: '',
+        countryCode: '',
+        city: 'Dubai',
+        language: 'Almanca',
+        specialty: '',
+      }),
+    ).toEqual([]);
+  });
+
+  it('teslimatı cevapla karıştırmaz ve inbox yokken yanıtı manuel olarak etiketler', () => {
+    expect(getPartnerMessageStatusLabel('SENT')).toBe(
+      'Gönderildi · yanıt durumu bilinmiyor'
+    );
+    expect(getPartnerMessageStatusLabel('DELIVERED')).toBe(
+      'Teslim edildi · yanıt durumu bilinmiyor'
+    );
+    expect(getPartnerStageLabel('ENGAGED', { inboxSynchronized: false })).toBe(
+      'Yanıt kaydedildi (manuel)'
+    );
+    expect(getPartnerStageLabel('ENGAGED', { inboxSynchronized: true })).toBe(
+      'Yanıt alındı'
+    );
   });
 });

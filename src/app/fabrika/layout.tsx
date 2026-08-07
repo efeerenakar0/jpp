@@ -20,6 +20,7 @@ export default async function FabrikaLayout({ children }: { children: React.Reac
         <FabrikaAppShell
           account={{
             companyName: principal.account.companyName,
+            logoData: principal.account.brandLogoData,
             onboardingComplete: Boolean(principal.account.onboardingCompletedAt),
           }}
           session={{

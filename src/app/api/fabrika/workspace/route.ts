@@ -32,6 +32,15 @@ const optionalText = z.string().trim().max(500).optional().nullable();
 const optionalId = z.string().trim().min(1).optional().nullable();
 const optionalNumber = z.coerce.number().finite().nonnegative().optional().nullable();
 
+class WorkspaceActionError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode = 409
+  ) {
+    super(message);
+  }
+}
+
 const actionSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('create-contact'),
@@ -93,6 +102,21 @@ const actionSchema = z.discriminatedUnion('action', [
     roomCount: optionalText,
     area: optionalNumber,
     status: z.nativeEnum(CrmPropertyStatus).default(CrmPropertyStatus.DRAFT),
+    description: z.string().trim().max(10000).optional().nullable(),
+    imageUrl: z.string().trim().url().optional().or(z.literal('')),
+    ownerContactId: optionalId,
+    assignedMemberId: optionalId,
+  }),
+  z.object({
+    action: z.literal('update-property'),
+    id: z.string().trim().min(1),
+    title: z.string().trim().min(3).max(180),
+    referenceCode: optionalText,
+    location: optionalText,
+    price: optionalNumber,
+    roomCount: optionalText,
+    area: optionalNumber,
+    status: z.nativeEnum(CrmPropertyStatus),
     description: z.string().trim().max(10000).optional().nullable(),
     imageUrl: z.string().trim().url().optional().or(z.literal('')),
     ownerContactId: optionalId,
@@ -299,7 +323,7 @@ async function ensureOwnedResource(
           : await prisma.companyMember.findFirst({ where: { id, companyAccountId }, select: { id: true } });
 
   if (!resource) {
-    throw new Error('Seçilen kayıt bu şirkete ait değil.');
+    throw new WorkspaceActionError('Seçilen kayıt bulunamadı.', 404);
   }
   return resource.id;
 }
@@ -1021,6 +1045,126 @@ export async function POST(request: Request) {
       });
     }
 
+    if (input.action === 'update-property') {
+      const propertyId = await ensureOwnedResource('property', input.id, account.id);
+      const ownerContactId = await ensureOwnedResource(
+        'contact',
+        input.ownerContactId,
+        account.id
+      );
+      const assignedMemberId = await ensureOwnedResource(
+        'member',
+        input.assignedMemberId,
+        account.id
+      );
+
+      await prisma.$transaction(async (tx) => {
+        const previous = await tx.crmProperty.findFirst({
+          where: { id: propertyId!, companyAccountId: account.id },
+          select: { id: true, title: true, imageUrl: true, status: true },
+        });
+        if (!previous) throw new WorkspaceActionError('Portföy bulunamadı.', 404);
+        if (previous.status !== input.status) {
+          throw new WorkspaceActionError(
+            'Yayın durumu portföy kartındaki yayına al veya yayından kaldır işlemiyle değiştirilmelidir.'
+          );
+        }
+
+        const nextImageUrl = asNullable(input.imageUrl);
+        const updated = await tx.crmProperty.updateMany({
+          where: { id: propertyId!, companyAccountId: account.id },
+          data: {
+            ownerContactId,
+            assignedMemberId,
+            title: input.title,
+            referenceCode: asNullable(input.referenceCode),
+            location: asNullable(input.location),
+            price: input.price,
+            roomCount: asNullable(input.roomCount),
+            area: input.area,
+            description: asNullable(input.description),
+            imageUrl: nextImageUrl,
+          },
+        });
+        if (updated.count !== 1) {
+          throw new WorkspaceActionError('Portföy güncellenemedi.');
+        }
+
+        if (nextImageUrl && nextImageUrl !== previous.imageUrl) {
+          await tx.crmPropertyMedia.updateMany({
+            where: {
+              companyAccountId: account.id,
+              propertyId: propertyId!,
+              isCover: true,
+            },
+            data: { isCover: false },
+          });
+          const existingMedia = await tx.crmPropertyMedia.findFirst({
+            where: {
+              companyAccountId: account.id,
+              propertyId: propertyId!,
+              url: nextImageUrl,
+            },
+            select: { id: true },
+          });
+          if (existingMedia) {
+            await tx.crmPropertyMedia.update({
+              where: { id: existingMedia.id },
+              data: { isCover: true, sortOrder: 0 },
+            });
+          } else {
+            await tx.crmPropertyMedia.create({
+              data: {
+                companyAccountId: account.id,
+                propertyId: propertyId!,
+                url: nextImageUrl,
+                fileName: `portfoy-kapak-${propertyId}.jpg`,
+                mimeType: 'image/jpeg',
+                sortOrder: 0,
+                isCover: true,
+                mediaType: 'PHOTO',
+                source: 'MANUAL_UPLOAD',
+                variantType: 'ORIGINAL',
+                usageRightsStatus: 'CONFIRMED',
+                fingerprint: `property-update:${propertyId}:${Date.now()}`,
+                provenance: { uploadedFrom: 'LEGACY_PROPERTY_EDIT_FORM' },
+                createdByMemberId: principal.member?.id ?? null,
+              },
+            });
+          }
+        }
+
+        await tx.crmActivity.create({
+          data: {
+            companyAccountId: account.id,
+            propertyId,
+            actorMemberId: principal.member?.id || null,
+            type: 'PROPERTY_UPDATED',
+            title: 'Portföy bilgileri güncellendi',
+            description: input.title,
+          },
+        });
+        await tx.managerAuditLog.create({
+          data: {
+            companyAccountId: account.id,
+            actorType: principal.type,
+            actorId: principal.member?.id || account.id,
+            operation: 'CRM_PROPERTY_UPDATE',
+            entityType: 'CrmProperty',
+            entityId: propertyId,
+            verifiedContext: {
+              previousTitle: previous.title,
+              title: input.title,
+              imageChanged: nextImageUrl !== previous.imageUrl,
+            },
+            policyDecision: 'TENANT_SCOPED_USER_ACTION',
+            result: 'COMPLETED',
+            completedAt: new Date(),
+          },
+        });
+      });
+    }
+
     if (input.action === 'set-property-status') {
       const propertyId = await ensureOwnedResource(
         'property',
@@ -1484,6 +1628,12 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof FabrikaSessionError) return unauthorized();
     if (error instanceof FabrikaForbiddenError) return forbidden(error.message);
+    if (error instanceof WorkspaceActionError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode }
+      );
+    }
     if (error instanceof CompanyMemberValidationError) {
       return NextResponse.json(
         { success: false, error: error.message },

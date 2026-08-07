@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   initialPortfolioVideoRenderState,
+  shouldRequestFreshPortfolioVideoPlan,
   portfolioVideoRenderReducer,
   toPortfolioVideoRenderError,
 } from './render-state';
@@ -55,5 +56,29 @@ describe('portfolio video render state', () => {
     expect(toPortfolioVideoRenderError(new Error('webcodecs-unavailable'))).toContain(
       'tarayıcı'
     );
+  });
+
+  it('ilk renderda plansızsa ve kullanıcı yeni varyasyon isterse yeni plan ister', () => {
+    expect(
+      shouldRequestFreshPortfolioVideoPlan({
+        hasDirectedStoryboard: false,
+        forceNewVariation: false,
+      })
+    ).toBe(true);
+    expect(
+      shouldRequestFreshPortfolioVideoPlan({
+        hasDirectedStoryboard: true,
+        forceNewVariation: true,
+      })
+    ).toBe(true);
+  });
+
+  it('hazır planın normal yeniden renderında aynı doğrulanmış planı korur', () => {
+    expect(
+      shouldRequestFreshPortfolioVideoPlan({
+        hasDirectedStoryboard: true,
+        forceNewVariation: false,
+      })
+    ).toBe(false);
   });
 });

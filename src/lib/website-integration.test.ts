@@ -58,6 +58,9 @@ describe('website integration credentials', () => {
       'DELETE https://app.example.com/api/site/v1/portfolio/{id}'
     );
     expect(prompt).toContain('JASMINE_PORTFOLIO_API_KEY');
+    expect(prompt).toContain('Business CEO AI');
+    expect(prompt).not.toContain('Jasmine Fabrikası');
+    expect(prompt).toContain('X-Jasmine-Signature');
     expect(prompt).toContain('jpp_site_one_time_secret');
     expect(prompt).toContain('istemci tarafına');
   });

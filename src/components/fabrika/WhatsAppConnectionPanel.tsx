@@ -174,7 +174,7 @@ export default function WhatsAppConnectionPanel() {
 
   async function disconnect() {
     const confirmation = window.prompt(
-      'Bu işlem telefonu Jasmine’den tamamen ayırır. Devam etmek için BAĞLANTIYI KES yazın.'
+      'Bu işlem telefonu Business CEO AI’dan tamamen ayırır. Devam etmek için BAĞLANTIYI KES yazın.'
     );
     if (confirmation?.trim().toLocaleUpperCase('tr-TR') !== 'BAĞLANTIYI KES') {
       if (confirmation !== null) {

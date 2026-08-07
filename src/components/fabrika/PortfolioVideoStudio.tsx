@@ -24,10 +24,15 @@ import {
   useRef,
   useState,
 } from "react";
+import { z } from "zod";
 import { LocalRuleCreativeDirector } from "@/lib/portfolio-video/creative-director";
+import {
+  createPortfolioVideoPlanFingerprint,
+} from "@/lib/portfolio-video/plan-diversity";
 import {
   initialPortfolioVideoRenderState,
   portfolioVideoRenderReducer,
+  shouldRequestFreshPortfolioVideoPlan,
   toPortfolioVideoRenderError,
 } from "@/lib/portfolio-video/render-state";
 import { buildPortfolioStoryboard } from "@/lib/portfolio-video/storyboard";
@@ -58,13 +63,13 @@ const STYLE_OPTIONS: Array<{
     id: "BOLD",
     label: "Dikkat çekici",
     command: "Dikkat çekici ve enerjik yap",
-    description: "Hızlı ve güçlü",
+    description: "Hızlı kesmeler ve güçlü vurgu",
   },
   {
     id: "CINEMATIC",
     label: "Lüks",
     command: "Lüks ve sinematik olsun",
-    description: "Zarif ve yavaş",
+    description: "Zarif akış ve editoryal görünüm",
   },
   {
     id: "FAMILY",
@@ -76,7 +81,7 @@ const STYLE_OPTIONS: Array<{
     id: "INVESTMENT",
     label: "Yatırım",
     command: "Yatırım fırsatını ve getiriyi öne çıkar",
-    description: "Fiyat ve getiri odaklı",
+    description: "Fiyat ve veri odaklı",
   },
   {
     id: "MINIMAL",
@@ -88,111 +93,84 @@ const STYLE_OPTIONS: Array<{
     id: "CUSTOM",
     label: "Özel",
     command: "",
-    description: "Aklınızdaki fikri yazın",
+    description: "Sahne sırasını kendiniz tarif edin",
   },
 ];
 
-type StudioMode = "QUICK_TEMPLATE" | "AI_CINEMATIC";
+const directResponseSchema = z.object({
+  success: z.literal(true),
+  storyboard: portfolioVideoStoryboardSchema,
+  fingerprint: z.string().min(1).max(80),
+  seed: z.number().int().nonnegative(),
+  director: z.object({
+    source: z.string().max(80),
+    usedFallback: z.boolean(),
+    diversified: z.boolean().optional(),
+  }),
+});
 
-type AiVideoJobStatus =
-  | "QUEUED"
-  | "SUBMITTING"
-  | "GENERATING"
-  | "PERSISTING"
-  | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED"
-  | "EXPIRED";
+const browserVideoJobSchema = z.object({
+  id: z.string().min(1),
+  propertyId: z.string().min(1),
+  title: z.string().min(1),
+  status: z.enum([
+    "QUEUED",
+    "SUBMITTING",
+    "GENERATING",
+    "PERSISTING",
+    "COMPLETED",
+    "FAILED",
+    "CANCELLED",
+    "EXPIRED",
+  ]),
+  progress: z.number().min(0).max(100),
+  fingerprint: z.string().nullable(),
+  seed: z.number().int().nullable(),
+  outputFileName: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+  createdAt: z.coerce.date(),
+});
 
-type AiVideoJob = {
+const browserVideoJobsResponseSchema = z.object({
+  jobs: z.array(browserVideoJobSchema),
+});
+
+type BrowserVideoJob = z.infer<typeof browserVideoJobSchema>;
+
+type LocalVideoWork = {
   id: string;
   propertyId: string;
-  userCommand: string;
-  status: AiVideoJobStatus;
-  progress: number;
-  outputFileName: string | null;
-  errorMessage: string | null;
-  expiresAt: string | null;
   createdAt: string;
-  artifactHref: string | null;
+  title: string;
+  fingerprint: string;
+  seed: number;
+  status: BrowserVideoJob["status"];
+  downloadUrl: string | null;
+  error: string | null;
 };
 
-const ACTIVE_AI_JOB_STATUSES: AiVideoJobStatus[] = [
-  "QUEUED",
-  "SUBMITTING",
-  "GENERATING",
-  "PERSISTING",
-];
+const FINGERPRINT_STORAGE_KEY = "business-ceo-ai:portfolio-video:fingerprints";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object";
-}
-
-function configuredFromResponse(value: unknown) {
-  if (!isRecord(value)) return null;
-  if (typeof value.configured === "boolean") return value.configured;
-  if (typeof value.providerConfigured === "boolean")
-    return value.providerConfigured;
-  if (
-    isRecord(value.readiness) &&
-    typeof value.readiness.configured === "boolean"
-  ) {
-    return value.readiness.configured;
+function readFingerprints() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FINGERPRINT_STORAGE_KEY) || "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string").slice(-12)
+      : [];
+  } catch {
+    return [];
   }
-  if (
-    isRecord(value.provider) &&
-    typeof value.provider.configured === "boolean"
-  ) {
-    return value.provider.configured;
-  }
-  return null;
 }
 
-function jobsFromResponse(value: unknown): AiVideoJob[] {
-  if (!isRecord(value) || !Array.isArray(value.jobs)) return [];
-  return value.jobs.filter(
-    (job): job is AiVideoJob =>
-      isRecord(job) &&
-      typeof job.id === "string" &&
-      typeof job.status === "string",
-  );
+function saveFingerprint(value: string) {
+  const next = [...new Set([...readFingerprints(), value])].slice(-12);
+  window.localStorage.setItem(FINGERPRINT_STORAGE_KEY, JSON.stringify(next));
 }
 
-function jobFromResponse(value: unknown): AiVideoJob | null {
-  if (!isRecord(value) || !isRecord(value.job)) return null;
-  return typeof value.job.id === "string" &&
-    typeof value.job.status === "string"
-    ? (value.job as AiVideoJob)
-    : null;
-}
-
-function responseError(value: unknown, fallback: string) {
-  return isRecord(value) && typeof value.error === "string"
-    ? value.error
-    : fallback;
-}
-
-function aiJobStatusLabel(status: AiVideoJobStatus) {
-  if (status === "QUEUED") return "Sırada";
-  if (status === "SUBMITTING") return "Sağlayıcıya gönderiliyor";
-  if (status === "GENERATING") return "Görüntüler üretiliyor";
-  if (status === "PERSISTING") return "Video güvenle kaydediliyor";
-  if (status === "COMPLETED") return "Hazır";
-  if (status === "FAILED") return "Oluşturulamadı";
-  if (status === "CANCELLED") return "İptal edildi";
-  return "Süresi doldu";
-}
-
-function formatJobDate(value: string | null) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat("tr-TR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function createSeed() {
+  const values = new Uint32Array(1);
+  window.crypto.getRandomValues(values);
+  return (values[0] ?? Date.now()) & 0x7fffffff;
 }
 
 function fileNameFor(portfolio: PortfolioVideoPortfolio) {
@@ -216,16 +194,66 @@ async function fetchPortfolioVideoCatalog() {
   const response = await fetch("/api/fabrika/studio/video/portfolios", {
     cache: "no-store",
   });
-  const data = await response.json();
-  if (!response.ok || !data.success) {
-    throw new Error(data.error || "Portföyler yüklenemedi.");
+  const data: unknown = await response.json();
+  if (!response.ok || !data || typeof data !== "object") {
+    throw new Error("Portföyler yüklenemedi.");
   }
-  return portfolioVideoCatalogSchema.parse({ portfolios: data.portfolios });
+  const payload = data as { success?: unknown; error?: unknown; portfolios?: unknown };
+  if (payload.success !== true) {
+    throw new Error(
+      typeof payload.error === "string" ? payload.error : "Portföyler yüklenemedi.",
+    );
+  }
+  return portfolioVideoCatalogSchema.parse({ portfolios: payload.portfolios });
+}
+
+async function fetchBrowserVideoJobs() {
+  const response = await fetch("/api/fabrika/studio/video/browser-jobs", {
+    cache: "no-store",
+  });
+  const data: unknown = await response.json();
+  if (!response.ok) throw new Error("Video geçmişi yüklenemedi.");
+  return browserVideoJobsResponseSchema.parse(data).jobs;
+}
+
+async function updateBrowserVideoJob(
+  jobId: string,
+  input: {
+    stage:
+      | "CHECKING"
+      | "RENDERING"
+      | "ENCODING"
+      | "COMPLETED"
+      | "FAILED"
+      | "CANCELLED";
+    progress: number;
+    outputFileName?: string;
+    outputMimeType?: "video/mp4";
+    outputByteSize?: number;
+    errorMessage?: string;
+  },
+) {
+  const response = await fetch(
+    `/api/fabrika/studio/video/browser-jobs/${encodeURIComponent(jobId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error("Video iş durumu kaydedilemedi.");
+}
+
+function videoWorkStatusLabel(status: LocalVideoWork["status"]) {
+  if (status === "COMPLETED") return "Hazır";
+  if (status === "FAILED") return "Başarısız";
+  if (status === "CANCELLED") return "İptal edildi";
+  if (status === "EXPIRED") return "Süresi doldu";
+  return "İşleniyor";
 }
 
 export default function PortfolioVideoStudio() {
   const director = useMemo(() => new LocalRuleCreativeDirector(), []);
-  const [studioMode, setStudioMode] = useState<StudioMode>("QUICK_TEMPLATE");
   const [portfolios, setPortfolios] = useState<PortfolioVideoPortfolio[]>([]);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState("");
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
@@ -238,35 +266,27 @@ export default function PortfolioVideoStudio() {
   const [loadError, setLoadError] = useState("");
   const [directedStoryboard, setDirectedStoryboard] =
     useState<PortfolioVideoStoryboard | null>(null);
+  const [activeFingerprint, setActiveFingerprint] = useState("");
+  const [activeSeed, setActiveSeed] = useState(0);
   const [directorStatus, setDirectorStatus] = useState<{
     status: "IDLE" | "LOADING" | "SUCCESS" | "ERROR";
     error: string;
     source: string;
-    usedFallback: boolean;
-  }>({ status: "IDLE", error: "", source: "", usedFallback: false });
+    diversified: boolean;
+  }>({ status: "IDLE", error: "", source: "", diversified: false });
   const [renderState, dispatchRender] = useReducer(
     portfolioVideoRenderReducer,
     initialPortfolioVideoRenderState,
   );
-  const [aiJobs, setAiJobs] = useState<AiVideoJob[]>([]);
-  const [activeAiJobId, setActiveAiJobId] = useState("");
-  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
-  const [aiJobsLoading, setAiJobsLoading] = useState(false);
-  const [aiSubmitting, setAiSubmitting] = useState(false);
-  const [aiCancelling, setAiCancelling] = useState(false);
-  const [aiError, setAiError] = useState("");
+  const [works, setWorks] = useState<LocalVideoWork[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const downloadUrlRef = useRef<string | null>(null);
+  const activeServerJobIdRef = useRef<string | null>(null);
+  const downloadUrlsRef = useRef<Set<string>>(new Set());
   const commandInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const aiSubmissionRef = useRef<{
-    signature: string;
-    idempotencyKey: string;
-  } | null>(null);
 
   const selectedPortfolio = useMemo(
     () =>
-      portfolios.find((portfolio) => portfolio.id === selectedPortfolioId) ??
-      null,
+      portfolios.find((portfolio) => portfolio.id === selectedPortfolioId) ?? null,
     [portfolios, selectedPortfolioId],
   );
 
@@ -274,8 +294,7 @@ export default function PortfolioVideoStudio() {
     () =>
       director.direct({
         command,
-        preferredStyle:
-          creativeChoice === "CUSTOM" ? undefined : creativeChoice,
+        preferredStyle: creativeChoice === "CUSTOM" ? undefined : creativeChoice,
       }),
     [command, creativeChoice, director],
   );
@@ -290,218 +309,71 @@ export default function PortfolioVideoStudio() {
       showLocation,
     });
   }, [direction, selectedPhotoIds, selectedPortfolio, showLocation, showPrice]);
-  const storyboard = directedStoryboard ?? localStoryboard;
-  const activeAiJob = useMemo(
-    () => aiJobs.find((job) => job.id === activeAiJobId) ?? null,
-    [activeAiJobId, aiJobs],
-  );
 
-  const loadAiJobs = useCallback(async () => {
-    setAiJobsLoading(true);
-    setAiError("");
+  const storyboard = directedStoryboard ?? localStoryboard;
+  const selectedPhotos = selectedPhotoIds
+    .map((id) => selectedPortfolio?.photos.find((photo) => photo.id === id))
+    .filter(Boolean) as NonNullable<PortfolioVideoPortfolio["photos"][number]>[];
+  const isRendering = ["CHECKING", "RENDERING"].includes(renderState.status);
+
+  const retryCatalog = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError("");
     try {
-      const response = await fetch("/api/fabrika/studio/video/jobs", {
-        cache: "no-store",
-      });
-      const data: unknown = await response.json();
-      if (!response.ok || (isRecord(data) && data.success === false)) {
-        throw new Error(responseError(data, "AI video işleri yüklenemedi."));
-      }
-      const jobs = jobsFromResponse(data);
-      setAiJobs(jobs);
-      setActiveAiJobId((current) => {
-        if (jobs.some((job) => job.id === current)) return current;
-        return (
-          jobs.find((job) => ACTIVE_AI_JOB_STATUSES.includes(job.status))?.id ??
-          jobs[0]?.id ??
-          ""
-        );
-      });
-      const configured = configuredFromResponse(data);
-      if (configured !== null) setAiConfigured(configured);
-    } catch (error) {
-      setAiError(
-        error instanceof Error ? error.message : "AI video işleri yüklenemedi.",
+      const [parsed, savedJobs] = await Promise.all([
+        fetchPortfolioVideoCatalog(),
+        fetchBrowserVideoJobs(),
+      ]);
+      setPortfolios(parsed.portfolios);
+      const first = parsed.portfolios[0];
+      setSelectedPortfolioId(first?.id ?? "");
+      setSelectedPhotoIds(first?.photos.slice(0, 6).map((photo) => photo.id) ?? []);
+      setWorks(
+        savedJobs.map((job) => ({
+          id: job.id,
+          propertyId: job.propertyId,
+          createdAt: job.createdAt.toISOString(),
+          title: job.title,
+          fingerprint: job.fingerprint || "",
+          seed: job.seed || 0,
+          status: job.status,
+          downloadUrl: null,
+          error: job.errorMessage,
+        })),
       );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Portföyler yüklenemedi.");
     } finally {
-      setAiJobsLoading(false);
+      setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void retryCatalog(), 0);
+    return () => window.clearTimeout(timer);
+  }, [retryCatalog]);
+
+  useEffect(() => {
+    const downloadUrls = downloadUrlsRef.current;
+    return () => {
+      abortControllerRef.current?.abort();
+      for (const url of downloadUrls) URL.revokeObjectURL(url);
+      downloadUrls.clear();
+    };
   }, []);
 
   function clearDirectedStoryboard() {
     setDirectedStoryboard(null);
+    setActiveFingerprint("");
+    setActiveSeed(0);
     setDirectorStatus({
       status: "IDLE",
       error: "",
       source: "",
-      usedFallback: false,
+      diversified: false,
     });
+    dispatchRender({ type: "RESET" });
   }
-
-  async function applyCreativeDirection(): Promise<PortfolioVideoStoryboard | null> {
-    if (
-      !selectedPortfolio ||
-      selectedPhotoIds.length === 0 ||
-      command.trim().length < 3
-    ) {
-      setDirectorStatus({
-        status: "ERROR",
-        error: "Önce en az bir fotoğraf seçin ve yaratıcı talimatınızı yazın.",
-        source: "",
-        usedFallback: false,
-      });
-      return null;
-    }
-    setDirectorStatus({
-      status: "LOADING",
-      error: "",
-      source: "",
-      usedFallback: false,
-    });
-    try {
-      const response = await fetch("/api/fabrika/studio/video/direct", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          portfolioId: selectedPortfolio.id,
-          command,
-          ...(creativeChoice === "CUSTOM"
-            ? {}
-            : { preferredStyle: creativeChoice }),
-          selectedPhotoIds,
-          showPrice,
-          showLocation,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Yaratıcı talimat videoya uygulanamadı.");
-      }
-      const nextStoryboard = portfolioVideoStoryboardSchema.parse(
-        data.storyboard,
-      );
-      setDirectedStoryboard(nextStoryboard);
-      setDirectorStatus({
-        status: "SUCCESS",
-        error: "",
-        source: data.director?.source || "RULE_ENGINE",
-        usedFallback: Boolean(data.director?.usedFallback),
-      });
-      dispatchRender({ type: "RESET" });
-      return nextStoryboard;
-    } catch (error) {
-      setDirectorStatus({
-        status: "ERROR",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Yaratıcı talimat videoya uygulanamadı.",
-        source: "",
-        usedFallback: false,
-      });
-      return null;
-    }
-  }
-
-  async function retryCatalog() {
-    setIsLoading(true);
-    setLoadError("");
-    try {
-      const parsed = await fetchPortfolioVideoCatalog();
-      setPortfolios(parsed.portfolios);
-      const first = parsed.portfolios[0];
-      setSelectedPortfolioId(first?.id ?? "");
-      setSelectedPhotoIds(
-        first?.photos.slice(0, 6).map((photo) => photo.id) ?? [],
-      );
-    } catch (error) {
-      setLoadError(
-        error instanceof Error ? error.message : "Portföyler yüklenemedi.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    let active = true;
-    fetchPortfolioVideoCatalog()
-      .then((parsed) => {
-        if (!active) return;
-        setPortfolios(parsed.portfolios);
-        const first = parsed.portfolios[0];
-        setSelectedPortfolioId(first?.id ?? "");
-        setSelectedPhotoIds(
-          first?.photos.slice(0, 6).map((photo) => photo.id) ?? [],
-        );
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setLoadError(
-          error instanceof Error ? error.message : "Portföyler yüklenemedi.",
-        );
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-      if (downloadUrlRef.current) URL.revokeObjectURL(downloadUrlRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (
-      studioMode !== "AI_CINEMATIC" ||
-      !activeAiJob ||
-      !ACTIVE_AI_JOB_STATUSES.includes(activeAiJob.status)
-    ) {
-      return;
-    }
-    let active = true;
-    const pollJob = async () => {
-      try {
-        const response = await fetch(
-          `/api/fabrika/studio/video/jobs/${encodeURIComponent(activeAiJob.id)}`,
-          { cache: "no-store" },
-        );
-        const data: unknown = await response.json();
-        if (!response.ok || (isRecord(data) && data.success === false)) {
-          throw new Error(responseError(data, "AI video durumu alınamadı."));
-        }
-        const job = jobFromResponse(data);
-        if (!active || !job) return;
-        setAiJobs((current) => {
-          const exists = current.some((item) => item.id === job.id);
-          return exists
-            ? current.map((item) => (item.id === job.id ? job : item))
-            : [job, ...current];
-        });
-        const configured = configuredFromResponse(data);
-        if (configured !== null) setAiConfigured(configured);
-        setAiError("");
-      } catch (error) {
-        if (active) {
-          setAiError(
-            error instanceof Error
-              ? error.message
-              : "AI video durumu alınamadı.",
-          );
-        }
-      }
-    };
-    const interval = window.setInterval(() => void pollJob(), 6_000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [activeAiJob, studioMode]);
 
   function chooseStyle(option: (typeof STYLE_OPTIONS)[number]) {
     clearDirectedStoryboard();
@@ -512,26 +384,17 @@ export default function PortfolioVideoStudio() {
     }
   }
 
-  function selectStudioMode(mode: StudioMode) {
-    setStudioMode(mode);
-    if (mode === "AI_CINEMATIC") void loadAiJobs();
-  }
-
   function selectPortfolio(portfolioId: string) {
     const portfolio = portfolios.find((item) => item.id === portfolioId);
     setSelectedPortfolioId(portfolioId);
-    setSelectedPhotoIds(
-      portfolio?.photos.slice(0, 6).map((photo) => photo.id) ?? [],
-    );
+    setSelectedPhotoIds(portfolio?.photos.slice(0, 6).map((photo) => photo.id) ?? []);
     clearDirectedStoryboard();
-    dispatchRender({ type: "RESET" });
   }
 
   function togglePhoto(photoId: string) {
     clearDirectedStoryboard();
     setSelectedPhotoIds((current) => {
-      if (current.includes(photoId))
-        return current.filter((id) => id !== photoId);
+      if (current.includes(photoId)) return current.filter((id) => id !== photoId);
       if (current.length >= 8) return current;
       return [...current, photoId];
     });
@@ -549,27 +412,140 @@ export default function PortfolioVideoStudio() {
     });
   }
 
-  async function renderVideo() {
-    let renderStoryboard = storyboard;
-    if (creativeChoice === "CUSTOM" && !directedStoryboard) {
-      renderStoryboard = await applyCreativeDirection();
+  async function applyCreativeDirection() {
+    if (!selectedPortfolio || selectedPhotoIds.length === 0 || command.trim().length < 3) {
+      setDirectorStatus({
+        status: "ERROR",
+        error: "Önce bir portföy, en az bir fotoğraf ve yaratıcı talimat seçin.",
+        source: "",
+        diversified: false,
+      });
+      return null;
     }
-    if (
-      !renderStoryboard ||
-      !selectedPortfolio ||
-      selectedPhotoIds.length === 0
-    )
-      return;
-    if (downloadUrlRef.current) {
-      URL.revokeObjectURL(downloadUrlRef.current);
-      downloadUrlRef.current = null;
+    setDirectorStatus({
+      status: "LOADING",
+      error: "",
+      source: "",
+      diversified: false,
+    });
+    const seed = createSeed();
+    try {
+      const response = await fetch("/api/fabrika/studio/video/direct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          portfolioId: selectedPortfolio.id,
+          command,
+          ...(creativeChoice === "CUSTOM" ? {} : { preferredStyle: creativeChoice }),
+          selectedPhotoIds,
+          showPrice,
+          showLocation,
+          seed,
+          previousFingerprints: readFingerprints(),
+        }),
+      });
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          data && typeof data === "object" && "error" in data && typeof data.error === "string"
+            ? data.error
+            : "Yaratıcı talimat videoya uygulanamadı.";
+        throw new Error(message);
+      }
+      const parsed = directResponseSchema.parse(data);
+      setDirectedStoryboard(parsed.storyboard);
+      setActiveFingerprint(parsed.fingerprint);
+      setActiveSeed(parsed.seed);
+      setDirectorStatus({
+        status: "SUCCESS",
+        error: "",
+        source: parsed.director.source,
+        diversified: Boolean(parsed.director.diversified),
+      });
+      saveFingerprint(parsed.fingerprint);
+      dispatchRender({ type: "RESET" });
+      return parsed.storyboard;
+    } catch (error) {
+      setDirectorStatus({
+        status: "ERROR",
+        error:
+          error instanceof z.ZodError
+            ? "Video planı güvenlik doğrulamasından geçemedi. Yeniden deneyin."
+            : error instanceof Error
+              ? error.message
+              : "Yaratıcı talimat videoya uygulanamadı.",
+        source: "",
+        diversified: false,
+      });
+      return null;
     }
+  }
+
+  async function renderVideo(options: { forceNewVariation?: boolean } = {}) {
+    const requestFreshPlan = shouldRequestFreshPortfolioVideoPlan({
+      hasDirectedStoryboard: Boolean(directedStoryboard),
+      forceNewVariation: Boolean(options.forceNewVariation),
+    });
+    const renderStoryboard = requestFreshPlan
+      ? await applyCreativeDirection()
+      : directedStoryboard;
+    if (!renderStoryboard || !selectedPortfolio || selectedPhotoIds.length === 0) return;
+    const fingerprint =
+      activeFingerprint ||
+      createPortfolioVideoPlanFingerprint({
+        summary: renderStoryboard.planSummary,
+        seed: renderStoryboard.seed,
+        palette: renderStoryboard.palette,
+        typography: renderStoryboard.typography,
+        scenes: renderStoryboard.scenes.map((scene) => ({
+          id: scene.id,
+          type: scene.type,
+          durationInFrames: scene.toFrame - scene.fromFrame,
+          photoIndices: scene.photoIndices,
+          layout: scene.layout,
+          transition: scene.transition,
+          photoMotion: scene.photoMotion,
+          headline: scene.headline,
+          body: scene.body,
+          overlays: scene.overlays,
+        })),
+      });
+    const seed = activeSeed || renderStoryboard.seed;
     dispatchRender({ type: "CHECK" });
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    let workId = "";
     try {
-      const { canRenderMediaOnWeb, renderMediaOnWeb } =
-        await import("@remotion/web-renderer");
+      const createResponse = await fetch(
+        "/api/fabrika/studio/video/browser-jobs",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId: selectedPortfolio.id,
+            mediaIds: selectedPhotoIds,
+            command,
+            storyboard: renderStoryboard,
+            fingerprint,
+            seed,
+            idempotencyKey: `browser:${selectedPortfolio.id}:${window.crypto.randomUUID()}`,
+          }),
+        },
+      );
+      const created: unknown = await createResponse.json();
+      if (!createResponse.ok || !created || typeof created !== "object" || !("job" in created)) {
+        throw new Error("Video işi güvenli geçmişe kaydedilemedi.");
+      }
+      const serverJob = browserVideoJobSchema.parse(created.job);
+      workId = serverJob.id;
+      activeServerJobIdRef.current = serverJob.id;
+      await updateBrowserVideoJob(serverJob.id, {
+        stage: "CHECKING",
+        progress: 0,
+      });
+      const { canRenderMediaOnWeb, renderMediaOnWeb } = await import(
+        "@remotion/web-renderer"
+      );
       const support = await canRenderMediaOnWeb({
         container: "mp4",
         videoCodec: "h264",
@@ -579,14 +555,17 @@ export default function PortfolioVideoStudio() {
         muted: true,
       });
       if (!support.canRender) {
-        throw new Error(
-          support.issues
-            .map((issue) => `${issue.type}: ${issue.message}`)
-            .join("; "),
-        );
+        throw new Error(support.issues.map((issue) => issue.message).join("; "));
       }
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        throw new DOMException("Render iptal edildi.", "AbortError");
+      }
       dispatchRender({ type: "START" });
+      await updateBrowserVideoJob(serverJob.id, {
+        stage: "RENDERING",
+        progress: 1,
+      });
+      let lastPersistedProgress = 1;
       const result = await renderMediaOnWeb({
         composition: {
           id: PORTFOLIO_PROMO_VIDEO_ID,
@@ -610,33 +589,94 @@ export default function PortfolioVideoStudio() {
             progress,
             estimatedTimeMs: renderEstimatedTime,
           });
+          const percent = Math.min(94, Math.max(1, Math.round(progress * 100)));
+          if (percent >= lastPersistedProgress + 10) {
+            lastPersistedProgress = percent;
+            void updateBrowserVideoJob(serverJob.id, {
+              stage: "RENDERING",
+              progress: percent,
+            }).catch(() => undefined);
+          }
         },
       });
       let blob: Blob;
       try {
+        await updateBrowserVideoJob(serverJob.id, {
+          stage: "ENCODING",
+          progress: 95,
+        });
         blob = await result.getBlob();
       } finally {
         result.internalState[Symbol.dispose]();
       }
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        throw new DOMException("Render iptal edildi.", "AbortError");
+      }
       const downloadUrl = URL.createObjectURL(blob);
-      downloadUrlRef.current = downloadUrl;
+      downloadUrlsRef.current.add(downloadUrl);
+      const outputFileName = fileNameFor(selectedPortfolio);
+      await updateBrowserVideoJob(serverJob.id, {
+        stage: "COMPLETED",
+        progress: 100,
+        outputFileName,
+        outputMimeType: "video/mp4",
+        outputByteSize: blob.size,
+      });
       dispatchRender({ type: "SUCCESS", downloadUrl });
+      setWorks((current) => [
+        {
+          id: workId,
+          propertyId: selectedPortfolio.id,
+          createdAt: new Date().toISOString(),
+          title: selectedPortfolio.title,
+          fingerprint,
+          seed,
+          status: "COMPLETED",
+          downloadUrl,
+          error: null,
+        },
+        ...current.filter((item) => item.downloadUrl !== downloadUrl).slice(0, 5),
+      ]);
     } catch (error) {
-      if (
+      const cancelled =
         controller.signal.aborted ||
-        (error instanceof DOMException && error.name === "AbortError")
-      ) {
+        (error instanceof DOMException && error.name === "AbortError");
+      if (cancelled) {
+        if (workId) {
+          await updateBrowserVideoJob(workId, {
+            stage: "CANCELLED",
+            progress: 0,
+          }).catch(() => undefined);
+        }
         dispatchRender({ type: "CANCEL" });
       } else {
-        dispatchRender({
-          type: "ERROR",
-          error: toPortfolioVideoRenderError(error),
-        });
+        const message = toPortfolioVideoRenderError(error);
+        if (workId) {
+          await updateBrowserVideoJob(workId, {
+            stage: "FAILED",
+            progress: 0,
+            errorMessage: message,
+          }).catch(() => undefined);
+        }
+        dispatchRender({ type: "ERROR", error: message });
+        setWorks((current) => [
+          {
+            id: workId,
+            propertyId: selectedPortfolio.id,
+            createdAt: new Date().toISOString(),
+            title: selectedPortfolio.title,
+            fingerprint: activeFingerprint,
+            seed: activeSeed,
+            status: "FAILED",
+            downloadUrl: null,
+            error: message,
+          },
+          ...current.slice(0, 5),
+        ]);
       }
     } finally {
-      if (abortControllerRef.current === controller)
-        abortControllerRef.current = null;
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
+      if (activeServerJobIdRef.current === workId) activeServerJobIdRef.current = null;
     }
   }
 
@@ -644,120 +684,6 @@ export default function PortfolioVideoStudio() {
     abortControllerRef.current?.abort();
     dispatchRender({ type: "CANCEL" });
   }
-
-  async function createAiVideo() {
-    if (
-      !selectedPortfolio ||
-      !selectedPhotoIds.length ||
-      command.trim().length < 3
-    ) {
-      setAiError(
-        "Önce bir portföy, en az bir fotoğraf ve yaratıcı talimat seçin.",
-      );
-      return;
-    }
-    if (aiConfigured === false) {
-      setAiError("AI Sinematik Video hizmeti henüz yapılandırılmadı.");
-      return;
-    }
-    setAiSubmitting(true);
-    setAiError("");
-    const signature = JSON.stringify({
-      propertyId: selectedPortfolio.id,
-      mediaIds: selectedPhotoIds,
-      command: command.trim(),
-      durationSeconds: 10,
-      ratio: "9:16",
-      resolution: "720p",
-    });
-    if (aiSubmissionRef.current?.signature !== signature) {
-      aiSubmissionRef.current = {
-        signature,
-        idempotencyKey: crypto.randomUUID(),
-      };
-    }
-    const idempotencyKey = aiSubmissionRef.current.idempotencyKey;
-    try {
-      const response = await fetch("/api/fabrika/studio/video/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          propertyId: selectedPortfolio.id,
-          mediaIds: selectedPhotoIds,
-          command: command.trim(),
-          durationSeconds: 10,
-          ratio: "9:16",
-          resolution: "720p",
-          generateAudio: false,
-          idempotencyKey,
-        }),
-      });
-      const data: unknown = await response.json();
-      const configured = configuredFromResponse(data);
-      if (configured !== null) setAiConfigured(configured);
-      if (!response.ok || (isRecord(data) && data.success === false)) {
-        throw new Error(responseError(data, "AI video işi başlatılamadı."));
-      }
-      const job = jobFromResponse(data);
-      if (!job)
-        throw new Error("AI video işi başlatıldı ancak iş bilgisi alınamadı.");
-      setAiJobs((current) => [
-        job,
-        ...current.filter((item) => item.id !== job.id),
-      ]);
-      setActiveAiJobId(job.id);
-      aiSubmissionRef.current = null;
-    } catch (error) {
-      setAiError(
-        error instanceof Error ? error.message : "AI video işi başlatılamadı.",
-      );
-    } finally {
-      setAiSubmitting(false);
-    }
-  }
-
-  async function cancelAiVideo() {
-    if (!activeAiJob || !ACTIVE_AI_JOB_STATUSES.includes(activeAiJob.status))
-      return;
-    setAiCancelling(true);
-    setAiError("");
-    try {
-      const response = await fetch(
-        `/api/fabrika/studio/video/jobs/${encodeURIComponent(activeAiJob.id)}`,
-        { method: "DELETE" },
-      );
-      const data: unknown = await response.json();
-      if (!response.ok || (isRecord(data) && data.success === false)) {
-        throw new Error(responseError(data, "AI video işi iptal edilemedi."));
-      }
-      const job = jobFromResponse(data);
-      if (job) {
-        setAiJobs((current) =>
-          current.map((item) => (item.id === job.id ? job : item)),
-        );
-      } else {
-        await loadAiJobs();
-      }
-    } catch (error) {
-      setAiError(
-        error instanceof Error
-          ? error.message
-          : "AI video işi iptal edilemedi.",
-      );
-    } finally {
-      setAiCancelling(false);
-    }
-  }
-
-  const isRendering = ["CHECKING", "RENDERING"].includes(renderState.status);
-  const isAiJobActive = activeAiJob
-    ? ACTIVE_AI_JOB_STATUSES.includes(activeAiJob.status)
-    : false;
-  const selectedPhotos = selectedPhotoIds
-    .map((id) => selectedPortfolio?.photos.find((photo) => photo.id === id))
-    .filter(Boolean) as NonNullable<
-    PortfolioVideoPortfolio["photos"][number]
-  >[];
 
   if (isLoading) {
     return (
@@ -784,70 +710,31 @@ export default function PortfolioVideoStudio() {
       <div className={styles.emptyPanel}>
         <Film aria-hidden="true" />
         <h2>Önce bir portföy ekleyin</h2>
-        <p>
-          Video oluşturmak için şirket hesabınızda taslak veya aktif bir portföy
-          bulunmalıdır.
-        </p>
+        <p>Video oluşturmak için şirket hesabınızda bir portföy bulunmalıdır.</p>
         <a href="/fabrika/portfoyler">Portföylere git</a>
       </div>
     );
   }
 
   return (
-    <section
-      className={styles.videoStudio}
-      aria-labelledby="portfolio-video-title"
-    >
+    <section className={styles.videoStudio} aria-labelledby="portfolio-video-title">
       <header className={styles.videoHeader}>
         <div>
           <span>
-            <Clapperboard aria-hidden="true" />{" "}
-            {studioMode === "QUICK_TEMPLATE"
-              ? "Tarayıcıda MP4"
-              : "Üretken AI video"}
+            <Clapperboard aria-hidden="true" /> Güvenli Remotion planı
           </span>
           <h2 id="portfolio-video-title">Portföy Video Stüdyosu</h2>
           <p>
-            {studioMode === "QUICK_TEMPLATE"
-              ? "Portföy verilerinizden 15 saniyelik dikey tanıtım videosu hazırlayın."
-              : "Fotoğraflarınızı referans alan, prompta göre değişen yeni bir video üretin."}
+            Türkçe talimatınız sahne sırası, zamanlama, hareket, renk ve tipografiye
+            dönüştürülür. Serbest kod çalıştırılmaz.
           </p>
         </div>
         <div className={styles.specs} aria-label="Video teknik özellikleri">
           <span>9:16</span>
-          <span>{studioMode === "QUICK_TEMPLATE" ? "1080p" : "720p"}</span>
-          <span>{studioMode === "QUICK_TEMPLATE" ? "15 sn" : "10 sn"}</span>
+          <span>1080p</span>
+          <span>15 sn</span>
         </div>
       </header>
-
-      <div
-        className={styles.modeSwitcher}
-        role="group"
-        aria-label="Video oluşturma yöntemi"
-      >
-        <button
-          type="button"
-          aria-pressed={studioMode === "QUICK_TEMPLATE"}
-          onClick={() => selectStudioMode("QUICK_TEMPLATE")}
-        >
-          <Clapperboard aria-hidden="true" />
-          <span>
-            <b>Hızlı Şablon</b>
-            <small>Portföydeki gerçek metinler · cihazda MP4</small>
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-pressed={studioMode === "AI_CINEMATIC"}
-          onClick={() => selectStudioMode("AI_CINEMATIC")}
-        >
-          <Sparkles aria-hidden="true" />
-          <span>
-            <b>AI Sinematik Video</b>
-            <small>Prompta özel yeni görüntü · arka planda üretim</small>
-          </span>
-        </button>
-      </div>
 
       <div className={styles.workspaceGrid}>
         <div className={styles.controlsColumn}>
@@ -879,8 +766,7 @@ export default function PortfolioVideoStudio() {
                 <div>
                   <b>{selectedPortfolio.title}</b>
                   <span>
-                    <MapPin />{" "}
-                    {selectedPortfolio.location || "Konum belirtilmedi"}
+                    <MapPin /> {selectedPortfolio.location || "Konum belirtilmedi"}
                   </span>
                 </div>
                 <small>{selectedPortfolio.photos.length} fotoğraf</small>
@@ -893,27 +779,15 @@ export default function PortfolioVideoStudio() {
               <span>2</span>
               <div>
                 <h3>Yaratıcı yönü belirleyin</h3>
-                <p>
-                  {studioMode === "QUICK_TEMPLATE"
-                    ? "Hazır bir stil seçin veya Türkçe komutunuzu yazın."
-                    : "Stili başlangıç noktası olarak seçin; sonucu tarif eden kısa bir Türkçe prompt yazın."}
-                </p>
+                <p>Hazır bir başlangıç seçin veya videoyu sahne sahne tarif edin.</p>
               </div>
             </div>
-            <div
-              className={styles.styleGrid}
-              role="group"
-              aria-label="Video stili"
-            >
+            <div className={styles.styleGrid} role="group" aria-label="Video stili">
               {STYLE_OPTIONS.map((option) => (
                 <button
                   type="button"
                   key={option.id}
-                  className={
-                    creativeChoice === option.id
-                      ? styles.styleActive
-                      : undefined
-                  }
+                  className={creativeChoice === option.id ? styles.styleActive : undefined}
                   aria-pressed={creativeChoice === option.id}
                   onClick={() => chooseStyle(option)}
                 >
@@ -923,9 +797,7 @@ export default function PortfolioVideoStudio() {
               ))}
             </div>
             <label className={styles.fieldLabel} htmlFor="video-command">
-              {creativeChoice === "CUSTOM"
-                ? "Özel yaratıcı talimatınız"
-                : "Video komutu"}
+              {creativeChoice === "CUSTOM" ? "Özel yaratıcı talimatınız" : "Video komutu"}
             </label>
             <textarea
               ref={commandInputRef}
@@ -933,150 +805,84 @@ export default function PortfolioVideoStudio() {
               className={styles.command}
               value={command}
               maxLength={1000}
-              rows={4}
+              rows={5}
               onChange={(event) => {
                 clearDirectedStoryboard();
                 setCommand(event.target.value);
                 setCreativeChoice("CUSTOM");
               }}
-              placeholder={
-                creativeChoice === "CUSTOM"
-                  ? studioMode === "QUICK_TEMPLATE"
-                    ? "Örn. İlk karede havuzu göster, sakin başlayıp son bölümde iletişim bilgilerini öne çıkar; fiyatı gösterme."
-                    : "Örn. Gün batımında, sakin kamera hareketleri ve sıcak iç mekân ışıklarıyla zarif bir atmosfer."
-                  : "Örn. Lüks ve sinematik olsun, fiyatı gösterme"
-              }
+              placeholder="Örn. İlk fotoğrafla sakin başla, fiyat bir anda belirsin; diğer fotoğraflara geç ve finalde Instagram adresini animasyonla göster."
             />
             <div className={styles.commandMeta}>
               <span>
-                <Sparkles />{" "}
-                {direction.style === "BOLD"
-                  ? "Hızlı ve güçlü"
-                  : direction.style === "CINEMATIC"
-                    ? "Zarif ve yavaş"
-                    : direction.style === "FAMILY"
-                      ? "Sıcak ve yaşam odaklı"
-                      : direction.style === "INVESTMENT"
-                        ? "Yatırım odaklı"
-                        : direction.style === "MINIMAL"
-                          ? "Az efektli"
-                          : "Dengeli"}
+                <Sparkles /> Komut güvenli bir VideoPlan JSON’una dönüştürülür
               </span>
               <small>{command.length}/1000</small>
             </div>
-            {studioMode === "AI_CINEMATIC" && (
-              <div
-                className={styles.aiPromptNote}
-                role="note"
-                aria-label="AI video hakkında önemli bilgi"
-              >
-                <Sparkles aria-hidden="true" />
-                <p>
-                  <b>
-                    Prompt videonun hareketini, sahnelerini ve atmosferini
-                    yönlendirir.
-                  </b>{" "}
-                  Üretken sonuçlar her oluşturma işleminde değişebilir; belirli
-                  bir kamera hareketi veya sahne birebir garanti edilmez.
-                  İstediğiniz ekran yazısını promptta aynen belirtebilirsiniz;
-                  üretken model yazımı birebir koruyamayabileceği için kesin
-                  fiyat, konum, logo ve iletişim metinlerinde Hızlı Şablon
-                  modunu kullanın.
-                </p>
-              </div>
-            )}
-            {studioMode === "QUICK_TEMPLATE" && creativeChoice === "CUSTOM" && (
-              <div className={styles.directorPanel}>
-                <p>
-                  Portföy fotoğrafları ve kayıtlı bilgiler otomatik kullanılır.
-                  Yönetmen; sahne sırasını, yazıların geliş anını ve
-                  animasyonları talimatınıza göre yeniden kurar.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void applyCreativeDirection()}
-                  disabled={
-                    directorStatus.status === "LOADING" ||
-                    command.trim().length < 3 ||
-                    selectedPhotoIds.length === 0
-                  }
-                >
-                  {directorStatus.status === "LOADING" ? (
-                    <Loader2 className={styles.spin} />
-                  ) : (
-                    <Sparkles />
-                  )}
-                  {directorStatus.status === "LOADING"
-                    ? "Sahne planı hazırlanıyor…"
-                    : "Özel talimatı videoya uygula"}
-                </button>
-                {directorStatus.status === "ERROR" && (
-                  <span role="alert" className={styles.directorError}>
-                    {directorStatus.error}
-                  </span>
-                )}
-                {directorStatus.status === "SUCCESS" && (
-                  <span className={styles.directorSuccess}>
-                    <Check /> Talimat uygulandı ·{" "}
-                    {directorStatus.usedFallback
-                      ? "Güvenli yerel plan"
-                      : "AI yaratıcı yönetmen"}
-                  </span>
-                )}
-              </div>
-            )}
-            {studioMode === "QUICK_TEMPLATE" && (
-              <div className={styles.toggles}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={showPrice && direction.showPrice}
-                    disabled={!direction.showPrice}
-                    onChange={(event) => {
-                      clearDirectedStoryboard();
-                      setShowPrice(event.target.checked);
-                    }}
-                  />
-                  <span>Fiyatı göster</span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={showLocation}
-                    onChange={(event) => {
-                      clearDirectedStoryboard();
-                      setShowLocation(event.target.checked);
-                    }}
-                  />
-                  <span>Konumu göster</span>
-                </label>
-              </div>
-            )}
-            {studioMode === "QUICK_TEMPLATE" && !direction.showPrice && (
-              <p className={styles.inlineNote}>
-                Komutunuzdaki “fiyatı gösterme” talimatı uygulanıyor.
+            <div className={styles.toggles}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showPrice && direction.showPrice}
+                  disabled={!direction.showPrice}
+                  onChange={(event) => {
+                    clearDirectedStoryboard();
+                    setShowPrice(event.target.checked);
+                  }}
+                />
+                Fiyatı göster
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showLocation}
+                  onChange={(event) => {
+                    clearDirectedStoryboard();
+                    setShowLocation(event.target.checked);
+                  }}
+                />
+                Konumu göster
+              </label>
+            </div>
+            <div className={styles.directorPanel}>
+              <p>
+                Her üretimde yeni seed kullanılır. Aynı sahne dizilimi tekrar ederse
+                planın paleti, hareketi ve fotoğraf sırası güvenli biçimde çeşitlendirilir.
               </p>
+              <button
+                type="button"
+                disabled={directorStatus.status === "LOADING" || selectedPhotoIds.length === 0}
+                onClick={() => void applyCreativeDirection()}
+              >
+                {directorStatus.status === "LOADING" ? (
+                  <Loader2 className={styles.spin} />
+                ) : (
+                  <Sparkles />
+                )}
+                {directedStoryboard ? "Yeni plan üret" : "Video planını hazırla"}
+              </button>
+            </div>
+            {directorStatus.status === "ERROR" && (
+              <div className={styles.directorError} role="alert">
+                {directorStatus.error}
+              </div>
             )}
-            {studioMode === "QUICK_TEMPLATE" && storyboard && (
+            {directorStatus.status === "SUCCESS" && storyboard && (
               <div className={styles.planPreview} aria-live="polite">
-                <b>Uygulanacak akış</b>
-                <span>{storyboard.planSummary}</span>
+                <b>Plan hazır · {storyboard.scenes.length} sahne</b>
+                <span>
+                  {storyboard.planSummary} · {storyboard.palette.replaceAll("_", " ")}
+                </span>
                 <ol>
-                  {storyboard.scenes.map((scene) => (
+                  {storyboard.scenes.map((scene, index) => (
                     <li key={scene.id}>
-                      <small>
-                        {Math.round((scene.toFrame - scene.fromFrame) / 3) / 10}{" "}
-                        sn
-                      </small>
-                      {scene.type === "HOOK"
-                        ? "Açılış"
-                        : scene.type === "GALLERY"
-                          ? "Fotoğraf akışı"
-                          : scene.type === "FEATURES"
-                            ? "Özellikler"
-                            : scene.type === "DETAILS"
-                              ? "Fiyat ve detay"
-                              : "Kapanış"}
+                      <span>{index + 1}</span>
+                      <div>
+                        <b>{scene.type}</b>
+                        <small>
+                          {((scene.toFrame - scene.fromFrame) / storyboard.fps).toFixed(1)} sn · {scene.transition} · {scene.photoMotion}
+                        </small>
+                      </div>
                     </li>
                   ))}
                 </ol>
@@ -1089,11 +895,7 @@ export default function PortfolioVideoStudio() {
               <span>3</span>
               <div>
                 <h3>Fotoğrafları seçin ve sıralayın</h3>
-                <p>
-                  {studioMode === "QUICK_TEMPLATE"
-                    ? "En fazla 8 fotoğraf. İlk fotoğraf açılış sahnesidir."
-                    : "En fazla 8 fotoğraf görsel referans olarak kullanılır; sıralama sonucun birebir akışını garanti etmez."}
-                </p>
+                <p>En fazla sekiz fotoğraf. Sıra videodaki akışı belirler.</p>
               </div>
             </div>
             {selectedPortfolio?.photos.length ? (
@@ -1106,12 +908,11 @@ export default function PortfolioVideoStudio() {
                         key={photo.id}
                         type="button"
                         aria-pressed={selectedIndex >= 0}
-                        aria-label={`${photo.fileName} ${selectedIndex >= 0 ? "seçimini kaldır" : "seç"}`}
                         onClick={() => togglePhoto(photo.id)}
                       >
-                        {/* Tenant tarafından yetkilendirilmiş medya URL'si. */}
+                        {/* Tenant media URLs intentionally use native image preview. */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.url} alt="" />
+                        <img src={photo.url} alt={photo.fileName} />
                         {selectedIndex >= 0 && (
                           <span>
                             {selectedIndex + 1}
@@ -1122,16 +923,12 @@ export default function PortfolioVideoStudio() {
                     );
                   })}
                 </div>
-                <ol
-                  className={styles.photoOrder}
-                  aria-label="Seçilen fotoğraf sırası"
-                >
+                <ol className={styles.photoOrder} aria-label="Seçilen fotoğraf sırası">
                   {selectedPhotos.map((photo, index) => (
                     <li key={photo.id}>
                       <span>{index + 1}</span>
                       <div>
-                        <ImageIcon />
-                        <b>{photo.fileName}</b>
+                        <ImageIcon /> <b>{photo.fileName}</b>
                       </div>
                       <div>
                         <button
@@ -1165,373 +962,164 @@ export default function PortfolioVideoStudio() {
             ) : (
               <div className={styles.noPhotos}>
                 <ImageIcon />
-                <p>
-                  Bu portföyde kullanılabilir fotoğraf yok. Portföy medya
-                  alanından fotoğraf ekleyin.
-                </p>
+                <p>Bu portföyde kullanılabilir fotoğraf yok.</p>
               </div>
             )}
           </section>
         </div>
 
         <aside className={styles.previewColumn}>
-          {studioMode === "QUICK_TEMPLATE" ? (
-            <>
-              <section className={styles.previewCard}>
-                <div className={styles.previewTitle}>
-                  <div>
-                    <h3>Canlı önizleme</h3>
-                    <p>
-                      Özel talimat uygulandığında sahne planı baştan kurulur.
-                    </p>
-                  </div>
-                  <span>
-                    {directorStatus.status === "SUCCESS"
-                      ? directorStatus.source
-                      : direction.style}
-                  </span>
-                </div>
-                <div className={styles.playerFrame}>
-                  {storyboard && (
-                    <Player
-                      component={PortfolioPromoVideo}
-                      inputProps={{ storyboard }}
-                      durationInFrames={PORTFOLIO_PROMO_VIDEO_DURATION}
-                      fps={PORTFOLIO_PROMO_VIDEO_FPS}
-                      compositionWidth={PORTFOLIO_PROMO_VIDEO_WIDTH}
-                      compositionHeight={PORTFOLIO_PROMO_VIDEO_HEIGHT}
-                      controls
-                      loop
-                      initiallyMuted
-                      acknowledgeRemotionLicense
-                      style={{ width: "100%", height: "100%" }}
-                    />
-                  )}
-                </div>
-              </section>
-
-              <section className={styles.renderCard}>
-                <div className={styles.renderHeading}>
-                  <Film />
-                  <div>
-                    <h3>MP4 oluştur</h3>
-                    <p>
-                      Video cihazınızda hazırlanır; fotoğraflar render için
-                      başka bir sunucuya yüklenmez.
-                    </p>
-                  </div>
-                </div>
-                {renderState.status !== "IDLE" && (
-                  <div className={styles.renderStatus} aria-live="polite">
-                    {renderState.status === "ERROR" ? (
-                      <div className={styles.renderError} role="alert">
-                        <b>Video oluşturulamadı</b>
-                        <span>{renderState.error}</span>
-                      </div>
-                    ) : renderState.status === "CANCELLED" ? (
-                      <div className={styles.renderCancelled}>
-                        İşlem iptal edildi. Ayarlarınız korunuyor.
-                      </div>
-                    ) : renderState.status === "SUCCESS" ? (
-                      <div className={styles.renderSuccess}>
-                        <Check /> Video hazır. MP4 dosyasını indirebilirsiniz.
-                      </div>
-                    ) : (
-                      <>
-                        <div className={styles.progressLabels}>
-                          <span>
-                            {renderState.status === "CHECKING"
-                              ? "Tarayıcı kontrol ediliyor…"
-                              : "Video oluşturuluyor…"}
-                          </span>
-                          <b>{Math.round(renderState.progress * 100)}%</b>
-                        </div>
-                        <div
-                          className={styles.progressTrack}
-                          role="progressbar"
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={Math.round(renderState.progress * 100)}
-                        >
-                          <span
-                            style={{ width: `${renderState.progress * 100}%` }}
-                          />
-                        </div>
-                        {formatRemainingTime(renderState.estimatedTimeMs) && (
-                          <small>
-                            {formatRemainingTime(renderState.estimatedTimeMs)}
-                          </small>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className={styles.renderActions}>
-                  {isRendering ? (
-                    <button
-                      type="button"
-                      className={styles.cancelButton}
-                      onClick={cancelRender}
-                    >
-                      <Square /> İptal et
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className={styles.renderButton}
-                      disabled={
-                        !storyboard ||
-                        selectedPhotoIds.length === 0 ||
-                        directorStatus.status === "LOADING"
-                      }
-                      onClick={() => void renderVideo()}
-                    >
-                      {renderState.status === "SUCCESS" ? (
-                        <RotateCcw />
-                      ) : (
-                        <Clapperboard />
-                      )}
-                      {renderState.status === "SUCCESS"
-                        ? "Yeniden oluştur"
-                        : "MP4 oluştur"}
-                    </button>
-                  )}
-                  {renderState.status === "SUCCESS" &&
-                    renderState.downloadUrl &&
-                    selectedPortfolio && (
-                      <a
-                        className={styles.downloadButton}
-                        href={renderState.downloadUrl}
-                        download={fileNameFor(selectedPortfolio)}
-                      >
-                        <Download /> MP4 indir
-                      </a>
-                    )}
-                </div>
-              </section>
-            </>
-          ) : (
-            <section className={`${styles.renderCard} ${styles.aiJobCard}`}>
-              <div className={styles.renderHeading}>
-                <Sparkles aria-hidden="true" />
-                <div>
-                  <h3>AI üretim işi</h3>
-                  <p>
-                    İş sunucuda devam eder; bu sayfadan ayrılıp daha sonra geri
-                    dönebilirsiniz.
-                  </p>
-                </div>
+          <section className={styles.previewCard}>
+            <div className={styles.previewTitle}>
+              <div>
+                <h3>Canlı önizleme</h3>
+                <p>Plan değiştikçe sahne yapısı ve görsel yön de değişir.</p>
               </div>
+              <span>{storyboard?.palette.replaceAll("_", " ") || direction.style}</span>
+            </div>
+            <div className={styles.playerFrame}>
+              {storyboard && (
+                <Player
+                  component={PortfolioPromoVideo}
+                  inputProps={{ storyboard }}
+                  durationInFrames={PORTFOLIO_PROMO_VIDEO_DURATION}
+                  fps={PORTFOLIO_PROMO_VIDEO_FPS}
+                  compositionWidth={PORTFOLIO_PROMO_VIDEO_WIDTH}
+                  compositionHeight={PORTFOLIO_PROMO_VIDEO_HEIGHT}
+                  controls
+                  loop
+                  initiallyMuted
+                  acknowledgeRemotionLicense
+                  style={{ width: "100%", height: "100%" }}
+                />
+              )}
+            </div>
+          </section>
 
-              <div
-                className={styles.aiReadiness}
-                data-ready={aiConfigured === true}
-                aria-live="polite"
-              >
-                {aiJobsLoading && aiConfigured === null ? (
-                  <Loader2 className={styles.spin} aria-hidden="true" />
+          <section className={styles.renderCard}>
+            <div className={styles.renderHeading}>
+              <Film />
+              <div>
+                <h3>MP4 oluştur</h3>
+                <p>
+                  Render tarayıcınızda çalışır. Sekmeyi açık tutarken diğer panel
+                  alanlarını kullanabilirsiniz.
+                </p>
+              </div>
+            </div>
+            {renderState.status !== "IDLE" && (
+              <div className={styles.renderStatus} aria-live="polite">
+                {renderState.status === "ERROR" ? (
+                  <div className={styles.renderError} role="alert">
+                    <b>Video oluşturulamadı</b>
+                    <span>{renderState.error}</span>
+                  </div>
+                ) : renderState.status === "CANCELLED" ? (
+                  <div className={styles.renderCancelled}>İşlem iptal edildi. Ayarlarınız korunuyor.</div>
+                ) : renderState.status === "SUCCESS" ? (
+                  <div className={styles.renderSuccess}>
+                    <Check /> Video hazır. MP4 dosyasını indirebilirsiniz.
+                  </div>
                 ) : (
-                  <span aria-hidden="true" />
-                )}
-                <div>
-                  <b>
-                    {aiConfigured === null
-                      ? "Hizmet durumu kontrol ediliyor"
-                      : aiConfigured
-                        ? "AI video sağlayıcısı hazır"
-                        : "AI video sağlayıcısı hazır değil"}
-                  </b>
-                  <small>
-                    {aiConfigured === false
-                      ? "Platform yöneticisinin sağlayıcı bağlantısını yapılandırması gerekir."
-                      : "Üretim sağlayıcıda yapılır ve tamamlanan video güvenli olarak saklanır."}
-                  </small>
-                </div>
-              </div>
-
-              {aiError && (
-                <div className={styles.renderError} role="alert">
-                  <b>İşlem tamamlanamadı</b>
-                  <span>{aiError}</span>
-                </div>
-              )}
-
-              {activeAiJob ? (
-                <div className={styles.aiJobDetail} aria-live="polite">
-                  <div className={styles.aiJobHeading}>
-                    <div>
-                      <small>Seçili iş</small>
-                      <b>{aiJobStatusLabel(activeAiJob.status)}</b>
+                  <>
+                    <div className={styles.progressLabels}>
+                      <span>
+                        {renderState.status === "CHECKING"
+                          ? "Tarayıcı kontrol ediliyor…"
+                          : renderState.progress > 0.92
+                            ? "MP4 kodlanıyor…"
+                            : "Sahneler render ediliyor…"}
+                      </span>
+                      <b>{Math.round(renderState.progress * 100)}%</b>
                     </div>
-                    <span>
-                      {Math.round(
-                        Math.max(0, Math.min(100, activeAiJob.progress)),
-                      )}
-                      %
-                    </span>
-                  </div>
-                  {activeAiJob.status === "COMPLETED" &&
-                  activeAiJob.artifactHref ? (
-                    <video
-                      className={styles.aiVideo}
-                      src={activeAiJob.artifactHref}
-                      controls
-                      preload="metadata"
-                      aria-label="Oluşturulan AI sinematik portföy videosu"
+                    <div
+                      className={styles.progressTrack}
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(renderState.progress * 100)}
                     >
-                      Tarayıcınız video oynatmayı desteklemiyor.
-                    </video>
-                  ) : (
-                    <div className={styles.aiProgressVisual}>
-                      <Sparkles aria-hidden="true" />
-                      <p>
-                        {isAiJobActive
-                          ? "Hareketli görüntüler hazırlanıyor. Sayfayı açık tutmanız gerekmez."
-                          : aiJobStatusLabel(activeAiJob.status)}
-                      </p>
+                      <span style={{ width: `${renderState.progress * 100}%` }} />
                     </div>
-                  )}
-                  <div
-                    className={styles.progressTrack}
-                    role="progressbar"
-                    aria-label="AI video üretim ilerlemesi"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(
-                      Math.max(0, Math.min(100, activeAiJob.progress)),
+                    {formatRemainingTime(renderState.estimatedTimeMs) && (
+                      <small>{formatRemainingTime(renderState.estimatedTimeMs)}</small>
                     )}
-                  >
-                    <span
-                      style={{
-                        width: `${Math.max(0, Math.min(100, activeAiJob.progress))}%`,
-                      }}
-                    />
-                  </div>
-                  {activeAiJob.errorMessage && (
-                    <p className={styles.aiJobError}>
-                      {activeAiJob.errorMessage}
-                    </p>
-                  )}
-                  {activeAiJob.status === "COMPLETED" && (
-                    <p className={styles.retentionNotice}>
-                      Video 7 gün saklanır
-                      {formatJobDate(activeAiJob.expiresAt)
-                        ? ` · ${formatJobDate(activeAiJob.expiresAt)} tarihine kadar`
-                        : ""}
-                      . Süre dolmadan indirin.
-                    </p>
-                  )}
-                </div>
+                  </>
+                )}
+              </div>
+            )}
+            <div className={styles.renderActions}>
+              {isRendering ? (
+                <button type="button" className={styles.cancelButton} onClick={cancelRender}>
+                  <Square /> İptal et
+                </button>
               ) : (
-                <div className={styles.aiEmptyState}>
-                  <Sparkles aria-hidden="true" />
-                  <p>
-                    İlk sinematik videonuz için portföy, prompt ve fotoğrafları
-                    seçip üretimi başlatın.
-                  </p>
-                </div>
-              )}
-
-              <div className={styles.renderActions}>
                 <button
                   type="button"
                   className={styles.renderButton}
-                  disabled={
-                    aiConfigured !== true ||
-                    aiSubmitting ||
-                    isAiJobActive ||
-                    selectedPhotoIds.length === 0 ||
-                    command.trim().length < 3
+                  disabled={selectedPhotoIds.length === 0 || directorStatus.status === "LOADING"}
+                  onClick={() =>
+                    void renderVideo({
+                      forceNewVariation: renderState.status === "SUCCESS",
+                    })
                   }
-                  onClick={() => void createAiVideo()}
                 >
-                  {aiSubmitting ? (
-                    <Loader2 className={styles.spin} />
-                  ) : (
-                    <Sparkles />
-                  )}
-                  {aiSubmitting
-                    ? "İş başlatılıyor…"
-                    : activeAiJob
-                      ? "Yeni video üret"
-                      : "AI video üret"}
+                  {renderState.status === "SUCCESS" ? <RotateCcw /> : <Clapperboard />}
+                  {renderState.status === "SUCCESS" ? "Yeni varyasyon oluştur" : "Planla ve MP4 oluştur"}
                 </button>
-                {isAiJobActive && (
-                  <button
-                    type="button"
-                    className={styles.cancelButton}
-                    disabled={aiCancelling}
-                    onClick={() => void cancelAiVideo()}
-                  >
-                    {aiCancelling ? (
-                      <Loader2 className={styles.spin} />
-                    ) : (
-                      <Square />
-                    )}
-                    {aiCancelling ? "İptal ediliyor…" : "İşi iptal et"}
-                  </button>
-                )}
-                {activeAiJob?.status === "COMPLETED" &&
-                  activeAiJob.artifactHref && (
-                    <a
-                      className={styles.downloadButton}
-                      href={activeAiJob.artifactHref}
-                      download={
-                        activeAiJob.outputFileName || "ai-sinematik-video.mp4"
-                      }
-                    >
-                      <Download /> Videoyu indir
-                    </a>
-                  )}
-              </div>
-
-              <p className={styles.retentionFootnote}>
-                Tamamlanan AI videoları 7 gün sonra otomatik silinir. Hızlı
-                Şablon çıktıları yalnız cihazınızda kalır.
-              </p>
-
-              {aiJobs.length > 0 && (
-                <div className={styles.aiHistory}>
-                  <div>
-                    <b>Son AI işleri</b>
-                    <button
-                      type="button"
-                      onClick={() => void loadAiJobs()}
-                      disabled={aiJobsLoading}
-                      aria-label="AI video işlerini yenile"
-                    >
-                      <RotateCcw
-                        className={aiJobsLoading ? styles.spin : undefined}
-                      />
-                    </button>
-                  </div>
-                  <div className={styles.aiHistoryList}>
-                    {aiJobs.slice(0, 5).map((job) => (
-                      <button
-                        key={job.id}
-                        type="button"
-                        aria-current={
-                          job.id === activeAiJobId ? "true" : undefined
-                        }
-                        onClick={() => setActiveAiJobId(job.id)}
-                      >
-                        <span>
-                          <b>{aiJobStatusLabel(job.status)}</b>
-                          <small>
-                            {formatJobDate(job.createdAt) || "Tarih yok"}
-                          </small>
-                        </span>
-                        <small>
-                          {Math.round(Math.max(0, Math.min(100, job.progress)))}
-                          %
-                        </small>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               )}
-            </section>
-          )}
+              {renderState.status === "SUCCESS" && renderState.downloadUrl && selectedPortfolio && (
+                <a
+                  className={styles.downloadButton}
+                  href={renderState.downloadUrl}
+                  download={fileNameFor(selectedPortfolio)}
+                >
+                  <Download /> MP4 indir
+                </a>
+              )}
+            </div>
+          </section>
+
+          <section className={`${styles.renderCard} ${styles.aiHistory}`}>
+            <div className={styles.renderHeading}>
+              <Clapperboard />
+              <div>
+                <h3>Eski çalışmalarım</h3>
+                <p>İş durumu hesabınızda saklanır; MP4 dosyası yalnız oluşturulduğu cihazda indirilebilir.</p>
+              </div>
+            </div>
+            {works.length ? (
+              <div className={styles.aiHistoryList}>
+                {works.map((work) => (
+                  <div key={work.id} className={styles.localHistoryItem}>
+                    <span>
+                      <b>{work.title}</b>
+                      <small>
+                        {new Date(work.createdAt).toLocaleTimeString("tr-TR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })} · {videoWorkStatusLabel(work.status)}
+                      </small>
+                    </span>
+                    {work.downloadUrl ? (
+                      <a href={work.downloadUrl} download="portfoy-tanitim.mp4" aria-label={`${work.title} videosunu indir`}>
+                        <Download />
+                      </a>
+                    ) : work.status === "FAILED" || work.status === "CANCELLED" ? (
+                      <small>Ayarları seçip yeniden oluşturun</small>
+                    ) : (
+                      <small>Bu cihazda dosya yok</small>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.aiEmptyState}>
+                <Film />
+                <p>İlk videonuz hazır olduğunda burada görünecek.</p>
+              </div>
+            )}
+          </section>
         </aside>
       </div>
     </section>

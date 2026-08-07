@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { callAI } from '@/lib/ai';
@@ -7,6 +8,17 @@ import {
 } from '@/lib/fabrika-session';
 import { fetchOwnedMediaBytes } from '@/lib/media-storage';
 import { propertyMediaHttpError } from '@/lib/property-media-http';
+import {
+  readResponseBufferWithLimit,
+  ResponseSizeLimitError,
+} from '@/lib/http-response-limits';
+import {
+  completeStudioPosterGenerationAttempt,
+  failStudioPosterGenerationAttempt,
+  posterGenerationPayload,
+  reserveStudioPosterGeneration,
+  StudioPosterGenerationError,
+} from '@/lib/studio-poster-generation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,6 +27,8 @@ export const runtime = 'nodejs';
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_BYTES = 9 * 1024 * 1024;
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const MAX_GENERATED_IMAGE_BYTES = 15 * 1024 * 1024;
+const STABILITY_TIMEOUT_MS = 90_000;
 const POSTER_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -38,6 +52,22 @@ function imageMime(file: File) {
     return file.type;
   }
   return 'image/jpeg';
+}
+
+function sha256(value: string | Buffer) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function posterRequestKey(value: FormDataEntryValue | null, fallback: string) {
+  const key = stringValue(value, 120);
+  if (key && !/^[A-Za-z0-9:_-]{12,120}$/.test(key)) {
+    throw new StudioPosterGenerationError(
+      'Poster istek anahtarı geçersiz.',
+      400,
+      'INVALID_IDEMPOTENCY_KEY'
+    );
+  }
+  return key || `legacy:${fallback}`;
 }
 
 type PosterSource = {
@@ -168,6 +198,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let activeAttempt: { companyAccountId: string; attemptId: string } | null =
+    null;
   try {
     const principal = await requireFabrikaPrincipal();
     const form = await request.formData();
@@ -294,8 +326,83 @@ export async function POST(request: Request) {
         stringValue(form.get('highlight3'), 120),
       ],
     };
+    const posterName = stringValue(form.get('posterName'), 160);
+    const format = form.get('format') === 'story' ? 'story' : 'post';
+
+    const generationAction =
+      form.get('generationAction') === 'REGENERATE'
+        ? ('REGENERATE' as const)
+        : ('INITIAL' as const);
+    const generationId = stringValue(form.get('generationId'), 120) || null;
+    const sourceFingerprints = orderedSources.map((source) => ({
+      key: source.key,
+      digest: sha256(source.buffer),
+    }));
+    const logicalFingerprint = sha256(
+      JSON.stringify({
+        companyAccountId: principal.account.id,
+        propertyId: propertyId || null,
+        mode,
+        format,
+        posterName,
+        heroKey: selectedHero.key,
+        sources: sourceFingerprints,
+        input,
+      })
+    );
+    const requestFingerprint = sha256(
+      JSON.stringify({
+        generationAction,
+        generationId,
+        logicalFingerprint,
+      })
+    );
+    const idempotencyKey = posterRequestKey(
+      form.get('idempotencyKey'),
+      requestFingerprint
+    );
+    const reservation = await reserveStudioPosterGeneration({
+      companyAccountId: principal.account.id,
+      memberId: principal.member?.id ?? null,
+      propertyId: propertyId || null,
+      action: generationAction,
+      generationId,
+      logicalFingerprint,
+      requestFingerprint,
+      idempotencyKey,
+    });
+
+    if (reservation.duplicate) {
+      if (reservation.attempt.status === 'SUCCEEDED') {
+        return NextResponse.json({
+          success: true,
+          idempotent: true,
+          alreadyCompleted: true,
+          generation: posterGenerationPayload(reservation.generation),
+        });
+      }
+      throw new StudioPosterGenerationError(
+        reservation.attempt.status === 'PROCESSING'
+          ? 'Bu poster isteği hâlâ işleniyor.'
+          : 'Önceki deneme tamamlanamadı. Yeniden denemek için tekrar düğmeye basın.',
+        409,
+        reservation.attempt.status === 'PROCESSING'
+          ? 'GENERATION_IN_PROGRESS'
+          : 'PREVIOUS_ATTEMPT_FAILED'
+      );
+    }
+    activeAttempt = {
+      companyAccountId: principal.account.id,
+      attemptId: reservation.attempt.id,
+    };
 
     if (mode === 'faithful') {
+      const generation = await completeStudioPosterGenerationAttempt({
+        companyAccountId: principal.account.id,
+        attemptId: reservation.attempt.id,
+        resultDigest: sha256(selectedHero.buffer),
+      });
+      activeAttempt = null;
       return NextResponse.json({
         success: true,
         mode,
@@ -303,13 +410,20 @@ export async function POST(request: Request) {
         logoDataUrl,
         usedMediaIds: mediaIds,
         heroKey: selectedHero.key,
+        generation: posterGenerationPayload(generation),
       });
     }
 
     const stabilityApiKey = process.env.STABILITY_API_KEY?.trim();
     if (!stabilityApiKey) {
+      await failStudioPosterGenerationAttempt({
+        companyAccountId: principal.account.id,
+        attemptId: reservation.attempt.id,
+        failureCode: 'STABILITY_NOT_CONFIGURED',
+      });
+      activeAttempt = null;
       return NextResponse.json(
-        { error: 'Kreatif poster motoru henüz yapılandırılmadı. Yönetici STABILITY_API_KEY değişkenini eklemelidir.' },
+        { error: 'Kreatif poster motoru geçici olarak kullanılamıyor. Lütfen platform yöneticinizle iletişime geçin.' },
         { status: 503 }
       );
     }
@@ -327,22 +441,49 @@ export async function POST(request: Request) {
     body.append('negative_prompt', 'text, letters, numbers, logo, watermark, people, redesigned property, changed architecture, new pool, altered facade, inaccurate building, low resolution');
     body.append('output_format', 'jpeg');
 
-    const response = await fetch('https://api.stability.ai/v2beta/stable-image/generate/ultra', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stabilityApiKey}`,
-        Accept: 'image/*',
-        'stability-client-id': 'Business CEO AI Studio',
-        'stability-client-user-id': principal.account.id.slice(-18),
-        'stability-client-version': '1.0',
-      },
-      body,
-      cache: 'no-store',
-    });
+    let response: Response;
+    try {
+      response = await fetch(
+        'https://api.stability.ai/v2beta/stable-image/generate/ultra',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${stabilityApiKey}`,
+            Accept: 'image/*',
+            'stability-client-id': 'Business CEO AI Studio',
+            'stability-client-user-id': principal.account.id.slice(-18),
+            'stability-client-version': '1.0',
+          },
+          body,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(STABILITY_TIMEOUT_MS),
+        }
+      );
+    } catch {
+      await failStudioPosterGenerationAttempt({
+        companyAccountId: principal.account.id,
+        attemptId: reservation.attempt.id,
+        failureCode: 'PROVIDER_TIMEOUT',
+      });
+      activeAttempt = null;
+      return NextResponse.json(
+        {
+          error:
+            'Poster motoru zamanında yanıt vermedi. İsteğiniz kaydedildi; lütfen yeniden deneyin.',
+        },
+        { status: 503 }
+      );
+    }
 
     if (!response.ok) {
       const providerError = await response.text().catch(() => '');
       const retryable = response.status === 429 || response.status >= 500;
+      await failStudioPosterGenerationAttempt({
+        companyAccountId: principal.account.id,
+        attemptId: reservation.attempt.id,
+        failureCode: retryable ? 'PROVIDER_BUSY' : 'PROVIDER_REJECTED',
+      });
+      activeAttempt = null;
       return NextResponse.json(
         {
           error: retryable
@@ -355,7 +496,38 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = Buffer.from(await response.arrayBuffer());
+    let result: Buffer;
+    try {
+      result = await readResponseBufferWithLimit(
+        response,
+        MAX_GENERATED_IMAGE_BYTES
+      );
+    } catch (error) {
+      await failStudioPosterGenerationAttempt({
+        companyAccountId: principal.account.id,
+        attemptId: reservation.attempt.id,
+        failureCode:
+          error instanceof ResponseSizeLimitError
+            ? 'PROVIDER_OUTPUT_TOO_LARGE'
+            : 'PROVIDER_RESPONSE_FAILED',
+      });
+      activeAttempt = null;
+      return NextResponse.json(
+        {
+          error:
+            error instanceof ResponseSizeLimitError
+              ? 'Poster çıktısı güvenli dosya boyutu sınırını aştı.'
+              : 'Poster çıktısı okunamadı. Lütfen yeniden deneyin.',
+        },
+        { status: 502 }
+      );
+    }
+    const generation = await completeStudioPosterGenerationAttempt({
+      companyAccountId: principal.account.id,
+      attemptId: reservation.attempt.id,
+      resultDigest: sha256(result),
+    });
+    activeAttempt = null;
     return NextResponse.json({
       success: true,
       mode,
@@ -363,8 +535,22 @@ export async function POST(request: Request) {
       logoDataUrl,
       usedMediaIds: mediaIds,
       heroKey: selectedHero.key,
+      generation: posterGenerationPayload(generation),
     });
   } catch (error) {
+    if (activeAttempt) {
+      await failStudioPosterGenerationAttempt({
+        companyAccountId: activeAttempt.companyAccountId,
+        attemptId: activeAttempt.attemptId,
+        failureCode: 'UNEXPECTED_ERROR',
+      }).catch(() => undefined);
+    }
+    if (error instanceof StudioPosterGenerationError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
     return propertyMediaHttpError(error);
   }
 }

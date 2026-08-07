@@ -6,7 +6,10 @@ import {
   processDueOperationalCommitments,
 } from '@/lib/digital-manager/commitment-monitor';
 import { recoverStaleInboundCustomerMessages } from '@/lib/whatsapp-incoming';
-import { processDueViewingAcknowledgements } from '@/lib/viewing-workflow/service';
+import {
+  processDueViewingAcknowledgementReminders,
+  processDueViewingAcknowledgements,
+} from '@/lib/viewing-workflow/service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,12 +32,14 @@ export async function GET(request: Request) {
       summaries,
       recoveredActions,
       recoveredInboundMessages,
+      viewingAcknowledgementReminders,
       viewingAcknowledgements,
     ] = await Promise.all([
       processDueOperationalCommitments(now),
       generateActiveCompanyDailySummaries(now),
       recoverStaleManagerActions(now),
       recoverStaleInboundCustomerMessages(now),
+      processDueViewingAcknowledgementReminders(now),
       processDueViewingAcknowledgements(now),
     ]);
     return NextResponse.json({
@@ -44,10 +49,14 @@ export async function GET(request: Request) {
       summaries: summaries.length,
       recoveredActions: recoveredActions.length,
       recoveredInboundMessages: recoveredInboundMessages.length,
+      viewingAcknowledgementReminders:
+        viewingAcknowledgementReminders.length,
       viewingAcknowledgements: viewingAcknowledgements.length,
       commitments,
       actionRecoveries: recoveredActions,
       inboundRecoveries: recoveredInboundMessages,
+      viewingAcknowledgementReminderActions:
+        viewingAcknowledgementReminders,
       viewingAcknowledgementActions: viewingAcknowledgements,
     });
   } catch (error) {

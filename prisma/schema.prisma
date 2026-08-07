@@ -401,6 +401,39 @@ enum CrmPropertyStatus {
   ARCHIVED
 }
 
+enum PortfolioPoolShareStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+  REVOKED
+}
+
+enum PortfolioPoolContactRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum DeedCaseType {
+  SALE
+  PURCHASE
+  MORTGAGE
+  INHERITANCE
+  CORRECTION
+  OTHER
+}
+
+enum DeedCaseStatus {
+  DRAFT
+  PREPARING
+  DOCUMENTS_MISSING
+  READY_FOR_APPOINTMENT
+  APPOINTMENT_SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
 enum PropertyMediaType {
   PHOTO
   POSTER
@@ -975,6 +1008,8 @@ model CompanyAccount {
   propertyMedia               CrmPropertyMedia[]
   studioBatches               StudioBatch[]
   studioVideoJobs             StudioVideoJob[]
+  studioPosterGenerations     StudioPosterGeneration[]
+  studioPosterAttempts        StudioPosterGenerationAttempt[]
   websiteIntegrationVersions  WebsiteIntegrationVersion[]
   websiteIntegrationApiKeys   WebsiteIntegrationApiKey[]
   websiteDeliveryTokens       WebsiteDeliveryToken[]
@@ -1000,6 +1035,13 @@ model CompanyAccount {
   partnerCountryPolicies      PartnerCountryPolicy[]
   partnerEmailQuotaBuckets    PartnerEmailQuotaBucket[]
   partnerApplicationAttempts  PartnerApplicationAttempt[]
+  settings                    CompanySettings?
+  escalationSteps             CompanyEscalationStep[]
+  portfolioPoolShares         PortfolioPoolShare[]            @relation("PortfolioPoolOwnerCompany")
+  requestedPoolContacts       PortfolioPoolContactRequest[]   @relation("PortfolioPoolRequesterCompany")
+  receivedPoolContacts        PortfolioPoolContactRequest[]   @relation("PortfolioPoolContactOwnerCompany")
+  deedTrackingCases           DeedTrackingCase[]
+  deedTrackingEvents          DeedTrackingEvent[]
 
   @@index([status, subscriptionStatus])
   @@index([createdAt])
@@ -1153,25 +1195,91 @@ model CompanyMember {
   createdAt                      DateTime                @default(now())
   updatedAt                      DateTime                @updatedAt
 
-  contacts                    CrmContact[]
-  properties                  CrmProperty[]
-  deals                       CrmDeal[]
-  tasks                       CrmTask[]
-  activities                  CrmActivity[]
-  notifications               Notification[]
-  commitments                 OperationalCommitment[]
-  createdMedia                CrmPropertyMedia[]
-  studioBatches               StudioBatch[]
-  createdStudioVideoJobs      StudioVideoJob[]
-  viewingAssignmentAttempts   ViewingAssignmentAttempt[]
-  interactionPrompts          WhatsAppInteractionPrompt[] @relation("PromptRecipientMember")
-  assignedAppointments        AppointmentRequest[]        @relation("AppointmentAssignedMember")
-  reportedAppointmentOutcomes AppointmentOutcome[]        @relation("AppointmentOutcomeReporter")
+  contacts                       CrmContact[]
+  properties                     CrmProperty[]
+  deals                          CrmDeal[]
+  tasks                          CrmTask[]
+  activities                     CrmActivity[]
+  notifications                  Notification[]
+  commitments                    OperationalCommitment[]
+  createdMedia                   CrmPropertyMedia[]
+  studioBatches                  StudioBatch[]
+  createdStudioVideoJobs         StudioVideoJob[]
+  createdStudioPosterGenerations StudioPosterGeneration[]
+  viewingAssignmentAttempts      ViewingAssignmentAttempt[]
+  interactionPrompts             WhatsAppInteractionPrompt[] @relation("PromptRecipientMember")
+  assignedAppointments           AppointmentRequest[]        @relation("AppointmentAssignedMember")
+  reportedAppointmentOutcomes    AppointmentOutcome[]        @relation("AppointmentOutcomeReporter")
+  escalationSteps                CompanyEscalationStep[]
+  assignedDeedCases              DeedTrackingCase[]
 
   @@unique([companyAccountId, email])
   @@index([companyAccountId, active])
   @@index([companyAccountId, phoneNormalized])
   @@index([companyAccountId, availability, active])
+}
+
+model CompanySettings {
+  id                             String         @id @default(cuid())
+  companyAccountId               String         @unique
+  companyAccount                 CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade, map: "CompanySettings_company_fkey")
+  address                        String?        @db.Text
+  city                           String?
+  district                       String?
+  latitude                       Float?
+  longitude                      Float?
+  contactEmail                   String?
+  contactPhone                   String?
+  contactPhoneNormalized         String?
+  locale                         String         @default("tr-TR")
+  websiteStatus                  String         @default("NONE")
+  websiteUrl                     String?        @db.Text
+  hostingProvider                String?
+  instagramUrl                   String?        @db.Text
+  facebookUrl                    String?        @db.Text
+  tiktokUrl                      String?        @db.Text
+  xUrl                           String?        @db.Text
+  linkedinUrl                    String?        @db.Text
+  workHours                      Json
+  customerResponseMinutes        Int            @default(15)
+  employeeReminderMinutes        Int            @default(5)
+  employeeAcknowledgementMinutes Int            @default(15)
+  ownerEscalationMinutes         Int            @default(15)
+  ownerNoResponseAction          String         @default("CREATE_CRITICAL_TASK")
+  appointmentReminderHours       Int            @default(24)
+  appointmentOutcomeDelayMinutes Int            @default(30)
+  ownerNotifications             Json
+  aiAutomationPermissions        Json
+  dataProcessingAccepted         Boolean        @default(false)
+  dataProcessingAcceptedAt       DateTime?
+  dataProcessingRevokedAt        DateTime?
+  dataProcessingConsentVersion   String?
+  setupDisposition               String         @default("IN_PROGRESS")
+  setupCurrentStep               Int            @default(1)
+  setupDeferredAt                DateTime?
+  createdAt                      DateTime       @default(now())
+  updatedAt                      DateTime       @updatedAt
+
+  escalationSteps CompanyEscalationStep[]
+
+  @@index([companyAccountId, setupDisposition], map: "CompanySettings_company_setup_idx")
+}
+
+model CompanyEscalationStep {
+  id               String          @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount  @relation(fields: [companyAccountId], references: [id], onDelete: Cascade, map: "CompanyEscalationStep_company_fkey")
+  settingsId       String
+  settings         CompanySettings @relation(fields: [settingsId], references: [id], onDelete: Cascade, map: "CompanyEscalationStep_settings_fkey")
+  memberId         String
+  member           CompanyMember   @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "CompanyEscalationStep_member_fkey")
+  priority         Int
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([companyAccountId, memberId], map: "CompanyEscalationStep_company_member_key")
+  @@unique([settingsId, priority], map: "CompanyEscalationStep_settings_priority_key")
+  @@index([companyAccountId, priority], map: "CompanyEscalationStep_company_priority_idx")
 }
 
 model CrmContact {
@@ -1208,6 +1316,7 @@ model CrmContact {
   activities          CrmActivity[]
   viewingWorkflows    ViewingWorkflow[]
   appointmentRequests AppointmentRequest[]
+  deedTrackingCases   DeedTrackingCase[]
 
   @@unique([companyAccountId, sourceConversationId])
   @@index([companyAccountId, stage])
@@ -1228,6 +1337,7 @@ model CrmProperty {
   location                           String?
   price                              Float?
   roomCount                          String?
+  propertyType                       String?
   area                               Float?
   status                             CrmPropertyStatus @default(DRAFT)
   description                        String?           @db.Text
@@ -1255,17 +1365,20 @@ model CrmProperty {
   createdAt                          DateTime          @default(now())
   updatedAt                          DateTime          @updatedAt
 
-  deals               CrmDeal[]
-  tasks               CrmTask[]
-  matches             CrmMatch[]
-  activities          CrmActivity[]
-  portfolioImport     PortfolioImportItem?
-  adCampaigns         AdCampaign[]
-  media               CrmPropertyMedia[]
-  studioBatches       StudioBatch[]
-  studioVideoJobs     StudioVideoJob[]
-  viewingWorkflows    ViewingWorkflow[]
-  appointmentRequests AppointmentRequest[]
+  deals                   CrmDeal[]
+  tasks                   CrmTask[]
+  matches                 CrmMatch[]
+  activities              CrmActivity[]
+  portfolioImport         PortfolioImportItem?
+  adCampaigns             AdCampaign[]
+  media                   CrmPropertyMedia[]
+  studioBatches           StudioBatch[]
+  studioVideoJobs         StudioVideoJob[]
+  studioPosterGenerations StudioPosterGeneration[]
+  viewingWorkflows        ViewingWorkflow[]
+  appointmentRequests     AppointmentRequest[]
+  portfolioPoolShares     PortfolioPoolShare[]
+  deedTrackingCases       DeedTrackingCase[]
 
   @@unique([companyAccountId, sourceListingId])
   @@index([companyAccountId, status])
@@ -1273,6 +1386,109 @@ model CrmProperty {
   @@index([assignedMemberId])
   @@index([companyAccountId, status, publicationApprovedAt])
   @@index([publicationAuthorizationDocumentId])
+}
+
+model PortfolioPoolShare {
+  id                       String                   @id @default(cuid())
+  ownerCompanyAccountId    String
+  ownerCompanyAccount      CompanyAccount           @relation("PortfolioPoolOwnerCompany", fields: [ownerCompanyAccountId], references: [id], onDelete: Cascade, map: "PortfolioPoolShare_owner_fkey")
+  propertyId               String
+  property                 CrmProperty              @relation(fields: [propertyId], references: [id], onDelete: Cascade, map: "PortfolioPoolShare_property_fkey")
+  status                   PortfolioPoolShareStatus @default(ACTIVE)
+  sharePermissionGrantedAt DateTime
+  permissionReference      String?
+  authorityExpiresAt       DateTime
+  publishedAt              DateTime                 @default(now())
+  pausedAt                 DateTime?
+  revokedAt                DateTime?
+  revokedReason            String?                  @db.Text
+  createdByPrincipalType   String
+  createdByPrincipalId     String
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+
+  contactRequests PortfolioPoolContactRequest[]
+
+  @@unique([ownerCompanyAccountId, propertyId], map: "PortfolioPoolShare_owner_property_key")
+  @@index([status, authorityExpiresAt], map: "PortfolioPoolShare_status_expiry_idx")
+  @@index([propertyId, status], map: "PortfolioPoolShare_property_status_idx")
+}
+
+model PortfolioPoolContactRequest {
+  id                        String                            @id @default(cuid())
+  shareId                   String
+  share                     PortfolioPoolShare                @relation(fields: [shareId], references: [id], onDelete: Cascade, map: "PortfolioPoolContactRequest_share_fkey")
+  requesterCompanyAccountId String
+  requesterCompanyAccount   CompanyAccount                    @relation("PortfolioPoolRequesterCompany", fields: [requesterCompanyAccountId], references: [id], onDelete: Cascade, map: "PortfolioPoolContactRequest_requester_fkey")
+  ownerCompanyAccountId     String
+  ownerCompanyAccount       CompanyAccount                    @relation("PortfolioPoolContactOwnerCompany", fields: [ownerCompanyAccountId], references: [id], onDelete: Cascade, map: "PortfolioPoolContactRequest_owner_fkey")
+  status                    PortfolioPoolContactRequestStatus @default(PENDING)
+  message                   String?                           @db.Text
+  decisionNote              String?                           @db.Text
+  decidedAt                 DateTime?
+  decidedByPrincipalType    String?
+  decidedByPrincipalId      String?
+  idempotencyKey            String
+  createdByPrincipalType    String
+  createdByPrincipalId      String
+  createdAt                 DateTime                          @default(now())
+  updatedAt                 DateTime                          @updatedAt
+
+  @@index([requesterCompanyAccountId, status, createdAt], map: "PortfolioPoolContactRequest_requester_status_idx")
+  @@index([ownerCompanyAccountId, status, createdAt], map: "PortfolioPoolContactRequest_owner_status_idx")
+  @@index([shareId, requesterCompanyAccountId, status], map: "PortfolioPoolContactRequest_share_requester_idx")
+  @@unique([requesterCompanyAccountId, idempotencyKey], map: "PortfolioPoolContactRequest_requester_idempotency_key")
+}
+
+model DeedTrackingCase {
+  id                     String         @id @default(cuid())
+  companyAccountId       String
+  companyAccount         CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade, map: "DeedTrackingCase_company_fkey")
+  propertyId             String?
+  property               CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: SetNull, map: "DeedTrackingCase_property_fkey")
+  contactId              String?
+  contact                CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull, map: "DeedTrackingCase_contact_fkey")
+  assignedMemberId       String?
+  assignedMember         CompanyMember? @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull, map: "DeedTrackingCase_member_fkey")
+  type                   DeedCaseType
+  status                 DeedCaseStatus @default(DRAFT)
+  title                  String
+  checklist              Json
+  appointmentAt          DateTime?
+  dueAt                  DateTime?
+  officialReference      String?
+  officialIntegration    String?        @default("NOT_CONNECTED")
+  humanApprovalRequired  Boolean        @default(true)
+  notes                  String?        @db.Text
+  version                Int            @default(1)
+  createdByPrincipalType String
+  createdByPrincipalId   String
+  completedAt            DateTime?
+  cancelledAt            DateTime?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  events DeedTrackingEvent[]
+
+  @@index([companyAccountId, status, dueAt], map: "DeedTrackingCase_company_status_due_idx")
+  @@index([companyAccountId, propertyId], map: "DeedTrackingCase_company_property_idx")
+  @@index([assignedMemberId, status], map: "DeedTrackingCase_member_status_idx")
+}
+
+model DeedTrackingEvent {
+  id                 String           @id @default(cuid())
+  companyAccountId   String
+  companyAccount     CompanyAccount   @relation(fields: [companyAccountId], references: [id], onDelete: Cascade, map: "DeedTrackingEvent_company_fkey")
+  deedTrackingCaseId String
+  deedTrackingCase   DeedTrackingCase @relation(fields: [deedTrackingCaseId], references: [id], onDelete: Cascade, map: "DeedTrackingEvent_case_fkey")
+  eventType          String
+  message            String           @db.Text
+  metadata           Json?
+  actorPrincipalType String
+  actorPrincipalId   String
+  createdAt          DateTime         @default(now())
+
+  @@index([companyAccountId, deedTrackingCaseId, createdAt], map: "DeedTrackingEvent_case_created_idx")
 }
 
 model CrmPropertyMedia {
@@ -1388,50 +1604,96 @@ model StudioBatchItem {
 }
 
 model StudioVideoJob {
-  id                 String               @id @default(cuid())
-  companyAccountId   String
-  companyAccount     CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
-  propertyId         String
-  property           CrmProperty          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  createdByMemberId  String?
-  createdByMember    CompanyMember?       @relation(fields: [createdByMemberId], references: [id], onDelete: SetNull)
-  prompt             String               @db.Text
-  userCommand        String               @db.Text
-  referenceMediaIds  String[]
-  referenceSnapshot  Json
-  provider           String               @default("BYTEPLUS")
-  model              String
-  providerTaskId     String?              @unique
-  providerOutputUrl  String?              @db.Text
-  durationSeconds    Int                  @default(10)
-  ratio              String               @default("9:16")
-  resolution         String               @default("720p")
-  generateAudio      Boolean              @default(false)
-  status             StudioVideoJobStatus @default(QUEUED)
-  progress           Int                  @default(5)
-  idempotencyKey     String
-  attemptCount       Int                  @default(0)
-  nextAttemptAt      DateTime?
-  leaseOwner         String?
-  leaseExpiresAt     DateTime?
-  outputStorageKey   String?
-  outputFileName     String?
-  outputMimeType     String?
-  outputByteSize     Int?
-  errorCode          String?
-  errorMessage       String?              @db.Text
-  submittedAt        DateTime?
-  completedAt        DateTime?
-  cancelledAt        DateTime?
-  expiresAt          DateTime?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  id                String               @id @default(cuid())
+  companyAccountId  String
+  companyAccount    CompanyAccount       @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyId        String
+  property          CrmProperty          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdByMemberId String?
+  createdByMember   CompanyMember?       @relation(fields: [createdByMemberId], references: [id], onDelete: SetNull)
+  prompt            String               @db.Text
+  userCommand       String               @db.Text
+  referenceMediaIds String[]
+  referenceSnapshot Json
+  provider          String               @default("BYTEPLUS")
+  model             String
+  providerTaskId    String?              @unique
+  providerOutputUrl String?              @db.Text
+  durationSeconds   Int                  @default(10)
+  ratio             String               @default("9:16")
+  resolution        String               @default("720p")
+  generateAudio     Boolean              @default(false)
+  status            StudioVideoJobStatus @default(QUEUED)
+  progress          Int                  @default(5)
+  idempotencyKey    String
+  attemptCount      Int                  @default(0)
+  nextAttemptAt     DateTime?
+  leaseOwner        String?
+  leaseExpiresAt    DateTime?
+  outputStorageKey  String?
+  outputFileName    String?
+  outputMimeType    String?
+  outputByteSize    Int?
+  errorCode         String?
+  errorMessage      String?              @db.Text
+  submittedAt       DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@unique([companyAccountId, idempotencyKey])
   @@index([companyAccountId, createdAt])
   @@index([companyAccountId, propertyId, createdAt])
   @@index([status, nextAttemptAt, leaseExpiresAt])
   @@index([expiresAt, status])
+}
+
+model StudioPosterGeneration {
+  id                 String         @id @default(cuid())
+  companyAccountId   String
+  companyAccount     CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade, map: "StudioPosterGeneration_company_fkey")
+  propertyId         String?
+  property           CrmProperty?   @relation(fields: [propertyId], references: [id], onDelete: SetNull, map: "StudioPosterGeneration_property_fkey")
+  createdByMemberId  String?
+  createdByMember    CompanyMember? @relation(fields: [createdByMemberId], references: [id], onDelete: SetNull, map: "StudioPosterGeneration_member_fkey")
+  logicalFingerprint String
+  initialRequestKey  String
+  regenerationCount  Int            @default(0)
+  maxRegenerations   Int            @default(2)
+  version            Int            @default(0)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  attempts StudioPosterGenerationAttempt[]
+
+  @@unique([companyAccountId, initialRequestKey], map: "StudioPosterGeneration_company_initial_request_key")
+  @@unique([companyAccountId, logicalFingerprint], map: "StudioPosterGeneration_company_fingerprint_key")
+  @@index([companyAccountId, propertyId, createdAt], map: "StudioPosterGeneration_company_property_created_idx")
+}
+
+model StudioPosterGenerationAttempt {
+  id                 String                 @id @default(cuid())
+  companyAccountId   String
+  companyAccount     CompanyAccount         @relation(fields: [companyAccountId], references: [id], onDelete: Cascade, map: "StudioPosterAttempt_company_fkey")
+  generationId       String
+  generation         StudioPosterGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade, map: "StudioPosterAttempt_generation_fkey")
+  idempotencyKey     String
+  kind               String
+  sequence           Int
+  status             String                 @default("PROCESSING")
+  requestFingerprint String
+  resultDigest       String?
+  failureCode        String?
+  completedAt        DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([companyAccountId, idempotencyKey], map: "StudioPosterAttempt_company_idempotency_key")
+  @@unique([generationId, sequence], map: "StudioPosterAttempt_generation_sequence_key")
+  @@index([companyAccountId, generationId, status], map: "StudioPosterAttempt_company_generation_status_idx")
+  @@index([generationId, kind, status], map: "StudioPosterAttempt_generation_kind_status_idx")
 }
 
 model CrmDeal {

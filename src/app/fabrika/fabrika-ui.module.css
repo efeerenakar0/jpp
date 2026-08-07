@@ -1,17 +1,18 @@
 .root {
   --radius: 0.75rem;
-  --ceo-ink: #07101d;
-  --ceo-sidebar: #08111f;
-  --ceo-surface: #101b2b;
-  --ceo-surface-raised: #132033;
-  --ceo-surface-soft: #0b1726;
-  --ceo-border: #29384d;
-  --ceo-border-soft: #213047;
-  --ceo-pearl: #f6f1e8;
-  --ceo-muted: #92a0b4;
-  --ceo-gold: #c99a57;
-  --ceo-gold-bright: #e9bd79;
-  --ceo-emerald: #35c98b;
+  --ceo-ink: #050d18;
+  --ceo-sidebar: #06111f;
+  --ceo-surface: #091727;
+  --ceo-surface-raised: #0d2034;
+  --ceo-surface-soft: #071421;
+  --ceo-border: #1d3850;
+  --ceo-border-soft: #142c41;
+  --ceo-pearl: #f3f8fc;
+  --ceo-muted: #8ea3b8;
+  --ceo-gold: #d59a59;
+  --ceo-gold-bright: #f0bd7b;
+  --ceo-emerald: #22d3ee;
+  --ceo-violet: #c084fc;
   --ceo-danger: #ef6b6f;
   --fabrika-surface: var(--ceo-surface);
   --fabrika-surface-muted: var(--ceo-surface-raised);
@@ -34,8 +35,8 @@
 
 .root :global(h1),
 .root :global(.business-ceo-display) {
-  font-family: var(--font-serif), Georgia, serif !important;
-  letter-spacing: 0.01em;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif !important;
+  letter-spacing: -0.018em;
 }
 
 .root :global(.glass-card),
@@ -103,29 +104,55 @@
   display: none !important;
 }
 
-.root :global([class*="text-cyan-"]),
-.root :global([class*="text-blue-"]),
-.root :global([class*="text-purple-"]) {
+.root :global([class*="text-cyan-"]) {
   color: var(--ceo-emerald) !important;
 }
 
-.root :global([class*="bg-cyan-"]),
-.root :global([class*="bg-blue-"]),
+.root :global([class*="text-blue-"]) {
+  color: #60a5fa !important;
+}
+
+.root :global([class*="text-purple-"]) {
+  color: var(--ceo-violet) !important;
+}
+
+.root :global([class*="bg-cyan-"]) {
+  background-color: rgb(34 211 238 / 0.1) !important;
+}
+
+.root :global([class*="bg-blue-"]) {
+  background-color: rgb(96 165 250 / 0.1) !important;
+}
+
 .root :global([class*="bg-purple-"]) {
-  background-color: rgb(53 201 139 / 0.1) !important;
+  background-color: rgb(192 132 252 / 0.1) !important;
 }
 
-.root :global([class*="border-cyan-"]),
-.root :global([class*="border-blue-"]),
+.root :global([class*="border-cyan-"]) {
+  border-color: rgb(34 211 238 / 0.25) !important;
+}
+
+.root :global([class*="border-blue-"]) {
+  border-color: rgb(96 165 250 / 0.24) !important;
+}
+
 .root :global([class*="border-purple-"]) {
-  border-color: rgb(53 201 139 / 0.25) !important;
+  border-color: rgb(192 132 252 / 0.24) !important;
 }
 
-.root :global([class*="from-cyan-"]),
-.root :global([class*="from-blue-"]),
-.root :global([class*="from-purple-"]) {
+.root :global([class*="from-cyan-"]) {
   background-image: none !important;
   background-color: var(--ceo-emerald) !important;
+}
+
+.root :global([class*="from-blue-"]) {
+  background-image: none !important;
+  background-color: #60a5fa !important;
+}
+
+.root :global([class*="from-purple-"]) {
+  background-image: none !important;
+  background-color: var(--ceo-violet) !important;
 }
 
 .root :global(input),
@@ -207,10 +234,33 @@
 .root :global(.business-ceo-main) {
   scrollbar-gutter: stable;
   background:
-    linear-gradient(180deg, rgb(7 16 29 / 0.35), rgb(7 16 29 / 0.86)),
-    radial-gradient(circle at 82% 2%, rgb(53 201 139 / 0.07), transparent 27rem),
+    linear-gradient(180deg, rgb(5 13 24 / 0.35), rgb(5 13 24 / 0.9)),
+    radial-gradient(circle at 82% 2%, rgb(34 211 238 / 0.07), transparent 27rem),
     radial-gradient(circle at 8% 70%, rgb(201 154 87 / 0.055), transparent 32rem),
-    #07101d;
+    #050d18;
+}
+
+.root :global(.business-ceo-shell[data-business-theme="light"]) {
+  color: #0c1a2a;
+  background: #edf6fb;
+}
+
+.root :global(.business-ceo-shell[data-business-theme="light"] .business-ceo-main) {
+  color: #0c1a2a;
+  background:
+    radial-gradient(circle at 82% 2%, rgb(14 165 233 / 0.1), transparent 28rem),
+    #edf6fb;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root :global(*),
+  .root :global(*::before),
+  .root :global(*::after) {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .root :global(.business-ceo-content) {

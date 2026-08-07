@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
     },
     appointmentRequest: { updateMany: vi.fn() },
     companyAccount: { findFirst: vi.fn(), findUnique: vi.fn() },
+    companySettings: { findUnique: vi.fn() },
     companyMember: { findFirst: vi.fn(), findMany: vi.fn() },
     crmActivity: { create: vi.fn() },
     crmDeal: { updateMany: vi.fn() },
@@ -45,6 +46,7 @@ const mocks = vi.hoisted(() => {
     ),
     recordOperationEvent: vi.fn(),
     transitionTask: vi.fn(),
+    createOutbox: vi.fn(),
   };
 });
 
@@ -68,11 +70,17 @@ vi.mock('@/lib/property-publication', () => ({
   publicationEligibility: vi.fn(() => ({ eligible: true, reasons: [] })),
 }));
 
+vi.mock('@/lib/company-whatsapp', () => ({
+  dispatchWhatsAppOutboxMessage: vi.fn(),
+}));
+
 vi.mock('./outbox', () => ({
-  createWorkflowOutboxInTransaction: vi.fn(),
+  createWorkflowOutboxInTransaction: mocks.createOutbox,
 }));
 
 import {
+  applyViewingDeliveryTransitionInTransaction,
+  processDueViewingAcknowledgementReminders,
   processDueViewingAcknowledgements,
   processViewingInteractionReply,
   processViewingPanelDecision,
@@ -184,7 +192,9 @@ describe('viewing workflow deterministic reply mutations', () => {
     mocks.tx.whatsAppConfig.findUnique.mockResolvedValue(null);
     mocks.tx.companyMember.findMany.mockResolvedValue([]);
     mocks.tx.companyMember.findFirst.mockResolvedValue(null);
+    mocks.tx.companySettings.findUnique.mockResolvedValue(null);
     mocks.tx.whatsAppInteractionPrompt.updateMany.mockResolvedValue({ count: 1 });
+    mocks.tx.viewingAssignmentAttempt.updateMany.mockResolvedValue({ count: 1 });
     mocks.tx.viewingWorkflow.updateMany.mockResolvedValue({ count: 1 });
     mocks.tx.appointmentRequest.updateMany.mockResolvedValue({ count: 1 });
     mocks.tx.crmProperty.updateMany.mockResolvedValue({ count: 1 });
@@ -529,5 +539,189 @@ describe('viewing workflow deterministic reply mutations', () => {
     expect(mocks.tx.viewingAssignmentAttempt.findFirst).not.toHaveBeenCalled();
     expect(mocks.tx.viewingAssignmentAttempt.updateMany).not.toHaveBeenCalled();
     expect(mocks.transitionTask).not.toHaveBeenCalled();
+  });
+
+  it('şirketin 5 dakikalık ayarıyla tek ve idempotent ACK hatırlatması kuyruğa alır', async () => {
+    mocks.tx.companyAccount.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      subscriptionStatus: 'ACTIVE',
+      subscriptionEndsAt: null,
+      workspaceEnabled: true,
+      companyName: 'Akar Group',
+      onboardingState: null,
+    });
+    mocks.tx.companySettings.findUnique.mockResolvedValue({
+      employeeReminderMinutes: 5,
+      employeeAcknowledgementMinutes: 15,
+      ownerEscalationMinutes: 15,
+      appointmentReminderHours: 24,
+      appointmentOutcomeDelayMinutes: 30,
+    });
+    mocks.tx.whatsAppInteractionPrompt.findMany.mockResolvedValue([
+      { id: 'assignment-prompt-a', companyAccountId: 'company-a' },
+    ]);
+    mocks.tx.whatsAppInteractionPrompt.findFirst.mockResolvedValue({
+      id: 'assignment-prompt-a',
+      companyAccountId: 'company-a',
+      status: 'OPEN',
+      promptType: 'EMPLOYEE_ASSIGNMENT',
+      expectedResponseType: 'ASSIGNMENT_ACK',
+      reminderCount: 0,
+      lastReminderAt: null,
+      assignmentAttempt: {
+        id: 'attempt-a',
+        companyAccountId: 'company-a',
+        workflowId: 'workflow-a',
+        taskId: 'task-a',
+        propertyId: 'property-a',
+        contactId: 'contact-a',
+        memberId: 'member-a',
+        sequence: 1,
+        status: 'AWAITING_ACK',
+        sentAt: new Date('2026-08-02T12:00:00.000Z'),
+        ackDeadlineAt: new Date('2026-08-02T12:15:00.000Z'),
+        providerMessageId: 'provider-original-a',
+        member: {
+          id: 'member-a',
+          name: 'Zeynep',
+          phoneNormalized: '905551112233',
+        },
+        workflow: {
+          id: 'workflow-a',
+          shortCode: 'V7K2',
+          conversationId: 'conversation-a',
+        },
+      },
+    });
+    mocks.createOutbox.mockResolvedValue({ id: 'outbox-reminder-a' });
+
+    const result = await processDueViewingAcknowledgementReminders(
+      new Date('2026-08-02T12:05:00.000Z')
+    );
+
+    expect(result).toEqual([
+      {
+        promptId: 'assignment-prompt-a',
+        status: 'REMINDER_QUEUED',
+        reminderCount: 1,
+      },
+    ]);
+    expect(mocks.tx.whatsAppInteractionPrompt.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'assignment-prompt-a',
+        companyAccountId: 'company-a',
+        status: 'OPEN',
+        reminderCount: 0,
+        lastReminderAt: null,
+      },
+      data: {
+        reminderCount: { increment: 1 },
+        lastReminderAt: new Date('2026-08-02T12:05:00.000Z'),
+      },
+    });
+    expect(mocks.createOutbox).toHaveBeenCalledWith(
+      mocks.tx,
+      expect.objectContaining({
+        companyAccountId: 'company-a',
+        recipientType: 'EMPLOYEE',
+        recipientId: 'member-a',
+        purpose: 'EMPLOYEE_ASSIGNMENT_REMINDER',
+        idempotencyKey: 'viewing:workflow-a:attempt:1:ack-reminder:1',
+        replyToProviderMessageId: 'provider-original-a',
+      })
+    );
+
+    mocks.tx.whatsAppInteractionPrompt.findFirst.mockResolvedValue({
+      ...(await mocks.tx.whatsAppInteractionPrompt.findFirst.mock.results[0]
+        ?.value),
+      reminderCount: 1,
+      lastReminderAt: new Date('2026-08-02T12:05:00.000Z'),
+    });
+    const duplicate = await processDueViewingAcknowledgementReminders(
+      new Date('2026-08-02T12:05:00.000Z')
+    );
+    expect(duplicate).toEqual([
+      { promptId: 'assignment-prompt-a', status: 'SKIPPED_NOT_DUE' },
+    ]);
+    expect(mocks.createOutbox).toHaveBeenCalledTimes(1);
+  });
+
+  it('sağlayıcı hatası ACK bekleyen çalışanı timeout adayı olmaktan çıkarır', async () => {
+    mocks.tx.viewingAssignmentAttempt.findFirst.mockResolvedValue({
+      id: 'attempt-a',
+      companyAccountId: 'company-a',
+      workflowId: 'workflow-a',
+      taskId: 'task-a',
+      status: 'AWAITING_ACK',
+      workflow: { id: 'workflow-a' },
+    });
+    mocks.tx.whatsAppInteractionPrompt.findFirst.mockResolvedValue({
+      id: 'assignment-prompt-a',
+      status: 'OPEN',
+      appointmentRequestId: 'appointment-a',
+    });
+
+    await applyViewingDeliveryTransitionInTransaction(mocks.tx as never, {
+      companyAccountId: 'company-a',
+      outboxMessageId: 'outbox-a',
+      status: 'FAILED',
+      providerMessageId: 'provider-a',
+      errorMessage: 'Gateway teslim etmedi',
+      occurredAt: now,
+    });
+
+    expect(mocks.tx.viewingAssignmentAttempt.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'attempt-a',
+        companyAccountId: 'company-a',
+        status: { in: ['AWAITING_SEND', 'AWAITING_ACK'] },
+      },
+      data: {
+        status: 'DELIVERY_FAILED',
+        failureReason: 'Gateway teslim etmedi',
+        providerMessageId: 'provider-a',
+        ackDeadlineAt: null,
+      },
+    });
+    expect(mocks.tx.viewingWorkflow.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'workflow-a',
+        companyAccountId: 'company-a',
+        status: {
+          in: ['AWAITING_ASSIGNMENT_SEND', 'AWAITING_EMPLOYEE_ACK'],
+        },
+      },
+      data: {
+        status: 'FAILED',
+        version: { increment: 1 },
+        lastError: 'Gateway teslim etmedi',
+      },
+    });
+  });
+
+  it('eşzamanlı kabul edilmiş atamayı gecikmiş sağlayıcı hatasıyla bozmaz', async () => {
+    mocks.tx.viewingAssignmentAttempt.findFirst.mockResolvedValue({
+      id: 'attempt-a',
+      companyAccountId: 'company-a',
+      workflowId: 'workflow-a',
+      taskId: 'task-a',
+      status: 'AWAITING_ACK',
+      workflow: { id: 'workflow-a' },
+    });
+    mocks.tx.viewingAssignmentAttempt.updateMany.mockResolvedValueOnce({
+      count: 0,
+    });
+    mocks.tx.whatsAppInteractionPrompt.findFirst.mockResolvedValue(null);
+
+    await applyViewingDeliveryTransitionInTransaction(mocks.tx as never, {
+      companyAccountId: 'company-a',
+      outboxMessageId: 'outbox-a',
+      status: 'FAILED',
+      providerMessageId: 'provider-a',
+      errorMessage: 'Gecikmiş sağlayıcı olayı',
+      occurredAt: now,
+    });
+
+    expect(mocks.tx.viewingWorkflow.updateMany).not.toHaveBeenCalled();
   });
 });

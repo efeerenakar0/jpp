@@ -15,12 +15,52 @@ import type {
   PortfolioVideoStoryboard,
 } from '@/lib/portfolio-video/types';
 
-const colors = {
-  ink: '#04131d',
-  emerald: '#37d89a',
-  cream: '#f7f4ed',
-  slate: '#b8c5cd',
-  gold: '#dcb56d',
+const paletteColors: Record<
+  PortfolioVideoStoryboard['palette'],
+  { ink: string; emerald: string; cream: string; slate: string; gold: string }
+> = {
+  MIDNIGHT_CYAN: {
+    ink: '#04131d',
+    emerald: '#26d9ff',
+    cream: '#f7fbff',
+    slate: '#b8c5cd',
+    gold: '#7cecff',
+  },
+  EDITORIAL_GOLD: {
+    ink: '#15100a',
+    emerald: '#dcb56d',
+    cream: '#fff8ea',
+    slate: '#d8cbb5',
+    gold: '#f4c970',
+  },
+  WARM_SAND: {
+    ink: '#241812',
+    emerald: '#e79a66',
+    cream: '#fff7ee',
+    slate: '#ddc8b8',
+    gold: '#f2bb77',
+  },
+  CLEAN_WHITE: {
+    ink: '#0d1920',
+    emerald: '#13a77a',
+    cream: '#ffffff',
+    slate: '#cbd6dc',
+    gold: '#6ac7af',
+  },
+  BOLD_CORAL: {
+    ink: '#150b17',
+    emerald: '#ff5e76',
+    cream: '#fff6f8',
+    slate: '#d9c4cc',
+    gold: '#ffbd65',
+  },
+};
+
+const typographyFamilies: Record<PortfolioVideoStoryboard['typography'], string> = {
+  MODERN: 'Arial, Helvetica, sans-serif',
+  EDITORIAL: 'Georgia, Times New Roman, serif',
+  FRIENDLY: 'Trebuchet MS, Arial, sans-serif',
+  MINIMAL: 'Helvetica Neue, Arial, sans-serif',
 };
 
 function safePhoto(storyboard: PortfolioVideoStoryboard, index: number) {
@@ -77,6 +117,7 @@ function PhotoLayer({
 }
 
 function BrandMark({ storyboard }: { storyboard: PortfolioVideoStoryboard }) {
+  const colors = paletteColors[storyboard.palette];
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 18, color: colors.cream }}>
       {storyboard.companyLogoUrl ? (
@@ -150,6 +191,7 @@ function OverlayContent({
   scene: PortfolioVideoScene;
   overlay: PortfolioVideoScene['overlays'][number];
 }) {
+  const colors = paletteColors[storyboard.palette];
   switch (overlay.type) {
     case 'BRAND':
       return <BrandMark storyboard={storyboard} />;
@@ -254,13 +296,14 @@ const positionStyle: Record<PortfolioVideoScene['overlays'][number]['position'],
 
 function PlannedScene({ storyboard, scene }: { storyboard: PortfolioVideoStoryboard; scene: PortfolioVideoScene }) {
   const frame = useCurrentFrame();
+  const colors = paletteColors[storyboard.palette];
   const sceneOpacity = interpolate(frame, [0, 7], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const grouped = (['TOP', 'CENTER', 'BOTTOM'] as const).map((position) => ({
     position,
     overlays: scene.overlays.filter((overlay) => overlay.position === position),
   }));
   return (
-    <AbsoluteFill style={{ background: colors.ink, opacity: sceneOpacity, fontFamily: 'Arial, Helvetica, sans-serif', color: colors.cream }}>
+    <AbsoluteFill style={{ background: colors.ink, opacity: sceneOpacity, fontFamily: typographyFamilies[storyboard.typography], color: colors.cream }}>
       <ScenePhotos storyboard={storyboard} scene={scene} />
       <AbsoluteFill style={{ background: scene.layout === 'FRAMED' ? 'linear-gradient(180deg, rgba(3,15,23,.18), rgba(3,15,23,.96))' : scene.type === 'CONTACT' ? 'linear-gradient(180deg, rgba(3,15,23,.35), rgba(3,15,23,.93))' : 'linear-gradient(180deg, rgba(3,15,23,.12), rgba(3,15,23,.42) 48%, rgba(3,15,23,.9))' }} />
       {grouped.map(({ position, overlays }) => overlays.length ? (
@@ -277,6 +320,7 @@ function PlannedScene({ storyboard, scene }: { storyboard: PortfolioVideoStorybo
 }
 
 export function PortfolioPromoVideo({ storyboard }: PortfolioPromoVideoProps) {
+  const colors = paletteColors[storyboard.palette];
   return (
     <AbsoluteFill style={{ background: colors.ink }}>
       {storyboard.scenes.map((scene) => (

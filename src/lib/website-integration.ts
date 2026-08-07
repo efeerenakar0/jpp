@@ -235,7 +235,7 @@ export function buildWebsiteIntegrationPrompt(input: {
   const baseUrl = input.apiBaseUrl.replace(/\/+$/, '');
   const apiKey = input.apiKey || '[TEK_SEFERLIK_API_ANAHTARI]';
 
-  return `Aşağıdaki mevcut web sitesini Jasmine Fabrikası portföy API'sine bağla.
+  return `Aşağıdaki mevcut web sitesini Business CEO AI portföy API'sine bağla.
 
 Şirket: ${input.companyName}
 API ana adresi: ${baseUrl}
@@ -280,7 +280,7 @@ Portföy veri alanları:
 
 Yapılacaklar:
 1. Önce proje yapısını ve kullanılan framework'ü incele.
-2. Sunucu tarafında tip güvenli bir Jasmine API istemcisi oluştur.
+2. Sunucu tarafında tip güvenli bir Business CEO AI API istemcisi oluştur.
 3. Mevcut portföy listeleme ve detay sayfalarını GET uçlarına bağla.
 4. Yönetim paneline portföy ekleme, düzenleme ve arşivleme formları ekle.
 5. Formları doğrula; yükleniyor, boş durum, hata ve başarı durumlarını tamamla.
@@ -303,7 +303,7 @@ export function buildWebsiteCodexWorkOrder(input: {
   sourceDownloadUrl: string;
   apiBaseUrl: string;
 }) {
-  return `Jasmine Fabrikası müşteri sitesi entegrasyon iş emri
+  return `Business CEO AI müşteri sitesi entegrasyon iş emri
 
 İş emri: ${input.integrationId} / kaynak sürümü ${input.version}
 Şirket: ${input.companyName}

@@ -958,6 +958,46 @@
   background: rgba(44, 172, 115, 0.08);
 }
 
+.localHistoryItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid rgba(100, 129, 151, 0.2);
+  border-radius: 7px;
+  color: #91a5b2;
+  background: rgba(4, 18, 29, 0.58);
+}
+
+.localHistoryItem > span {
+  min-width: 0;
+}
+
+.localHistoryItem a,
+.localHistoryItem button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(82, 217, 157, 0.35);
+  border-radius: 6px;
+  color: #9ce9c5;
+  background: rgba(44, 172, 115, 0.1);
+  font-size: 0.61rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.localHistoryItem a:focus-visible,
+.localHistoryItem button:focus-visible {
+  outline: 2px solid #5be0a5;
+  outline-offset: 2px;
+}
+
 .aiHistoryList span,
 .aiHistoryList b,
 .aiHistoryList small {

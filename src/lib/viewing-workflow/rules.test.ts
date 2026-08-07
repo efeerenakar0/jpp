@@ -9,6 +9,7 @@ import {
   parseInteractionReply,
   appointmentOutcomeForAction,
   appointmentLifecycleDecision,
+  nextAssignmentReminder,
   shouldTimeoutAssignment,
 } from './rules';
 
@@ -54,6 +55,88 @@ describe('viewing prompt correlation and ACK rules', () => {
     expect(acknowledgementDeadline(sentAt, Number.NaN).toISOString()).toBe(
       '2026-08-02T12:15:00.000Z'
     );
+  });
+
+  it('schedules bounded reminders from the real send time without bursting missed intervals', () => {
+    const sentAt = new Date('2026-08-02T12:00:00.000Z');
+    const ackDeadlineAt = new Date('2026-08-02T12:15:00.000Z');
+
+    expect(
+      nextAssignmentReminder({
+        status: 'AWAITING_ACK',
+        sentAt,
+        ackDeadlineAt,
+        reminderCount: 0,
+        lastReminderAt: null,
+        reminderMinutes: 5,
+        now: new Date('2026-08-02T12:04:59.000Z'),
+      })
+    ).toBeNull();
+    expect(
+      nextAssignmentReminder({
+        status: 'AWAITING_ACK',
+        sentAt,
+        ackDeadlineAt,
+        reminderCount: 0,
+        lastReminderAt: null,
+        reminderMinutes: 5,
+        now: new Date('2026-08-02T12:05:00.000Z'),
+      })
+    ).toEqual({
+      reminderCount: 1,
+      dueAt: new Date('2026-08-02T12:05:00.000Z'),
+    });
+    expect(
+      nextAssignmentReminder({
+        status: 'AWAITING_ACK',
+        sentAt,
+        ackDeadlineAt,
+        reminderCount: 1,
+        lastReminderAt: new Date('2026-08-02T12:12:00.000Z'),
+        reminderMinutes: 5,
+        now: new Date('2026-08-02T12:14:00.000Z'),
+      })
+    ).toBeNull();
+    expect(
+      nextAssignmentReminder({
+        status: 'AWAITING_ACK',
+        sentAt,
+        ackDeadlineAt,
+        reminderCount: 2,
+        lastReminderAt: new Date('2026-08-02T12:10:00.000Z'),
+        reminderMinutes: 5,
+        now: ackDeadlineAt,
+      })
+    ).toBeNull();
+  });
+
+  it('never reminds unsent, failed, accepted or malformed assignment attempts', () => {
+    const base = {
+      sentAt: new Date('2026-08-02T12:00:00.000Z'),
+      ackDeadlineAt: new Date('2026-08-02T12:15:00.000Z'),
+      reminderCount: 0,
+      lastReminderAt: null,
+      reminderMinutes: 5,
+      now: new Date('2026-08-02T12:05:00.000Z'),
+    };
+    for (const status of [
+      'AWAITING_SEND',
+      'DELIVERY_FAILED',
+      'ACCEPTED',
+      'TIMED_OUT',
+    ]) {
+      expect(nextAssignmentReminder({ ...base, status })).toBeNull();
+    }
+    expect(
+      nextAssignmentReminder({ ...base, status: 'AWAITING_ACK', sentAt: null })
+    ).toBeNull();
+    expect(
+      nextAssignmentReminder({
+        ...base,
+        status: 'AWAITING_ACK',
+        reminderMinutes: Number.NaN,
+      })
+    ).toBeNull();
   });
 
   it('prioritizes quoted provider id, then short code, then a sole prompt', () => {

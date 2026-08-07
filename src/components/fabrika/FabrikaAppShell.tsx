@@ -1,14 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
-import FabrikaSidebar from './Sidebar';
-import FabrikaTopbar from './FabrikaTopbar';
+import FabrikaTopbar, { type BusinessCeoTheme } from './FabrikaTopbar';
 import {
   FabrikaSessionProvider,
   type FabrikaClientSession,
 } from './FabrikaSessionContext';
-import { resolveWorkspaceBrand } from '@/lib/business-ceo-brand';
 import OnboardingWizard from './OnboardingWizard';
 import {
   isImmersiveFabrikaRoute,
@@ -19,9 +17,30 @@ interface FabrikaAppShellProps {
   children: React.ReactNode;
   account: {
     companyName: string;
+    logoData: string | null;
     onboardingComplete: boolean;
   };
   session: FabrikaClientSession;
+}
+
+const businessCeoThemeStorageKey = 'business-ceo-theme';
+const businessCeoThemeChangeEvent = 'business-ceo-theme-change';
+
+function readBusinessCeoTheme(): BusinessCeoTheme {
+  if (typeof window === 'undefined') return 'dark';
+  const storedTheme = window.localStorage.getItem(businessCeoThemeStorageKey);
+  return storedTheme === 'light' ? 'light' : 'dark';
+}
+
+function subscribeToBusinessCeoTheme(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => undefined;
+
+  window.addEventListener('storage', onStoreChange);
+  window.addEventListener(businessCeoThemeChangeEvent, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStoreChange);
+    window.removeEventListener(businessCeoThemeChangeEvent, onStoreChange);
+  };
 }
 
 export default function FabrikaAppShell({
@@ -29,11 +48,15 @@ export default function FabrikaAppShell({
   account,
   session,
 }: FabrikaAppShellProps) {
-  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(
     account.onboardingComplete
   );
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const theme = useSyncExternalStore(
+    subscribeToBusinessCeoTheme,
+    readBusinessCeoTheme,
+    (): BusinessCeoTheme => 'dark'
+  );
   const pathname = usePathname();
   const showOnboarding =
     !onboardingDismissed &&
@@ -41,6 +64,12 @@ export default function FabrikaAppShell({
       principalType: session.principalType,
       onboardingComplete,
     });
+
+  function toggleTheme() {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    window.localStorage.setItem(businessCeoThemeStorageKey, nextTheme);
+    window.dispatchEvent(new Event(businessCeoThemeChangeEvent));
+  }
 
   if (isImmersiveFabrikaRoute(pathname)) {
     return (
@@ -69,36 +98,38 @@ export default function FabrikaAppShell({
 
   return (
     <FabrikaSessionProvider value={session}>
-      <div className="business-ceo-shell flex h-dvh min-h-0 overflow-hidden bg-[#07101d] text-slate-100">
+      <div
+        className="business-ceo-shell flex h-dvh min-h-0 flex-col overflow-hidden bg-[#050d18] text-slate-100"
+        data-business-theme={theme}
+      >
         <a
           href="#fabrika-main"
-          className="sr-only z-[100] rounded-md bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+          className="sr-only z-[100] rounded-md bg-cyan-300 px-4 py-2 font-semibold text-slate-950 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
         >
           Ana içeriğe geç
         </a>
 
-        <FabrikaSidebar
-          companyName={resolveWorkspaceBrand(account.companyName)}
-          mobileOpen={mobileNavigationOpen}
-          onMobileClose={() => setMobileNavigationOpen(false)}
-          principalType={session.principalType}
-          hunterEnabled={session.hunterEnabled}
-          profileName={session.displayName}
+        <FabrikaTopbar
+          account={{
+            companyName: account.companyName,
+            logoData: account.logoData,
+          }}
+          onToggleTheme={toggleTheme}
+          session={session}
+          theme={theme}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <FabrikaTopbar onOpenNavigation={() => setMobileNavigationOpen(true)} />
-          <main
-            id="fabrika-main"
-            className="business-ceo-main min-h-0 flex-1 overflow-y-auto bg-[#07101d]"
-            data-ceo-route={pathname}
-            tabIndex={-1}
-          >
-            <div className="business-ceo-content mx-auto w-full max-w-[1920px] px-4 py-5 sm:px-6 sm:py-6 lg:px-7 lg:py-7">
-              {children}
-            </div>
-          </main>
-        </div>
+        <main
+          id="fabrika-main"
+          className="business-ceo-main min-h-0 flex-1 overflow-y-auto bg-[#050d18]"
+          data-ceo-route={pathname}
+          tabIndex={-1}
+        >
+          <div className="business-ceo-content mx-auto w-full max-w-[1920px] px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+            {children}
+          </div>
+        </main>
+
         {showOnboarding ? (
           <OnboardingWizard
             initialCompanyName={account.companyName}

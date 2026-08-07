@@ -24,6 +24,7 @@ describe('tenant viewing workflow timing policy', () => {
         'Akar Group'
       )
     ).toEqual({
+      employeeReminderMinutes: 5,
       employeeAcknowledgementMinutes: 35,
       ownerEscalationMinutes: 45,
       appointmentReminderHours: 36,
@@ -63,17 +64,45 @@ describe('tenant viewing workflow timing policy', () => {
           })
           .mockResolvedValueOnce(null),
       },
+      companySettings: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce({
+            employeeReminderMinutes: 7,
+            employeeAcknowledgementMinutes: 35,
+            ownerEscalationMinutes: 60,
+            appointmentReminderHours: 36,
+            appointmentOutcomeDelayMinutes: 45,
+          })
+          .mockResolvedValueOnce(null),
+      },
     };
 
     await expect(
       loadViewingWorkflowTimings('company-a', db as never)
-    ).resolves.toMatchObject({ ownerEscalationMinutes: 60 });
+    ).resolves.toEqual({
+      employeeReminderMinutes: 7,
+      employeeAcknowledgementMinutes: 35,
+      ownerEscalationMinutes: 60,
+      appointmentReminderHours: 36,
+      appointmentOutcomeDelayMinutes: 45,
+    });
     await expect(
       loadViewingWorkflowTimings('missing-company', db as never)
     ).resolves.toEqual(DEFAULT_VIEWING_WORKFLOW_TIMINGS);
     expect(db.companyAccount.findUnique).toHaveBeenNthCalledWith(1, {
       where: { id: 'company-a' },
       select: { companyName: true, onboardingState: true },
+    });
+    expect(db.companySettings.findUnique).toHaveBeenNthCalledWith(1, {
+      where: { companyAccountId: 'company-a' },
+      select: {
+        employeeReminderMinutes: true,
+        employeeAcknowledgementMinutes: true,
+        ownerEscalationMinutes: true,
+        appointmentReminderHours: true,
+        appointmentOutcomeDelayMinutes: true,
+      },
     });
   });
 });

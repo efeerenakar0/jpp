@@ -26,7 +26,11 @@ import type {
   ExecutivePortfolioMedia,
   ExecutiveWorkflowSource,
 } from '../../../lib/executive-portfolio-workflow';
-import { EXECUTIVE_WORKFLOW_STEPS } from '../../../lib/executive-portfolio-workflow';
+import {
+  createExecutivePortfolioDownload,
+  EXECUTIVE_WORKFLOW_STEPS,
+  getExecutiveWorkflowResultState,
+} from '../../../lib/executive-portfolio-workflow';
 import {
   Dialog,
   DialogContent,
@@ -537,14 +541,31 @@ function MarketingStep({ draft, onAction }: Pick<PortfolioWorkflowContentProps, 
 function ResultsStep({ draft, onAction }: Pick<PortfolioWorkflowContentProps, 'draft' | 'onAction'>) {
   const approved = draft.media.filter((media) => !media.removed);
   const removed = draft.media.filter((media) => media.removed);
+  const resultState = getExecutiveWorkflowResultState(draft);
+  const download = createExecutivePortfolioDownload(draft);
+  const downloadHref = `data:${download.mimeType};charset=utf-8,${encodeURIComponent(download.content)}`;
   return (
     <div className="space-y-4 p-5 sm:p-6">
       <div>
-        <WorkflowTitle>Bütün çıktılar hazır</WorkflowTitle>
+        <WorkflowTitle>
+          {resultState.ready ? 'Çıktılar doğrulandı' : 'Tamamlanacak işler var'}
+        </WorkflowTitle>
         <WorkflowDescription>
-          Portföy, fotoğraflar, posterler ve pazarlama seçimleri tek yerde.
+          {resultState.ready
+            ? 'Portföy ve seçilen çıktılar sunucu kayıtlarıyla doğrulandı.'
+            : 'Yalnızca gerçekten kaydedilen çıktılar tamamlandı olarak gösterilir.'}
         </WorkflowDescription>
       </div>
+      {!resultState.ready && (
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4" role="status">
+          <p className="text-xs font-semibold text-amber-100">Sonraki adımlar</p>
+          <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-100/80">
+            {resultState.nextSteps.map((step) => (
+              <li key={step}>• {step}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         {[
           ['Oluşturulan portföy', draft.details.title || 'İsimsiz taslak'],
@@ -563,7 +584,19 @@ function ResultsStep({ draft, onAction }: Pick<PortfolioWorkflowContentProps, 'd
       </div>
       <div className="flex flex-wrap gap-2">
         <a href={draft.propertyId ? `/fabrika/portfoyler?propertyId=${encodeURIComponent(draft.propertyId)}` : '/fabrika/portfoyler'} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200">Portföyü görüntüle</a>
-        <button type="button" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200"><Download className="h-3.5 w-3.5" /> İndir</button>
+        {draft.propertyId ? (
+          <a
+            href={downloadHref}
+            download={download.fileName}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200"
+          >
+            <Download className="h-3.5 w-3.5" /> Özeti indir
+          </a>
+        ) : (
+          <span className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-slate-800 px-3 py-2 text-xs text-slate-500" aria-disabled="true">
+            <Download className="h-3.5 w-3.5" /> Kayıttan sonra indir
+          </span>
+        )}
         <a href="/fabrika/pazarlamaci" className="rounded-xl border border-amber-300/25 bg-amber-300/[0.07] px-3 py-2 text-xs text-amber-100">Pazarlamaya geç</a>
         <button type="button" onClick={() => onAction({ type: 'reset' })} className="rounded-xl border border-cyan-300/25 bg-cyan-300/[0.07] px-3 py-2 text-xs text-cyan-100">Yeni işlem başlat</button>
       </div>

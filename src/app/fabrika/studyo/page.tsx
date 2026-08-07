@@ -35,6 +35,7 @@ import {
   type StudioEnhancementPreset,
   type StudioEnhancementPresetId,
 } from "@/lib/studio-enhancement";
+import { summarizeStudioBatchHistory } from "@/lib/studio-history";
 import toast from "react-hot-toast";
 import styles from "./studio.module.css";
 
@@ -57,9 +58,15 @@ type StudioResult = {
 type WorkspaceProperty = {
   id: string;
   title: string;
+  referenceCode?: string | null;
   location: string | null;
   status: string;
 };
+
+type StudioArea = "enhancer" | "history" | "poster" | "video" | "ad-history";
+type StudioStartMode = "existing" | "new" | "images";
+
+const STUDIO_DRAFT_KEY = "business-ceo-ai:studio-enhancer-draft";
 
 type PropertyMediaSummary = {
   id: string;
@@ -101,13 +108,20 @@ type StudioBatchSummary = {
   createdAt: string;
   expiresAt: string | null;
   property: { id: string; title: string; location: string | null } | null;
-  items: Array<{ id: string; status: StudioBatchItem["status"] }>;
+  items: Array<{
+    id: string;
+    status: StudioBatchItem["status"];
+    originalFileName: string;
+    attemptCount: number;
+    errorMessage: string | null;
+  }>;
 };
 
 export default function StudioPage() {
-  const [studioArea, setStudioArea] = useState<"enhancer" | "poster" | "video">(
-    "enhancer",
-  );
+  const [studioArea, setStudioArea] = useState<StudioArea>("enhancer");
+  const [startMode, setStartMode] = useState<StudioStartMode>("existing");
+  const [newPropertyTitle, setNewPropertyTitle] = useState("");
+  const [newPropertyLocation, setNewPropertyLocation] = useState("");
   const [screen, setScreen] = useState<StudioScreen>("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -142,6 +156,9 @@ export default function StudioPage() {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
+  const loadedBatchHistoryRef = useRef(false);
+  const notifiedBatchIdsRef = useRef(new Set<string>());
+  const isAdDesign = ["poster", "video", "ad-history"].includes(studioArea);
 
   const loadRecentBatches = useCallback(async () => {
     try {
@@ -152,7 +169,29 @@ export default function StudioPage() {
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Son çalışmalar yüklenemedi.");
       }
-      setRecentBatches((data.batches || []) as StudioBatchSummary[]);
+      const batches = (data.batches || []) as StudioBatchSummary[];
+      const finishedIds = batches
+        .filter((batch) =>
+          ["COMPLETED", "PARTIAL", "FAILED", "ATTACHED"].includes(batch.status),
+        )
+        .map((batch) => batch.id);
+      if (!loadedBatchHistoryRef.current) {
+        finishedIds.forEach((id) => notifiedBatchIdsRef.current.add(id));
+        loadedBatchHistoryRef.current = true;
+      } else {
+        const newlyFinished = finishedIds.filter(
+          (id) => !notifiedBatchIdsRef.current.has(id),
+        );
+        newlyFinished.forEach((id) => notifiedBatchIdsRef.current.add(id));
+        if (newlyFinished.length) {
+          toast.success(
+            newlyFinished.length === 1
+              ? "Stüdyo çalışmanız tamamlandı. Son çalışmalardan açabilirsiniz."
+              : `${newlyFinished.length} stüdyo çalışmanız tamamlandı.`,
+          );
+        }
+      }
+      setRecentBatches(batches);
     } catch {
       // The creation and editor flows remain usable if history cannot load.
     } finally {
@@ -216,11 +255,77 @@ export default function StudioPage() {
         .filter(Boolean);
       if (area === "poster") setStudioArea("poster");
       if (area === "video") setStudioArea("video");
+      if (area === "history") setStudioArea("history");
       if (propertyId) setSelectedPropertyId(propertyId);
       if (mediaIds.length) setRequestedMediaIds(mediaIds);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.sessionStorage.getItem(STUDIO_DRAFT_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as Record<string, unknown>;
+        if (["existing", "new", "images"].includes(String(draft.startMode))) {
+          setStartMode(draft.startMode as StudioStartMode);
+        }
+        if (typeof draft.selectedPropertyId === "string") {
+          setSelectedPropertyId(draft.selectedPropertyId);
+        }
+        if (typeof draft.newPropertyTitle === "string") {
+          setNewPropertyTitle(draft.newPropertyTitle.slice(0, 180));
+        }
+        if (typeof draft.newPropertyLocation === "string") {
+          setNewPropertyLocation(draft.newPropertyLocation.slice(0, 240));
+        }
+        if (typeof draft.enhancementInstruction === "string") {
+          setEnhancementInstruction(
+            draft.enhancementInstruction.slice(0, 10_000),
+          );
+        }
+        if (
+          typeof draft.selectedPresetId === "string" &&
+          STUDIO_ENHANCEMENT_PRESETS.some(
+            (preset) => preset.id === draft.selectedPresetId,
+          )
+        ) {
+          setSelectedPresetId(
+            draft.selectedPresetId as StudioEnhancementPresetId,
+          );
+        }
+      } catch {
+        window.sessionStorage.removeItem(STUDIO_DRAFT_KEY);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      window.sessionStorage.setItem(
+        STUDIO_DRAFT_KEY,
+        JSON.stringify({
+          startMode,
+          selectedPropertyId,
+          newPropertyTitle,
+          newPropertyLocation,
+          enhancementInstruction,
+          selectedPresetId,
+          savedAt: new Date().toISOString(),
+        }),
+      );
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [
+    enhancementInstruction,
+    newPropertyLocation,
+    newPropertyTitle,
+    selectedPresetId,
+    selectedPropertyId,
+    startMode,
+  ]);
 
   useEffect(() => {
     if (!selectedPropertyId) return;
@@ -306,6 +411,15 @@ export default function StudioPage() {
     setSelectedSourceMediaIds([]);
   };
 
+  const chooseStartMode = (mode: StudioStartMode) => {
+    setStartMode(mode);
+    if (mode !== "existing") {
+      setSelectedPropertyId("");
+      setPropertyMedia([]);
+      setSelectedSourceMediaIds([]);
+    }
+  };
+
   const selectEnhancementPreset = (preset: StudioEnhancementPreset) => {
     setSelectedPresetId(preset.id);
     setEnhancementInstruction(preset.prompt);
@@ -318,7 +432,44 @@ export default function StudioPage() {
     (property) => property.id === selectedPropertyId,
   );
 
+  const createDraftPropertyForStudio = async () => {
+    const title = newPropertyTitle.trim();
+    if (title.length < 3) {
+      throw new Error("Yeni portföy için en az 3 karakterlik bir ad yazın.");
+    }
+    const referenceCode = `ST-${window.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const response = await fetch("/api/fabrika/workspace", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create-property",
+        title,
+        referenceCode,
+        location: newPropertyLocation.trim() || null,
+        status: "DRAFT",
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Yeni portföy taslağı oluşturulamadı.");
+    }
+    const properties = (data.workspace?.properties || []) as WorkspaceProperty[];
+    const created = properties.find(
+      (property) => property.referenceCode === referenceCode,
+    );
+    if (!created) {
+      throw new Error("Portföy taslağı oluştu ancak yeni kayıt doğrulanamadı.");
+    }
+    setWorkspaceProperties(properties);
+    setSelectedPropertyId(created.id);
+    return created.id;
+  };
+
   const startProcessing = async () => {
+    if (startMode === "existing" && !selectedPropertyId) {
+      toast.error("Devam etmek için mevcut portföylerden birini seçin.");
+      return;
+    }
     if (!files.length && !selectedSourceMediaIds.length) {
       toast.error(
         "Bilgisayarınızdan veya portföyden en az bir fotoğraf seçin.",
@@ -343,11 +494,17 @@ export default function StudioPage() {
     setErrorMessage("");
 
     try {
+      const effectivePropertyId =
+        startMode === "new"
+          ? await createDraftPropertyForStudio()
+          : startMode === "existing"
+            ? selectedPropertyId
+            : "";
       const formData = new FormData();
       files.forEach((file) => formData.append("photos", file));
       formData.set("prompt", safeInstruction);
       formData.set("preset", selectedPresetId);
-      if (selectedPropertyId) formData.set("propertyId", selectedPropertyId);
+      if (effectivePropertyId) formData.set("propertyId", effectivePropertyId);
       formData.set("mediaIdsJson", JSON.stringify(selectedSourceMediaIds));
       const createResponse = await fetch("/api/fabrika/studio/batches", {
         method: "POST",
@@ -366,10 +523,8 @@ export default function StudioPage() {
         "Görseller sıraya alındı. Bu sayfada beklemeniz gerekmez; tamamlandığında Son çalışmalar bölümünden açabilirsiniz.",
       );
       await loadRecentBatches();
-      document.getElementById("studio-recent")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      setStudioArea("history");
+      window.sessionStorage.removeItem(STUDIO_DRAFT_KEY);
     } catch (error) {
       const message =
         error instanceof Error
@@ -409,11 +564,6 @@ export default function StudioPage() {
           sourceUrl: item.originalUrl,
           attachedMediaId: item.attachedMediaId,
         }));
-      if (!completed.length) {
-        throw new Error(
-          "Bu çalışmanın indirilebilir sonucu henüz hazır değil.",
-        );
-      }
       setBatchId(nextBatchId);
       setBatchItems(nextItems);
       setResults(completed);
@@ -422,6 +572,7 @@ export default function StudioPage() {
       setActiveResult(0);
       setComparePosition(50);
       setScreen("results");
+      setStudioArea("enhancer");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       toast.error(
@@ -467,6 +618,7 @@ export default function StudioPage() {
   };
 
   const resetStudio = () => {
+    setStudioArea("enhancer");
     setScreen("upload");
     setFiles([]);
     setResults([]);
@@ -480,6 +632,18 @@ export default function StudioPage() {
   };
 
   const activePhoto = results[activeResult];
+
+  const discardActiveResult = () => {
+    if (!activePhoto) return;
+    setSelectedResultItemIds((current) =>
+      current.filter((id) => id !== activePhoto.itemId),
+    );
+    setResults((current) =>
+      current.filter((result) => result.itemId !== activePhoto.itemId),
+    );
+    setActiveResult((current) => Math.max(0, current - 1));
+    toast.success("İyileştirilmiş sonuç kaldırıldı; orijinal görsel korunuyor.");
+  };
 
   const attachSelectedResults = async (makeCover = false) => {
     if (!batchId || !selectedPropertyId || !selectedResultItemIds.length)
@@ -642,13 +806,15 @@ export default function StudioPage() {
     <div className={styles.page}>
       <header className={styles.hero}>
         <div>
-          <p className={styles.eyebrow}>M5 · Görsel üretim</p>
-          <h1>Stüdyo</h1>
-          <p>
-            Emlak görsellerinizi profesyonelce iyileştirin, en yüksek kaliteyi
-            yakalayın
+          <p className={styles.eyebrow}>
+            {isAdDesign ? "AI · Reklam üretimi" : "AI · Görsel iyileştirme"}
           </p>
-          <p>ve kampanyalarınıza hazır etkileyici posterler oluşturun.</p>
+          <h1>{isAdDesign ? "AI Reklam Tasarımı" : "AI Stüdyo"}</h1>
+          <p>
+            {isAdDesign
+              ? "Portföyünüze özel poster ve videoları tek, anlaşılır bir akışta hazırlayın."
+              : "Portföy fotoğraflarını iyileştirin; işler arka planda sürerken paneli kullanmaya devam edin."}
+          </p>
         </div>
         <div className={styles.heroActions}>
           <button
@@ -656,47 +822,43 @@ export default function StudioPage() {
             onClick={() =>
               screen === "results"
                 ? resetStudio()
-                : document
-                    .getElementById("studio-recent")
-                    ?.scrollIntoView({ behavior: "smooth" })
+                : setStudioArea(isAdDesign ? "ad-history" : "history")
             }
             className={styles.secondaryButton}
           >
             {screen === "results" ? <RefreshCw /> : <History />}
-            {screen === "results" ? "Yeni çalışma" : "Geçmiş"}
+            {screen === "results" ? "Yeni çalışma" : "Eski çalışmalar"}
           </button>
         </div>
       </header>
 
       <div
         role="tablist"
-        aria-label="Stüdyo çalışma alanları"
+        aria-label={isAdDesign ? "Reklam tasarımı çalışma alanları" : "Stüdyo çalışma alanları"}
         className={styles.studioTabs}
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={studioArea === "enhancer"}
-          onClick={() => setStudioArea("enhancer")}
-        >
-          <Sparkles /> Resim İyileştirici
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={studioArea === "poster"}
-          onClick={() => setStudioArea("poster")}
-        >
-          <ImagePlus /> Poster Yapıcı
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={studioArea === "video"}
-          onClick={() => setStudioArea("video")}
-        >
-          <Film /> Video Stüdyosu
-        </button>
+        {isAdDesign ? (
+          <>
+            <button type="button" role="tab" aria-selected={studioArea === "poster"} onClick={() => setStudioArea("poster")}>
+              <ImagePlus /> Poster Yapıcı
+            </button>
+            <button type="button" role="tab" aria-selected={studioArea === "video"} onClick={() => setStudioArea("video")}>
+              <Film /> Video Stüdyosu
+            </button>
+            <button type="button" role="tab" aria-selected={studioArea === "ad-history"} onClick={() => setStudioArea("ad-history")}>
+              <History /> Eski Çalışmalarım
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" role="tab" aria-selected={studioArea === "enhancer"} onClick={() => setStudioArea("enhancer")}>
+              <Sparkles /> Resim İyileştirici
+            </button>
+            <button type="button" role="tab" aria-selected={studioArea === "history"} onClick={() => setStudioArea("history")}>
+              <History /> Eski Çalışmalarım
+            </button>
+          </>
+        )}
       </div>
 
       <main className={styles.studioBody}>
@@ -708,7 +870,20 @@ export default function StudioPage() {
           <section className={styles.posterWorkspace}>
             <PosterMaker />
           </section>
-        ) : screen === "upload" ? (
+        ) : studioArea === "ad-history" ? (
+          <section className={styles.posterWorkspace}>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 sm:p-8">
+              <h2 className="text-xl font-bold text-white">Eski reklam çalışmalarınız</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Portföye kaydettiğiniz posterler ilgili portföyün medya alanında; bu oturumda oluşturduğunuz MP4 videolar ise Video Stüdyosu içindeki çalışma listesinde görünür.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <a href="/fabrika/portfoyler" className="rounded-lg border border-cyan-300/25 px-4 py-2 text-sm font-semibold text-cyan-100">Portföy medyasını aç</a>
+                <button type="button" onClick={() => setStudioArea("video")} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-bold text-slate-950">Video çalışmalarını aç</button>
+              </div>
+            </div>
+          </section>
+        ) : studioArea === "history" ? null : screen === "upload" ? (
           <section className={styles.enhancerWorkspace}>
             <div className={styles.hiddenIntro}>
               <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300">
@@ -725,6 +900,58 @@ export default function StudioPage() {
                 genel kaliteyi otomatik olarak iyileştirsin.
               </p>
             </div>
+
+            <section className="mb-5 rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-white">Nasıl başlamak istersiniz?</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">Seçiminiz otomatik taslak olarak bu tarayıcıda kaydedilir.</p>
+                </div>
+                <span className="text-[11px] font-semibold text-emerald-300">1 / 3 · Kaynak seçimi</span>
+              </div>
+              <div className="mt-4 grid gap-2 md:grid-cols-3" role="group" aria-label="Stüdyo başlangıç seçimi">
+                {([
+                  ["existing", "Mevcut portföy seç", "Kayıtlı fotoğrafları kullanın veya yenilerini ekleyin."],
+                  ["new", "Yeni portföy oluştur", "Fotoğraflarla birlikte taslak portföy oluşturun."],
+                  ["images", "Yalnızca resim iyileştir", "Portföye bağlamadan hızlıca sonuç alın."],
+                ] as const).map(([id, title, description]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={startMode === id}
+                    onClick={() => chooseStartMode(id)}
+                    className={`rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${startMode === id ? "border-cyan-300/60 bg-cyan-300/10" : "border-slate-700 bg-slate-950/55 hover:border-slate-500"}`}
+                  >
+                    <b className="block text-sm text-white">{title}</b>
+                    <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span>
+                  </button>
+                ))}
+              </div>
+              {startMode === "new" && (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold text-slate-300">
+                    Portföy adı
+                    <input
+                      value={newPropertyTitle}
+                      maxLength={180}
+                      onChange={(event) => setNewPropertyTitle(event.target.value)}
+                      placeholder="Örn. Oba deniz manzaralı 3+1"
+                      className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-300">
+                    Konum (isteğe bağlı)
+                    <input
+                      value={newPropertyLocation}
+                      maxLength={240}
+                      onChange={(event) => setNewPropertyLocation(event.target.value)}
+                      placeholder="Örn. Antalya / Alanya / Oba"
+                      className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                </div>
+              )}
+            </section>
 
             <div className={styles.controlPanel}>
               <div className={styles.panelHeading}>
@@ -784,33 +1011,30 @@ export default function StudioPage() {
                   </div>
                 )}
               </div>
-              <label
-                className={styles.propertySelect}
-                htmlFor="studio-property"
-              >
-                <span className="flex items-center gap-2 text-xs text-slate-300">
-                  <Home className="h-4 w-4 text-emerald-400" />
-                  Bu görseller bir portföye mi ait?
-                </span>
-                <select
-                  id="studio-property"
-                  value={selectedPropertyId}
-                  onChange={(event) =>
-                    changeSelectedProperty(event.target.value)
-                  }
-                  className="min-w-0 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
-                >
-                  <option value="">Portföysüz devam et</option>
-                  {workspaceProperties.map((property) => (
-                    <option key={property.id} value={property.id}>
-                      {property.title}
-                      {property.location ? ` · ${property.location}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {startMode === "existing" && (
+                <label className={styles.propertySelect} htmlFor="studio-property">
+                  <span className="flex items-center gap-2 text-xs text-slate-300">
+                    <Home className="h-4 w-4 text-emerald-400" />
+                    Portföy seçin
+                  </span>
+                  <select
+                    id="studio-property"
+                    value={selectedPropertyId}
+                    onChange={(event) => changeSelectedProperty(event.target.value)}
+                    className="min-w-0 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Portföy seçin</option>
+                    {workspaceProperties.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.title}
+                        {property.location ? ` · ${property.location}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
-              {selectedPropertyId && (
+              {startMode === "existing" && selectedPropertyId && (
                 <section className={styles.propertyMedia}>
                   {selectedWorkspaceProperty && (
                     <div className="mb-4 flex flex-col gap-2 rounded-lg border border-cyan-300/15 bg-slate-950/45 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1073,21 +1297,32 @@ export default function StudioPage() {
               )}
 
               <div className={styles.controlFooter}>
-                <span>
-                  İşlem arka planda devam eder; sayfada beklemeniz gerekmez.
-                </span>
-                <button
-                  type="button"
-                  onClick={startProcessing}
-                  disabled={!totalSelected || isProcessing}
-                >
-                  {isProcessing ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <WandSparkles />
-                  )}
-                  {totalSelected || 0} görseli iyileştir
-                </button>
+                <div>
+                  <span>İşlem arka planda devam eder; sayfada beklemeniz gerekmez.</span>
+                  <small className="mt-1 block text-[11px] text-emerald-300">Taslak otomatik kaydedildi · 2 / 3</small>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.location.assign("/fabrika")}
+                    className="!border !border-slate-700 !bg-transparent !text-slate-200"
+                  >
+                    Kaydet ve çık
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startProcessing}
+                    disabled={
+                      !totalSelected ||
+                      isProcessing ||
+                      (startMode === "existing" && !selectedPropertyId) ||
+                      (startMode === "new" && newPropertyTitle.trim().length < 3)
+                    }
+                  >
+                    {isProcessing ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+                    Devam et · {totalSelected || 0} görsel
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1428,6 +1663,13 @@ export default function StudioPage() {
                   >
                     <Download className="h-4 w-4" /> Bu görseli indir
                   </a>
+                  <button
+                    type="button"
+                    onClick={discardActiveResult}
+                    className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-4 py-3 text-sm font-bold text-slate-200 transition hover:border-rose-300/50 hover:text-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+                  >
+                    <X className="h-4 w-4" /> İyileştirilmişi kaldır, orijinali koru
+                  </button>
                 </div>
               </div>
             ) : (
@@ -1500,7 +1742,7 @@ export default function StudioPage() {
         )}
       </main>
 
-      {studioArea === "enhancer" && (
+      {studioArea === "history" && (
         <section id="studio-recent" className={styles.recentWorks}>
           <div className={styles.recentHeader}>
             <div>
@@ -1514,25 +1756,17 @@ export default function StudioPage() {
           </div>
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
             {recentBatches.map((item) => {
-              const completed = item.items.filter((batchItem) =>
-                ["COMPLETED", "ATTACHED"].includes(batchItem.status),
-              ).length;
-              const failed = item.items.filter(
-                (batchItem) => batchItem.status === "FAILED",
-              ).length;
-              const progressValue = item.items.length
-                ? Math.round(((completed + failed) / item.items.length) * 100)
-                : 0;
-              const ready =
-                completed > 0 &&
-                ["COMPLETED", "PARTIAL", "ATTACHED"].includes(item.status);
-              const statusLabel = ready
-                ? "Hazır"
-                : item.status === "FAILED"
-                  ? "Başarısız"
-                  : item.status === "PROCESSING"
-                    ? "İşleniyor"
-                    : "Sırada";
+              const {
+                completed,
+                failed,
+                progress: progressValue,
+                ready,
+                openable,
+                label: statusLabel,
+              } = summarizeStudioBatchHistory({
+                batchStatus: item.status,
+                itemStatuses: item.items.map((batchItem) => batchItem.status),
+              });
               return (
                 <article
                   key={item.id}
@@ -1578,13 +1812,49 @@ export default function StudioPage() {
                     </span>
                     <span>%{progressValue}</span>
                   </div>
+                  <ul className="mt-3 space-y-1" aria-label="Dosya işlem durumları">
+                    {item.items.slice(0, 4).map((batchItem) => (
+                      <li
+                        key={batchItem.id}
+                        className="flex items-center justify-between gap-3 text-[11px] text-slate-400"
+                      >
+                        <span className="truncate">{batchItem.originalFileName}</span>
+                        <span
+                          className={
+                            batchItem.status === "FAILED"
+                              ? "shrink-0 text-rose-300"
+                              : ["COMPLETED", "ATTACHED"].includes(batchItem.status)
+                                ? "shrink-0 text-emerald-300"
+                                : "shrink-0 text-amber-200"
+                          }
+                        >
+                          {batchItem.status === "FAILED"
+                            ? "Hata"
+                            : ["COMPLETED", "ATTACHED"].includes(batchItem.status)
+                              ? "%100"
+                              : batchItem.status === "PROCESSING"
+                                ? "İşleniyor"
+                                : "Sırada"}
+                        </span>
+                      </li>
+                    ))}
+                    {item.items.length > 4 && (
+                      <li className="text-[11px] text-slate-600">
+                        +{item.items.length - 4} dosya daha
+                      </li>
+                    )}
+                  </ul>
                   <button
                     type="button"
-                    disabled={!ready}
+                    disabled={!openable}
                     onClick={() => void openBatch(item.id)}
                     className="mt-4 inline-flex w-full items-center justify-center rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-emerald-400/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    {ready ? "Sonuçları aç" : "Arka planda devam ediyor"}
+                    {ready
+                      ? "Sonuçları aç"
+                      : failed
+                        ? "Aç ve tekrar dene"
+                        : "Arka planda devam ediyor"}
                   </button>
                 </article>
               );

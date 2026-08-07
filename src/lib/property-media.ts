@@ -400,7 +400,20 @@ export async function attachStudioBatchItems(input: {
   batchId: string;
   propertyId: string;
   itemIds?: string[];
+  originalItemIds?: string[];
 }) {
+  const selectedItemIds = input.itemIds
+    ? new Set(input.itemIds)
+    : null;
+  const originalItemIds = new Set(input.originalItemIds ?? []);
+  if (
+    selectedItemIds &&
+    [...originalItemIds].some((itemId) => !selectedItemIds.has(itemId))
+  ) {
+    throw new PropertyMediaError(
+      'Orijinal kullanılacak görsel, ekleme seçiminde bulunmuyor.'
+    );
+  }
   return prisma.$transaction(async (tx) => {
     await assertOwnedProperty(input.actor, input.propertyId, tx);
     const batch = await tx.studioBatch.findFirst({
@@ -451,6 +464,63 @@ export async function attachStudioBatchItems(input: {
           'Seçilen Stüdyo sonucu daha önce başka bir portföye eklenmiş.',
           409
         );
+      }
+      if (originalItemIds.has(item.id)) {
+        const sourceFingerprint = `studio-source:${item.id}`;
+        const existingSource = item.sourceMediaId
+          ? await tx.crmPropertyMedia.findFirst({
+              where: {
+                id: item.sourceMediaId,
+                companyAccountId: input.actor.companyAccountId,
+                propertyId: input.propertyId,
+              },
+            })
+          : await tx.crmPropertyMedia.findFirst({
+              where: {
+                companyAccountId: input.actor.companyAccountId,
+                propertyId: input.propertyId,
+                fingerprint: sourceFingerprint,
+              },
+            });
+        const sourceMedia =
+          existingSource ??
+          (await tx.crmPropertyMedia.create({
+            data: {
+              companyAccountId: input.actor.companyAccountId,
+              propertyId: input.propertyId,
+              url: item.originalUrl,
+              storageKey: item.originalStorageKey,
+              fileName: item.originalFileName,
+              mimeType: item.originalMimeType,
+              width: item.originalWidth,
+              height: item.originalHeight,
+              byteSize: item.originalByteSize,
+              sortOrder: 9_000 + item.sortOrder,
+              mediaType: 'PHOTO',
+              source: 'MANUAL_UPLOAD',
+              variantType: 'ORIGINAL',
+              usageRightsStatus: 'CONFIRMED',
+              fingerprint: sourceFingerprint,
+              provenance: {
+                studioBatchId: batch.id,
+                studioBatchItemId: item.id,
+                role: 'ORIGINAL_SOURCE',
+                selectedFromWorkflow: true,
+              },
+              createdByMemberId: input.actor.memberId,
+            },
+          }));
+        await tx.studioBatchItem.update({
+          where: { id: item.id },
+          data: {
+            sourceMediaId: sourceMedia.id,
+            attachedMediaId: sourceMedia.id,
+            status: 'ATTACHED',
+          },
+        });
+        attached.push(sourceMedia);
+        newlyAttached.push(sourceMedia);
+        continue;
       }
       if (!item.outputUrl || !item.outputFileName || !item.outputMimeType) {
         continue;

@@ -41,6 +41,64 @@ export function shouldTimeoutAssignment(input: {
   );
 }
 
+export function nextAssignmentReminder(input: {
+  status: string;
+  sentAt: Date | null;
+  ackDeadlineAt: Date | null;
+  reminderCount: number;
+  lastReminderAt: Date | null;
+  reminderMinutes: number;
+  now: Date;
+}) {
+  if (
+    input.status !== 'AWAITING_ACK' ||
+    !input.sentAt ||
+    !input.ackDeadlineAt ||
+    !Number.isInteger(input.reminderCount) ||
+    input.reminderCount < 0 ||
+    !Number.isInteger(input.reminderMinutes) ||
+    input.reminderMinutes < 1 ||
+    input.reminderMinutes > 60
+  ) {
+    return null;
+  }
+
+  const sentAt = input.sentAt.getTime();
+  const deadline = input.ackDeadlineAt.getTime();
+  const now = input.now.getTime();
+  const interval = input.reminderMinutes * 60_000;
+  if (
+    !Number.isFinite(sentAt) ||
+    !Number.isFinite(deadline) ||
+    !Number.isFinite(now) ||
+    deadline <= sentAt ||
+    now >= deadline
+  ) {
+    return null;
+  }
+
+  const maxReminderCount = Math.max(
+    0,
+    Math.ceil((deadline - sentAt) / interval) - 1
+  );
+  const reminderCount = input.reminderCount + 1;
+  if (reminderCount > maxReminderCount) return null;
+
+  const lastReminderAt = input.lastReminderAt?.getTime();
+  if (
+    lastReminderAt !== undefined &&
+    (!Number.isFinite(lastReminderAt) || lastReminderAt < sentAt)
+  ) {
+    return null;
+  }
+  const dueAt = new Date(
+    (lastReminderAt === undefined ? sentAt : lastReminderAt) + interval
+  );
+  if (dueAt.getTime() >= deadline || dueAt.getTime() > now) return null;
+
+  return { reminderCount, dueAt };
+}
+
 function normalizeCode(value: string) {
   return value.toLocaleUpperCase('tr-TR').replace(/^#/, '');
 }

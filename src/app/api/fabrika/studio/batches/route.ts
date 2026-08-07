@@ -38,7 +38,13 @@ export async function GET() {
       include: {
         property: { select: { id: true, title: true, location: true } },
         items: {
-          select: { id: true, status: true },
+          select: {
+            id: true,
+            status: true,
+            originalFileName: true,
+            attemptCount: true,
+            errorMessage: true,
+          },
           orderBy: { sortOrder: 'asc' },
         },
         _count: { select: { items: true } },

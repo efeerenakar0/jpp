@@ -26,6 +26,10 @@ import {
   propertyClarificationText,
 } from '@/lib/viewing-workflow/property-resolution';
 import { resolveViewingPropertyForMessage } from '@/lib/viewing-workflow/property-resolution.server';
+import {
+  quotedOutboxIdentityContext,
+  shouldRunCustomerAutoReply,
+} from '@/lib/whatsapp-routing-policy';
 
 export type IncomingWhatsAppMessage = {
   companyAccountId: string;
@@ -82,30 +86,7 @@ export async function processIncomingWhatsAppMessage(
   const identity = await resolveCompanyPhoneIdentity(
     input.companyAccountId,
     normalizedPhone,
-    {
-      preferredRole:
-        quotedOutbox &&
-        normalizeE164(quotedOutbox.toPhone) === normalizedPhone
-          ? quotedOutbox.recipientType === 'EMPLOYEE'
-            ? 'EMPLOYEE'
-            : quotedOutbox.recipientType === 'PROPERTY_OWNER'
-              ? 'PROPERTY_OWNER'
-              : quotedOutbox.recipientType === 'OWNER'
-                ? 'OWNER'
-                : null
-          : null,
-      preferredEntityId:
-        quotedOutbox &&
-        normalizeE164(quotedOutbox.toPhone) === normalizedPhone
-          ? quotedOutbox.recipientId
-          : null,
-      messagePurpose:
-        quotedOutbox?.recipientType === 'EMPLOYEE'
-          ? 'INTERNAL_TASK'
-          : quotedOutbox?.recipientType === 'PROPERTY_OWNER'
-            ? 'AUTHORIZATION'
-            : 'GENERAL',
-    }
+    quotedOutboxIdentityContext(quotedOutbox, normalizedPhone)
   );
   if (identity.connectedCompanyNumber) {
     return {
@@ -487,6 +468,7 @@ export async function processIncomingWhatsAppMessage(
   });
 
   const appointmentSignal = extractAppointmentSignal(input.text);
+  let humanHandoffStarted = false;
   if (appointmentSignal.requested) {
     const pending = await prisma.appointmentRequest.findFirst({
       where: { conversationId: conversation.id, status: 'PENDING' },
@@ -579,6 +561,7 @@ export async function processIncomingWhatsAppMessage(
         location: input.text,
         appointmentRequestId: appointment.id,
       });
+      humanHandoffStarted = true;
     } else {
       await createCompanyNotification({
         companyAccountId: input.companyAccountId,
@@ -599,7 +582,12 @@ export async function processIncomingWhatsAppMessage(
   const config = await prisma.whatsAppConfig.findUnique({
     where: { companyAccountId: input.companyAccountId },
   });
-  if (!conversation.aiEnabled || config?.autoReplyEnabled === false) {
+  if (
+    !shouldRunCustomerAutoReply({
+      conversationAiEnabled: conversation.aiEnabled && !humanHandoffStarted,
+      configAutoReplyEnabled: config?.autoReplyEnabled,
+    })
+  ) {
     await createCompanyNotification({
       companyAccountId: input.companyAccountId,
       type: 'NEW_CUSTOMER_MESSAGE',

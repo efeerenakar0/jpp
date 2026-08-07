@@ -50,6 +50,30 @@ function isPlatform(value: unknown): value is AdPlatform {
   return Object.values(AdPlatform).includes(value as AdPlatform);
 }
 
+function hasChannelPayloadShape(platform: AdPlatform, body: string) {
+  if (
+    platform !== AdPlatform.INSTAGRAM &&
+    platform !== AdPlatform.GOOGLE_ADS
+  ) {
+    return true;
+  }
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    if (platform === AdPlatform.INSTAGRAM) {
+      return (
+        typeof parsed.caption === 'string' &&
+        Array.isArray(parsed.hashtags)
+      );
+    }
+    return (
+      typeof parsed.description1 === 'string' &&
+      typeof parsed.description2 === 'string'
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function deterministicCampaign(input: {
   companyName: string;
   property: MarketingProperty | null;
@@ -134,6 +158,42 @@ export function deterministicCampaign(input: {
         targetUrl: targetUrl || null,
       };
     }
+    if (platform === AdPlatform.FACEBOOK) {
+      return {
+        platform,
+        headline: title,
+        body: `${genericBody}\n\nSorularınızı mesajla iletin; güncel bilgileri danışmanımızla birlikte doğrulayın.`,
+        callToAction: 'Daha fazla bilgi al',
+        targetUrl: targetUrl || null,
+      };
+    }
+    if (platform === AdPlatform.TIKTOK) {
+      return {
+        platform,
+        headline: `${title} için hızlı tur`.slice(0, 120),
+        body: `${location} bölgesindeki bu portföyü kısa turla keşfedin.${details ? ` ${details}.` : ''} Güncel bilgi ve randevu için bize yazın.`,
+        callToAction: 'Profili ziyaret et',
+        targetUrl: targetUrl || null,
+      };
+    }
+    if (platform === AdPlatform.X) {
+      return {
+        platform,
+        headline: title.slice(0, 120),
+        body: `${title} · ${location}${details ? ` · ${details}` : ''}. Güncel detay ve randevu için iletişime geçin.`.slice(0, 500),
+        callToAction: 'Detayları incele',
+        targetUrl: targetUrl || null,
+      };
+    }
+    if (platform === AdPlatform.SAHIBINDEN) {
+      return {
+        platform,
+        headline: `${location} ${property?.roomCount || ''} ${title}`.trim().slice(0, 120),
+        body: `${property?.description || baseDescription}\n\n${details || 'Detaylar için iletişime geçin.'}\n\nRandevu ve güncel bilgiler için ilan üzerinden iletişim kurabilirsiniz.`,
+        callToAction: 'İlanı incele',
+        targetUrl: targetUrl || null,
+      };
+    }
     return {
       platform,
       headline: `${title} · ${marketingChannelLabel(platform)}`.slice(0, 120),
@@ -162,6 +222,7 @@ export function parseGeneratedCampaign(
     const match = rawContent.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(match?.[0] || rawContent) as Record<string, unknown>;
     const rawCopies = Array.isArray(parsed.adCopies) ? parsed.adCopies : [];
+    const seenBodies = new Set<string>();
     const copies = fallback.adCopies.map((defaultCopy) => {
       const candidate = rawCopies.find(
         (item) =>
@@ -170,8 +231,11 @@ export function parseGeneratedCampaign(
           isPlatform((item as Record<string, unknown>).platform) &&
           (item as Record<string, unknown>).platform === defaultCopy.platform
       ) as Record<string, unknown> | undefined;
-      if (!candidate) return defaultCopy;
-      return {
+      if (!candidate) {
+        seenBodies.add(defaultCopy.body.trim().toLocaleLowerCase('tr-TR'));
+        return defaultCopy;
+      }
+      const candidateCopy = {
         platform: defaultCopy.platform,
         headline: cleanText(candidate.headline, defaultCopy.headline, 500),
         body: cleanText(candidate.body, defaultCopy.body, 2400),
@@ -181,6 +245,17 @@ export function parseGeneratedCampaign(
             ? candidate.targetUrl.slice(0, 1000)
             : defaultCopy.targetUrl,
       };
+      if (!hasChannelPayloadShape(defaultCopy.platform, candidateCopy.body)) {
+        seenBodies.add(defaultCopy.body.trim().toLocaleLowerCase('tr-TR'));
+        return defaultCopy;
+      }
+      const bodyKey = candidateCopy.body.trim().toLocaleLowerCase('tr-TR');
+      if (seenBodies.has(bodyKey)) {
+        seenBodies.add(defaultCopy.body.trim().toLocaleLowerCase('tr-TR'));
+        return defaultCopy;
+      }
+      seenBodies.add(bodyKey);
+      return candidateCopy;
     });
     return {
       name: cleanText(parsed.name, fallback.name, 180),

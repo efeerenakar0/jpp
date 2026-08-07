@@ -11,19 +11,16 @@ import {
   isPortfolioSourceType,
   PORTFOLIO_SOURCE_TYPES,
 } from '@/lib/portfolio-connectors';
-import {
-  encryptPortfolioCredential,
-  portfolioCredentialHint,
-} from '@/lib/portfolio-source-credentials';
 import prisma from '@/lib/prisma';
 
-const sourceSchema = z.object({
-  name: z.string().trim().min(2).max(100),
-  type: z.enum(PORTFOLIO_SOURCE_TYPES),
-  baseUrl: z.string().trim().url().max(500),
-  feedPath: z.string().trim().max(500).optional().nullable(),
-  apiKey: z.string().trim().max(1000).optional().nullable(),
-});
+const sourceSchema = z
+  .object({
+    name: z.string().trim().min(2).max(100),
+    type: z.enum(PORTFOLIO_SOURCE_TYPES),
+    baseUrl: z.string().trim().url().max(500),
+    feedPath: z.string().trim().max(500).optional().nullable(),
+  })
+  .strict();
 
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('sync'), id: z.string().trim().min(1) }),
@@ -60,7 +57,6 @@ async function sourceData(companyAccountId: string, canManageSecrets: boolean) {
         type: true,
         baseUrl: true,
         feedPath: true,
-        credentialHint: true,
         active: true,
         lastSyncStatus: true,
         lastSyncError: true,
@@ -130,7 +126,6 @@ export async function POST(request: Request) {
       );
     }
     const input = parsed.data;
-    const apiKey = input.apiKey?.trim();
     const source = await prisma.portfolioSource.create({
       data: {
         companyAccountId: principal.account.id,
@@ -138,10 +133,8 @@ export async function POST(request: Request) {
         type: input.type,
         baseUrl: new URL(input.baseUrl).toString(),
         feedPath: input.feedPath?.trim() || null,
-        encryptedCredential: apiKey
-          ? encryptPortfolioCredential(apiKey)
-          : null,
-        credentialHint: apiKey ? portfolioCredentialHint(apiKey) : null,
+        encryptedCredential: null,
+        credentialHint: null,
       },
       select: { id: true },
     });

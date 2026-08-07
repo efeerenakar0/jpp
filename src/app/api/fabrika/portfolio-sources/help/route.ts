@@ -14,7 +14,7 @@ const helpSchema = z.object({
 
 const guides: Record<(typeof PORTFOLIO_SOURCE_TYPES)[number], string> = {
   JASMINE_API:
-    'Business CEO AI tarafından hazırlanan sitenizde /api/jasmine/portfolios adresini kullanın. Site anahtar gerektiriyorsa portföy kaynak formundaki API anahtarı alanına anahtarı girin. Ardından Kaynağı eşitle düğmesine basın.',
+    'Business CEO AI tarafından hazırlanan sitenizde /api/jasmine/portfolios adresini kullanın. Bağlantı anahtarı platform tarafından güvenli biçimde yönetilir; bu ekranda anahtar veya parola girmeniz gerekmez. Site adresini kaydedip Kaynağı eşitle düğmesine basın.',
   WORDPRESS:
     'WordPress yönetiminde portföylerin hangi içerik türünde tutulduğunu kontrol edin. Çoğu sitede yalnızca ana site adresi yeterlidir. Özel içerik türü varsa /wp-json/wp/v2/icerik-turu?per_page=50&_embed=1 yolunu Kaynak yolu alanına yazın.',
   SITEMAP:

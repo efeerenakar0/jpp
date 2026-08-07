@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   createExecutivePortfolioDraft,
+  createExecutivePortfolioDownload,
   deserializeExecutivePortfolioDraft,
   executivePortfolioReducer,
   EXECUTIVE_WORKFLOW_STEPS,
+  getExecutiveWorkflowResultState,
   resolveExecutiveWorkflowEntryStep,
   serializeExecutivePortfolioDraft,
 } from './executive-portfolio-workflow';
@@ -222,5 +224,78 @@ describe('executive portfolio workflow', () => {
     });
 
     expect(draft.propertyId).toBe('property-1');
+  });
+
+  it('does not report a locally persisted draft as ready before server outputs exist', () => {
+    const draft = {
+      ...createExecutivePortfolioDraft(),
+      source: 'studio' as const,
+      currentStep: 'results' as const,
+      details: {
+        ...createExecutivePortfolioDraft().details,
+        title: 'Kestel Villa',
+      },
+    };
+
+    expect(getExecutiveWorkflowResultState(draft)).toMatchObject({
+      status: 'blocked',
+      ready: false,
+    });
+    expect(getExecutiveWorkflowResultState(draft).nextSteps).toContain(
+      'Portföy kaydını sunucuda oluştur.'
+    );
+  });
+
+  it('reports ready only after the portfolio and selected outputs are server-backed', () => {
+    const base = createExecutivePortfolioDraft();
+    const draft = {
+      ...base,
+      source: 'studio' as const,
+      currentStep: 'results' as const,
+      propertyId: 'property-1',
+      details: { ...base.details, title: 'Kestel Villa' },
+      media: [
+        {
+          id: 'studio-item-1',
+          name: 'salon.jpg',
+          size: 1_024,
+          progress: 100,
+          status: 'ready' as const,
+          removed: false,
+          restoredToOriginal: true,
+          originalUrl: '/original.jpg',
+          attachedMediaId: 'media-original-1',
+        },
+      ],
+      coverMediaId: 'studio-item-1',
+      advertising: { skipped: true, posters: [] },
+      marketing: {
+        countries: ['Türkiye'],
+        channels: ['Instagram'],
+        copy: 'Kestel\'de yeni yaşam.',
+      },
+    };
+
+    expect(getExecutiveWorkflowResultState(draft)).toEqual({
+      status: 'ready',
+      ready: true,
+      nextSteps: [],
+    });
+  });
+
+  it('creates a real downloadable JSON summary instead of a handlerless button', () => {
+    const base = createExecutivePortfolioDraft();
+    const result = createExecutivePortfolioDownload({
+      ...base,
+      propertyId: 'property-1',
+      details: { ...base.details, title: 'Kestel Villa' },
+    });
+
+    expect(result.fileName).toMatch(/^kestel-villa-.*\.json$/);
+    expect(result.mimeType).toBe('application/json');
+    expect(JSON.parse(result.content)).toMatchObject({
+      propertyId: 'property-1',
+      portfolio: { title: 'Kestel Villa' },
+    });
   });
 });

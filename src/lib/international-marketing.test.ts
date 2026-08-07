@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INTERNATIONAL_MARKETS,
   buildInternationalFallback,
+  isVerifiedPortalLink,
   parseInternationalPlan,
 } from './international-marketing';
 
@@ -46,6 +47,23 @@ describe('international marketing', () => {
         )
       )
     ).toBe(true);
+    expect(
+      INTERNATIONAL_MARKETS.every((market) =>
+        market.portals.every(
+          (portal) =>
+            isVerifiedPortalLink(portal, portal.publishUrl) &&
+            isVerifiedPortalLink(portal, portal.pricingUrl)
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('fails closed for a URL outside the portal official host allowlist', () => {
+    const portal = INTERNATIONAL_MARKETS[0].portals[0];
+    expect(isVerifiedPortalLink(portal, 'https://malicious.example/publish')).toBe(
+      false
+    );
+    expect(isVerifiedPortalLink(portal, 'javascript:alert(1)')).toBe(false);
   });
 
   it('creates a complete fallback package from verified property data', () => {

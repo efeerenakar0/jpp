@@ -1,4 +1,9 @@
-import { CrmPropertyStatus, Prisma } from '@prisma/client';
+import {
+  CrmPropertyStatus,
+  Prisma,
+  PropertyMediaType,
+  StudioVideoJobStatus,
+} from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
@@ -7,6 +12,7 @@ import {
   requireFabrikaPrincipal,
 } from '@/lib/fabrika-session';
 import { isPlatformTextAiReady } from '@/lib/platform-ai-readiness';
+import type { MarketingCreativeAsset } from '@/lib/marketing-creative-assets';
 
 const patchSchema = z.object({
   adCopyId: z.string().trim().min(1),
@@ -16,7 +22,8 @@ const patchSchema = z.object({
 export async function GET() {
   try {
     const principal = await requireFabrikaPrincipal();
-    const [campaigns, properties, websiteAnalyses] = await Promise.all([
+    const [campaigns, properties, websiteAnalyses, posterAssets, videoAssets] =
+      await Promise.all([
       prisma.adCampaign.findMany({
         where: { companyAccountId: principal.account.id },
         include: {
@@ -57,7 +64,88 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
+      prisma.crmPropertyMedia.findMany({
+        where: {
+          companyAccountId: principal.account.id,
+          archivedAt: null,
+          mediaType: {
+            in: [PropertyMediaType.POSTER, PropertyMediaType.MARKETING_ASSET],
+          },
+        },
+        select: {
+          id: true,
+          propertyId: true,
+          url: true,
+          fileName: true,
+          width: true,
+          height: true,
+          prompt: true,
+          createdAt: true,
+          property: {
+            select: { id: true, title: true, referenceCode: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      prisma.studioVideoJob.findMany({
+        where: {
+          companyAccountId: principal.account.id,
+          status: StudioVideoJobStatus.COMPLETED,
+          outputStorageKey: { not: null },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+        select: {
+          id: true,
+          propertyId: true,
+          outputFileName: true,
+          userCommand: true,
+          prompt: true,
+          ratio: true,
+          durationSeconds: true,
+          createdAt: true,
+          property: {
+            select: { id: true, title: true, referenceCode: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
     ]);
+
+    const creativeAssets: MarketingCreativeAsset[] = [
+      ...posterAssets.map((asset) => ({
+        id: asset.id,
+        kind: 'POSTER' as const,
+        propertyId: asset.propertyId,
+        title: asset.fileName || `${asset.property.title} posteri`,
+        detail: asset.prompt,
+        previewUrl: asset.url,
+        downloadUrl: asset.url,
+        ratio:
+          asset.width && asset.height ? `${asset.width}:${asset.height}` : null,
+        durationSeconds: null,
+        createdAt: asset.createdAt.toISOString(),
+        property: asset.property,
+      })),
+      ...videoAssets.map((asset) => {
+        const artifactUrl = `/api/fabrika/studio/video/jobs/${asset.id}/artifact`;
+        return {
+          id: asset.id,
+          kind: 'VIDEO' as const,
+          propertyId: asset.propertyId,
+          title: asset.outputFileName || `${asset.property.title} videosu`,
+          detail: asset.userCommand || asset.prompt,
+          previewUrl: artifactUrl,
+          downloadUrl: artifactUrl,
+          ratio: asset.ratio,
+          durationSeconds: asset.durationSeconds,
+          createdAt: asset.createdAt.toISOString(),
+          property: asset.property,
+        };
+      }),
+    ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
     return NextResponse.json({
       company: { name: principal.account.companyName },
       ai: {
@@ -67,6 +155,7 @@ export async function GET() {
       campaigns,
       properties,
       websiteAnalyses,
+      creativeAssets,
     });
   } catch (error) {
     if (error instanceof FabrikaSessionError) {

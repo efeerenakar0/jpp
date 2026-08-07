@@ -2,6 +2,8 @@ import {
   AdPlatform,
   CrmPropertyStatus,
   NotificationType,
+  PropertyMediaType,
+  StudioVideoJobStatus,
 } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -20,6 +22,10 @@ import {
   marketingChannelGuidance,
   normalizeMarketingChannels,
 } from "@/lib/marketing-channels";
+import {
+  buildCreativeAssetPromptContext,
+  type MarketingCreativeAsset,
+} from "@/lib/marketing-creative-assets";
 
 const requestSchema = z
   .object({
@@ -44,6 +50,12 @@ const requestSchema = z
       .default("SIGNATURE"),
     targetUrl: z.string().url().max(1000).optional().or(z.literal("")),
     channels: z.array(z.nativeEnum(AdPlatform)).max(20).optional(),
+    creativeAsset: z
+      .object({
+        id: z.string().trim().min(1),
+        kind: z.enum(["POSTER", "VIDEO"]),
+      })
+      .optional(),
   })
   .superRefine((value, context) => {
     if (value.type === "listing" && !value.propertyId && !value.listingId) {
@@ -53,7 +65,97 @@ const requestSchema = z
         message: "Portföy kampanyası için bir portföy seçin.",
       });
     }
+    if (value.type === "brand" && value.creativeAsset) {
+      context.addIssue({
+        code: "custom",
+        path: ["creativeAsset"],
+        message: "Stüdyo çalışması kullanmak için portföy kampanyasını seçin.",
+      });
+    }
   });
+
+async function resolveCreativeAsset(input: {
+  companyAccountId: string;
+  propertyId: string;
+  selection: { id: string; kind: "POSTER" | "VIDEO" } | undefined;
+}): Promise<MarketingCreativeAsset | null> {
+  if (!input.selection) return null;
+
+  if (input.selection.kind === "POSTER") {
+    const asset = await prisma.crmPropertyMedia.findFirst({
+      where: {
+        id: input.selection.id,
+        companyAccountId: input.companyAccountId,
+        archivedAt: null,
+        mediaType: {
+          in: [PropertyMediaType.POSTER, PropertyMediaType.MARKETING_ASSET],
+        },
+      },
+      select: {
+        id: true,
+        propertyId: true,
+        url: true,
+        fileName: true,
+        width: true,
+        height: true,
+        prompt: true,
+        createdAt: true,
+        property: { select: { id: true, title: true, referenceCode: true } },
+      },
+    });
+    if (!asset || asset.propertyId !== input.propertyId) return null;
+    return {
+      id: asset.id,
+      kind: "POSTER",
+      propertyId: asset.propertyId,
+      title: asset.fileName || `${asset.property.title} posteri`,
+      detail: asset.prompt,
+      previewUrl: asset.url,
+      downloadUrl: asset.url,
+      ratio:
+        asset.width && asset.height ? `${asset.width}:${asset.height}` : null,
+      durationSeconds: null,
+      createdAt: asset.createdAt.toISOString(),
+      property: asset.property,
+    };
+  }
+
+  const asset = await prisma.studioVideoJob.findFirst({
+    where: {
+      id: input.selection.id,
+      companyAccountId: input.companyAccountId,
+      status: StudioVideoJobStatus.COMPLETED,
+      outputStorageKey: { not: null },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    select: {
+      id: true,
+      propertyId: true,
+      outputFileName: true,
+      userCommand: true,
+      prompt: true,
+      ratio: true,
+      durationSeconds: true,
+      createdAt: true,
+      property: { select: { id: true, title: true, referenceCode: true } },
+    },
+  });
+  if (!asset || asset.propertyId !== input.propertyId) return null;
+  const artifactUrl = `/api/fabrika/studio/video/jobs/${asset.id}/artifact`;
+  return {
+    id: asset.id,
+    kind: "VIDEO",
+    propertyId: asset.propertyId,
+    title: asset.outputFileName || `${asset.property.title} videosu`,
+    detail: asset.userCommand || asset.prompt,
+    previewUrl: artifactUrl,
+    downloadUrl: artifactUrl,
+    ratio: asset.ratio,
+    durationSeconds: asset.durationSeconds,
+    createdAt: asset.createdAt.toISOString(),
+    property: asset.property,
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -86,6 +188,24 @@ export async function POST(request: Request) {
     if (input.type === "listing" && !property) {
       return NextResponse.json(
         { error: "Aktif portföy bulunamadı veya bu şirkete ait değil." },
+        { status: 404 },
+      );
+    }
+
+    const creativeAsset =
+      property && input.creativeAsset
+        ? await resolveCreativeAsset({
+            companyAccountId: principal.account.id,
+            propertyId: property.id,
+            selection: input.creativeAsset,
+          })
+        : null;
+    if (input.creativeAsset && !creativeAsset) {
+      return NextResponse.json(
+        {
+          error:
+            "Seçilen poster/video bulunamadı, süresi dolmuş veya bu portföye ait değil.",
+        },
         { status: 404 },
       );
     }
@@ -130,8 +250,11 @@ Portföy: ${JSON.stringify(
           }
         : null,
     )}
+Seçilen Stüdyo/Reklam Tasarımı çalışması:
+${buildCreativeAssetPromptContext(creativeAsset)}
 
 Doğrulanmamış özellik, indirim, getiri, teslim tarihi veya hukuki vaat uydurma. Yalnızca seçilen kanallar için tam birer içerik üret.
+Çalışmanın kreatif briefini ve formatını kanal metnine yansıt; görselde doğrulanmamış bir ayrıntı varmış gibi davranma.
 Google Ads içeriğinde headline alanını {"headline1":"...","headline2":"...","headline3":"..."}, body alanını {"description1":"...","description2":"..."} biçiminde JSON string olarak ver.
 Instagram içeriğinde body alanını {"caption":"...","hashtags":["#..."]} biçiminde JSON string olarak ver.
 Yalnızca şu JSON'u döndür:

@@ -60,6 +60,18 @@ export type ExecutivePortfolioDraft = {
   updatedAt: string;
 };
 
+export type ExecutiveWorkflowResultState = {
+  status: 'blocked' | 'partial' | 'ready';
+  ready: boolean;
+  nextSteps: string[];
+};
+
+export type ExecutivePortfolioDownload = {
+  fileName: string;
+  mimeType: 'application/json';
+  content: string;
+};
+
 export type ExecutivePortfolioAction =
   | { type: 'choose-source'; source: ExecutiveWorkflowSource }
   | { type: 'go-to-step'; step: ExecutiveWorkflowStep }
@@ -88,7 +100,7 @@ export type ExecutivePortfolioAction =
       batchId: string;
       media: ExecutivePortfolioMedia[];
     }
-  | { type: 'set-property-id'; propertyId: string }
+  | { type: 'set-property-id'; propertyId: string | null }
   | { type: 'select-cover'; id: string }
   | { type: 'remove-media'; id: string }
   | { type: 'restore-original'; id: string }
@@ -135,6 +147,103 @@ export function createExecutivePortfolioDraft(): ExecutivePortfolioDraft {
       copy: '',
     },
     updatedAt: nowIso(),
+  };
+}
+
+export function getExecutiveWorkflowResultState(
+  draft: ExecutivePortfolioDraft
+): ExecutiveWorkflowResultState {
+  const nextSteps: string[] = [];
+  const activeMedia = draft.media.filter((media) => !media.removed);
+
+  if (!draft.propertyId) {
+    nextSteps.push('Portföy kaydını sunucuda oluştur.');
+  }
+  if (activeMedia.length === 0) {
+    nextSteps.push('En az bir portföy görseli ekle ve onayla.');
+  } else {
+    if (
+      activeMedia.some((media) =>
+        ['queued', 'uploading', 'processing'].includes(media.status)
+      )
+    ) {
+      nextSteps.push('Stüdyo işlemlerinin tamamlanmasını bekle.');
+    }
+    if (activeMedia.some((media) => media.status === 'error')) {
+      nextSteps.push('Hatalı görselleri yeniden dene veya kaldır.');
+    }
+    if (
+      activeMedia.some(
+        (media) => media.status === 'ready' && !media.attachedMediaId
+      )
+    ) {
+      nextSteps.push('Onaylanan görselleri portföy kaydına ekle.');
+    }
+    if (!draft.coverMediaId) {
+      nextSteps.push('Kapak fotoğrafını seç.');
+    }
+  }
+  if (!draft.advertising.skipped && draft.advertising.posters.length === 0) {
+    nextSteps.push('Poster oluştur veya reklam tasarımı adımını atla.');
+  }
+  if (!draft.marketing.countries.length || !draft.marketing.channels.length) {
+    nextSteps.push('En az bir hedef ülke ve pazarlama kanalı seç.');
+  }
+  if (!draft.marketing.copy.trim()) {
+    nextSteps.push('Pazarlama metnini hazırla.');
+  }
+
+  if (!draft.propertyId) {
+    return { status: 'blocked', ready: false, nextSteps };
+  }
+  if (nextSteps.length) {
+    return { status: 'partial', ready: false, nextSteps };
+  }
+  return { status: 'ready', ready: true, nextSteps: [] };
+}
+
+function safeDownloadName(value: string) {
+  return (
+    value
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 72) || 'portfoy-ozeti'
+  );
+}
+
+export function createExecutivePortfolioDownload(
+  draft: ExecutivePortfolioDraft
+): ExecutivePortfolioDownload {
+  const result = getExecutiveWorkflowResultState(draft);
+  const content = JSON.stringify(
+    {
+      workflowId: draft.id,
+      propertyId: draft.propertyId,
+      status: result.status,
+      portfolio: draft.details,
+      media: draft.media.map((media) => ({
+        id: media.id,
+        name: media.name,
+        removed: media.removed,
+        selectedAsCover: media.id === draft.coverMediaId,
+        selectedVersion: media.restoredToOriginal ? 'ORIGINAL' : 'ENHANCED',
+        attachedMediaId: media.attachedMediaId ?? null,
+      })),
+      advertising: draft.advertising,
+      marketing: draft.marketing,
+      remainingSteps: result.nextSteps,
+      updatedAt: draft.updatedAt,
+    },
+    null,
+    2
+  );
+  return {
+    fileName: `${safeDownloadName(draft.details.title)}-${draft.id.slice(-8)}.json`,
+    mimeType: 'application/json',
+    content,
   };
 }
 

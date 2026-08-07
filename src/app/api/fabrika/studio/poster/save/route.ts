@@ -140,7 +140,7 @@ export async function POST(request: Request) {
       bytes,
       fileName:
         text(form.get('posterName'), 120) ||
-        `jasmine-poster-${format}.${poster.type === 'image/png' ? 'png' : poster.type === 'image/webp' ? 'webp' : 'jpg'}`,
+        `business-ceo-ai-poster-${format}.${poster.type === 'image/png' ? 'png' : poster.type === 'image/webp' ? 'webp' : 'jpg'}`,
       mimeType: poster.type,
       folder: 'posters',
     });
@@ -159,8 +159,8 @@ export async function POST(request: Request) {
           parentMediaId: mediaIds[0] || null,
           prompt:
             mode === 'creative'
-              ? 'Stable Image Ultra ana görsel yeniden yorumlama ve Jasmine poster şablonu'
-              : 'Jasmine gerçek fotoğraflı poster şablonu',
+              ? 'Stable Image Ultra ana görsel yeniden yorumlama ve Business CEO AI poster şablonu'
+              : 'Business CEO AI gerçek fotoğraflı poster şablonu',
           aiProvider: mode === 'creative' ? 'STABILITY' : null,
           aiModel: mode === 'creative' ? 'stable-image-ultra' : null,
           usageRightsStatus: outputUsageRights,

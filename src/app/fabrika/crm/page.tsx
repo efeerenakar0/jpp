@@ -1,4 +1,4 @@
-import WorkspacePage from '@/components/fabrika/WorkspacePage';
+import CompanyCeoWorkspace from '@/components/fabrika/CompanyCeoWorkspace';
 
 export default async function CrmPage({
   searchParams,
@@ -7,9 +7,14 @@ export default async function CrmPage({
 }) {
   const { view } = await searchParams;
   return (
-    <WorkspacePage
-      initialView={view === 'pipeline' ? 'pipeline' : 'customers'}
-      mode="crm"
+    <CompanyCeoWorkspace
+      initialSection={
+        view === 'pipeline'
+          ? 'pipeline'
+          : view === 'customers'
+            ? 'customers'
+            : 'overview'
+      }
     />
   );
 }
