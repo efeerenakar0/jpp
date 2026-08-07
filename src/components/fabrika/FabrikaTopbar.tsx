@@ -8,7 +8,6 @@ import {
   Aperture,
   Bot,
   BriefcaseBusiness,
-  Building2,
   ChevronDown,
   CircleUserRound,
   Code2,
@@ -19,12 +18,10 @@ import {
   Megaphone,
   Menu,
   MessageCircleMore,
-  Moon,
   Network,
   Search,
   Settings,
   ShieldCheck,
-  Sun,
   UsersRound,
 } from 'lucide-react';
 import {
@@ -81,36 +78,31 @@ const pageNames: Record<string, string> = {
   '/fabrika/whatsapp': 'WhatsApp bağlantısı',
 };
 
-export type BusinessCeoTheme = 'dark' | 'light';
-
 interface FabrikaTopbarProps {
   account: {
     companyName: string;
     logoData: string | null;
   };
   session: FabrikaClientSession;
-  theme: BusinessCeoTheme;
-  onToggleTheme: () => void;
 }
 
 function BusinessCeoWordmark() {
   return (
     <Link
       href="/fabrika"
-      className="group flex min-h-11 items-center gap-2.5 rounded-lg pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+      className="group flex min-h-11 items-center rounded-lg pr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       aria-label="Business CEO AI ana ekran"
     >
-      <span className="relative grid h-10 w-10 place-items-center rounded-xl border border-cyan-400/35 bg-cyan-400/[0.07] text-cyan-300">
-        <Building2 className="h-5 w-5" aria-hidden="true" />
-        <span className="absolute -left-1 top-1.5 h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#22d3ee]" />
-        <span className="absolute -left-1 bottom-1.5 h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#22d3ee]" />
-      </span>
-      <span className="hidden min-w-0 sm:block">
-        <span className="block whitespace-nowrap text-[15px] font-semibold tracking-[0.12em] text-slate-50 md:text-[17px]">
-          BUSINESS CEO <span className="text-cyan-300">AI</span>
+      <span className="flex min-w-0 items-center whitespace-nowrap">
+        <span className="text-[11px] font-black tracking-[0.055em] text-white sm:text-[14px] md:text-[16px]">
+          BUSINESS CEO{' '}
+          <span className="bg-gradient-to-br from-blue-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
+            AI
+          </span>
         </span>
-        <span className="block text-[9px] uppercase tracking-[0.24em] text-slate-500">
-          Real Estate Operations
+        <span className="mx-2 h-5 w-px shrink-0 bg-slate-600 sm:mx-3" aria-hidden="true" />
+        <span className="text-[10px] font-medium tracking-[0.04em] text-slate-300 sm:text-xs md:text-sm">
+          Real Estate
         </span>
       </span>
     </Link>
@@ -184,8 +176,6 @@ function ModuleNavigation({ onNavigate }: { onNavigate?: () => void }) {
 export default function FabrikaTopbar({
   account,
   session,
-  theme,
-  onToggleTheme,
 }: FabrikaTopbarProps) {
   const pathname = usePathname();
   const [commandOpen, setCommandOpen] = useState(false);
@@ -235,19 +225,6 @@ export default function FabrikaTopbar({
           <kbd className="hidden rounded border border-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 xl:inline">
             ⌘K
           </kbd>
-        </button>
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          className="grid h-10 w-10 place-items-center rounded-xl border border-slate-800 bg-[#091525] text-amber-200 transition hover:border-amber-200/40 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-          aria-label={theme === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç'}
-          title={theme === 'dark' ? 'Açık tema' : 'Koyu tema'}
-        >
-          {theme === 'dark' ? (
-            <Sun className="h-5 w-5" aria-hidden="true" />
-          ) : (
-            <Moon className="h-5 w-5" aria-hidden="true" />
-          )}
         </button>
         {session.principalType === 'OWNER' ? (
           <Link

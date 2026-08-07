@@ -128,7 +128,11 @@ export default function BusinessCeoDashboard({
       const response = await fetch('/api/fabrika/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, message }),
+        body: JSON.stringify({
+          conversationId,
+          message,
+          clientRequestId: crypto.randomUUID(),
+        }),
       });
       const data = await readJson<ChatResponse>(
         response,
@@ -159,6 +163,22 @@ export default function BusinessCeoDashboard({
     []
   );
 
+  const deleteConversation = useCallback(
+    async (conversationId: string) => {
+      const response = await fetch(
+        `/api/fabrika/assistant/conversations?id=${encodeURIComponent(conversationId)}`,
+        { method: 'DELETE' }
+      );
+      await readJson<{ success: boolean }>(response, 'Sohbet silinemedi.');
+
+      setConversations((current) =>
+        current.filter((conversation) => conversation.id !== conversationId)
+      );
+      void loadDashboard(false);
+    },
+    [loadDashboard]
+  );
+
   return (
     <BusinessCeoDashboardView
       appointments={appointments}
@@ -167,6 +187,7 @@ export default function BusinessCeoDashboard({
       isOwner={isOwner}
       loading={loading}
       metrics={metrics}
+      onDeleteConversation={deleteConversation}
       onRefresh={() => void loadDashboard(true)}
       onSendMessage={sendMessage}
       whatsappStatus={whatsappStatus}

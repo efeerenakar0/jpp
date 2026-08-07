@@ -14,6 +14,8 @@
   --bceo-green: #36d58b;
   --bceo-amber: #f3b84b;
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-height: 100%;
   overflow: hidden;
   color: var(--bceo-text);
@@ -41,10 +43,94 @@
   position: relative;
   z-index: 1;
   display: grid;
+  flex: 1 0 auto;
   gap: 12px;
   width: min(100%, 1760px);
   margin: 0 auto;
   padding: 12px;
+}
+
+.statusBar {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  border-top: 1px solid rgba(73, 154, 205, 0.27);
+  color: #a8bdca;
+  background: rgba(2, 10, 18, 0.94);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.16);
+}
+
+.statusBarInner {
+  display: flex;
+  width: min(100%, 1760px);
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 auto;
+  padding: 8px 18px;
+}
+
+.footerBrand,
+.systemStatus {
+  display: inline-flex;
+  align-items: center;
+}
+
+.footerBrand {
+  gap: 7px;
+  color: #d7e7f0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.footerAi {
+  color: #3a8dff;
+}
+
+.footerDivider {
+  width: 1px;
+  height: 15px;
+  margin: 0 7px;
+  background: rgba(126, 163, 185, 0.46);
+}
+
+.footerSector {
+  color: #91a8b7;
+  font-weight: 520;
+  letter-spacing: 0.03em;
+}
+
+.systemStatus {
+  gap: 9px;
+  min-height: 28px;
+  padding: 0 14px;
+  border: 1px solid rgba(79, 135, 175, 0.2);
+  border-radius: 9px;
+  color: #8fa7b7;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  background: rgba(7, 21, 33, 0.52);
+}
+
+.systemStatusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6f97ff;
+  box-shadow: 0 0 12px rgba(111, 151, 255, 0.56);
+}
+
+.systemStatus[data-status='checking'] .systemStatusDot {
+  background: var(--bceo-cyan);
+  box-shadow: 0 0 12px rgba(19, 217, 255, 0.5);
+}
+
+.systemStatus[data-status='warning'] .systemStatusDot {
+  background: var(--bceo-amber);
+  box-shadow: 0 0 12px rgba(243, 184, 75, 0.45);
 }
 
 .primaryGrid {
@@ -278,6 +364,7 @@
 .workflowButton:focus-visible,
 .secondaryCard:focus-visible,
 .messageButton:focus-visible,
+.deleteButton:focus-visible,
 .whatsappButton:focus-visible,
 .retryButton:focus-visible,
 .dialogAction:focus-visible,
@@ -351,6 +438,33 @@
 .moduleVisualCompact {
   width: 100%;
   min-height: 92px;
+}
+
+.moduleImageFrame {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: clamp(132px, 15vw, 190px);
+  min-height: 132px;
+  overflow: hidden;
+  background: #020a13;
+}
+
+.moduleImageFrame::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background:
+    linear-gradient(to bottom, transparent 62%, rgba(2, 12, 22, 0.28)),
+    radial-gradient(circle at 50% 54%, transparent 48%, rgba(1, 8, 15, 0.2));
+}
+
+.moduleImage {
+  object-fit: cover;
+  object-position: center;
+  transition: transform 320ms ease;
 }
 
 .moduleGrid {
@@ -518,6 +632,11 @@
   border-color: rgba(19, 217, 255, 0.58);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
   transform: translateY(-2px);
+}
+
+.secondaryCard:hover .moduleImage,
+.secondaryCard:focus-visible .moduleImage {
+  transform: scale(1.025);
 }
 
 .secondaryCopy {
@@ -760,7 +879,14 @@
   background: rgba(167, 184, 197, 0.07);
 }
 
-.messageButton {
+.conversationActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.messageButton,
+.deleteButton {
   display: grid;
   width: 44px;
   height: 44px;
@@ -779,7 +905,18 @@
   background: var(--bceo-cyan-soft);
 }
 
-.messageButton svg {
+.deleteButton {
+  color: #aebfca;
+}
+
+.deleteButton:hover {
+  border-color: rgba(251, 113, 133, 0.78);
+  color: #fda4af;
+  background: rgba(159, 18, 57, 0.18);
+}
+
+.messageButton svg,
+.deleteButton svg {
   width: 20px;
   height: 20px;
   stroke-width: 1.5;
@@ -849,6 +986,10 @@
 
 .dialogContent,
 .whatsappDialogContent {
+  --bceo-border-strong: rgba(111, 155, 184, 0.38);
+  --bceo-text: #ecf8ff;
+  --bceo-muted: #8ca4b5;
+  --bceo-cyan: #13d9ff;
   width: min(calc(100vw - 24px), 760px) !important;
   max-width: 760px !important;
   max-height: min(88dvh, 780px);
@@ -858,6 +999,11 @@
   color: var(--bceo-text) !important;
   background: #061421 !important;
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55) !important;
+}
+
+.deleteDialogContent {
+  width: min(calc(100vw - 24px), 520px) !important;
+  max-width: 520px !important;
 }
 
 .whatsappDialogContent {
@@ -1013,11 +1159,29 @@
 }
 
 .sendButton {
-  width: 44px;
+  width: 48px;
+  min-width: 48px;
   padding: 0;
   border: 1px solid rgba(19, 217, 255, 0.56);
   color: #001018;
-  background: var(--bceo-cyan);
+  background: var(--bceo-cyan, #13d9ff);
+  box-shadow: 0 0 0 1px rgba(19, 217, 255, 0.12);
+}
+
+.sendButton:hover:not(:disabled) {
+  border-color: #6be9ff;
+  background: #6be9ff;
+}
+
+.sendButton:focus-visible {
+  outline: 2px solid #dff9ff;
+  outline-offset: 2px;
+}
+
+.sendButton svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.2;
 }
 
 .sendButton:disabled {
@@ -1029,6 +1193,109 @@
   margin: 0;
   color: #fecdd3;
   font-size: 0.7rem;
+}
+
+.deleteDialogBody {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  padding: 20px;
+}
+
+.deleteDialogBody strong {
+  display: block;
+  color: #fff1f2;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.deleteDialogBody p {
+  margin: 6px 0 0;
+  color: var(--bceo-muted);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.deleteWarningIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(251, 113, 133, 0.4);
+  border-radius: 10px;
+  color: #fda4af;
+  background: rgba(159, 18, 57, 0.16);
+}
+
+.deleteWarningIcon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.deleteDialogError {
+  margin: -5px 20px 16px;
+  padding: 9px 11px;
+  border: 1px solid rgba(251, 113, 133, 0.34);
+  border-radius: 8px;
+  color: #fecdd3;
+  font-size: 0.7rem;
+  background: rgba(159, 18, 57, 0.13);
+}
+
+.deleteDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(111, 155, 184, 0.24);
+}
+
+.deleteCancelButton,
+.deleteConfirmButton {
+  display: inline-flex;
+  min-height: 42px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 9px;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.deleteCancelButton {
+  border: 1px solid rgba(111, 155, 184, 0.38);
+  color: #d7e8f1;
+  background: rgba(3, 15, 25, 0.78);
+}
+
+.deleteConfirmButton {
+  border: 1px solid rgba(251, 113, 133, 0.72);
+  color: #fff1f2;
+  background: rgba(190, 18, 60, 0.76);
+}
+
+.deleteConfirmButton:hover:not(:disabled) {
+  border-color: #fda4af;
+  background: rgba(225, 29, 72, 0.86);
+}
+
+.deleteCancelButton:focus-visible,
+.deleteConfirmButton:focus-visible {
+  outline: 2px solid var(--bceo-cyan);
+  outline-offset: 2px;
+}
+
+.deleteCancelButton:disabled,
+.deleteConfirmButton:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.deleteConfirmButton svg {
+  width: 17px;
+  height: 17px;
 }
 
 .inlineError {
@@ -1148,6 +1415,23 @@
 }
 
 @media (max-width: 720px) {
+  .statusBarInner {
+    min-height: 54px;
+    flex-wrap: wrap;
+    gap: 7px 14px;
+    padding: 9px 12px;
+  }
+
+  .footerBrand,
+  .systemStatus {
+    font-size: 0.62rem;
+  }
+
+  .systemStatus {
+    min-height: 25px;
+    padding: 0 10px;
+  }
+
   .panelHeader {
     flex-direction: column;
   }
@@ -1185,7 +1469,7 @@
     justify-self: start;
   }
 
-  .messageButton {
+  .conversationActions {
     grid-column: 3;
     grid-row: 1 / span 2;
   }

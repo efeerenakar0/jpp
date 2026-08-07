@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import {
@@ -19,9 +20,11 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       conversationId?: string;
       message?: string;
+      clientRequestId?: string;
     };
     const conversationId = body.conversationId?.trim();
     const message = body.message?.trim();
+    const suppliedRequestId = body.clientRequestId?.trim();
 
     if (!conversationId || !message) {
       return NextResponse.json(
@@ -29,6 +32,24 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    if (
+      suppliedRequestId &&
+      !/^[A-Za-z0-9_-]{8,80}$/.test(suppliedRequestId)
+    ) {
+      return NextResponse.json(
+        { error: 'Mesaj gönderim kimliği geçersiz.' },
+        { status: 400 }
+      );
+    }
+
+    const clientRequestId = suppliedRequestId || randomUUID();
+    const idempotencyKey = [
+      'assistant-chat',
+      principal.account.id,
+      conversationId,
+      clientRequestId,
+    ].join(':');
 
     const conversation = await prisma.customerConversation.findFirst({
       where: {
@@ -60,6 +81,7 @@ export async function POST(request: Request) {
           text: message,
           lastCustomerMessageAt: conversation.lastCustomerMessageAt,
           conversationId,
+          idempotencyKey,
           createdByType: principal.type,
           createdById:
             principal.type === 'EMPLOYEE' ? principal.member.id : principal.account.id,

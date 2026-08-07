@@ -116,6 +116,7 @@ describe('executive portfolio workflow', () => {
       details: {
         title: 'Kestel Villa',
         location: 'Alanya / Kestel',
+        listingType: 'RENT',
         description: 'Denize yakın müstakil villa',
       },
     });
@@ -131,6 +132,7 @@ describe('executive portfolio workflow', () => {
     });
 
     expect(draft.details.title).toBe('Kestel Villa');
+    expect(draft.details.listingType).toBe('RENT');
     expect(draft.advertising.skipped).toBe(true);
     expect(draft.marketing).toEqual({
       countries: ['Türkiye', 'Almanya'],
@@ -184,6 +186,18 @@ describe('executive portfolio workflow', () => {
     expect(
       deserializeExecutivePortfolioDraft(JSON.stringify({ version: 99, draft }))
     ).toBeNull();
+  });
+
+  it('keeps older autosaves compatible and defaults their listing type to sale', () => {
+    const serialized = JSON.parse(
+      serializeExecutivePortfolioDraft(createExecutivePortfolioDraft())
+    ) as { draft: { details: Record<string, unknown> } };
+    delete serialized.draft.details.listingType;
+
+    expect(
+      deserializeExecutivePortfolioDraft(JSON.stringify(serialized))?.details
+        .listingType
+    ).toBe('SALE');
   });
 
   it('stores the real background Studio batch and replaces temporary uploads', () => {

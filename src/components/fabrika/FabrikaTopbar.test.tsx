@@ -38,9 +38,7 @@ function renderTopbar(session: FabrikaClientSession) {
   return renderToStaticMarkup(
     <FabrikaTopbar
       account={{ companyName: 'Örnek Emlak', logoData: null }}
-      onToggleTheme={() => undefined}
       session={session}
-      theme="dark"
     />
   );
 }
@@ -54,7 +52,11 @@ describe('FabrikaTopbar role safety and keyboard surface', () => {
     const html = renderTopbar(baseSession);
 
     expect(html).toContain('aria-label="Business CEO AI ana ekran"');
-    expect(html).toContain('aria-label="Açık temaya geç"');
+    expect(html).toContain('BUSINESS CEO');
+    expect(html).toContain('Real Estate');
+    expect(html).not.toContain('Real Estate Operations');
+    expect(html).not.toContain('aria-label="Açık temaya geç"');
+    expect(html).not.toContain('aria-label="Koyu temaya geç"');
     expect(html).toContain('aria-label="Modülleri aç"');
     expect(html).toContain('aria-label="Şirket ve hesap menüsü"');
     expect(html).toContain('href="/fabrika/ayarlar"');

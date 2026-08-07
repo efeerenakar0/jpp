@@ -388,6 +388,7 @@ export function usePortfolioWorkflowController({
               : null,
           roomCount: null,
           area: null,
+          listingType: currentDraft.details.listingType,
           status: 'DRAFT',
           description: [
             currentDraft.details.propertyType,

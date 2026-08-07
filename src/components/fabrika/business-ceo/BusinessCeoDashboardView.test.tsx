@@ -6,6 +6,7 @@ import { BUSINESS_CEO_MODULES } from '@/lib/business-ceo-dashboard';
 import { BusinessCeoDashboardView } from './BusinessCeoDashboardView';
 
 const noOp = vi.fn();
+const deleteConversation = async () => undefined;
 
 describe('BusinessCeoDashboardView', () => {
   it('keeps the requested workflow and secondary module order', () => {
@@ -17,6 +18,7 @@ describe('BusinessCeoDashboardView', () => {
         isOwner
         loading={false}
         metrics={null}
+        onDeleteConversation={deleteConversation}
         onRefresh={noOp}
         onSendMessage={async () => undefined}
         whatsappStatus={null}
@@ -37,6 +39,22 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('aria-labelledby="business-ceo-workflow-title"');
     expect(html).toContain('aria-labelledby="business-ceo-sales-title"');
+    expect(html).toContain('aria-label="Business CEO AI sistem durumu"');
+    expect(html).toContain('BUSINESS CEO');
+    expect(html).toContain('Real Estate');
+    expect(html).toContain('Sistem durumu: Tüm servisler çalışıyor');
+    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-developer.png');
+    expect(html).toContain('alt="AI Yazılımcı modül görseli"');
+    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-partner-finder.png');
+    expect(html).toContain('alt="AI Partner Bulucu modül görseli"');
+    expect(html).toContain(
+      'url=%2Fbusiness-ceo%2Fmodules%2Fai-authorized-portfolio-pool.png',
+    );
+    expect(html).toContain('alt="AI Yetkili Portföy Havuzu modül görseli"');
+    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-deed-tracking.png');
+    expect(html).toContain('alt="AI Tapu Takip modül görseli"');
+    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-company-ceo.png');
+    expect(html).toContain('alt="AI Şirket CEO modül görseli"');
     expect(html).toContain('<dl class=');
     for (const definition of BUSINESS_CEO_MODULES.secondary) {
       expect(html).toContain(
@@ -83,6 +101,7 @@ describe('BusinessCeoDashboardView', () => {
           pendingAppointments: 0,
           approvedToday: 0,
         }}
+        onDeleteConversation={deleteConversation}
         onRefresh={noOp}
         onSendMessage={async () => undefined}
         whatsappStatus={{
@@ -105,6 +124,8 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('Gerçek Müşteri');
     expect(html).toContain('Portföyü bugün görebilir miyim?');
     expect(html).toContain('WhatsApp Bağlı');
+    expect(html).toContain('data-brand-icon="whatsapp"');
+    expect(html).toContain('aria-label="Gerçek Müşteri sohbetini sil"');
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('role="list"');
@@ -120,6 +141,7 @@ describe('BusinessCeoDashboardView', () => {
         isOwner={false}
         loading={false}
         metrics={null}
+        onDeleteConversation={deleteConversation}
         onRefresh={noOp}
         onSendMessage={async () => undefined}
         whatsappStatus={null}
@@ -139,6 +161,7 @@ describe('BusinessCeoDashboardView', () => {
         isOwner
         loading={false}
         metrics={null}
+        onDeleteConversation={deleteConversation}
         onRefresh={noOp}
         onSendMessage={async () => undefined}
         whatsappError="WhatsApp durumu alınamadı."
@@ -160,6 +183,7 @@ describe('BusinessCeoDashboardView', () => {
         isOwner
         loading={false}
         metrics={null}
+        onDeleteConversation={deleteConversation}
         onRefresh={noOp}
         onSendMessage={async () => undefined}
         whatsappStatus={null}
@@ -168,5 +192,6 @@ describe('BusinessCeoDashboardView', () => {
 
     expect(html).toContain('Canlı veriler alınamadı.');
     expect(html).toContain('Yeniden dene');
+    expect(html).toContain('Sistem durumu: Kontrol gerekli');
   });
 });

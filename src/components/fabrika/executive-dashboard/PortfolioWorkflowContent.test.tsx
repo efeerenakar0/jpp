@@ -46,6 +46,10 @@ describe('PortfolioWorkflowContent', () => {
 
     expect(html).toContain('Portföy görselleri ve bilgileri');
     expect(html).toContain('Arka planda işlenir');
+    expect(html).toContain('İlan türü');
+    expect(html).toContain('Satılık');
+    expect(html).toContain('Kiralık');
+    expect(html).toContain('checked="" value="SALE"');
     expect(html).toContain('Otomatik kaydedildi');
     expect(html).toContain('Geri');
     expect(html).toContain('Kaydet ve çık');

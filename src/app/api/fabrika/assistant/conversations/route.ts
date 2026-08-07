@@ -1,7 +1,15 @@
 import { ConversationChannel } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
-import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
+import {
+  FabrikaForbiddenError,
+  FabrikaSessionError,
+  requireFabrikaOwner,
+  requireFabrikaPrincipal,
+} from '@/lib/fabrika-session';
+
+const conversationIdSchema = z.string().trim().min(1).max(191);
 
 function isConversationChannel(value: unknown): value is ConversationChannel {
   return value === 'WHATSAPP' || value === 'EMAIL' || value === 'WEB_CHAT';
@@ -173,9 +181,11 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const id = new URL(request.url).searchParams.get('id');
+  const parsedId = conversationIdSchema.safeParse(
+    new URL(request.url).searchParams.get('id')
+  );
 
-  if (!id) {
+  if (!parsedId.success) {
     return NextResponse.json(
       { error: 'Sohbet ID’si gerekli.' },
       { status: 400 }
@@ -183,10 +193,14 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const principal = await requireFabrikaPrincipal();
+    const principal = await requireFabrikaOwner();
     const updated = await prisma.customerConversation.updateMany({
-      where: { id, companyAccountId: principal.account.id },
-      data: { isActive: false },
+      where: {
+        id: parsedId.data,
+        companyAccountId: principal.account.id,
+        isActive: true,
+      },
+      data: { isActive: false, aiEnabled: false },
     });
     if (updated.count === 0) {
       return NextResponse.json({ error: 'Sohbet bulunamadı.' }, { status: 404 });
@@ -194,12 +208,18 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Sohbet arşivlendi.',
+      message: 'Sohbet silindi.',
     });
   } catch (error) {
+    if (error instanceof FabrikaSessionError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof FabrikaForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error('[Conversations DELETE Error]:', error);
     return NextResponse.json(
-      { error: 'Sohbet arşivlenemedi.' },
+      { error: 'Sohbet silinemedi.' },
       { status: 503 }
     );
   }

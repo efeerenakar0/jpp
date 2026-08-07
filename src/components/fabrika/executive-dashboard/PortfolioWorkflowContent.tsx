@@ -334,6 +334,42 @@ function PortfolioStep({
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
+        <fieldset className="sm:col-span-2">
+          <legend className="text-xs text-slate-400">İlan türü</legend>
+          <div className="mt-1.5 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Portföy ilan türü">
+            {([
+              ['SALE', 'Satılık'],
+              ['RENT', 'Kiralık'],
+            ] as const).map(([value, label]) => {
+              const selected = draft.details.listingType === value;
+              return (
+                <label
+                  key={value}
+                  className={`flex h-11 cursor-pointer items-center justify-center rounded-xl border px-3 text-sm font-semibold transition focus-within:ring-2 focus-within:ring-cyan-300 ${
+                    selected
+                      ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100'
+                      : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  <input
+                    className="sr-only"
+                    type="radio"
+                    name="portfolio-listing-type"
+                    value={value}
+                    checked={selected}
+                    onChange={() =>
+                      onAction({
+                        type: 'update-details',
+                        details: { listingType: value },
+                      })
+                    }
+                  />
+                  {label}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
         <label className="text-xs text-slate-400">
           Portföy başlığı
           <input

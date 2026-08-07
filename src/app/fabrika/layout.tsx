@@ -7,7 +7,7 @@ import { businessCeoBrand } from '@/lib/business-ceo-brand';
 import styles from './fabrika-ui.module.css';
 
 export const metadata = {
-  title: `${businessCeoBrand.productName} | Akıllı Operasyon Paneli`,
+  title: `${businessCeoBrand.productName} | Real Estate`,
   description: `${businessCeoBrand.productName} — şirketinizi müşteri, portföy, pazarlama ve yapay zekâ operasyonlarıyla tek merkezden yönetin.`,
 };
 

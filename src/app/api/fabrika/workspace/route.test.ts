@@ -98,6 +98,7 @@ function request(overrides: Record<string, unknown> = {}) {
       price: 6_500_000,
       roomCount: '3+1',
       area: 150,
+      listingType: 'RENT',
       status: 'DRAFT',
       description: 'Yeni açıklama',
       imageUrl: 'https://cdn.example.test/property-a-new.jpg',
@@ -188,6 +189,7 @@ describe('POST /api/fabrika/workspace update-property', () => {
         where: { id: 'property-a', companyAccountId: 'company-a' },
         data: expect.objectContaining({
           title: 'Güncellenen deniz manzaralı daire',
+          listingType: 'RENT',
           ownerContactId: 'contact-a',
           assignedMemberId: 'member-a',
         }),

@@ -8,6 +8,7 @@ import {
   MessageCircle,
   RefreshCw,
   Send,
+  Trash2,
   X,
 } from 'lucide-react';
 import { type FormEvent, useMemo, useState } from 'react';
@@ -43,10 +44,25 @@ const statusLabels = {
   ACTIVE: 'Aktif',
 } as const;
 
+function WhatsAppLogo() {
+  return (
+    <svg
+      aria-hidden="true"
+      data-brand-icon="whatsapp"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479s1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.981.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.895a9.825 9.825 0 0 1 2.895 6.988c-.003 5.45-4.437 9.884-9.887 9.884m0-17.791h-.003C5.77 0 .66 5.109.659 11.389c0 2.007.524 3.963 1.52 5.688L.558 24l5.165-1.355a11.37 11.37 0 0 0 5.824 1.485h.005c6.28 0 11.392-5.11 11.393-11.39 0-3.044-1.185-5.906-3.337-8.058A11.323 11.323 0 0 0 12.051 0" />
+    </svg>
+  );
+}
+
 type SendMessage = (
   conversationId: string,
   message: string
 ) => Promise<SalesMessage | undefined | void>;
+
+type DeleteConversation = (conversationId: string) => Promise<void>;
 
 function displayCount(value: number | null) {
   return value === null ? '—' : new Intl.NumberFormat('tr-TR').format(value);
@@ -166,6 +182,96 @@ function ConversationDialog({
   );
 }
 
+function ConversationDeleteDialog({
+  conversation,
+  deleting,
+  error,
+  onConfirm,
+  onOpenChange,
+}: {
+  conversation: SalesConversationRow | null;
+  deleting: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog
+      open={Boolean(conversation)}
+      onOpenChange={(open) => {
+        if (!deleting) onOpenChange(open);
+      }}
+    >
+      <DialogContent
+        className={`${styles.dialogContent} ${styles.deleteDialogContent}`}
+        showCloseButton={false}
+      >
+        {conversation ? (
+          <>
+            <DialogHeader className={styles.dialogHeader}>
+              <DialogTitle className={styles.dialogTitle}>
+                Sohbet silinsin mi?
+              </DialogTitle>
+              <DialogDescription className={styles.dialogDescription}>
+                {conversation.customerName} ile yapılan sohbet listeden kaldırılacak.
+              </DialogDescription>
+              <button
+                aria-label="Silme penceresini kapat"
+                className={styles.dialogClose}
+                disabled={deleting}
+                onClick={() => onOpenChange(false)}
+                type="button"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </DialogHeader>
+            <div className={styles.deleteDialogBody}>
+              <span className={styles.deleteWarningIcon} aria-hidden="true">
+                <AlertTriangle />
+              </span>
+              <div>
+                <strong>Bu işlem geri alınamaz. Emin misiniz?</strong>
+                <p>
+                  Sohbet müşteri listesinden kaldırılır ve yapay zekâ yanıtları
+                  durdurulur. Operasyon geçmişi denetim amacıyla korunur.
+                </p>
+              </div>
+            </div>
+            {error ? (
+              <p className={styles.deleteDialogError} role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className={styles.deleteDialogActions}>
+              <button
+                className={styles.deleteCancelButton}
+                disabled={deleting}
+                onClick={() => onOpenChange(false)}
+                type="button"
+              >
+                Vazgeç
+              </button>
+              <button
+                className={styles.deleteConfirmButton}
+                disabled={deleting}
+                onClick={onConfirm}
+                type="button"
+              >
+                {deleting ? (
+                  <RefreshCw aria-hidden="true" className={styles.spinningIcon} />
+                ) : (
+                  <Trash2 aria-hidden="true" />
+                )}
+                {deleting ? 'Siliniyor…' : 'Sohbeti sil'}
+              </button>
+            </div>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function WhatsAppDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -195,6 +301,7 @@ export function SalesExpertPanel({
   loading,
   metrics,
   onRefresh,
+  onDeleteConversation,
   onSendMessage,
   whatsappStatus,
   whatsappError = null,
@@ -206,11 +313,15 @@ export function SalesExpertPanel({
   loading: boolean;
   metrics: AssistantMetrics | null;
   onRefresh: () => void;
+  onDeleteConversation: DeleteConversation;
   onSendMessage: SendMessage;
   whatsappStatus: WhatsAppStatus | null;
   whatsappError?: string | null;
 }) {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [conversationToDeleteId, setConversationToDeleteId] = useState<string | null>(null);
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const rows = useMemo(
     () => buildSalesConversationRows(conversations, appointments),
@@ -219,12 +330,35 @@ export function SalesExpertPanel({
   const summary = buildSalesSummary(rows, metrics);
   const selectedConversation =
     rows.find((row) => row.id === selectedConversationId) || null;
+  const conversationToDelete =
+    rows.find((row) => row.id === conversationToDeleteId) || null;
   const whatsappConnected = whatsappStatus?.connectionStatus === 'CONNECTED';
   const whatsappButtonLabel = whatsappError
     ? 'WhatsApp durumunu kontrol et'
     : whatsappConnected
       ? 'WhatsApp Bağlı'
       : 'WhatsApp Bağla';
+
+  async function confirmConversationDelete() {
+    if (!conversationToDelete || deletingConversationId) return;
+
+    const conversationId = conversationToDelete.id;
+    setDeletingConversationId(conversationId);
+    setDeleteError(null);
+    try {
+      await onDeleteConversation(conversationId);
+      if (selectedConversationId === conversationId) {
+        setSelectedConversationId(null);
+      }
+      setConversationToDeleteId(null);
+    } catch (cause) {
+      setDeleteError(
+        cause instanceof Error ? cause.message : 'Sohbet silinemedi.'
+      );
+    } finally {
+      setDeletingConversationId(null);
+    }
+  }
 
   return (
     <section
@@ -249,7 +383,7 @@ export function SalesExpertPanel({
             onClick={() => setWhatsappOpen(true)}
             type="button"
           >
-            <MessageCircle aria-hidden="true" />
+            <WhatsAppLogo />
             {whatsappButtonLabel}
           </button>
         ) : null}
@@ -343,16 +477,32 @@ export function SalesExpertPanel({
               <span className={styles.statusBadge} data-status={row.status}>
                 {statusLabels[row.status]}
               </span>
-              <button
-                aria-expanded={selectedConversationId === row.id}
-                aria-haspopup="dialog"
-                aria-label={`${row.customerName} sohbetini aç`}
-                className={styles.messageButton}
-                onClick={() => setSelectedConversationId(row.id)}
-                type="button"
-              >
-                <MessageCircle aria-hidden="true" />
-              </button>
+              <span className={styles.conversationActions}>
+                {isOwner ? (
+                  <button
+                    aria-haspopup="dialog"
+                    aria-label={`${row.customerName} sohbetini sil`}
+                    className={styles.deleteButton}
+                    onClick={() => {
+                      setDeleteError(null);
+                      setConversationToDeleteId(row.id);
+                    }}
+                    type="button"
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </button>
+                ) : null}
+                <button
+                  aria-expanded={selectedConversationId === row.id}
+                  aria-haspopup="dialog"
+                  aria-label={`${row.customerName} sohbetini aç`}
+                  className={styles.messageButton}
+                  onClick={() => setSelectedConversationId(row.id)}
+                  type="button"
+                >
+                  <MessageCircle aria-hidden="true" />
+                </button>
+              </span>
             </article>
           ))}
         </div>
@@ -365,6 +515,20 @@ export function SalesExpertPanel({
         }}
         onSendMessage={onSendMessage}
       />
+      {isOwner ? (
+        <ConversationDeleteDialog
+          conversation={conversationToDelete}
+          deleting={deletingConversationId === conversationToDelete?.id}
+          error={deleteError}
+          onConfirm={() => void confirmConversationDelete()}
+          onOpenChange={(open) => {
+            if (!open) {
+              setConversationToDeleteId(null);
+              setDeleteError(null);
+            }
+          }}
+        />
+      ) : null}
       {isOwner ? (
         <WhatsAppDialog open={whatsappOpen} onOpenChange={setWhatsappOpen} />
       ) : null}

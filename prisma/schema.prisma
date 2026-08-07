@@ -401,6 +401,11 @@ enum CrmPropertyStatus {
   ARCHIVED
 }
 
+enum CrmPropertyListingType {
+  SALE
+  RENT
+}
+
 enum PortfolioPoolShareStatus {
   ACTIVE
   PAUSED
@@ -1325,13 +1330,13 @@ model CrmContact {
 }
 
 model CrmProperty {
-  id                                 String            @id @default(cuid())
+  id                                 String                 @id @default(cuid())
   companyAccountId                   String
-  companyAccount                     CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  companyAccount                     CompanyAccount         @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   ownerContactId                     String?
-  ownerContact                       CrmContact?       @relation("PropertyOwner", fields: [ownerContactId], references: [id], onDelete: SetNull)
+  ownerContact                       CrmContact?            @relation("PropertyOwner", fields: [ownerContactId], references: [id], onDelete: SetNull)
   assignedMemberId                   String?
-  assignedMember                     CompanyMember?    @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  assignedMember                     CompanyMember?         @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
   title                              String
   referenceCode                      String?
   location                           String?
@@ -1339,31 +1344,32 @@ model CrmProperty {
   roomCount                          String?
   propertyType                       String?
   area                               Float?
-  status                             CrmPropertyStatus @default(DRAFT)
-  description                        String?           @db.Text
+  listingType                        CrmPropertyListingType @default(SALE)
+  status                             CrmPropertyStatus      @default(DRAFT)
+  description                        String?                @db.Text
   imageUrl                           String?
   sourceListingId                    String?
-  sellerPortalToken                  String            @unique @default(uuid())
-  sellerPortalEnabled                Boolean           @default(true)
-  listingViews                       Int               @default(0)
-  inquiryCount                       Int               @default(0)
-  showingCount                       Int               @default(0)
-  offerCount                         Int               @default(0)
+  sellerPortalToken                  String                 @unique @default(uuid())
+  sellerPortalEnabled                Boolean                @default(true)
+  listingViews                       Int                    @default(0)
+  inquiryCount                       Int                    @default(0)
+  showingCount                       Int                    @default(0)
+  offerCount                         Int                    @default(0)
   publicationApprovedAt              DateTime?
   publicationApprovedById            String?
   publicationAuthorizationDocumentId String?
-  publicationAuthorizationDocument   CompanyDocument?  @relation("PropertyAuthorizationDocument", fields: [publicationAuthorizationDocumentId], references: [id], onDelete: SetNull)
+  publicationAuthorizationDocument   CompanyDocument?       @relation("PropertyAuthorizationDocument", fields: [publicationAuthorizationDocumentId], references: [id], onDelete: SetNull)
   authorityDocumentVerifiedAt        DateTime?
   authorityExpiresAt                 DateTime?
-  eidsRequired                       Boolean           @default(true)
+  eidsRequired                       Boolean                @default(true)
   eidsVerifiedAt                     DateTime?
   eidsVerificationReference          String?
-  eidsExemptionReason                String?           @db.Text
+  eidsExemptionReason                String?                @db.Text
   publicationBlockedAt               DateTime?
-  publicationBlockReason             String?           @db.Text
+  publicationBlockReason             String?                @db.Text
   publishedAt                        DateTime?
-  createdAt                          DateTime          @default(now())
-  updatedAt                          DateTime          @updatedAt
+  createdAt                          DateTime               @default(now())
+  updatedAt                          DateTime               @updatedAt
 
   deals                   CrmDeal[]
   tasks                   CrmTask[]
@@ -1434,10 +1440,10 @@ model PortfolioPoolContactRequest {
   createdAt                 DateTime                          @default(now())
   updatedAt                 DateTime                          @updatedAt
 
+  @@unique([requesterCompanyAccountId, idempotencyKey], map: "PortfolioPoolContactRequest_requester_idempotency_key")
   @@index([requesterCompanyAccountId, status, createdAt], map: "PortfolioPoolContactRequest_requester_status_idx")
   @@index([ownerCompanyAccountId, status, createdAt], map: "PortfolioPoolContactRequest_owner_status_idx")
   @@index([shareId, requesterCompanyAccountId, status], map: "PortfolioPoolContactRequest_share_requester_idx")
-  @@unique([requesterCompanyAccountId, idempotencyKey], map: "PortfolioPoolContactRequest_requester_idempotency_key")
 }
 
 model DeedTrackingCase {

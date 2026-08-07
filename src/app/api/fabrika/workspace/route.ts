@@ -4,6 +4,7 @@ import {
   CrmContactStage,
   CrmContactType,
   CrmDealStage,
+  CrmPropertyListingType,
   CrmPropertyStatus,
   CrmTaskStatus,
   CrmTaskType,
@@ -101,6 +102,9 @@ const actionSchema = z.discriminatedUnion('action', [
     price: optionalNumber,
     roomCount: optionalText,
     area: optionalNumber,
+    listingType: z
+      .nativeEnum(CrmPropertyListingType)
+      .default(CrmPropertyListingType.SALE),
     status: z.nativeEnum(CrmPropertyStatus).default(CrmPropertyStatus.DRAFT),
     description: z.string().trim().max(10000).optional().nullable(),
     imageUrl: z.string().trim().url().optional().or(z.literal('')),
@@ -116,6 +120,7 @@ const actionSchema = z.discriminatedUnion('action', [
     price: optionalNumber,
     roomCount: optionalText,
     area: optionalNumber,
+    listingType: z.nativeEnum(CrmPropertyListingType).optional(),
     status: z.nativeEnum(CrmPropertyStatus),
     description: z.string().trim().max(10000).optional().nullable(),
     imageUrl: z.string().trim().url().optional().or(z.literal('')),
@@ -1009,6 +1014,7 @@ export async function POST(request: Request) {
           price: input.price,
           roomCount: asNullable(input.roomCount),
           area: input.area,
+          listingType: input.listingType,
           status: input.status,
           description: asNullable(input.description),
           imageUrl: asNullable(input.imageUrl),
@@ -1082,6 +1088,9 @@ export async function POST(request: Request) {
             price: input.price,
             roomCount: asNullable(input.roomCount),
             area: input.area,
+            ...(input.listingType
+              ? { listingType: input.listingType }
+              : {}),
             description: asNullable(input.description),
             imageUrl: nextImageUrl,
           },

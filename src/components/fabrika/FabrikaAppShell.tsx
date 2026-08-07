@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import FabrikaTopbar, { type BusinessCeoTheme } from './FabrikaTopbar';
+import FabrikaTopbar from './FabrikaTopbar';
 import {
   FabrikaSessionProvider,
   type FabrikaClientSession,
@@ -23,26 +23,6 @@ interface FabrikaAppShellProps {
   session: FabrikaClientSession;
 }
 
-const businessCeoThemeStorageKey = 'business-ceo-theme';
-const businessCeoThemeChangeEvent = 'business-ceo-theme-change';
-
-function readBusinessCeoTheme(): BusinessCeoTheme {
-  if (typeof window === 'undefined') return 'dark';
-  const storedTheme = window.localStorage.getItem(businessCeoThemeStorageKey);
-  return storedTheme === 'light' ? 'light' : 'dark';
-}
-
-function subscribeToBusinessCeoTheme(onStoreChange: () => void) {
-  if (typeof window === 'undefined') return () => undefined;
-
-  window.addEventListener('storage', onStoreChange);
-  window.addEventListener(businessCeoThemeChangeEvent, onStoreChange);
-  return () => {
-    window.removeEventListener('storage', onStoreChange);
-    window.removeEventListener(businessCeoThemeChangeEvent, onStoreChange);
-  };
-}
-
 export default function FabrikaAppShell({
   children,
   account,
@@ -52,11 +32,6 @@ export default function FabrikaAppShell({
     account.onboardingComplete
   );
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-  const theme = useSyncExternalStore(
-    subscribeToBusinessCeoTheme,
-    readBusinessCeoTheme,
-    (): BusinessCeoTheme => 'dark'
-  );
   const pathname = usePathname();
   const showOnboarding =
     !onboardingDismissed &&
@@ -64,12 +39,6 @@ export default function FabrikaAppShell({
       principalType: session.principalType,
       onboardingComplete,
     });
-
-  function toggleTheme() {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    window.localStorage.setItem(businessCeoThemeStorageKey, nextTheme);
-    window.dispatchEvent(new Event(businessCeoThemeChangeEvent));
-  }
 
   if (isImmersiveFabrikaRoute(pathname)) {
     return (
@@ -100,7 +69,6 @@ export default function FabrikaAppShell({
     <FabrikaSessionProvider value={session}>
       <div
         className="business-ceo-shell flex h-dvh min-h-0 flex-col overflow-hidden bg-[#050d18] text-slate-100"
-        data-business-theme={theme}
       >
         <a
           href="#fabrika-main"
@@ -114,9 +82,7 @@ export default function FabrikaAppShell({
             companyName: account.companyName,
             logoData: account.logoData,
           }}
-          onToggleTheme={toggleTheme}
           session={session}
-          theme={theme}
         />
 
         <main

@@ -35,6 +35,7 @@ export type ExecutivePortfolioDetails = {
   title: string;
   location: string;
   propertyType: string;
+  listingType: 'SALE' | 'RENT';
   price: string;
   description: string;
 };
@@ -132,6 +133,7 @@ export function createExecutivePortfolioDraft(): ExecutivePortfolioDraft {
       title: '',
       location: '',
       propertyType: '',
+      listingType: 'SALE',
       price: '',
       description: '',
     },
@@ -452,6 +454,11 @@ export function deserializeExecutivePortfolioDraft(
         typeof value.draft.propertyId === 'string'
           ? value.draft.propertyId
           : null,
+      details: {
+        ...value.draft.details,
+        listingType:
+          value.draft.details.listingType === 'RENT' ? 'RENT' : 'SALE',
+      },
       marketing: {
         ...value.draft.marketing,
         copy:

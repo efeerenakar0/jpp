@@ -240,18 +240,6 @@
     #050d18;
 }
 
-.root :global(.business-ceo-shell[data-business-theme="light"]) {
-  color: #0c1a2a;
-  background: #edf6fb;
-}
-
-.root :global(.business-ceo-shell[data-business-theme="light"] .business-ceo-main) {
-  color: #0c1a2a;
-  background:
-    radial-gradient(circle at 82% 2%, rgb(14 165 233 / 0.1), transparent 28rem),
-    #edf6fb;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .root :global(*),
   .root :global(*::before),
