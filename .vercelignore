@@ -1,0 +1,4 @@
+.agents/**/__pycache__/
+design-system/
+output/
+.env.local
