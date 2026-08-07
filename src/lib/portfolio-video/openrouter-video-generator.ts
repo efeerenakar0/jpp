@@ -43,6 +43,12 @@ function validateProgram(content: string, input: GeneratePortfolioVideoInput) {
   if (parsed.plan.width !== dimensions.width || parsed.plan.height !== dimensions.height) throw new Error('AI video ölçüleri geçersiz.');
   const assetIds = new Set(input.portfolio.assets.map((asset) => asset.assetId));
   if (parsed.plan.scenes.some((scene) => scene.assetIds.some((id) => !assetIds.has(id)))) throw new Error('AI başka bir portföye ait görsel kullanmaya çalıştı.');
+  if (new Set(parsed.plan.scenes.map((scene) => scene.helper)).size < 3) {
+    throw new Error('AI video planı yeterli sahne çeşitliliği oluşturmuyor.');
+  }
+  if (parsed.plan.scenes.some((scene, index) => index > 0 && scene.helper === parsed.plan.scenes[index - 1]?.helper)) {
+    throw new Error('AI video planı aynı sahne düzenini art arda tekrarlıyor.');
+  }
   const sanitized = sanitizeGeneratedRemotionCode(parsed.code);
   const embedded = aiVideoProgramSchema.shape.plan.parse(sanitized.embeddedPlan);
   if (JSON.stringify(embedded) !== JSON.stringify(parsed.plan)) {
@@ -87,6 +93,15 @@ VideoPlan TAM OLARAK şu alanlardan oluşur; başka alan ekleme:
 }
 Sahnelerde type, duration, globalStart, globalEnd, assetId, typography veya colors alanlarını KULLANMA. startFrame ve durationInFrames tam sayı kare değeridir. En az 3 en fazla 12 sahne üret; ilk sahne startFrame=0 olsun, sahneler çakışmasın ve son sahne tam ${input.durationSeconds * 30}. karede bitsin. assetIds yalnız verilen assetId'lerden seçilsin. Portföy gerçeği için factRefs kullan; bilgi uydurma. Kullanıcı fiyatı gizlemek isterse PRICE factRef'i ve PriceCard helper'ını kullanma. Her seed için sahne sırası, süre, hareket, geçiş, tipografi ve renkleri gerçekten çeşitlendir.
 
+Profesyonel yönetmenlik kuralları:
+- AÇILIŞ, GELİŞME ve KAPANIŞ ritmi kur; ilk 1-2 saniyede güçlü bir görsel kanca, ortada portföyün kanıtları, sonda tek ve net bir aksiyon olsun.
+- Aynı videoda en az 3 farklı helper kullan; aynı helper'ı art arda kullanma ve tek bir kart düzenini tekrar etme.
+- Kullanıcının talimatındaki sahne sırası, vurgu ve gizleme isteklerini öncelikli uygula. Talimat belirsizse portföy tipine ve verilere uygun editoryal bir akış seç.
+- Seçilen görselleri anlatımın görsel ritmine göre dağıt; aynı asset'i zorunlu olmadıkça arka arkaya kullanma.
+- Geçişleri amaçlı kullan: hızlı videoda CUT/SLIDE/WIPE, lüks videoda FADE/SCALE ve yavaş kamera hareketleri; her sahnede rastgele efekt yığını oluşturma.
+- Başlıkları kısa, ilan verisine özel ve okunaklı yaz. Genel, kanıtsız veya abartılı satış iddiası uydurma.
+- LogoOutro veya CTA kapanışında şirket/danışman kimliğini sade biçimde göster; videoyu gereksiz metinle doldurma.
+
 code alanı yalnız şu güvenli yapının doldurulmuş biçimi olmalıdır; PLAN_JSON yerine plan alanının BİREBİR aynı JSON nesnesini yaz:
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
@@ -116,7 +131,9 @@ async function callModel(input: GeneratePortfolioVideoInput, model: string, apiK
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
-        temperature: 0.7,
+        temperature: 0.82,
+        top_p: 0.92,
+        seed: input.creativeSeed,
         max_tokens: 12_000,
         messages: [
           { role: 'system', content: systemPrompt(input) },

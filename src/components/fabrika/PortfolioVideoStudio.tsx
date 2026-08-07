@@ -103,6 +103,35 @@ const STYLE_OPTIONS: Array<{
   },
 ];
 
+const HELPER_LABELS: Record<AiVideoPlan["scenes"][number]["helper"], string> = {
+  PropertyImage: "Sinematik fotoğraf",
+  Hero: "Editoryal açılış",
+  PriceCard: "Fiyat vurgusu",
+  FeatureGrid: "Özellik vitrini",
+  LocationCard: "Konum sahnesi",
+  CTA: "İletişim çağrısı",
+  LogoOutro: "Marka finali",
+  KenBurns: "Fotoğraf hikâyesi",
+  SplitScreen: "Çift kare",
+};
+
+const TRANSITION_LABELS: Record<AiVideoPlan["scenes"][number]["transition"], string> = {
+  CUT: "Net kesme",
+  FADE: "Yumuşak geçiş",
+  SLIDE: "Kaydırma",
+  WIPE: "Sinematik perde",
+  SCALE: "Ölçek geçişi",
+};
+
+const MOTION_LABELS: Record<AiVideoPlan["scenes"][number]["motion"], string> = {
+  STILL: "Sabit",
+  ZOOM_IN: "Yaklaşma",
+  ZOOM_OUT: "Uzaklaşma",
+  PAN_LEFT: "Sola kamera",
+  PAN_RIGHT: "Sağa kamera",
+  FLOAT: "Yumuşak süzülme",
+};
+
 const generatedFactsSchema = z.object({
   title: z.string(),
   referenceCode: z.string().nullable(),
@@ -963,11 +992,12 @@ export default function PortfolioVideoStudio() {
                 <ol>
                   {generatedPlan.scenes.map((scene, index) => (
                     <li key={scene.id}>
-                      <span>{index + 1}</span>
-                      <div>
-                        <b>{scene.helper}</b>
+                      <span className={styles.sceneNumber}>{index + 1}</span>
+                      <div className={styles.sceneSummary}>
+                        <b>{HELPER_LABELS[scene.helper]}</b>
+                        {scene.headline ? <em>{scene.headline}</em> : null}
                         <small>
-                          {(scene.durationInFrames / generatedPlan.fps).toFixed(1)} sn · {scene.transition} · {scene.motion}
+                          {(scene.startFrame / generatedPlan.fps).toFixed(1)}–{((scene.startFrame + scene.durationInFrames) / generatedPlan.fps).toFixed(1)} sn · {TRANSITION_LABELS[scene.transition]} · {MOTION_LABELS[scene.motion]}
                         </small>
                       </div>
                     </li>

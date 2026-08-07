@@ -84,6 +84,10 @@ export const aiVideoPlanSchema = z.object({
     if (end > expected) context.addIssue({ code: 'custom', message: 'Sahne video süresini aşıyor.' });
     const next = ordered[index + 1];
     if (next && next.startFrame < end) context.addIssue({ code: 'custom', message: 'Sahneler çakışamaz.' });
+    if (next && next.startFrame > end) context.addIssue({ code: 'custom', message: 'Sahneler arasında boşluk bırakılamaz.' });
+  }
+  if (new Set(plan.scenes.map((scene) => scene.id)).size !== plan.scenes.length) {
+    context.addIssue({ code: 'custom', message: 'Her sahnenin kimliği benzersiz olmalı.' });
   }
   const last = ordered.at(-1);
   if (!last || last.startFrame + last.durationInFrames !== expected) {

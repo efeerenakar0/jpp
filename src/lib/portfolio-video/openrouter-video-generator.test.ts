@@ -63,6 +63,10 @@ describe('OpenRouter Remotion generator fallback', () => {
     expect(systemMessage).toContain('headline');
     expect(systemMessage).toContain('theme');
     expect(systemMessage).toContain('type, duration, globalStart');
+    expect(systemMessage).toContain('en az 3 farklı helper');
+    expect(systemMessage).toContain('AÇILIŞ');
+    expect(systemMessage).toContain('KAPANIŞ');
+    expect(systemMessage).toContain('görsel ritmi');
   });
 
   it('uses the primary free model when output validates', async () => {
@@ -143,5 +147,26 @@ describe('OpenRouter Remotion generator fallback', () => {
 
     expect(result.model).toBe('nvidia/nemotron-3-super-120b-a12b:free');
     expect(result.attempts[0]?.error).toContain('uyuşmuyor');
+  });
+
+  it('retries with the fixer when the plan repeats one template instead of directing a video', async () => {
+    const repetitivePlan = {
+      ...plan,
+      scenes: plan.scenes.map((scene) => ({ ...scene, helper: 'Hero' as const })),
+    };
+    const repetitiveProgram = JSON.stringify({
+      plan: repetitivePlan,
+      code: `import React from 'react'; import { AbsoluteFill } from 'remotion'; import { GeneratedVideoRuntime } from '@business-ceo/video-runtime'; export const videoPlan = ${JSON.stringify(repetitivePlan)}; export default function Video({facts}: {facts: unknown}){ return <AbsoluteFill><GeneratedVideoRuntime plan={videoPlan} facts={facts} /></AbsoluteFill>; }`,
+    });
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response(repetitiveProgram))
+      .mockResolvedValueOnce(response(program()));
+
+    const result = await generatePortfolioRemotionProgram(input, {
+      apiKey: 'server-secret', fetcher, sleep: vi.fn(),
+    });
+
+    expect(result.model).toBe('nvidia/nemotron-3-super-120b-a12b:free');
+    expect(result.attempts[0]?.error).toContain('sahne çeşitliliği');
   });
 });
