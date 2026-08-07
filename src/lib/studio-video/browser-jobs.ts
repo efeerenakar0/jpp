@@ -6,6 +6,7 @@ import { portfolioVideoStoryboardSchema, type PortfolioVideoStoryboard } from '@
 import { StudioVideoJobError, type StudioVideoActor } from './jobs';
 
 const BROWSER_PROVIDER = 'BROWSER_REMOTION';
+const AI_BROWSER_PROVIDER = 'BROWSER_REMOTION_AI';
 const BROWSER_MODEL = 'PortfolioPromoVideo:web-renderer';
 
 type BrowserVideoClient = Pick<PrismaClient, 'crmProperty' | 'studioVideoJob'>;
@@ -30,7 +31,7 @@ function ownedWhere(actor: StudioVideoActor) {
   return {
     companyAccountId: actor.companyAccountId,
     ...(actor.memberId ? { createdByMemberId: actor.memberId } : {}),
-    provider: BROWSER_PROVIDER,
+    provider: { in: [BROWSER_PROVIDER, AI_BROWSER_PROVIDER] },
   };
 }
 
@@ -54,15 +55,21 @@ function asSnapshot(value: Prisma.JsonValue): BrowserSnapshot | null {
 
 export function serializeBrowserRemotionJob(job: StudioVideoJob) {
   const snapshot = asSnapshot(job.referenceSnapshot);
+  const aiSnapshot = job.referenceSnapshot && !Array.isArray(job.referenceSnapshot) && typeof job.referenceSnapshot === 'object'
+    ? job.referenceSnapshot as Record<string, unknown>
+    : null;
+  const aiFacts = aiSnapshot?.kind === 'AI_REMOTION_PROGRAM_V1' && aiSnapshot.facts && typeof aiSnapshot.facts === 'object'
+    ? aiSnapshot.facts as Record<string, unknown>
+    : null;
   return {
     id: job.id,
     propertyId: job.propertyId,
-    title: job.outputFileName || snapshot?.storyboard.title || 'Portföy videosu',
+    title: job.outputFileName || snapshot?.storyboard.title || (typeof aiFacts?.title === 'string' ? aiFacts.title : 'Portföy videosu'),
     command: job.userCommand,
     status: job.status,
     progress: job.progress,
-    fingerprint: snapshot?.fingerprint || null,
-    seed: snapshot?.seed ?? null,
+    fingerprint: snapshot?.fingerprint || (typeof aiSnapshot?.codeHash === 'string' ? aiSnapshot.codeHash.slice(0, 80) : null),
+    seed: snapshot?.seed ?? (aiSnapshot?.plan && typeof aiSnapshot.plan === 'object' && typeof (aiSnapshot.plan as Record<string, unknown>).creativeSeed === 'number' ? (aiSnapshot.plan as Record<string, unknown>).creativeSeed : null),
     storyboard: snapshot?.storyboard ?? null,
     selectedPhotoIds: job.referenceMediaIds,
     previewUrl: snapshot?.media[0]?.url || null,

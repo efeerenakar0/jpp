@@ -257,24 +257,27 @@ export function AuthorizedPoolView({
         </div>
       )}
 
-      <Tabs defaultValue="pool" className="space-y-5">
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl border border-[#1d3850] bg-[#071421] p-1 sm:w-fit">
-          <TabsTrigger value="pool" className="min-h-10 px-4 text-[#8ea3b8] data-active:text-cyan-100">
+      <Tabs defaultValue="pool" className="flex w-full min-w-0 flex-col gap-5">
+        <TabsList
+          data-pool-navigation="true"
+          className="h-auto w-full shrink-0 self-stretch flex-wrap justify-start gap-1 rounded-xl border border-[#1d3850] bg-[#071421] p-1 sm:w-fit sm:self-start"
+        >
+          <TabsTrigger value="pool" className="min-h-10 flex-none px-4 text-[#8ea3b8] data-active:text-cyan-100">
             <Database aria-hidden="true" /> Portföy havuzu
           </TabsTrigger>
           {isOwner && (
             <>
-              <TabsTrigger value="sharing" className="min-h-10 px-4 text-[#8ea3b8] data-active:text-cyan-100">
+              <TabsTrigger value="sharing" className="min-h-10 flex-none px-4 text-[#8ea3b8] data-active:text-cyan-100">
                 <ShieldCheck aria-hidden="true" /> Paylaşım yönetimi
               </TabsTrigger>
-              <TabsTrigger value="requests" className="min-h-10 px-4 text-[#8ea3b8] data-active:text-cyan-100">
+              <TabsTrigger value="requests" className="min-h-10 flex-none px-4 text-[#8ea3b8] data-active:text-cyan-100">
                 <Handshake aria-hidden="true" /> Gelen talepler {pendingCount > 0 ? `(${pendingCount})` : ''}
               </TabsTrigger>
             </>
           )}
         </TabsList>
 
-        <TabsContent value="pool" className="space-y-5">
+        <TabsContent value="pool" className="w-full min-w-0 flex-none space-y-5">
           <form
             className="rounded-xl border border-[#1d3850] bg-[#091727] p-4"
             onSubmit={(event) => {
@@ -346,7 +349,7 @@ export function AuthorizedPoolView({
         </TabsContent>
 
         {isOwner && (
-          <TabsContent value="sharing" className="space-y-4">
+          <TabsContent value="sharing" className="w-full min-w-0 flex-none space-y-4">
             <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/5 p-4 text-sm leading-6 text-[#a8c0d2]">
               <strong className="text-cyan-100">Açık izin zorunludur.</strong> Havuza ekleme yalnız doğrulanmış satış yetkisi olan portföylerde ve şirketinizin paylaşım onayıyla yapılır. Telefon, malik belgesi veya özel not paylaşılmaz.
             </div>
@@ -414,7 +417,7 @@ export function AuthorizedPoolView({
         )}
 
         {isOwner && (
-          <TabsContent value="requests" className="space-y-3">
+          <TabsContent value="requests" className="w-full min-w-0 flex-none space-y-3">
             {!management?.incomingRequests.length ? (
               <EmptyState icon={Handshake} title="Henüz ulaşma talebi yok" description="Diğer şirketlerden gelen güvenli iletişim talepleri burada değerlendirilir. İletişim bilgileri doğrudan paylaşılmaz." />
             ) : (

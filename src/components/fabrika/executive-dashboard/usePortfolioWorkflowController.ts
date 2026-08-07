@@ -62,7 +62,7 @@ export function getPortfolioWorkflowStatus(
     portfolio: activeMedia.some((media) => media.status === 'processing')
       ? 'Görseller işleniyor'
       : 'Portföy hazırlanıyor',
-    review: 'Görseller kontrol ediliyor',
+    review: 'AI Stüdyo sonuçları inceleniyor',
     advertising: 'Reklam tasarımı hazırlanıyor',
     marketing: 'Pazarlama seçimleri yapılıyor',
     results: getExecutiveWorkflowResultState(draft).ready

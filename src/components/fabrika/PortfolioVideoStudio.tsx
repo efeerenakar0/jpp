@@ -25,25 +25,31 @@ import {
   useState,
 } from "react";
 import { z } from "zod";
-import { LocalRuleCreativeDirector } from "@/lib/portfolio-video/creative-director";
 import {
-  createPortfolioVideoPlanFingerprint,
-} from "@/lib/portfolio-video/plan-diversity";
+  aiVideoDimensions,
+  aiVideoPlanSchema,
+  type AiVideoDuration,
+  type AiVideoFormat,
+  type AiVideoPlan,
+} from "@/lib/portfolio-video/ai-video-types";
+import { LocalRuleCreativeDirector } from "@/lib/portfolio-video/creative-director";
 import {
   initialPortfolioVideoRenderState,
   portfolioVideoRenderReducer,
-  shouldRequestFreshPortfolioVideoPlan,
   toPortfolioVideoRenderError,
 } from "@/lib/portfolio-video/render-state";
 import { buildPortfolioStoryboard } from "@/lib/portfolio-video/storyboard";
 import {
   portfolioVideoCatalogSchema,
-  portfolioVideoStoryboardSchema,
   type PortfolioVideoCreativeChoice,
   type PortfolioVideoPortfolio,
   type PortfolioVideoStoryboard,
 } from "@/lib/portfolio-video/types";
 import { PortfolioPromoVideo } from "@/remotion/portfolio-video/PortfolioPromoVideo";
+import {
+  GeneratedPortfolioVideo,
+  type GeneratedPortfolioVideoFacts,
+} from "@/remotion/portfolio-video/GeneratedPortfolioVideo";
 import {
   PORTFOLIO_PROMO_VIDEO_DURATION,
   PORTFOLIO_PROMO_VIDEO_FPS,
@@ -97,15 +103,35 @@ const STYLE_OPTIONS: Array<{
   },
 ];
 
-const directResponseSchema = z.object({
+const generatedFactsSchema = z.object({
+  title: z.string(),
+  referenceCode: z.string().nullable(),
+  location: z.string().nullable(),
+  priceLabel: z.string().nullable(),
+  roomCount: z.string().nullable(),
+  areaLabel: z.string().nullable(),
+  features: z.array(z.string()),
+  companyName: z.string(),
+  companyLogoUrl: z.string().nullable(),
+  advisorName: z.string(),
+  advisorPhone: z.string().nullable(),
+  assets: z.array(z.object({ assetId: z.string(), url: z.string() })),
+});
+
+const generatedProgramResponseSchema = z.object({
   success: z.literal(true),
-  storyboard: portfolioVideoStoryboardSchema,
-  fingerprint: z.string().min(1).max(80),
-  seed: z.number().int().nonnegative(),
-  director: z.object({
-    source: z.string().max(80),
-    usedFallback: z.boolean(),
-    diversified: z.boolean().optional(),
+  job: z.object({
+    id: z.string().min(1),
+    propertyId: z.string().min(1),
+    status: z.string(),
+    progress: z.number(),
+    durationSeconds: z.union([z.literal(15), z.literal(30)]),
+    format: z.enum(["9:16", "1:1", "16:9"]),
+    model: z.string().min(1),
+    plan: aiVideoPlanSchema,
+    codeHash: z.string().length(64),
+    facts: generatedFactsSchema,
+    createdAt: z.coerce.date(),
   }),
 });
 
@@ -190,6 +216,10 @@ function formatRemainingTime(value: number | null) {
   return `Yaklaşık ${Math.ceil(seconds / 60)} dk`;
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 async function fetchPortfolioVideoCatalog() {
   const response = await fetch("/api/fabrika/studio/video/portfolios", {
     cache: "no-store",
@@ -262,12 +292,18 @@ export default function PortfolioVideoStudio() {
     useState<PortfolioVideoCreativeChoice>("BOLD");
   const [showPrice, setShowPrice] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
+  const [videoFormat, setVideoFormat] = useState<AiVideoFormat>("9:16");
+  const [videoDuration, setVideoDuration] = useState<AiVideoDuration>(15);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [directedStoryboard, setDirectedStoryboard] =
     useState<PortfolioVideoStoryboard | null>(null);
   const [activeFingerprint, setActiveFingerprint] = useState("");
   const [activeSeed, setActiveSeed] = useState(0);
+  const [generatedPlan, setGeneratedPlan] = useState<AiVideoPlan | null>(null);
+  const [generatedFacts, setGeneratedFacts] = useState<GeneratedPortfolioVideoFacts | null>(null);
+  const [generatedJobId, setGeneratedJobId] = useState("");
+  const [generatedModel, setGeneratedModel] = useState("");
   const [directorStatus, setDirectorStatus] = useState<{
     status: "IDLE" | "LOADING" | "SUCCESS" | "ERROR";
     error: string;
@@ -314,7 +350,9 @@ export default function PortfolioVideoStudio() {
   const selectedPhotos = selectedPhotoIds
     .map((id) => selectedPortfolio?.photos.find((photo) => photo.id === id))
     .filter(Boolean) as NonNullable<PortfolioVideoPortfolio["photos"][number]>[];
-  const isRendering = ["CHECKING", "RENDERING"].includes(renderState.status);
+  const isBusy = ["PLANNING", "CHECKING", "RENDERING", "ENCODING"].includes(
+    renderState.status,
+  );
 
   const retryCatalog = useCallback(async () => {
     setIsLoading(true);
@@ -366,6 +404,10 @@ export default function PortfolioVideoStudio() {
     setDirectedStoryboard(null);
     setActiveFingerprint("");
     setActiveSeed(0);
+    setGeneratedPlan(null);
+    setGeneratedFacts(null);
+    setGeneratedJobId("");
+    setGeneratedModel("");
     setDirectorStatus({
       status: "IDLE",
       error: "",
@@ -412,7 +454,7 @@ export default function PortfolioVideoStudio() {
     });
   }
 
-  async function applyCreativeDirection() {
+  async function applyCreativeDirection(signal?: AbortSignal) {
     if (!selectedPortfolio || selectedPhotoIds.length === 0 || command.trim().length < 3) {
       setDirectorStatus({
         status: "ERROR",
@@ -430,19 +472,19 @@ export default function PortfolioVideoStudio() {
     });
     const seed = createSeed();
     try {
-      const response = await fetch("/api/fabrika/studio/video/direct", {
+      const response = await fetch("/api/fabrika/studio/video/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           portfolioId: selectedPortfolio.id,
-          command,
-          ...(creativeChoice === "CUSTOM" ? {} : { preferredStyle: creativeChoice }),
           selectedPhotoIds,
-          showPrice,
-          showLocation,
-          seed,
-          previousFingerprints: readFingerprints(),
+          prompt: `${command}${showPrice ? "" : "\nFiyatı gösterme."}${showLocation ? "" : "\nKonumu gösterme."}`,
+          format: videoFormat,
+          durationSeconds: videoDuration,
+          creativeSeed: seed,
+          idempotencyKey: `ai-remotion:${selectedPortfolio.id}:${window.crypto.randomUUID()}`,
         }),
+        signal,
       });
       const data: unknown = await response.json();
       if (!response.ok) {
@@ -452,20 +494,37 @@ export default function PortfolioVideoStudio() {
             : "Yaratıcı talimat videoya uygulanamadı.";
         throw new Error(message);
       }
-      const parsed = directResponseSchema.parse(data);
-      setDirectedStoryboard(parsed.storyboard);
-      setActiveFingerprint(parsed.fingerprint);
-      setActiveSeed(parsed.seed);
+      const parsed = generatedProgramResponseSchema.parse(data);
+      setDirectedStoryboard(null);
+      setGeneratedPlan(parsed.job.plan);
+      setGeneratedFacts(parsed.job.facts);
+      setGeneratedJobId(parsed.job.id);
+      setGeneratedModel(parsed.job.model);
+      setActiveFingerprint(parsed.job.codeHash);
+      setActiveSeed(parsed.job.plan.creativeSeed);
       setDirectorStatus({
         status: "SUCCESS",
         error: "",
-        source: parsed.director.source,
-        diversified: Boolean(parsed.director.diversified),
+        source: parsed.job.model,
+        diversified: true,
       });
-      saveFingerprint(parsed.fingerprint);
-      dispatchRender({ type: "RESET" });
-      return parsed.storyboard;
+      saveFingerprint(parsed.job.codeHash);
+      return {
+        plan: parsed.job.plan,
+        facts: parsed.job.facts,
+        jobId: parsed.job.id,
+        fingerprint: parsed.job.codeHash,
+      };
     } catch (error) {
+      if (signal?.aborted || isAbortError(error)) {
+        setDirectorStatus({
+          status: "IDLE",
+          error: "",
+          source: "",
+          diversified: false,
+        });
+        throw error;
+      }
       setDirectorStatus({
         status: "ERROR",
         error:
@@ -481,65 +540,58 @@ export default function PortfolioVideoStudio() {
     }
   }
 
+  async function prepareCreativeDirection() {
+    if (abortControllerRef.current) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    dispatchRender({ type: "PLAN" });
+    try {
+      await applyCreativeDirection(controller.signal);
+      if (controller.signal.aborted) {
+        throw new DOMException("Planlama iptal edildi.", "AbortError");
+      }
+      dispatchRender({ type: "RESET" });
+    } catch (error) {
+      if (controller.signal.aborted || isAbortError(error)) {
+        dispatchRender({ type: "CANCEL" });
+      } else {
+        dispatchRender({ type: "ERROR", error: toPortfolioVideoRenderError(error) });
+      }
+    } finally {
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
+    }
+  }
+
   async function renderVideo(options: { forceNewVariation?: boolean } = {}) {
-    const requestFreshPlan = shouldRequestFreshPortfolioVideoPlan({
-      hasDirectedStoryboard: Boolean(directedStoryboard),
-      forceNewVariation: Boolean(options.forceNewVariation),
-    });
-    const renderStoryboard = requestFreshPlan
-      ? await applyCreativeDirection()
-      : directedStoryboard;
-    if (!renderStoryboard || !selectedPortfolio || selectedPhotoIds.length === 0) return;
-    const fingerprint =
-      activeFingerprint ||
-      createPortfolioVideoPlanFingerprint({
-        summary: renderStoryboard.planSummary,
-        seed: renderStoryboard.seed,
-        palette: renderStoryboard.palette,
-        typography: renderStoryboard.typography,
-        scenes: renderStoryboard.scenes.map((scene) => ({
-          id: scene.id,
-          type: scene.type,
-          durationInFrames: scene.toFrame - scene.fromFrame,
-          photoIndices: scene.photoIndices,
-          layout: scene.layout,
-          transition: scene.transition,
-          photoMotion: scene.photoMotion,
-          headline: scene.headline,
-          body: scene.body,
-          overlays: scene.overlays,
-        })),
-      });
-    const seed = activeSeed || renderStoryboard.seed;
-    dispatchRender({ type: "CHECK" });
+    if (abortControllerRef.current || !selectedPortfolio || selectedPhotoIds.length === 0) return;
     const controller = new AbortController();
     abortControllerRef.current = controller;
     let workId = "";
     try {
-      const createResponse = await fetch(
-        "/api/fabrika/studio/video/browser-jobs",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            propertyId: selectedPortfolio.id,
-            mediaIds: selectedPhotoIds,
-            command,
-            storyboard: renderStoryboard,
-            fingerprint,
-            seed,
-            idempotencyKey: `browser:${selectedPortfolio.id}:${window.crypto.randomUUID()}`,
-          }),
-        },
-      );
-      const created: unknown = await createResponse.json();
-      if (!createResponse.ok || !created || typeof created !== "object" || !("job" in created)) {
-        throw new Error("Video işi güvenli geçmişe kaydedilemedi.");
+      const existingProgram = generatedPlan && generatedFacts && generatedJobId
+        ? { plan: generatedPlan, facts: generatedFacts, jobId: generatedJobId, fingerprint: activeFingerprint }
+        : null;
+      if (options.forceNewVariation || !existingProgram) {
+        dispatchRender({ type: "PLAN" });
       }
-      const serverJob = browserVideoJobSchema.parse(created.job);
-      workId = serverJob.id;
-      activeServerJobIdRef.current = serverJob.id;
-      await updateBrowserVideoJob(serverJob.id, {
+      const program = options.forceNewVariation || !existingProgram
+        ? await applyCreativeDirection(controller.signal)
+        : existingProgram;
+      if (controller.signal.aborted) {
+        throw new DOMException("Video oluşturma iptal edildi.", "AbortError");
+      }
+      if (!program) {
+        dispatchRender({ type: "RESET" });
+        return;
+      }
+      const { plan, facts } = program;
+      const fingerprint = program.fingerprint;
+      const seed = plan.creativeSeed;
+      const dimensions = aiVideoDimensions(plan.format);
+      workId = program.jobId;
+      dispatchRender({ type: "CHECK" });
+      activeServerJobIdRef.current = workId;
+      await updateBrowserVideoJob(workId, {
         stage: "CHECKING",
         progress: 0,
       });
@@ -550,8 +602,8 @@ export default function PortfolioVideoStudio() {
         container: "mp4",
         videoCodec: "h264",
         audioCodec: null,
-        width: PORTFOLIO_PROMO_VIDEO_WIDTH,
-        height: PORTFOLIO_PROMO_VIDEO_HEIGHT,
+        width: dimensions.width,
+        height: dimensions.height,
         muted: true,
       });
       if (!support.canRender) {
@@ -561,22 +613,22 @@ export default function PortfolioVideoStudio() {
         throw new DOMException("Render iptal edildi.", "AbortError");
       }
       dispatchRender({ type: "START" });
-      await updateBrowserVideoJob(serverJob.id, {
+      await updateBrowserVideoJob(workId, {
         stage: "RENDERING",
         progress: 1,
       });
       let lastPersistedProgress = 1;
       const result = await renderMediaOnWeb({
         composition: {
-          id: PORTFOLIO_PROMO_VIDEO_ID,
-          component: PortfolioPromoVideo,
-          defaultProps: { storyboard: renderStoryboard },
-          durationInFrames: PORTFOLIO_PROMO_VIDEO_DURATION,
-          fps: PORTFOLIO_PROMO_VIDEO_FPS,
-          width: PORTFOLIO_PROMO_VIDEO_WIDTH,
-          height: PORTFOLIO_PROMO_VIDEO_HEIGHT,
+          id: `${PORTFOLIO_PROMO_VIDEO_ID}-AI`,
+          component: GeneratedPortfolioVideo,
+          defaultProps: { plan, facts },
+          durationInFrames: plan.durationSeconds * plan.fps,
+          fps: plan.fps,
+          width: dimensions.width,
+          height: dimensions.height,
         },
-        inputProps: { storyboard: renderStoryboard },
+        inputProps: { plan, facts },
         container: "mp4",
         videoCodec: "h264",
         audioCodec: null,
@@ -592,7 +644,7 @@ export default function PortfolioVideoStudio() {
           const percent = Math.min(94, Math.max(1, Math.round(progress * 100)));
           if (percent >= lastPersistedProgress + 10) {
             lastPersistedProgress = percent;
-            void updateBrowserVideoJob(serverJob.id, {
+            void updateBrowserVideoJob(workId, {
               stage: "RENDERING",
               progress: percent,
             }).catch(() => undefined);
@@ -601,7 +653,8 @@ export default function PortfolioVideoStudio() {
       });
       let blob: Blob;
       try {
-        await updateBrowserVideoJob(serverJob.id, {
+        dispatchRender({ type: "ENCODE" });
+        await updateBrowserVideoJob(workId, {
           stage: "ENCODING",
           progress: 95,
         });
@@ -615,7 +668,7 @@ export default function PortfolioVideoStudio() {
       const downloadUrl = URL.createObjectURL(blob);
       downloadUrlsRef.current.add(downloadUrl);
       const outputFileName = fileNameFor(selectedPortfolio);
-      await updateBrowserVideoJob(serverJob.id, {
+      await updateBrowserVideoJob(workId, {
         stage: "COMPLETED",
         progress: 100,
         outputFileName,
@@ -659,20 +712,22 @@ export default function PortfolioVideoStudio() {
           }).catch(() => undefined);
         }
         dispatchRender({ type: "ERROR", error: message });
-        setWorks((current) => [
-          {
-            id: workId,
-            propertyId: selectedPortfolio.id,
-            createdAt: new Date().toISOString(),
-            title: selectedPortfolio.title,
-            fingerprint: activeFingerprint,
-            seed: activeSeed,
-            status: "FAILED",
-            downloadUrl: null,
-            error: message,
-          },
-          ...current.slice(0, 5),
-        ]);
+        if (workId) {
+          setWorks((current) => [
+            {
+              id: workId,
+              propertyId: selectedPortfolio.id,
+              createdAt: new Date().toISOString(),
+              title: selectedPortfolio.title,
+              fingerprint: activeFingerprint,
+              seed: activeSeed,
+              status: "FAILED",
+              downloadUrl: null,
+              error: message,
+            },
+            ...current.slice(0, 5),
+          ]);
+        }
       }
     } finally {
       if (abortControllerRef.current === controller) abortControllerRef.current = null;
@@ -725,14 +780,14 @@ export default function PortfolioVideoStudio() {
           </span>
           <h2 id="portfolio-video-title">Portföy Video Stüdyosu</h2>
           <p>
-            Türkçe talimatınız sahne sırası, zamanlama, hareket, renk ve tipografiye
-            dönüştürülür. Serbest kod çalıştırılmaz.
+            Türkçe talimatınız OpenRouter ile her üretimde farklı, doğrulanmış bir
+            Remotion programına dönüştürülür. Model kodu güvenlik kontrolünden geçmeden çalışmaz.
           </p>
         </div>
         <div className={styles.specs} aria-label="Video teknik özellikleri">
-          <span>9:16</span>
+          <span>{videoFormat}</span>
           <span>1080p</span>
-          <span>15 sn</span>
+          <span>{videoDuration} sn</span>
         </div>
       </header>
 
@@ -781,6 +836,31 @@ export default function PortfolioVideoStudio() {
                 <h3>Yaratıcı yönü belirleyin</h3>
                 <p>Hazır bir başlangıç seçin veya videoyu sahne sahne tarif edin.</p>
               </div>
+            </div>
+            <div className={styles.formatGrid} role="group" aria-label="Video formatı">
+              {(["9:16", "1:1", "16:9"] as const).map((format) => (
+                <button
+                  type="button"
+                  key={format}
+                  aria-pressed={videoFormat === format}
+                  className={videoFormat === format ? styles.styleActive : undefined}
+                  onClick={() => { clearDirectedStoryboard(); setVideoFormat(format); }}
+                >
+                  <b>{format}</b>
+                  <span>{format === "9:16" ? "Reels / Story" : format === "1:1" ? "Kare gönderi" : "Yatay video"}</span>
+                </button>
+              ))}
+            </div>
+            <div className={styles.durationToggle} role="group" aria-label="Video süresi">
+              {([15, 30] as const).map((duration) => (
+                <button
+                  type="button"
+                  key={duration}
+                  aria-pressed={videoDuration === duration}
+                  className={videoDuration === duration ? styles.styleActive : undefined}
+                  onClick={() => { clearDirectedStoryboard(); setVideoDuration(duration); }}
+                >{duration} saniye</button>
+              ))}
             </div>
             <div className={styles.styleGrid} role="group" aria-label="Video stili">
               {STYLE_OPTIONS.map((option) => (
@@ -851,15 +931,22 @@ export default function PortfolioVideoStudio() {
               </p>
               <button
                 type="button"
-                disabled={directorStatus.status === "LOADING" || selectedPhotoIds.length === 0}
-                onClick={() => void applyCreativeDirection()}
+                disabled={selectedPhotoIds.length === 0 || (isBusy && directorStatus.status !== "LOADING")}
+                onClick={() => {
+                  if (directorStatus.status === "LOADING") cancelRender();
+                  else void prepareCreativeDirection();
+                }}
               >
                 {directorStatus.status === "LOADING" ? (
-                  <Loader2 className={styles.spin} />
+                  <Square />
                 ) : (
                   <Sparkles />
                 )}
-                {directedStoryboard ? "Yeni plan üret" : "Video planını hazırla"}
+                {directorStatus.status === "LOADING"
+                  ? "Planlamayı iptal et"
+                  : generatedPlan
+                    ? "Yeni plan üret"
+                    : "Video planını hazırla"}
               </button>
             </div>
             {directorStatus.status === "ERROR" && (
@@ -867,20 +954,20 @@ export default function PortfolioVideoStudio() {
                 {directorStatus.error}
               </div>
             )}
-            {directorStatus.status === "SUCCESS" && storyboard && (
+            {directorStatus.status === "SUCCESS" && generatedPlan && (
               <div className={styles.planPreview} aria-live="polite">
-                <b>Plan hazır · {storyboard.scenes.length} sahne</b>
+                <b>AI programı hazır · {generatedPlan.scenes.length} sahne</b>
                 <span>
-                  {storyboard.planSummary} · {storyboard.palette.replaceAll("_", " ")}
+                  {generatedModel} · {generatedPlan.format} · {generatedPlan.durationSeconds} sn
                 </span>
                 <ol>
-                  {storyboard.scenes.map((scene, index) => (
+                  {generatedPlan.scenes.map((scene, index) => (
                     <li key={scene.id}>
                       <span>{index + 1}</span>
                       <div>
-                        <b>{scene.type}</b>
+                        <b>{scene.helper}</b>
                         <small>
-                          {((scene.toFrame - scene.fromFrame) / storyboard.fps).toFixed(1)} sn · {scene.transition} · {scene.photoMotion}
+                          {(scene.durationInFrames / generatedPlan.fps).toFixed(1)} sn · {scene.transition} · {scene.motion}
                         </small>
                       </div>
                     </li>
@@ -975,10 +1062,26 @@ export default function PortfolioVideoStudio() {
                 <h3>Canlı önizleme</h3>
                 <p>Plan değiştikçe sahne yapısı ve görsel yön de değişir.</p>
               </div>
-              <span>{storyboard?.palette.replaceAll("_", " ") || direction.style}</span>
+              <span>{generatedModel || "Plan bekleniyor"}</span>
             </div>
-            <div className={styles.playerFrame}>
-              {storyboard && (
+            <div
+              className={styles.playerFrame}
+              style={{
+                aspectRatio: `${aiVideoDimensions(videoFormat).width} / ${aiVideoDimensions(videoFormat).height}`,
+                maxWidth: videoFormat === "9:16" ? 370 : videoFormat === "1:1" ? 540 : 760,
+              }}
+            >
+              {generatedPlan && generatedFacts && generatedJobId ? (
+                <iframe
+                  key={generatedJobId}
+                  src={`/video-preview/${encodeURIComponent(generatedJobId)}`}
+                  title="İzole AI Remotion video önizlemesi"
+                  sandbox="allow-scripts allow-same-origin"
+                  referrerPolicy="no-referrer"
+                  allow="autoplay 'none'; camera 'none'; microphone 'none'; geolocation 'none'"
+                  style={{ width: "100%", height: "100%", border: 0 }}
+                />
+              ) : storyboard ? (
                 <Player
                   component={PortfolioPromoVideo}
                   inputProps={{ storyboard }}
@@ -992,7 +1095,7 @@ export default function PortfolioVideoStudio() {
                   acknowledgeRemotionLicense
                   style={{ width: "100%", height: "100%" }}
                 />
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -1024,11 +1127,13 @@ export default function PortfolioVideoStudio() {
                   <>
                     <div className={styles.progressLabels}>
                       <span>
-                        {renderState.status === "CHECKING"
-                          ? "Tarayıcı kontrol ediliyor…"
-                          : renderState.progress > 0.92
-                            ? "MP4 kodlanıyor…"
-                            : "Sahneler render ediliyor…"}
+                        {renderState.status === "PLANNING"
+                          ? "AI video planı hazırlanıyor…"
+                          : renderState.status === "CHECKING"
+                            ? "Tarayıcı kontrol ediliyor…"
+                            : renderState.status === "ENCODING"
+                              ? "MP4 kodlanıyor…"
+                              : "Sahneler render ediliyor…"}
                       </span>
                       <b>{Math.round(renderState.progress * 100)}%</b>
                     </div>
@@ -1049,7 +1154,7 @@ export default function PortfolioVideoStudio() {
               </div>
             )}
             <div className={styles.renderActions}>
-              {isRendering ? (
+              {isBusy ? (
                 <button type="button" className={styles.cancelButton} onClick={cancelRender}>
                   <Square /> İptal et
                 </button>

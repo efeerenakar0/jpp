@@ -5,6 +5,7 @@ vi.mock('server-only', () => ({}));
 import {
   checkWahaHealth,
   createWahaSession,
+  getWahaContactProfilePicture,
   getWahaQrCode,
   restartWahaSession,
   sendWahaText,
@@ -113,6 +114,46 @@ describe('WAHA API client', () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toBe('http://127.0.0.1:3000/api/jasmine-acme/auth/qr');
     expect(options.method).toBe('GET');
+  });
+
+  it('requests the real contact profile picture from the isolated session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profilePictureURL: 'https://pps.whatsapp.net/profile-photo.jpg',
+        }),
+        { status: 200 }
+      )
+    );
+    global.fetch = fetchMock;
+
+    await expect(
+      getWahaContactProfilePicture({
+        sessionName: 'jasmine-acme',
+        contactId: '+90 (532) 123 45 67',
+      })
+    ).resolves.toBe('https://pps.whatsapp.net/profile-photo.jpg');
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://127.0.0.1:3000/api/contacts/profile-picture?contactId=905321234567&session=jasmine-acme'
+    );
+    expect(options.headers['X-Api-Key']).toBe(
+      'test-api-key-with-more-than-twenty-characters'
+    );
+  });
+
+  it('returns no profile picture when WhatsApp privacy settings hide it', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ profilePictureURL: null }), { status: 200 })
+    );
+
+    await expect(
+      getWahaContactProfilePicture({
+        sessionName: 'jasmine-acme',
+        contactId: '905321234567',
+      })
+    ).resolves.toBeNull();
   });
 
   it('restarts a failed session before requesting another QR code', async () => {

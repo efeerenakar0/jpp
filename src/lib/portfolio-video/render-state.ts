@@ -1,7 +1,9 @@
 export type PortfolioVideoRenderStatus =
   | 'IDLE'
+  | 'PLANNING'
   | 'CHECKING'
   | 'RENDERING'
+  | 'ENCODING'
   | 'SUCCESS'
   | 'ERROR'
   | 'CANCELLED';
@@ -15,8 +17,10 @@ export type PortfolioVideoRenderState = {
 };
 
 export type PortfolioVideoRenderAction =
+  | { type: 'PLAN' }
   | { type: 'CHECK' }
   | { type: 'START' }
+  | { type: 'ENCODE' }
   | { type: 'PROGRESS'; progress: number; estimatedTimeMs: number | null }
   | { type: 'SUCCESS'; downloadUrl: string }
   | { type: 'ERROR'; error: string }
@@ -43,10 +47,19 @@ export function portfolioVideoRenderReducer(
   action: PortfolioVideoRenderAction
 ): PortfolioVideoRenderState {
   switch (action.type) {
+    case 'PLAN':
+      return { ...initialPortfolioVideoRenderState, status: 'PLANNING' };
     case 'CHECK':
       return { ...initialPortfolioVideoRenderState, status: 'CHECKING' };
     case 'START':
       return { ...initialPortfolioVideoRenderState, status: 'RENDERING' };
+    case 'ENCODE':
+      return {
+        ...state,
+        status: 'ENCODING',
+        progress: Math.max(0.95, state.progress),
+        estimatedTimeMs: null,
+      };
     case 'PROGRESS':
       if (state.status !== 'RENDERING') return state;
       return {

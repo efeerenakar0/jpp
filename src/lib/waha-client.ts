@@ -337,6 +337,30 @@ export async function getWahaQrCode(sessionName: string) {
   }
 }
 
+export async function getWahaContactProfilePicture(input: {
+  sessionName: string;
+  contactId: string;
+}) {
+  const contactId = input.contactId.replace(/\D/g, '');
+  if (contactId.length < 8 || contactId.length > 15) return null;
+
+  try {
+    const result = await wahaRequest<{
+      profilePictureURL?: string | null;
+    }>(
+      `/api/contacts/profile-picture?contactId=${encodeURIComponent(
+        contactId
+      )}&session=${encodeURIComponent(input.sessionName)}`,
+      { timeoutMs: 15_000 }
+    );
+    const url = result.profilePictureURL?.trim();
+    return url || null;
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+}
+
 export async function sendWahaText(input: {
   sessionName: string;
   to: string;

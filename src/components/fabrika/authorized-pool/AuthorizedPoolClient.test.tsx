@@ -93,4 +93,24 @@ describe('AuthorizedPoolView', () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain('Yeniden dene');
   });
+
+  it('keeps the navigation and active panel stacked at every viewport width', () => {
+    const html = renderToStaticMarkup(
+      <AuthorizedPoolView
+        data={payload}
+        error={null}
+        filters={EMPTY_POOL_FILTERS}
+        isOwner
+        loading={false}
+        onFiltersChange={noOp}
+        onOpenDialog={noOp}
+        onRefresh={noOp}
+        onRequest={noOp}
+        onShareStatus={noOp}
+      />
+    );
+
+    expect(html).toMatch(/data-slot="tabs"[^>]*class="[^"]*\sflex-col(?:\s|\")/);
+    expect(html).toContain('data-pool-navigation="true"');
+  });
 });

@@ -283,6 +283,46 @@
   gap: 7px;
 }
 
+.formatGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.formatGrid button,
+.durationToggle button {
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid rgba(100, 129, 151, 0.3);
+  border-radius: 7px;
+  color: #9eb0bc;
+  background: rgba(4, 18, 29, 0.8);
+  cursor: pointer;
+}
+
+.formatGrid button[aria-pressed='true'],
+.durationToggle button[aria-pressed='true'] {
+  border-color: rgba(74, 215, 150, 0.72);
+  color: #edf7f2;
+  background: rgba(44, 172, 115, 0.12);
+}
+
+.formatGrid b,
+.formatGrid span {
+  display: block;
+}
+
+.formatGrid b { font-size: 0.72rem; }
+.formatGrid span { margin-top: 3px; color: #728799; font-size: 0.56rem; }
+
+.durationToggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
 .styleGrid button {
   min-height: 62px;
   padding: 8px;

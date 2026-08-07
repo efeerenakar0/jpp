@@ -797,10 +797,12 @@
 }
 
 .conversationAvatar {
+  position: relative;
   display: grid;
   width: 43px;
   height: 43px;
   place-items: center;
+  overflow: hidden;
   border: 1px solid rgba(19, 217, 255, 0.4);
   border-radius: 999px;
   color: #bdeeff;
@@ -809,6 +811,23 @@
   background:
     radial-gradient(circle at 35% 30%, rgba(19, 217, 255, 0.3), transparent 45%),
     #092035;
+}
+
+.conversationAvatarInitials {
+  display: grid;
+  position: absolute;
+  inset: 0;
+  place-items: center;
+}
+
+.conversationAvatarImage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  background: #092035;
 }
 
 .conversationCopy {

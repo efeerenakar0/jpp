@@ -73,6 +73,7 @@ describe('BusinessCeoDashboardView', () => {
             id: 'conversation-1',
             customerName: 'Gerçek Müşteri',
             customerPhone: '+905551112233',
+            channel: 'WHATSAPP',
             intent: 'RESIDENTIAL',
             summary: null,
             updatedAt: '2026-08-05T12:00:00.000Z',
@@ -125,6 +126,10 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('Portföyü bugün görebilir miyim?');
     expect(html).toContain('WhatsApp Bağlı');
     expect(html).toContain('data-brand-icon="whatsapp"');
+    expect(html).toContain(
+      'src="/api/fabrika/assistant/conversations/conversation-1/avatar"'
+    );
+    expect(html).toContain('Gerçek Müşteri WhatsApp profil fotoğrafı');
     expect(html).toContain('aria-label="Gerçek Müşteri sohbetini sil"');
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('aria-expanded="false"');

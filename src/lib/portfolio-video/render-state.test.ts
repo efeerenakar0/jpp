@@ -7,6 +7,21 @@ import {
 } from './render-state';
 
 describe('portfolio video render state', () => {
+  it('AI planlama ve MP4 kodlama aşamalarını ayrı, iptal edilebilir durumlar olarak izler', () => {
+    const planning = portfolioVideoRenderReducer(
+      initialPortfolioVideoRenderState,
+      { type: 'PLAN' }
+    );
+    const rendering = portfolioVideoRenderReducer(planning, { type: 'START' });
+    const encoding = portfolioVideoRenderReducer(rendering, { type: 'ENCODE' });
+
+    expect(planning).toMatchObject({ status: 'PLANNING', progress: 0 });
+    expect(encoding).toMatchObject({ status: 'ENCODING', progress: 0.95 });
+    expect(
+      portfolioVideoRenderReducer(encoding, { type: 'CANCEL' })
+    ).toMatchObject({ status: 'CANCELLED', progress: 0 });
+  });
+
   it('ilerlemeyi 0-1 aralığında tutar ve başarıyı tamamlar', () => {
     const rendering = portfolioVideoRenderReducer(
       initialPortfolioVideoRenderState,

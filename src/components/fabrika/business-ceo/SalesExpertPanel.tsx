@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import Image from 'next/image';
 import { type FormEvent, useMemo, useState } from 'react';
 
 import WhatsAppConnectionPanel from '@/components/fabrika/WhatsAppConnectionPanel';
@@ -66,6 +67,44 @@ type DeleteConversation = (conversationId: string) => Promise<void>;
 
 function displayCount(value: number | null) {
   return value === null ? '—' : new Intl.NumberFormat('tr-TR').format(value);
+}
+
+function ConversationAvatar({
+  conversation,
+  whatsappConnected,
+}: {
+  conversation: SalesConversationRow;
+  whatsappConnected: boolean;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const canLoadRealPhoto =
+    whatsappConnected &&
+    conversation.channel === 'WHATSAPP' &&
+    Boolean(conversation.customerPhone) &&
+    !imageFailed;
+
+  return (
+    <span className={styles.conversationAvatar}>
+      <span aria-hidden="true" className={styles.conversationAvatarInitials}>
+        {customerInitials(conversation.customerName)}
+      </span>
+      {canLoadRealPhoto ? (
+        <Image
+          alt={`${conversation.customerName} WhatsApp profil fotoğrafı`}
+          className={styles.conversationAvatarImage}
+          height={43}
+          loading="lazy"
+          onError={() => setImageFailed(true)}
+          referrerPolicy="no-referrer"
+          src={`/api/fabrika/assistant/conversations/${encodeURIComponent(
+            conversation.id
+          )}/avatar`}
+          unoptimized
+          width={43}
+        />
+      ) : null}
+    </span>
+  );
 }
 
 function ConversationDialog({
@@ -461,9 +500,10 @@ export function SalesExpertPanel({
           ) : null}
           {rows.map((row) => (
             <article className={styles.conversationRow} key={row.id} role="listitem">
-              <span className={styles.conversationAvatar} aria-hidden="true">
-                {customerInitials(row.customerName)}
-              </span>
+              <ConversationAvatar
+                conversation={row}
+                whatsappConnected={whatsappConnected}
+              />
               <span className={styles.conversationCopy}>
                 <strong className={styles.conversationName}>{row.customerName}</strong>
                 <span className={styles.conversationPhone}>

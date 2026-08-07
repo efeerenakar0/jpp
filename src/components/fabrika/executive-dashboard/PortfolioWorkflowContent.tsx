@@ -53,7 +53,7 @@ type PortfolioWorkflowContentProps = {
 const stepLabels = [
   'Başlangıç',
   'Portföy',
-  'Kontrol',
+  'AI Stüdyo',
   'Reklam',
   'Pazarlama',
   'Sonuç',
@@ -430,16 +430,84 @@ function PortfolioStep({
   );
 }
 
-function ReviewStep({ draft, onAction }: Pick<PortfolioWorkflowContentProps, 'draft' | 'onAction'>) {
+function ReviewStep({
+  draft,
+  onAction,
+  onRetryMedia,
+}: Pick<PortfolioWorkflowContentProps, 'draft' | 'onAction' | 'onRetryMedia'>) {
   const visibleMedia = draft.media.filter((media) => !media.removed);
+  const readyMedia = visibleMedia.filter((media) => media.status === 'ready');
+  const activeMedia = visibleMedia.filter((media) =>
+    ['queued', 'uploading', 'processing'].includes(media.status)
+  );
+  const failedMedia = visibleMedia.filter((media) => media.status === 'error');
+  const averageProgress = visibleMedia.length
+    ? Math.round(
+        visibleMedia.reduce((total, media) => total + media.progress, 0) /
+          visibleMedia.length
+      )
+    : 0;
+
   return (
     <div className="space-y-4 p-5 sm:p-6">
       <div>
-        <WorkflowTitle>Görselleri kontrol et</WorkflowTitle>
+        <WorkflowTitle>AI Stüdyo</WorkflowTitle>
         <WorkflowDescription>
-          Kapağı seç, istemediklerini kaldır veya düzenlenmiş görseli orijinaline döndür.
+          Görseller ışık, renk, perspektif ve netlik açısından arka planda iyileştirilir.
+          Hazır sonuçlarda AI sürümüyle orijinal arasında seçim yapabilir, kapağı belirleyebilirsin.
         </WorkflowDescription>
       </div>
+
+      <section
+        aria-label="AI Stüdyo işlem durumu"
+        className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.06] p-4"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200">
+              <Sparkles className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-white">
+                {activeMedia.length
+                  ? `AI Stüdyo çalışıyor · %${averageProgress}`
+                  : draft.studioBatchId
+                    ? `${readyMedia.length} görsel hazır`
+                    : 'AI Stüdyo çalışması bekleniyor'}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                {draft.studioBatchId
+                  ? 'İşlem sunucudaki güvenli Stüdyo kuyruğunda yürütülür; bu pencereyi kapatsan da devam eder.'
+                  : 'Bir önceki adımda görsel yüklediğinde gerçek AI Stüdyo işlemi otomatik olarak başlar.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-200">
+              {readyMedia.length} hazır
+            </span>
+            {activeMedia.length > 0 ? (
+              <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-200">
+                {activeMedia.length} işleniyor
+              </span>
+            ) : null}
+            {failedMedia.length > 0 ? (
+              <span className="rounded-full border border-rose-400/20 bg-rose-400/10 px-2.5 py-1 text-rose-200">
+                {failedMedia.length} hata
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {activeMedia.length > 0 ? (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-900/80">
+            <span
+              className="block h-full rounded-full bg-cyan-300 transition-[width]"
+              style={{ width: `${averageProgress}%` }}
+            />
+          </div>
+        ) : null}
+      </section>
+
       {draft.media.length === 0 ? (
         <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-sm text-amber-100">
           <AlertCircle className="mr-2 inline h-4 w-4" /> Henüz görsel eklenmedi. Geri dönerek görsel yükleyebilirsin.
@@ -457,16 +525,64 @@ function ReviewStep({ draft, onAction }: Pick<PortfolioWorkflowContentProps, 'dr
                 )}
               </div>
               <div className="p-3">
-                <p className="truncate text-xs font-medium text-white">{media.name}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-xs font-medium text-white">{media.name}</p>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                      media.status === 'error'
+                        ? 'bg-rose-400/10 text-rose-200'
+                        : media.status === 'ready'
+                          ? 'bg-emerald-400/10 text-emerald-200'
+                          : 'bg-cyan-400/10 text-cyan-200'
+                    }`}
+                  >
+                    {media.status === 'ready' && media.outputUrl
+                      ? media.restoredToOriginal
+                        ? 'Orijinal kullanılıyor'
+                        : 'AI ile iyileştirildi'
+                      : mediaStatus(media)}
+                  </span>
+                </div>
+                {media.status !== 'ready' ? (
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                    <span
+                      className={`block h-full rounded-full ${media.status === 'error' ? 'bg-rose-400' : 'bg-cyan-400'}`}
+                      style={{ width: `${media.progress}%` }}
+                    />
+                  </div>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {!media.removed && (
                     <button type="button" onClick={() => onAction({ type: 'select-cover', id: media.id })} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/25 px-2 py-1 text-[10px] text-cyan-200">
                       <Star className="h-3 w-3" /> {draft.coverMediaId === media.id ? 'Kapak seçildi' : 'Kapak seç'}
                     </button>
                   )}
-                  <button type="button" onClick={() => onAction({ type: 'restore-original', id: media.id })} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-[10px] text-slate-300">
-                    <RefreshCcw className="h-3 w-3" /> Orijinale dön
-                  </button>
+                  {media.outputUrl ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onAction({
+                          type: media.restoredToOriginal
+                            ? 'use-enhanced'
+                            : 'restore-original',
+                          id: media.id,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-[10px] text-slate-300"
+                    >
+                      <RefreshCcw className="h-3 w-3" />
+                      {media.restoredToOriginal ? 'AI sürümünü kullan' : 'Orijinali kullan'}
+                    </button>
+                  ) : null}
+                  {media.status === 'error' ? (
+                    <button
+                      type="button"
+                      onClick={() => void onRetryMedia(media)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-400/25 px-2 py-1 text-[10px] text-amber-200"
+                    >
+                      <RefreshCcw className="h-3 w-3" /> Yeniden dene
+                    </button>
+                  ) : null}
                   <button type="button" onClick={() => onAction(media.removed ? { type: 'restore-original', id: media.id } : { type: 'remove-media', id: media.id })} className="inline-flex items-center gap-1 rounded-lg border border-rose-400/25 px-2 py-1 text-[10px] text-rose-200">
                     <Trash2 className="h-3 w-3" /> {media.removed ? 'Geri al' : 'Kaldır'}
                   </button>
@@ -654,7 +770,13 @@ function WorkflowBody(props: PortfolioWorkflowContentProps) {
         />
       );
     case 'review':
-      return <ReviewStep draft={props.draft} onAction={props.onAction} />;
+      return (
+        <ReviewStep
+          draft={props.draft}
+          onAction={props.onAction}
+          onRetryMedia={props.onRetryMedia}
+        />
+      );
     case 'advertising':
       return <AdvertisingStep draft={props.draft} onAction={props.onAction} />;
     case 'marketing':
@@ -720,7 +842,7 @@ function WorkflowFooter({
 
 export function PortfolioWorkflowContent(props: PortfolioWorkflowContentProps) {
   return (
-    <div className="flex max-h-[min(86vh,780px)] min-h-0 flex-col overflow-hidden">
+    <div className="flex h-[min(92dvh,920px)] min-h-0 flex-col overflow-hidden">
       <StepHeader draft={props.draft} />
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
         <WorkflowBody {...props} />
@@ -742,7 +864,7 @@ export function PortfolioWorkflowDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
-        className="w-[min(94vw,760px)] max-w-none gap-0 overflow-hidden border border-slate-700 bg-[#091525] p-0 text-slate-100 shadow-2xl shadow-black/60 ring-0"
+        className="w-[min(96vw,1040px)] max-w-none gap-0 overflow-hidden border border-slate-700 bg-[#091525] p-0 text-slate-100 shadow-2xl shadow-black/60 ring-0"
       >
         <RadixDialogTitle className="sr-only">Portföy işlem akışı</RadixDialogTitle>
         <RadixDialogDescription className="sr-only">

@@ -105,6 +105,7 @@ export type ExecutivePortfolioAction =
   | { type: 'select-cover'; id: string }
   | { type: 'remove-media'; id: string }
   | { type: 'restore-original'; id: string }
+  | { type: 'use-enhanced'; id: string }
   | { type: 'set-advertising-skipped'; skipped: boolean }
   | { type: 'skip-advertising' }
   | {
@@ -372,6 +373,21 @@ export function executivePortfolioReducer(
                 ...item,
                 removed: false,
                 restoredToOriginal: true,
+                previewUrl: item.originalUrl || item.previewUrl,
+                error: undefined,
+              }
+            : item
+        ),
+      });
+    case 'use-enhanced':
+      return withUpdatedAt(draft, {
+        media: draft.media.map((item) =>
+          item.id === action.id && item.outputUrl
+            ? {
+                ...item,
+                removed: false,
+                restoredToOriginal: false,
+                previewUrl: item.outputUrl,
                 error: undefined,
               }
             : item

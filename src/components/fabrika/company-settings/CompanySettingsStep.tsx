@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   ArrowDown,
@@ -42,6 +42,8 @@ const dayLabels: Record<CompanySettingsRequest['workHours'][number]['day'], stri
 };
 
 export function SettingsLabel({ children, help }: { children: ReactNode; help: string }) {
+  const helpId = useId();
+
   return (
     <div className="mb-1.5 flex items-center gap-1.5">
       <span className="text-sm font-medium text-slate-200">{children}</span>
@@ -49,13 +51,21 @@ export function SettingsLabel({ children, help }: { children: ReactNode; help: s
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex size-5 items-center justify-center rounded-full text-slate-500 hover:bg-slate-800 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            className="inline-flex size-6 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-400/[0.06] text-cyan-300 transition hover:border-cyan-300/50 hover:bg-cyan-400/10 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
             aria-label="Bu ayar hakkında bilgi"
+            aria-describedby={helpId}
           >
-            <Info className="size-3.5" />
+            <Info className="size-4" />
           </button>
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs leading-5" sideOffset={6}>
+        <span id={helpId} className="sr-only">
+          {help}
+        </span>
+        <TooltipContent
+          align="start"
+          className="max-w-[min(22rem,calc(100vw-2rem))] items-start rounded-xl border border-cyan-300/30 bg-[#061522] px-4 py-3 text-sm font-medium leading-6 text-slate-100 shadow-2xl shadow-black/50 dark:bg-[#061522] dark:text-slate-100 [&>svg]:bg-[#061522] [&>svg]:fill-[#061522]"
+          sideOffset={8}
+        >
           {help}
         </TooltipContent>
       </Tooltip>
@@ -477,12 +487,12 @@ export default function CompanySettingsStep({ step, value, members, onChange }: 
 
         <div className="grid gap-7 xl:grid-cols-[1fr_0.9fr]">
           <div className="grid content-start gap-5 md:grid-cols-2">
-          <NumberField label="Müşteriye ilk dönüş" help="Yeni müşteri talebinde hedef ilk yanıt süresidir." suffix="dakika" min={1} max={240} value={value.operations.customerResponseMinutes} onChange={(next) => patch('operations', { ...value.operations, customerResponseMinutes: next })} />
-          <NumberField label="Hatırlatma aralığı" help="Çalışan yanıt vermediyse bu aralıkla sınırlı hatırlatma oluşturulur." suffix="dakika" min={1} max={60} value={value.operations.employeeReminderMinutes} onChange={(next) => patch('operations', { ...value.operations, employeeReminderMinutes: next })} />
-          <NumberField label="Çalışan cevap süresi" help="Bu süre dolunca sıradaki uygun çalışana geçilir." suffix="dakika" min={5} max={120} value={value.operations.employeeAcknowledgementMinutes} onChange={(next) => patch('operations', { ...value.operations, employeeAcknowledgementMinutes: next })} />
-          <NumberField label="Patron karar süresi" help="Patron karar isteminin açık kalacağı süredir." suffix="dakika" min={5} max={240} value={value.operations.ownerEscalationMinutes} onChange={(next) => patch('operations', { ...value.operations, ownerEscalationMinutes: next })} />
-          <NumberField label="Randevu hatırlatma" help="Çalışana randevudan kaç saat önce hatırlatma yapılacağını belirler." suffix="saat önce" min={1} max={72} value={value.operations.appointmentReminderHours} onChange={(next) => patch('operations', { ...value.operations, appointmentReminderHours: next })} />
-          <NumberField label="Görüşme sonucu" help="Randevu bitiminden sonra çalışandan ne zaman sonuç isteneceğini belirler." suffix="dakika" min={5} max={1440} value={value.operations.appointmentOutcomeDelayMinutes} onChange={(next) => patch('operations', { ...value.operations, appointmentOutcomeDelayMinutes: next })} />
+          <NumberField label="Müşteriye ilk dönüş" help="Yeni müşteri ilk mesajını gönderdiğinde ekibin yanıt vermesi için hedef süredir. Süre aşılırsa kayıt gecikmiş olarak işaretlenir ve bildirim kurallarınız devreye girer." suffix="dakika" min={1} max={240} value={value.operations.customerResponseMinutes} onChange={(next) => patch('operations', { ...value.operations, customerResponseMinutes: next })} />
+          <NumberField label="Hatırlatma aralığı" help="Atanan çalışan görevi henüz kabul etmediyse sistem bu aralıkla yeni bir hatırlatma kuyruğa alır. Aynı görev için sınırsız mesaj gönderilmez." suffix="dakika" min={1} max={60} value={value.operations.employeeReminderMinutes} onChange={(next) => patch('operations', { ...value.operations, employeeReminderMinutes: next })} />
+          <NumberField label="Çalışan cevap süresi" help="Çalışan bu süre içinde görevi kabul veya reddetmezse sistem eskalasyon sıranızdaki bir sonraki uygun çalışana geçer ve işlem geçmişini kaydeder." suffix="dakika" min={5} max={120} value={value.operations.employeeAcknowledgementMinutes} onChange={(next) => patch('operations', { ...value.operations, employeeAcknowledgementMinutes: next })} />
+          <NumberField label="Patron karar süresi" help="Çalışan bulunamadığında veya kritik bir karar gerektiğinde patrona açılan karar isteğinin yanıt bekleyeceği süredir. Süre sonunda kayıt kritik uyarılara taşınır; sistem rastgele karar vermez." suffix="dakika" min={5} max={240} value={value.operations.ownerEscalationMinutes} onChange={(next) => patch('operations', { ...value.operations, ownerEscalationMinutes: next })} />
+          <NumberField label="Randevu hatırlatma" help="Gösterimden bu kadar saat önce sorumlu çalışana randevu bilgisi ve teyit isteği gönderilir. Tarih ve saat şirketinizin seçili saat dilimine göre hesaplanır." suffix="saat önce" min={1} max={72} value={value.operations.appointmentReminderHours} onChange={(next) => patch('operations', { ...value.operations, appointmentReminderHours: next })} />
+          <NumberField label="Görüşme sonucu" help="Randevu bittikten sonra sistem bu süre kadar bekler ve sorumlu çalışandan satıldı, takipte, sonuçsuz veya iptal gibi yapılandırılmış görüşme sonucunu ister." suffix="dakika" min={5} max={1440} value={value.operations.appointmentOutcomeDelayMinutes} onChange={(next) => patch('operations', { ...value.operations, appointmentOutcomeDelayMinutes: next })} />
           <div className="md:col-span-2">
             <SettingsLabel help="Patron yanıt vermezse güvenli ve denetlenebilir varsayılan davranıştır.">
               Patron cevap vermezse

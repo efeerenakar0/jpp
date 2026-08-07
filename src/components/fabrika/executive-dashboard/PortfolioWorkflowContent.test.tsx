@@ -57,6 +57,48 @@ describe('PortfolioWorkflowContent', () => {
     expect(html).toContain('Adım 2 / 6');
   });
 
+  it('exposes the real AI Studio work and image choice in step three', () => {
+    const base = createExecutivePortfolioDraft();
+    const draft = {
+      ...base,
+      source: 'studio' as const,
+      currentStep: 'review' as const,
+      studioBatchId: 'batch-1',
+      propertyId: 'property-1',
+      media: [
+        {
+          id: 'media-1',
+          name: 'salon-iyilestirilmis.jpg',
+          size: 42,
+          progress: 100,
+          status: 'ready' as const,
+          removed: false,
+          restoredToOriginal: false,
+          previewUrl: '/enhanced.jpg',
+          originalUrl: '/original.jpg',
+          outputUrl: '/enhanced.jpg',
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <PortfolioWorkflowContent
+        draft={draft}
+        entryMode="studio"
+        onAction={noOp}
+        onFilesSelected={noOpAsync}
+        onRetryMedia={noOpAsync}
+        onContinue={noOpAsync}
+        onClose={noOp}
+      />
+    );
+
+    expect(html).toContain('Adım 3 / 6');
+    expect(html).toContain('AI Stüdyo');
+    expect(html).toContain('AI ile iyileştirildi');
+    expect(html).toContain('Orijinali kullan');
+    expect(html).toContain('1 görsel hazır');
+  });
+
   it('fails closed on the result screen and exposes a real summary download', () => {
     const base = createExecutivePortfolioDraft();
     const draft = {

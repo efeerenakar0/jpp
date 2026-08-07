@@ -154,7 +154,7 @@ describe('browser Remotion video jobs', () => {
       where: {
         companyAccountId: 'company-a',
         createdByMemberId: 'member-a',
-        provider: 'BROWSER_REMOTION',
+        provider: { in: ['BROWSER_REMOTION', 'BROWSER_REMOTION_AI'] },
       },
       orderBy: { createdAt: 'desc' },
       take: 30,
@@ -178,7 +178,7 @@ describe('browser Remotion video jobs', () => {
         id: 'browser-job-a',
         companyAccountId: 'company-a',
         createdByMemberId: 'member-a',
-        provider: 'BROWSER_REMOTION',
+        provider: { in: ['BROWSER_REMOTION', 'BROWSER_REMOTION_AI'] },
         status: 'GENERATING',
       },
       data: expect.objectContaining({

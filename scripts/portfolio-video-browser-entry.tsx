@@ -1,13 +1,14 @@
 import { canRenderMediaOnWeb, renderMediaOnWeb } from '@remotion/web-renderer';
-import { PortfolioPromoVideo } from '../src/remotion/portfolio-video/PortfolioPromoVideo';
+import { GeneratedPortfolioVideo } from '../src/remotion/portfolio-video/GeneratedPortfolioVideo';
 import {
-  PORTFOLIO_PROMO_VIDEO_DURATION,
-  PORTFOLIO_PROMO_VIDEO_FPS,
-  PORTFOLIO_PROMO_VIDEO_HEIGHT,
-  PORTFOLIO_PROMO_VIDEO_ID,
-  PORTFOLIO_PROMO_VIDEO_WIDTH,
-} from '../src/remotion/portfolio-video/constants';
-import { PORTFOLIO_PROMO_VIDEO_FIXTURE_PROPS } from '../src/remotion/portfolio-video/fixture';
+  GENERATED_PORTFOLIO_VIDEO_FIXTURE_FACTS,
+  GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN,
+} from '../src/remotion/portfolio-video/generated-fixture';
+
+const inputProps = {
+  plan: GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN,
+  facts: GENERATED_PORTFOLIO_VIDEO_FIXTURE_FACTS,
+};
 
 declare global {
   interface Window {
@@ -26,8 +27,8 @@ window.runPortfolioVideoBrowserVerification = async () => {
     container: 'mp4',
     videoCodec: 'h264',
     audioCodec: null,
-    width: PORTFOLIO_PROMO_VIDEO_WIDTH,
-    height: PORTFOLIO_PROMO_VIDEO_HEIGHT,
+    width: GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN.width,
+    height: GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN.height,
     muted: true,
   });
   if (!support.canRender) {
@@ -43,15 +44,15 @@ window.runPortfolioVideoBrowserVerification = async () => {
   let finalProgress = 0;
   const result = await renderMediaOnWeb({
     composition: {
-      id: PORTFOLIO_PROMO_VIDEO_ID,
-      component: PortfolioPromoVideo,
-      defaultProps: PORTFOLIO_PROMO_VIDEO_FIXTURE_PROPS,
-      durationInFrames: PORTFOLIO_PROMO_VIDEO_DURATION,
-      fps: PORTFOLIO_PROMO_VIDEO_FPS,
-      width: PORTFOLIO_PROMO_VIDEO_WIDTH,
-      height: PORTFOLIO_PROMO_VIDEO_HEIGHT,
+      id: 'GeneratedPortfolioVideoBrowserFixture',
+      component: GeneratedPortfolioVideo,
+      defaultProps: inputProps,
+      durationInFrames: GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN.durationSeconds * GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN.fps,
+      fps: GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN.fps,
+      width: GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN.width,
+      height: GENERATED_PORTFOLIO_VIDEO_FIXTURE_PLAN.height,
     },
-    inputProps: PORTFOLIO_PROMO_VIDEO_FIXTURE_PROPS,
+    inputProps,
     container: 'mp4',
     videoCodec: 'h264',
     audioCodec: null,

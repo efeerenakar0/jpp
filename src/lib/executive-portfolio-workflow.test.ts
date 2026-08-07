@@ -8,6 +8,7 @@ import {
   getExecutiveWorkflowResultState,
   resolveExecutiveWorkflowEntryStep,
   serializeExecutivePortfolioDraft,
+  type ExecutivePortfolioDraft,
 } from './executive-portfolio-workflow';
 
 describe('executive portfolio workflow', () => {
@@ -108,6 +109,45 @@ describe('executive portfolio workflow', () => {
 
     draft = executivePortfolioReducer(draft, { type: 'restore-original', id: 'front' });
     expect(draft.media[0]).toMatchObject({ removed: false, restoredToOriginal: true });
+  });
+
+  it('switches immediately between the original and AI Studio output', () => {
+    const initial = createExecutivePortfolioDraft();
+    let draft: ExecutivePortfolioDraft = {
+      ...initial,
+      media: [
+        {
+          id: 'salon',
+          name: 'salon.jpg',
+          size: 500,
+          progress: 100,
+          status: 'ready' as const,
+          removed: false,
+          restoredToOriginal: false,
+          previewUrl: '/enhanced.jpg',
+          originalUrl: '/original.jpg',
+          outputUrl: '/enhanced.jpg',
+        },
+      ],
+    };
+
+    draft = executivePortfolioReducer(draft, {
+      type: 'restore-original',
+      id: 'salon',
+    });
+    expect(draft.media[0]).toMatchObject({
+      restoredToOriginal: true,
+      previewUrl: '/original.jpg',
+    });
+
+    draft = executivePortfolioReducer(draft, {
+      type: 'use-enhanced',
+      id: 'salon',
+    });
+    expect(draft.media[0]).toMatchObject({
+      restoredToOriginal: false,
+      previewUrl: '/enhanced.jpg',
+    });
   });
 
   it('stores portfolio details, optional advertising choice and marketing targets', () => {
