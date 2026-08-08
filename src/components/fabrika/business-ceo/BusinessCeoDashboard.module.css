@@ -1511,6 +1511,205 @@
   }
 }
 
+/* Bright dashboard polish: clearer module art and animated interactive edges. */
+@keyframes businessCeoNeonBorder {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 220% 50%;
+  }
+}
+
+@keyframes businessCeoNeonPulse {
+  0%,
+  100% {
+    opacity: 0.52;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.workflowCard,
+.secondaryCard,
+.conversationRow,
+.quickWorkflowButton,
+.whatsappButton,
+.messageButton,
+.deleteButton {
+  position: relative;
+  isolation: isolate;
+}
+
+.workflowCard::before,
+.secondaryCard::before,
+.conversationRow::before,
+.quickWorkflowButton::before,
+.whatsappButton::before,
+.messageButton::before,
+.deleteButton::before {
+  position: absolute;
+  z-index: 4;
+  inset: -1px;
+  padding: 1.25px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(
+    112deg,
+    rgba(0, 119, 255, 0.92),
+    rgba(22, 209, 255, 0.78),
+    rgba(125, 72, 255, 0.82),
+    rgba(211, 86, 255, 0.68),
+    rgba(0, 119, 255, 0.92)
+  );
+  background-size: 220% 100%;
+  opacity: 0.52;
+  filter: drop-shadow(0 0 5px rgba(45, 114, 255, 0.18));
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation:
+    businessCeoNeonBorder 6s linear infinite,
+    businessCeoNeonPulse 3.8s ease-in-out infinite;
+  transition:
+    opacity 180ms ease,
+    filter 180ms ease,
+    padding 180ms ease;
+}
+
+.workflowCard:hover::before,
+.workflowCard:focus-visible::before,
+.secondaryCard:hover::before,
+.secondaryCard:focus-visible::before,
+.conversationRow:hover::before,
+.conversationRow:focus-within::before,
+.quickWorkflowButton:hover::before,
+.quickWorkflowButton:focus-visible::before,
+.whatsappButton:hover::before,
+.whatsappButton:focus-visible::before,
+.messageButton:hover::before,
+.messageButton:focus-visible::before,
+.deleteButton:hover::before,
+.deleteButton:focus-visible::before {
+  padding: 1.8px;
+  opacity: 1;
+  filter:
+    drop-shadow(0 0 7px rgba(21, 139, 255, 0.42))
+    drop-shadow(0 0 11px rgba(129, 75, 255, 0.25));
+  animation-duration: 1.75s, 1.2s;
+}
+
+.secondaryCard {
+  min-height: 220px;
+  overflow: hidden;
+  border-color: transparent;
+  background: rgba(248, 250, 254, 0.94);
+  box-shadow:
+    0 10px 24px rgba(48, 72, 116, 0.09),
+    0 0 18px color-mix(in srgb, var(--card-accent) 8%, transparent);
+}
+
+.secondaryCard:hover,
+.secondaryCard:focus-visible {
+  transform: translateY(-3px);
+  box-shadow:
+    0 16px 30px rgba(37, 65, 121, 0.15),
+    0 0 24px color-mix(in srgb, var(--card-accent) 15%, transparent);
+}
+
+.moduleImageFrame {
+  height: clamp(126px, 12vw, 172px);
+  min-height: 126px;
+  background: #f5f8fd;
+}
+
+.moduleImageFrame::after {
+  background: linear-gradient(to bottom, transparent 72%, rgba(248, 250, 254, 0.5));
+  mix-blend-mode: normal;
+}
+
+.moduleImage {
+  opacity: 1;
+  filter: none;
+}
+
+.secondaryCopy {
+  min-height: 90px;
+  padding: 12px 14px 14px;
+  border-top-color: rgba(54, 101, 188, 0.15);
+  background: rgba(248, 250, 254, 0.94);
+}
+
+.secondaryCopy strong {
+  color: #0a1b53;
+  font-size: clamp(0.98rem, 1.15vw, 1.2rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.secondaryCopy small {
+  max-width: calc(100% - 30px);
+  color: #4f5f7d;
+  font-size: clamp(0.68rem, 0.72vw, 0.78rem);
+  line-height: 1.45;
+}
+
+.referenceRibbon {
+  position: relative;
+  border-top-color: transparent;
+  box-shadow:
+    0 10px 22px rgba(48, 74, 123, 0.08),
+    0 0 18px rgba(77, 99, 255, 0.05);
+}
+
+.referenceRibbon::before {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(
+    90deg,
+    #1ca7ff,
+    #5d7dff,
+    #a769ff,
+    #53c6ff,
+    #1ca7ff
+  );
+  background-size: 220% 100%;
+  box-shadow:
+    0 0 7px rgba(42, 133, 255, 0.34),
+    0 0 12px rgba(139, 84, 255, 0.18);
+  animation: businessCeoNeonBorder 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflowCard::before,
+  .secondaryCard::before,
+  .conversationRow::before,
+  .quickWorkflowButton::before,
+  .whatsappButton::before,
+  .messageButton::before,
+  .deleteButton::before,
+  .referenceRibbon::before {
+    animation: none;
+  }
+
+  .secondaryCard:hover,
+  .secondaryCard:focus-visible {
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard *,
   .dashboard *::before,
@@ -2079,5 +2278,98 @@
   .metricStripItem:nth-child(odd),
   .referenceBrand:nth-child(odd) {
     border-left: 0;
+  }
+}
+
+/* Final bright-card overrides intentionally follow every responsive theme rule. */
+.secondaryCard {
+  min-height: 220px;
+  overflow: hidden;
+  border-color: transparent;
+  background: rgba(248, 250, 254, 0.94);
+  box-shadow:
+    0 10px 24px rgba(48, 72, 116, 0.09),
+    0 0 18px color-mix(in srgb, var(--card-accent) 8%, transparent);
+}
+
+.secondaryCard:hover,
+.secondaryCard:focus-visible {
+  transform: translateY(-3px);
+  border-color: transparent;
+  box-shadow:
+    0 16px 30px rgba(37, 65, 121, 0.15),
+    0 0 24px color-mix(in srgb, var(--card-accent) 15%, transparent);
+}
+
+.moduleImageFrame {
+  height: clamp(126px, 12vw, 172px);
+  min-height: 126px;
+  background: #f5f8fd;
+}
+
+.moduleImageFrame::after {
+  background: linear-gradient(to bottom, transparent 72%, rgba(248, 250, 254, 0.5));
+  mix-blend-mode: normal;
+}
+
+.moduleImage {
+  opacity: 1;
+  filter: none;
+}
+
+.secondaryCopy {
+  min-height: 90px;
+  padding: 12px 14px 14px;
+  border-top-color: rgba(54, 101, 188, 0.15);
+  background: rgba(248, 250, 254, 0.94);
+}
+
+.secondaryCopy strong {
+  color: #0a1b53;
+  font-size: clamp(0.98rem, 1.15vw, 1.2rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.secondaryCopy small {
+  max-width: calc(100% - 30px);
+  color: #4f5f7d;
+  font-size: clamp(0.68rem, 0.72vw, 0.78rem);
+  line-height: 1.45;
+}
+
+.referenceRibbon {
+  position: relative;
+  border-top-color: transparent;
+  box-shadow:
+    0 10px 22px rgba(48, 74, 123, 0.08),
+    0 0 18px rgba(77, 99, 255, 0.05);
+}
+
+.referenceRibbon::before {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(90deg, #1ca7ff, #5d7dff, #a769ff, #53c6ff, #1ca7ff);
+  background-size: 220% 100%;
+  box-shadow:
+    0 0 7px rgba(42, 133, 255, 0.34),
+    0 0 12px rgba(139, 84, 255, 0.18);
+  animation: businessCeoNeonBorder 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secondaryCard:hover,
+  .secondaryCard:focus-visible {
+    transform: none;
+  }
+
+  .referenceRibbon::before {
+    animation: none;
   }
 }

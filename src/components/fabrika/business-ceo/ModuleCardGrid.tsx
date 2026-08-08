@@ -18,23 +18,23 @@ const MODULE_CARD_IMAGES: Partial<
   >
 > = {
   developer: {
-    src: '/business-ceo/modules/ai-developer.png',
+    src: '/business-ceo/modules/ai-developer-light.png',
     alt: 'AI Yazılımcı modül görseli',
   },
   'partner-finder': {
-    src: '/business-ceo/modules/ai-partner-finder.png',
+    src: '/business-ceo/modules/ai-partner-finder-light.png',
     alt: 'AI Partner Bulucu modül görseli',
   },
   'authorized-pool': {
-    src: '/business-ceo/modules/ai-authorized-portfolio-pool.png',
+    src: '/business-ceo/modules/ai-authorized-portfolio-pool-light.png',
     alt: 'AI Yetkili Portföy Havuzu modül görseli',
   },
   'deed-tracking': {
-    src: '/business-ceo/modules/ai-deed-tracking.png',
+    src: '/business-ceo/modules/ai-deed-tracking-light.png',
     alt: 'AI Tapu Takip modül görseli',
   },
   'company-ceo': {
-    src: '/business-ceo/modules/ai-company-ceo.png',
+    src: '/business-ceo/modules/ai-company-ceo-light.png',
     alt: 'AI Şirket CEO modül görseli',
   },
 };
