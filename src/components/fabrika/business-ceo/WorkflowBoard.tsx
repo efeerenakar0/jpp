@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, WandSparkles } from 'lucide-react';
+import { WandSparkles } from 'lucide-react';
 
 import {
   BUSINESS_CEO_MODULES,
@@ -8,7 +8,6 @@ import {
 } from '@/lib/business-ceo-dashboard';
 
 import { ModuleVisual } from './ModuleVisual';
-import type { AssistantMetrics } from './sales-data';
 import type { PortfolioWorkflowStatus } from '../executive-dashboard/usePortfolioWorkflowController';
 import styles from './BusinessCeoDashboard.module.css';
 
@@ -60,19 +59,11 @@ function MobileConnector() {
   );
 }
 
-function metricValue(value: number | null | undefined) {
-  return typeof value === 'number'
-    ? new Intl.NumberFormat('tr-TR').format(value)
-    : '—';
-}
-
 export function WorkflowBoard({
-  metrics,
   onSelect,
   onQuickWorkflow,
   workflowStatus,
 }: {
-  metrics: AssistantMetrics | null;
   onSelect: (module: BusinessCeoModuleDefinition) => void;
   onQuickWorkflow: () => void;
   workflowStatus: PortfolioWorkflowStatus | null;
@@ -142,26 +133,6 @@ export function WorkflowBoard({
           ))}
         </div>
 
-        <div className={styles.workflowMetrics}>
-          <div className={styles.workflowMetricsTitle}>
-            <Activity aria-hidden="true" />
-            <span>Canlı akış performansı</span>
-          </div>
-          <dl aria-label="Canlı akış özeti" className={styles.workflowMetricList}>
-            <div className={styles.workflowMetric}>
-              <dt>Bugünkü müşteri mesajı</dt>
-              <dd>{metricValue(metrics?.incomingMessages)}</dd>
-            </div>
-            <div className={styles.workflowMetric}>
-              <dt>Yanıt bekleyen randevu</dt>
-              <dd>{metricValue(metrics?.pendingAppointments)}</dd>
-            </div>
-            <div className={styles.workflowMetric}>
-              <dt>İnsan temsilcide</dt>
-              <dd>{metricValue(metrics?.handoffConversations)}</dd>
-            </div>
-          </dl>
-        </div>
       </div>
     </section>
   );

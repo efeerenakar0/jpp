@@ -19,7 +19,7 @@ const JOB_KIND_LABELS: Record<Job["kind"], string> = {
   HUNT: "Avcı",
 };
 
-export default function FabrikaJobIndicator() {
+export default function FabrikaJobIndicator({ bright = false }: { bright?: boolean }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -46,7 +46,11 @@ export default function FabrikaJobIndicator() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex h-9 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 text-xs font-medium text-emerald-300"
+        className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${
+          bright
+            ? 'border-blue-200 bg-white/75 text-blue-700 hover:border-blue-300 hover:bg-white'
+            : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+        }`}
         aria-expanded={open}
         aria-label={`${jobs.length} arka plan işlemi sürüyor`}
       >

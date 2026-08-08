@@ -86,35 +86,51 @@ interface FabrikaTopbarProps {
   session: FabrikaClientSession;
 }
 
-function BusinessCeoWordmark() {
+function BusinessCeoWordmark({ bright = false }: { bright?: boolean }) {
   return (
     <Link
       href="/fabrika"
       className="group flex min-h-11 items-center rounded-lg pr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       aria-label="Business CEO AI ana ekran"
     >
-      <span className="flex min-w-0 items-center whitespace-nowrap">
-        <span className="text-[11px] font-black tracking-[0.055em] text-white sm:text-[14px] md:text-[16px]">
+      <span className={`flex min-w-0 whitespace-nowrap ${bright ? 'flex-col items-start leading-none' : 'items-center'}`}>
+        <span className={`font-black tracking-[-0.035em] ${
+          bright
+            ? 'text-[15px] text-[#070b16] sm:text-[18px] md:text-[21px]'
+            : 'text-[11px] tracking-[0.055em] text-white sm:text-[14px] md:text-[16px]'
+        }`}>
           BUSINESS CEO{' '}
-          <span className="bg-gradient-to-br from-blue-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
             AI
           </span>
         </span>
-        <span className="mx-2 h-5 w-px shrink-0 bg-slate-600 sm:mx-3" aria-hidden="true" />
-        <span className="text-[10px] font-medium tracking-[0.04em] text-slate-300 sm:text-xs md:text-sm">
-          Real Estate
-        </span>
+        {bright ? (
+          <span className="mt-1 text-[8px] font-bold uppercase tracking-[0.34em] text-blue-700 sm:text-[9px]">
+            Real Estate
+          </span>
+        ) : (
+          <>
+            <span className="mx-2 h-5 w-px shrink-0 bg-slate-600 sm:mx-3" aria-hidden="true" />
+            <span className="text-[10px] font-medium tracking-[0.04em] text-slate-300 sm:text-xs md:text-sm">
+              Real Estate
+            </span>
+          </>
+        )}
       </span>
     </Link>
   );
 }
 
-function CompanyMark({ companyName, logoData }: FabrikaTopbarProps['account']) {
+function CompanyMark({
+  companyName,
+  logoData,
+  bright = false,
+}: FabrikaTopbarProps['account'] & { bright?: boolean }) {
   if (logoData?.startsWith('data:image/')) {
     return (
       <Image
         alt=""
-        className="h-9 w-9 rounded-full border border-cyan-300/25 object-cover"
+        className={`h-9 w-9 rounded-full border object-cover ${bright ? 'border-blue-200' : 'border-cyan-300/25'}`}
         height={36}
         src={logoData}
         unoptimized
@@ -124,7 +140,11 @@ function CompanyMark({ companyName, logoData }: FabrikaTopbarProps['account']) {
   }
 
   return (
-    <span className="grid h-9 w-9 place-items-center rounded-full border border-cyan-300/25 bg-cyan-300/10 text-sm font-semibold text-cyan-100">
+    <span className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold ${
+      bright
+        ? 'border-blue-200 bg-blue-50 text-blue-700'
+        : 'border-cyan-300/25 bg-cyan-300/10 text-cyan-100'
+    }`}>
       {companyName.slice(0, 1).toLocaleUpperCase('tr-TR')}
     </span>
   );
@@ -178,6 +198,7 @@ export default function FabrikaTopbar({
   session,
 }: FabrikaTopbarProps) {
   const pathname = usePathname();
+  const isDashboardHome = pathname === '/fabrika';
   const [commandOpen, setCommandOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -203,21 +224,33 @@ export default function FabrikaTopbar({
   }
 
   return (
-    <header className="relative z-40 flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b border-cyan-300/15 bg-[#050d18]/95 px-3 py-2 backdrop-blur-xl sm:px-5 lg:px-6">
+    <header className={`relative z-40 flex min-h-[68px] shrink-0 items-center justify-between gap-3 border-b px-4 py-2 backdrop-blur-xl sm:px-6 lg:px-9 ${
+      isDashboardHome
+        ? 'border-[#cdd9e9] bg-[#f6f8fc]/95 text-[#0a1b53] shadow-[0_4px_18px_rgba(52,74,116,0.05)]'
+        : 'border-cyan-300/15 bg-[#050d18]/95'
+    }`}>
       <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-        <BusinessCeoWordmark />
-        <span className="hidden h-8 w-px bg-slate-800 lg:block" />
-        <span className="hidden truncate text-xs font-medium text-slate-400 lg:block">
-          {pageNames[pathname] ?? 'Business CEO AI'}
-        </span>
+        <BusinessCeoWordmark bright={isDashboardHome} />
+        {!isDashboardHome ? (
+          <>
+            <span className="hidden h-8 w-px bg-slate-800 lg:block" />
+            <span className="hidden truncate text-xs font-medium text-slate-400 lg:block">
+              {pageNames[pathname] ?? 'Business CEO AI'}
+            </span>
+          </>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-        <FabrikaJobIndicator />
+        <FabrikaJobIndicator bright={isDashboardHome} />
         <button
           type="button"
           onClick={() => setCommandOpen(true)}
-          className="hidden min-h-10 items-center gap-2 rounded-xl border border-slate-800 bg-[#091525] px-3 text-xs text-slate-400 transition hover:border-cyan-300/30 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 md:flex"
+          className={`hidden min-h-10 items-center gap-2 rounded-xl border px-3 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:flex ${
+            isDashboardHome
+              ? 'border-slate-200 bg-white/75 text-[#425274] shadow-sm hover:border-blue-200 hover:bg-white hover:text-blue-700'
+              : 'border-slate-800 bg-[#091525] text-slate-400 hover:border-cyan-300/30 hover:text-slate-100'
+          }`}
           aria-label="Panelde ara"
         >
           <Search className="h-4 w-4" aria-hidden="true" />
@@ -228,18 +261,26 @@ export default function FabrikaTopbar({
         </button>
         {session.principalType === 'OWNER' ? (
           <Link
-            className="hidden min-h-10 items-center gap-2 rounded-xl border border-amber-100/25 bg-amber-100/[0.04] px-3 text-xs font-medium text-slate-200 transition hover:border-amber-100/45 hover:bg-amber-100/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:flex"
+            className={`hidden min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:flex ${
+              isDashboardHome
+                ? 'border-slate-200 bg-white/75 text-[#14285d] hover:border-blue-200 hover:bg-white'
+                : 'border-amber-100/25 bg-amber-100/[0.04] text-slate-200 hover:border-amber-100/45 hover:bg-amber-100/[0.08]'
+            }`}
             href="/fabrika/ayarlar"
           >
             <Settings className="h-4 w-4" aria-hidden="true" />
             <span className="hidden lg:inline">Şirket Ayarlarınız</span>
           </Link>
         ) : null}
-        <NotificationBell />
+        <NotificationBell bright={isDashboardHome} />
         <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
           <SheetTrigger asChild>
             <button
-              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-800 bg-[#091525] text-slate-300 transition hover:border-cyan-300/35 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              className={`grid h-10 w-10 place-items-center rounded-xl border shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                isDashboardHome
+                  ? 'border-slate-200 bg-white/75 text-blue-700 hover:border-blue-200 hover:bg-white'
+                  : 'border-slate-800 bg-[#091525] text-slate-300 hover:border-cyan-300/35 hover:text-cyan-200'
+              }`}
               type="button"
               aria-label="Modülleri aç"
             >
@@ -270,19 +311,23 @@ export default function FabrikaTopbar({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-transparent px-1.5 text-left transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:px-2"
+              className={`flex min-h-11 min-w-0 items-center gap-2 rounded-xl border px-1.5 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:px-2 ${
+                isDashboardHome
+                  ? 'border-slate-200 bg-white/75 hover:border-blue-200 hover:bg-white'
+                  : 'border-transparent hover:border-cyan-300/25 hover:bg-cyan-300/[0.05]'
+              }`}
               aria-label="Şirket ve hesap menüsü"
             >
-              <CompanyMark {...account} />
+              <CompanyMark {...account} bright={isDashboardHome} />
               <span className="hidden min-w-0 max-w-40 lg:block">
-                <span className="block truncate text-xs font-semibold text-slate-100">
+                <span className={`block truncate text-xs font-semibold ${isDashboardHome ? 'text-[#0a1b53]' : 'text-slate-100'}`}>
                   {account.companyName}
                 </span>
-                <span className="block truncate text-[10px] text-slate-500">
+                <span className={`block truncate text-[10px] ${isDashboardHome ? 'text-[#61708e]' : 'text-slate-500'}`}>
                   {session.principalType === 'OWNER' ? 'Patron hesabı' : 'Çalışan hesabı'}
                 </span>
               </span>
-              <ChevronDown className="hidden h-4 w-4 text-slate-500 lg:block" aria-hidden="true" />
+              <ChevronDown className={`hidden h-4 w-4 lg:block ${isDashboardHome ? 'text-[#61708e]' : 'text-slate-500'}`} aria-hidden="true" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent

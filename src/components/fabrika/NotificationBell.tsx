@@ -64,7 +64,7 @@ function formatTime(dateValue: string) {
   return `${Math.floor(diffHours / 24)} gün önce`;
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ bright = false }: { bright?: boolean }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [scope, setScope] = useState<NotificationScope>('important');
   const [isOpen, setIsOpen] = useState(false);
@@ -207,13 +207,21 @@ export default function NotificationBell() {
               ? `, ${totalUnread} okunmamış`
               : ''
         }`}
-        className="group relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 transition-colors hover:border-slate-700 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        className={`group relative flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+          bright
+            ? 'border-slate-200 bg-white/75 hover:border-blue-200 hover:bg-white'
+            : 'border-slate-800 bg-slate-900 hover:border-slate-700 hover:bg-slate-800'
+        }`}
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
         <Bell
           aria-hidden="true"
-          className="h-[18px] w-[18px] text-slate-400 transition-colors group-hover:text-white"
+          className={`h-[18px] w-[18px] transition-colors ${
+            bright
+              ? 'text-[#123277] group-hover:text-blue-600'
+              : 'text-slate-400 group-hover:text-white'
+          }`}
         />
         {badgeCount > 0 ? (
           <span

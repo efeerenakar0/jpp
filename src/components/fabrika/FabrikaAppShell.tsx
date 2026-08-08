@@ -33,6 +33,7 @@ export default function FabrikaAppShell({
   );
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const pathname = usePathname();
+  const isDashboardHome = pathname === '/fabrika';
   const showOnboarding =
     !onboardingDismissed &&
     shouldShowFabrikaOnboarding({
@@ -68,7 +69,11 @@ export default function FabrikaAppShell({
   return (
     <FabrikaSessionProvider value={session}>
       <div
-        className="business-ceo-shell flex h-dvh min-h-0 flex-col overflow-hidden bg-[#050d18] text-slate-100"
+        className={`business-ceo-shell flex h-dvh min-h-0 flex-col overflow-hidden ${
+          isDashboardHome
+            ? 'bg-[#edf2f8] text-[#0a1b53]'
+            : 'bg-[#050d18] text-slate-100'
+        }`}
       >
         <a
           href="#fabrika-main"
@@ -87,11 +92,19 @@ export default function FabrikaAppShell({
 
         <main
           id="fabrika-main"
-          className="business-ceo-main min-h-0 flex-1 overflow-y-auto bg-[#050d18]"
+          className={`business-ceo-main min-h-0 flex-1 overflow-y-auto ${
+            isDashboardHome ? 'bg-[#edf2f8]' : 'bg-[#050d18]'
+          }`}
           data-ceo-route={pathname}
           tabIndex={-1}
         >
-          <div className="business-ceo-content mx-auto w-full max-w-[1920px] px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+          <div
+            className={`business-ceo-content mx-auto w-full max-w-[1920px] ${
+              isDashboardHome
+                ? 'p-0'
+                : 'px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6'
+            }`}
+          >
             {children}
           </div>
         </main>

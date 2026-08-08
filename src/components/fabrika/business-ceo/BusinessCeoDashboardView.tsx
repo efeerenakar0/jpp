@@ -1,6 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  CalendarDays,
+  CheckSquare2,
+  Clock3,
+  House,
+  MessageCircle,
+  Sparkles,
+} from 'lucide-react';
 
 import { PortfolioWorkflowDialog } from '@/components/fabrika/executive-dashboard/PortfolioWorkflowContent';
 import { usePortfolioWorkflowController } from '@/components/fabrika/executive-dashboard/usePortfolioWorkflowController';
@@ -79,6 +87,92 @@ function DashboardStatusBar({
   );
 }
 
+function metricValue(value: number | null | undefined) {
+  return typeof value === 'number'
+    ? new Intl.NumberFormat('tr-TR').format(value)
+    : '—';
+}
+
+function DashboardMetricStrip({ metrics }: { metrics: AssistantMetrics | null }) {
+  const items = [
+    {
+      label: 'Sitede Yayında',
+      hint: 'Aktif portföyünüz',
+      value: null,
+      icon: House,
+    },
+    {
+      label: 'Yeni WhatsApp Mesajı',
+      hint: 'Okunmamış sohbet',
+      value: metrics?.incomingMessages,
+      icon: MessageCircle,
+    },
+    {
+      label: 'Yanıt Bekleyen',
+      hint: 'Müşteri talebi',
+      value: metrics?.pendingAppointments,
+      icon: Clock3,
+    },
+    {
+      label: 'Bugünkü Randevu',
+      hint: 'Planlanan görüşme',
+      value: metrics?.approvedToday,
+      icon: CalendarDays,
+    },
+    {
+      label: 'Aktif AI İşlemi',
+      hint: 'Arka planda çalışıyor',
+      value: metrics?.outgoingMessages,
+      icon: Sparkles,
+    },
+    {
+      label: 'Açık Görev',
+      hint: 'Takip bekliyor',
+      value: metrics?.handoffConversations,
+      icon: CheckSquare2,
+    },
+  ] as const;
+
+  return (
+    <dl aria-label="Canlı operasyon özeti" className={styles.metricStrip}>
+      {items.map(({ label, hint, value, icon: Icon }) => (
+        <div className={styles.metricStripItem} key={label}>
+          <Icon aria-hidden="true" />
+          <dd>{metricValue(value)}</dd>
+          <div>
+            <dt>{label}</dt>
+            <span>{hint}</span>
+          </div>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const REFERENCE_BRANDS = [
+  ['NOVA', 'REALTY'],
+  ['VISTA', 'HOMES'],
+  ['URBANCORE', ''],
+  ['PRIME', 'ESTATE'],
+  ['BLUEHARBOR', ''],
+] as const;
+
+function ReferenceRibbon() {
+  return (
+    <div aria-label="Örnek iş ortakları" className={styles.referenceRibbon}>
+      {REFERENCE_BRANDS.map(([name, suffix], index) => (
+        <div className={styles.referenceBrand} key={name}>
+          <span aria-hidden="true" className={styles.referenceMark} data-mark={index + 1} />
+          <span>
+            <strong>{name}</strong>
+            {suffix ? <small>{suffix}</small> : null}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function BusinessCeoDashboardView({
   appointments,
   conversations,
@@ -104,7 +198,6 @@ export function BusinessCeoDashboardView({
       <div className={styles.content}>
         <div className={styles.primaryGrid}>
           <WorkflowBoard
-            metrics={metrics}
             onQuickWorkflow={workflow.resumeWorkflow}
             onSelect={setSelectedModule}
             workflowStatus={workflow.status}
@@ -123,7 +216,9 @@ export function BusinessCeoDashboardView({
             whatsappError={whatsappError}
           />
         </div>
+        <DashboardMetricStrip metrics={metrics} />
         <ModuleCardGrid onSelect={setSelectedModule} />
+        <ReferenceRibbon />
       </div>
 
       <DashboardStatusBar
