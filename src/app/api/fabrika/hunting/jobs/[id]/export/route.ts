@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 import { huntingApiError } from '@/lib/hunting-v2/api';
+import { decryptContactPhone } from '@/lib/hunting-v2/contact-crypto';
 
 export const runtime = 'nodejs';
 
@@ -25,6 +26,14 @@ export async function GET(
         createdAt: true,
         startedAt: true,
         completedAt: true,
+        sourceAuthorization: {
+          select: {
+            status: true,
+            allowedScopes: true,
+            startsAt: true,
+            expiresAt: true,
+          },
+        },
         listings: {
           orderBy: [{ sourceListingId: 'asc' }, { id: 'asc' }],
           select: {
@@ -38,6 +47,7 @@ export async function GET(
             category: true,
             subcategory: true,
             sellerType: true,
+            ownerName: true,
             descriptionText: true,
             sanitizedDescriptionHtml: true,
             location: true,
@@ -71,6 +81,7 @@ export async function GET(
             contacts: {
               orderBy: { updatedAt: 'desc' },
               select: {
+                phoneCiphertext: true,
                 maskedPhone: true,
                 subjectRole: true,
                 sourceType: true,
@@ -85,20 +96,52 @@ export async function GET(
 
     if (!job) throw new Error('Av işi bulunamadı.');
 
-    const { listings, ...jobSummary } = job;
+    const now = new Date();
+    const canExportFullContacts =
+      job.sourceAuthorization.status === 'ACTIVE' &&
+      job.sourceAuthorization.startsAt <= now &&
+      (!job.sourceAuthorization.expiresAt ||
+        job.sourceAuthorization.expiresAt > now) &&
+      job.sourceAuthorization.allowedScopes.includes('CONTACT_READ');
+    const { listings, sourceAuthorization: _sourceAuthorization, ...jobSummary } =
+      job;
+    void _sourceAuthorization;
+    const exportedListings = listings.map(
+      ({ ownerName, contacts, ...listing }) => ({
+        ...listing,
+        sellerName: ownerName,
+        contacts: contacts.map(({ phoneCiphertext, ...contact }) => {
+          if (
+            !canExportFullContacts ||
+            contact.sourceType !== 'AUTHORIZED_SOURCE' ||
+            !phoneCiphertext
+          ) {
+            return contact;
+          }
+          try {
+            return {
+              ...contact,
+              phone: `+${decryptContactPhone(phoneCiphertext)}`,
+            };
+          } catch {
+            return contact;
+          }
+        }),
+      })
+    );
     const payload = {
-      schemaVersion: 1,
-      product: 'Business AI Portföy Bulucu',
+      schemaVersion: 2,
+      product: 'Business AI Portföy Uzmanı',
       exportedAt: new Date().toISOString(),
       job: jobSummary,
-      listings,
+      listings: exportedListings,
     };
     const safeId = job.id.replace(/[^a-zA-Z0-9_-]/g, '-');
 
     return new Response(JSON.stringify(payload, null, 2), {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
-        'Content-Disposition': `attachment; filename="business-ai-portfoy-bulucu-${safeId}.json"`,
+        'Content-Disposition': `attachment; filename="business-ai-portfoy-uzmani-${safeId}.json"`,
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       },

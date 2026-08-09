@@ -159,6 +159,23 @@ function imageMimeType(sourceUrl: string) {
   return null;
 }
 
+function normalizeVisiblePhone(value: string) {
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('0090')) digits = digits.slice(2);
+  if (digits.startsWith('0')) digits = `90${digits.slice(1)}`;
+  if (digits.length === 10) digits = `90${digits}`;
+  return /^90[1-9]\d{9}$/.test(digits) ? digits : null;
+}
+
+function extractVisiblePhones(value: string) {
+  const matches = value.match(
+    /(?:\+?90[\s().-]*)?(?:0?[1-9]\d{2})[\s().-]*\d{3}[\s().-]*\d{2}[\s().-]*\d{2}/g
+  );
+  return (matches || [])
+    .map(normalizeVisiblePhone)
+    .filter((phone): phone is string => Boolean(phone));
+}
+
 export function parseListingDetailHtml(
   html: string,
   sourceUrl: string
@@ -273,6 +290,25 @@ export function parseListingDetailHtml(
 
   const categoryValue =
     attributes['Emlak Tipi'] || attributes['Kategori'] || null;
+  const sellerContainer = $(
+    '.classifiedUserContent, .user-info-container, [data-listing-seller]'
+  ).first();
+  const sellerName = cleanText(
+    sellerContainer
+      .find('[data-seller-name], .username, h5, strong')
+      .first()
+      .text()
+  );
+  const phones = new Set<string>();
+  sellerContainer.find('a[href^="tel:"]').each((_, element) => {
+    const normalized = normalizeVisiblePhone(
+      ($(element).attr('href') || '').replace(/^tel:/i, '')
+    );
+    if (normalized) phones.add(normalized);
+  });
+  for (const phone of extractVisiblePhones(sellerContainer.text())) {
+    phones.add(phone);
+  }
   const filled = [
     title,
     priceText,
@@ -282,6 +318,8 @@ export function parseListingDetailHtml(
     neighborhood,
     images.length ? 'media' : null,
     Object.keys(attributes).length ? 'attributes' : null,
+    sellerName,
+    phones.size ? 'phone' : null,
   ].filter(Boolean).length;
 
   return {
@@ -294,7 +332,9 @@ export function parseListingDetailHtml(
     listingPublishedAt: parseTurkishDate(attributes['İlan Tarihi'] || null),
     category: categoryValue?.split(/\s+/)[0] || null,
     subcategory: categoryValue,
-    sellerType: null,
+    sellerType: attributes['Kimden'] || null,
+    sellerName,
+    phones: [...phones],
     descriptionText: cleanText(descriptionNode.text()),
     sanitizedDescriptionHtml,
     province,
@@ -313,6 +353,6 @@ export function parseListingDetailHtml(
     ),
     attributes,
     images,
-    completenessScore: Math.round((filled / 8) * 100),
+    completenessScore: Math.round((filled / 10) * 100),
   };
 }

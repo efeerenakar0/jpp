@@ -1,6 +1,6 @@
-# Avcı v2 — Crawlee mimarisi ve işletim rehberi
+# Business AI Portföy Uzmanı — Crawlee mimarisi ve işletim rehberi
 
-Bu belge Avcı v2'nin teknik işletim rehberidir. Hukuk görüşü değildir. Canlı
+Bu belge Portföy Uzmanı'nın teknik işletim rehberidir. Hukuk görüşü değildir. Canlı
 bir kaynaktan veri almadan veya bir kişiye ileti göndermeden önce sözleşme,
 KVKK, İYS ve sektörel yükümlülükler yetkili hukuk uzmanıyla doğrulanmalıdır.
 
@@ -8,7 +8,7 @@ KVKK, İYS ve sektörel yükümlülükler yetkili hukuk uzmanıyla doğrulanmal�
 
 ```mermaid
 flowchart LR
-    UI["Avcı paneli: tek filtre bağlantısı"]
+    UI["Portföy Uzmanı: il, ilçe ve ilan filtreleri"]
     API["Next.js HuntJob API"]
     AUTH["SourceAuthorization"]
     QUEUE["HuntJob kuyruğu"]
@@ -36,8 +36,11 @@ flowchart LR
     HUMAN --> OUTBOX
 ```
 
-Tarama katmanı telefon çıkarmaz. İlanın tam olması, kişiye ileti
-gönderilebileceği anlamına gelmez.
+Tarama katmanı yalnız yazılı kaynak yetkisinde `CONTACT_READ` kapsamı varsa
+detay sayfasında kullanıcıya görünür satıcı adı ve telefonu alır. Telefon AES
+ile şifrelenir, HMAC ile tekilleştirilir ve loglanmaz. İlanın tam olması,
+kişiye ileti gönderilebileceği anlamına gelmez; mesajlaşma izni ayrı politika
+katmanında fail-closed değerlendirilir.
 
 ## Bileşenler
 
@@ -56,8 +59,12 @@ gönderilebileceği anlamına gelmez.
 - `src/lib/company-whatsapp.ts`: kuyruğa alma ve gerçek dispatch öncesinde
   politikayı tekrar çalıştırır.
 - Eski tarayıcı eklentisi entegrasyonu geriye dönük uyumluluk için kalabilir;
-  standart kullanımda eklenti gerekmez. Kullanıcı Avcı paneline yalnız filtreli
-  sonuç bağlantısını yapıştırır.
+  standart kullanımda eklenti veya bağlantı kopyalama gerekmez. Kullanıcı il,
+  ilçe, satış/kiralama, konut tipi, eşya durumu ve fiyat aralığını seçer. URL
+  sunucuda oluşturulur ve `Kimden: Sahibinden` yolu değiştirilemez.
+- Eşya durumu kaynakta kullanılan `a103713=true|false`, fiyat aralığı
+  `price_min|price_max` ve en yeni sıralaması `sorting=date_desc` parametreleriyle
+  taşınır. Serbest hostname veya kullanıcı URL'si standart panelden alınmaz.
 
 ## Yerel kurulum
 
@@ -127,16 +134,18 @@ yalnız durdurulabilir durumları yeniden `QUEUED` yapar.
   yapılandırılabilir.
 - Sabit bir sayfa sınırı uygulanmaz. Sonraki sayfa bağlantısı kalmadığında kuyruk
   doğal olarak tamamlanır; yinelenen URL ve ilanlar benzersiz anahtarla elenir.
-- Worker kendini `Business-AI-Portfoy-Bulucu/1.0` adıyla bildirir; oturum
+- Worker kendini `Business-AI-Portfoy-Uzmani/2.0` adıyla bildirir; oturum
   döndürme, gizlenme veya challenge aşma kullanmaz.
 
 ## JSON çıktısı
 
 İlan gezginindeki `JSON indir` düğmesi seçili av işinin başlık, fiyat,
-açıklama, konum, dinamik özellik ve görsel alanlarını tek dosyada dışa aktarır.
-Endpoint iş kimliğini oturumdaki `companyAccountId` ile birlikte doğrular,
-`private, no-store` döner ve ham telefon/şifreli contact alanlarını çıktıya
-eklemez. Yalnız politika katmanından gelen maskeli iletişim özeti bulunabilir.
+açıklama, konum, dinamik özellik, görsel, görünür satıcı adı ve yetkili telefon
+alanlarını tek dosyada dışa aktarır. Endpoint iş kimliğini oturumdaki
+`companyAccountId` ile birlikte doğrular ve `private, no-store` döner.
+Telefon yalnız işin kaynak yetkisi o anda aktifse, tarih aralığı geçerliyse ve
+`CONTACT_READ` kapsamı varsa çözülür. Bu koşullardan biri yoksa ham telefon
+yerine yalnız maskeli özet döner; ciphertext hiçbir zaman JSON'a eklenmez.
 
 ## SourceAuthorization oluşturma süreci
 
@@ -157,17 +166,19 @@ oluşturulabilir. Müşteri hesabı kendi kendine yetki veremez.
   "companyAccountId": "tenant_kaydi",
   "provider": "SAHIBINDEN",
   "status": "ACTIVE",
-  "allowedScopes": ["SEARCH_READ", "DETAIL_READ", "MEDIA_READ"],
+  "allowedScopes": ["SEARCH_READ", "DETAIL_READ", "MEDIA_READ", "CONTACT_READ"],
   "contractReference": "imzali-sozlesme-referansi",
   "startsAt": "2026-07-29T00:00:00.000Z",
   "expiresAt": "2027-07-29T00:00:00.000Z"
 }
 ```
 
-Aktif yetkide `SEARCH_READ`, `DETAIL_READ` ve `MEDIA_READ` zorunludur.
+Aktif yetkide `SEARCH_READ`, `DETAIL_READ`, `MEDIA_READ` ve `CONTACT_READ`
+zorunludur.
 `MEDIA_COPY`, görsel kopyalama hakkı sözleşmede açıkça varsa ve object storage
-hazırsa eklenir. `CONTACT_READ`, telefonun sayfadan taranmasına izin vermez;
-yalnız ayrıca sözleşmeli bir ContactProvider entegrasyonu için kullanılabilir.
+hazırsa eklenir. `CONTACT_READ` yalnız kaynak sözleşmesinde görünür iletişim
+alanlarını alma yetkisi açıkça varsa eklenir; challenge, giriş kontrolü veya
+gizli bir uç noktanın aşılmasına izin vermez.
 
 Yetkiyi askıya alma veya iptal etme:
 
@@ -209,6 +220,10 @@ doğrulanmalıdır.
 
 - Başlık, fiyat, para birimi, tarih, kategori, alt kategori ve satıcı tipini
   çıkarır.
+- `CONTACT_READ` kapsamında, yalnız sayfada görünür satıcı bloğundaki adı ve
+  `tel:`/görünür telefon metnini alır; script veya özel uç nokta taramaz.
+- Telefonu veritabanına yazmadan önce AES-GCM ile şifreler ve HMAC ile
+  tenant içinde tekilleştirir; loglara veya hata özetine koymaz.
 - Açıklamanın düz metnini ve sanitize edilmiş HTML'ini saklar.
 - Dinamik özellikleri `attributesJson` içinde, sık kullanılan alanları
   ilişkisel kolonlarda saklar.
@@ -307,7 +322,8 @@ saklama politikasına uygun zamanlanmış iş eklenmelidir.
 
 ## Failure, retry ve challenge
 
-- Her request sınırlı timeout ve global `maxRequestsPerCrawl` kullanır.
+- Her request sınırlı timeout kullanır; toplam iş, sonraki sayfa kalmadığında
+  doğal biçimde biter.
 - Otomatik request retry kapalıdır; tekrar deneme operatörün job resume
   işlemiyle görünür ve kontrollüdür.
 - Kısmi detaylar `PARTIAL`, erişilemeyen kayıtlar uygun acquisition durumuyla
@@ -332,6 +348,16 @@ saklama politikasına uygun zamanlanmış iş eklenmelidir.
 - Saklama süresi dolan veriler için zamanlanmış temizlik işi.
 - Canlı smoke testte gerçek telefon veya mesaj kullanmayan izinli test hesabı.
 
+### Railway worker servisi
+
+Repo kökündeki `railway.worker.toml` ve `Dockerfile.avci-worker`, yalnız uzun
+süre çalışan worker servisini tanımlar. Vercel web uygulaması ayrı kalır;
+Railway ve Vercel aynı production PostgreSQL bağlantısını ve aynı şifreleme/HMAC
+secret'larını kullanır. Railway servisinde start komutunu değiştirmek gerekmez.
+İşlem kapanırken `SIGTERM`/`SIGINT` yakalanır; bir instance düşüp işi `RUNNING`
+bırakırsa `AVCI_WORKER_STALE_MS` sonrasında başka worker işi idempotent biçimde
+yeniden sahiplenebilir. İlk canlı açılışta tek replica kullanılmalıdır.
+
 ## Ortam değişkenleri
 
 `.env.example` değişken isimlerinin güncel listesidir. Özellikle:
@@ -340,6 +366,8 @@ saklama politikasına uygun zamanlanmış iş eklenmelidir.
 - `AVCI_CRAWLER_CONCURRENCY`
 - `AVCI_CRAWLER_MAX_REQUESTS`
 - `AVCI_WORKER_POLL_MS`
+- `AVCI_WORKER_STALE_MS`
+- `AVCI_CONTACT_RETENTION_DAYS`
 - `AVCI_MEDIA_MAX_BYTES`
 - `HUNTING_EXTENSION_ALLOWED_ORIGINS`
 - `WHATSAPP_CREDENTIAL_ENCRYPTION_KEY`

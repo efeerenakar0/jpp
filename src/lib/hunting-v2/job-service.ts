@@ -5,20 +5,41 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { assertPublicSourceUrl } from './security';
 import { SOURCE_PROVIDERS } from './types';
+import {
+  buildSahibindenSearchUrl,
+  sahibindenSearchFiltersSchema,
+} from './search-filters';
 
 export const createHuntJobSchema = z
   .object({
     provider: z.enum(SOURCE_PROVIDERS),
-    searchUrl: z.string().url().max(3000),
+    searchUrl: z.string().url().max(3000).optional(),
+    filters: sahibindenSearchFiltersSchema.optional(),
     sourceAuthorizationId: z.string().min(1).max(160).optional(),
     idempotencyKey: z.string().min(8).max(160).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((body, context) => {
+    if (Boolean(body.searchUrl) === Boolean(body.filters)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Bir filtre seçimi veya geçerli kaynak URLsi gereklidir.',
+      });
+    }
+    if (body.filters && body.provider !== 'SAHIBINDEN') {
+      context.addIssue({
+        code: 'custom',
+        path: ['filters'],
+        message: 'Filtre seçimi yalnız Sahibinden kaynağında kullanılabilir.',
+      });
+    }
+  });
 
 const REQUIRED_SOURCE_SCOPES = [
   'SEARCH_READ',
   'DETAIL_READ',
   'MEDIA_READ',
+  'CONTACT_READ',
 ] as const;
 
 function derivedIdempotencyKey(companyAccountId: string, value: string) {
@@ -33,7 +54,10 @@ export async function createHuntJob(input: {
   body: unknown;
 }) {
   const body = createHuntJobSchema.parse(input.body);
-  await assertPublicSourceUrl(body.searchUrl, body.provider);
+  const searchUrl = body.filters
+    ? buildSahibindenSearchUrl(body.filters)
+    : body.searchUrl!;
+  await assertPublicSourceUrl(searchUrl, body.provider);
 
   if (
     body.provider !== 'FIXTURE' &&
@@ -108,7 +132,7 @@ export async function createHuntJob(input: {
 
   const idempotencyKey =
     body.idempotencyKey ||
-    derivedIdempotencyKey(input.companyAccountId, body.searchUrl);
+    derivedIdempotencyKey(input.companyAccountId, searchUrl);
   return prisma.huntJob.upsert({
     where: {
       companyAccountId_idempotencyKey: {
@@ -121,7 +145,7 @@ export async function createHuntJob(input: {
       companyAccountId: input.companyAccountId,
       sourceAuthorizationId: authorization.id,
       provider: body.provider,
-      searchUrl: body.searchUrl,
+      searchUrl,
       idempotencyKey,
       createdBy: input.createdBy,
     },

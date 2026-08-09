@@ -34,6 +34,7 @@ export const CONTACT_SOURCE_TYPES = [
   'FIRST_PARTY_FORM',
   'EXISTING_CRM',
   'MANUAL_VERIFIED',
+  'AUTHORIZED_SOURCE',
   'LEGACY_UNVERIFIED',
 ] as const;
 export type ContactSourceType = (typeof CONTACT_SOURCE_TYPES)[number];
@@ -98,6 +99,8 @@ export type ParsedListingDetail = {
   category: string | null;
   subcategory: string | null;
   sellerType: string | null;
+  sellerName: string | null;
+  phones: string[];
   descriptionText: string | null;
   sanitizedDescriptionHtml: string | null;
   province: string | null;

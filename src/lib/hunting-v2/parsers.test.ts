@@ -27,7 +27,7 @@ describe('Avcı v2 HTML parserları', () => {
     );
   });
 
-  it('DETAIL içeriğini yapılandırır, medyayı sıralar ve telefonu çıkarmaz', () => {
+  it('DETAIL içeriğini, görünür satıcıyı ve telefonu yapılandırır', () => {
     const result = parseListingDetailHtml(
       fixture('listing-detail.html'),
       'https://www.sahibinden.com/ilan/emlak-konut-satilik-fixture-villa-1001/detay'
@@ -49,7 +49,8 @@ describe('Avcı v2 HTML parserları', () => {
       'https://images.example.test/villa-1.jpg',
       'https://images.example.test/villa-2.jpg',
     ]);
-    expect(JSON.stringify(result)).not.toContain('05000000000');
+    expect(result.sellerName).toBe('Fixture İlan Sahibi');
+    expect(result.phones).toEqual(['905000000000']);
     expect(result.sanitizedDescriptionHtml).not.toContain('<script');
     expect(result.sanitizedDescriptionHtml).not.toContain('javascript:');
   });

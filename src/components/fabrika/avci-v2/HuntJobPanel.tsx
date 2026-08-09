@@ -3,14 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Building2,
   CheckCircle2,
   CirclePause,
   CirclePlay,
   LoaderCircle,
+  MapPin,
   Radar,
   RotateCcw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
+  UserRoundCheck,
   XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -53,14 +57,64 @@ type HuntJobPanelProps = {
   onJobFinished: () => void;
 };
 
+type LocationOption = {
+  id: number;
+  name: string;
+};
+
+type ListingType = 'SALE' | 'RENT';
+type PropertyType = 'APARTMENT' | 'RESIDENCE' | 'VILLA' | 'DETACHED_HOUSE';
+type FurnishedOption = 'ANY' | 'YES' | 'NO';
+
 export default function HuntJobPanel({
   onJobChange,
   onJobFinished,
 }: HuntJobPanelProps) {
-  const [searchUrl, setSearchUrl] = useState('');
+  const [listingType, setListingType] = useState<ListingType>('SALE');
+  const [propertyType, setPropertyType] =
+    useState<PropertyType>('APARTMENT');
+  const [furnished, setFurnished] = useState<FurnishedOption>('ANY');
+  const [provinces, setProvinces] = useState<LocationOption[]>([]);
+  const [districts, setDistricts] = useState<LocationOption[]>([]);
+  const [provinceId, setProvinceId] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [locationsLoading, setLocationsLoading] = useState(true);
   const [job, setJob] = useState<HuntJobSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [controlling, setControlling] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void apiJson<{ items: LocationOption[] }>(
+      '/api/fabrika/hunting/locations',
+      { signal: controller.signal }
+    )
+      .then(({ items }) => setProvinces(items))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        toast.error('İl seçenekleri yüklenemedi.');
+      })
+      .finally(() => setLocationsLoading(false));
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!provinceId) return;
+    const controller = new AbortController();
+    void apiJson<{ items: LocationOption[] }>(
+      `/api/fabrika/hunting/locations?provinceId=${encodeURIComponent(provinceId)}`,
+      { signal: controller.signal }
+    )
+      .then(({ items }) => setDistricts(items))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        toast.error('İlçe seçenekleri yüklenemedi.');
+      })
+      .finally(() => setLocationsLoading(false));
+    return () => controller.abort();
+  }, [provinceId]);
 
   const loadJob = useCallback(
     async (jobId: string, quiet = false) => {
@@ -133,6 +187,16 @@ export default function HuntJobPanel({
 
   async function startJob(event: React.FormEvent) {
     event.preventDefault();
+    const province = provinces.find(
+      (option) => option.id === Number(provinceId)
+    );
+    const district = districts.find(
+      (option) => option.id === Number(districtId)
+    );
+    if (!province || !district) {
+      toast.error('İl ve ilçe seçimini tamamlayın.');
+      return;
+    }
     setLoading(true);
     try {
       const created = await apiJson<{ jobId: string; status: HuntJobStatus }>(
@@ -142,7 +206,15 @@ export default function HuntJobPanel({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             provider: 'SAHIBINDEN',
-            searchUrl: searchUrl.trim(),
+            filters: {
+              listingType,
+              propertyType,
+              province: province.name,
+              district: district.name,
+              furnished,
+              minPrice: minPrice ? Number(minPrice) : null,
+              maxPrice: maxPrice ? Number(maxPrice) : null,
+            },
             idempotencyKey: crypto.randomUUID(),
           }),
         }
@@ -188,51 +260,147 @@ export default function HuntJobPanel({
           </div>
           <div>
             <h2 className="text-base font-semibold text-white">
-              Portföyü tek bağlantıyla içe aktar
+              Bölgeni seç, portföyü otomatik oluştur
             </h2>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">
-              Filtrelediğin sonuç bağlantısını yapıştır. Business AI Portföy
-              Bulucu sonuçları ve ilan detaylarını sırayla işler, aday
-              portföyüne ekler ve son sayfada kendiliğinden tamamlar.
+              İl, ilçe ve ilan ayrıntılarını seç. Business AI Portföy Uzmanı
+              yalnız sahibinden ilanlarını bulur, detayları sırayla işler ve
+              portföyüne aktarır.
             </p>
           </div>
         </div>
 
-        <form className="mt-5 space-y-3" onSubmit={startJob}>
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-slate-300">
-              Filtrelenmiş arama URL&apos;si
-            </span>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                aria-label="Filtrelenmiş arama URL'si"
-                className="h-10 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                onChange={(event) => setSearchUrl(event.target.value)}
-                placeholder="https://www.sahibinden.com/..."
-                required
-                type="url"
-                value={searchUrl}
-              />
-              <Button
-                className="h-10 bg-emerald-500 font-semibold text-emerald-950 hover:bg-emerald-400"
-                disabled={loading}
-                type="submit"
+        <form className="mt-5 space-y-4" onSubmit={startJob}>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium text-slate-300">İşlem</span>
+              <select
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                onChange={(event) =>
+                  setListingType(event.target.value as ListingType)
+                }
+                value={listingType}
               >
-                {loading ? (
-                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Radar className="mr-2 h-4 w-4" />
-                )}
-                Portföyü içe aktar
-              </Button>
+                <option value="SALE">Satılık</option>
+                <option value="RENT">Kiralık</option>
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium text-slate-300">Konut tipi</span>
+              <select
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                onChange={(event) =>
+                  setPropertyType(event.target.value as PropertyType)
+                }
+                value={propertyType}
+              >
+                <option value="APARTMENT">Daire</option>
+                <option value="RESIDENCE">Rezidans</option>
+                <option value="VILLA">Villa</option>
+                <option value="DETACHED_HOUSE">Müstakil ev</option>
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium text-slate-300">Eşya durumu</span>
+              <select
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                onChange={(event) =>
+                  setFurnished(event.target.value as FurnishedOption)
+                }
+                value={furnished}
+              >
+                <option value="ANY">Farketmez</option>
+                <option value="YES">Eşyalı</option>
+                <option value="NO">Eşyasız</option>
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
+                <MapPin className="h-3.5 w-3.5" /> İl
+              </span>
+              <select
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                disabled={locationsLoading && !provinces.length}
+                onChange={(event) => {
+                  setProvinceId(event.target.value);
+                  setDistrictId('');
+                  setDistricts([]);
+                  setLocationsLoading(Boolean(event.target.value));
+                }}
+                required
+                value={provinceId}
+              >
+                <option value="">İl seçin</option>
+                {provinces.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
+                <Building2 className="h-3.5 w-3.5" /> İlçe
+              </span>
+              <select
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                disabled={!provinceId || locationsLoading}
+                onChange={(event) => setDistrictId(event.target.value)}
+                required
+                value={districtId}
+              >
+                <option value="">İlçe seçin</option>
+                {districts.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1.5">
+                <span className="text-xs font-medium text-slate-300">En düşük fiyat</span>
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  min="0"
+                  onChange={(event) => setMinPrice(event.target.value)}
+                  placeholder="₺"
+                  type="number"
+                  value={minPrice}
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs font-medium text-slate-300">En yüksek fiyat</span>
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  min="0"
+                  onChange={(event) => setMaxPrice(event.target.value)}
+                  placeholder="₺"
+                  type="number"
+                  value={maxPrice}
+                />
+              </label>
             </div>
-          </label>
+          </div>
+          <div className="flex flex-col gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
+              <UserRoundCheck className="h-4 w-4" /> Kimden: Sahibinden
+            </span>
+            <Button
+              className="h-10 bg-emerald-500 font-semibold text-emerald-950 hover:bg-emerald-400"
+              disabled={loading || locationsLoading || !districtId}
+              type="submit"
+            >
+              {loading ? (
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <SlidersHorizontal className="mr-2 h-4 w-4" />
+              )}
+              Portföyü oluşturmaya başla
+            </Button>
+          </div>
           <div className="flex items-start gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5 text-xs leading-5 text-sky-200">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
             Sayfa sınırı veya bekleme ayarı gerekmez. İşlem sunucuda tek tek ve
             kontrollü yürütülür; kaynak doğrulaması gösterirse güvenli biçimde
-            duraklar. İletişim verileri yalnızca ayrı, doğrulanmış sağlayıcı
-            akışından eklenir.
+            duraklar. Yazılı CONTACT_READ yetkisi varsa sayfada görünür satıcı
+            ve telefon bilgileri şifrelenerek kaydedilir.
           </div>
         </form>
       </div>
