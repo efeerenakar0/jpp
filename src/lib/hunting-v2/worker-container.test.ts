@@ -10,7 +10,9 @@ describe('Avcı worker konteyneri', () => {
     );
 
     expect(dockerfile).toContain('CRAWLEE_STORAGE_DIR=/tmp/crawlee-storage');
+    expect(dockerfile).toContain('NODE_OPTIONS=--conditions=react-server');
     expect(dockerfile).toContain('USER node');
+    expect(dockerfile).toContain('ENTRYPOINT ["tini", "-s", "--"]');
   });
 
   it('Apify Actor tanımı aynı güvenli worker konteynerini tek seferlik çalıştırır', () => {
