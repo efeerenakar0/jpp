@@ -15,6 +15,17 @@ describe('Avcı worker konteyneri', () => {
     expect(dockerfile).toContain('ENTRYPOINT ["tini", "-s", "--"]');
   });
 
+  it('Crawlee süreç ağacının ihtiyaç duyduğu ps komutunu imaja ekler', () => {
+    const dockerfile = readFileSync(
+      join(process.cwd(), 'Dockerfile.avci-worker'),
+      'utf8'
+    );
+
+    expect(dockerfile).toMatch(
+      /apt-get install[^\n]*ca-certificates[^\n]*openssl[^\n]*procps[^\n]*tini/
+    );
+  });
+
   it('Apify Actor tanımı aynı güvenli worker konteynerini tek seferlik çalıştırır', () => {
     const actorDefinition = JSON.parse(
       readFileSync(join(process.cwd(), '.actor/actor.json'), 'utf8')

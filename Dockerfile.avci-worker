@@ -7,7 +7,7 @@ ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates openssl tini \
+    && apt-get install -y --no-install-recommends ca-certificates openssl procps tini \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
