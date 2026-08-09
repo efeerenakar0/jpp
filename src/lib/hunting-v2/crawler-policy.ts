@@ -4,6 +4,22 @@ type CrawlerEnvironment = Readonly<Record<string, string | undefined>>;
 
 export type SourceRequestKind = 'LIST' | 'DETAIL';
 
+export function initialSahibindenRequestKind(
+  value: string
+): SourceRequestKind {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    const isSahibinden =
+      hostname === 'sahibinden.com' || hostname === 'www.sahibinden.com';
+    const isDetailPath =
+      /^\/ilan\/(?:[^/]*-)?\d{5,}\/detay\/?$/i.test(url.pathname);
+    return isSahibinden && isDetailPath ? 'DETAIL' : 'LIST';
+  } catch {
+    return 'LIST';
+  }
+}
+
 function boundedInteger(
   value: string | undefined,
   fallback: number,

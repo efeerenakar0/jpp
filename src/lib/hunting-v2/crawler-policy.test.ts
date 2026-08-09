@@ -4,6 +4,7 @@ import {
   buildCrawlerPolicy,
   buildSourceRequest,
   failedRequestDelta,
+  initialSahibindenRequestKind,
 } from './crawler-policy';
 
 describe('Business AI Portföy Uzmanı tarama politikası', () => {
@@ -65,5 +66,19 @@ describe('Business AI Portföy Uzmanı tarama politikası', () => {
   it('başarısız detay isteğini kısmi, liste isteğini hatalı sayar', () => {
     expect(failedRequestDelta('DETAIL')).toEqual({ partial: 1, failed: 0 });
     expect(failedRequestDelta('LIST')).toEqual({ partial: 0, failed: 1 });
+  });
+
+  it('tek ilan bağlantısını doğrudan detay isteği olarak sınıflandırır', () => {
+    expect(
+      initialSahibindenRequestKind(
+        'https://www.sahibinden.com/ilan/emlak-konut-satilik-ornek-ilan-1234567890/detay'
+      )
+    ).toBe('DETAIL');
+    expect(
+      initialSahibindenRequestKind(
+        'https://www.sahibinden.com/satilik-daire/istanbul-kadikoy/sahibinden'
+      )
+    ).toBe('LIST');
+    expect(initialSahibindenRequestKind('geçersiz bağlantı')).toBe('LIST');
   });
 });
