@@ -578,7 +578,14 @@ export default function WorkspacePage({
   async function postAction(
     payload: Record<string, unknown>,
     successMessage: string,
-    options: { preserveSelection?: boolean; silentSuccess?: boolean } = {}
+    options: {
+      preserveSelection?: boolean;
+      silentSuccess?: boolean;
+      onResult?: (result: {
+        message?: string;
+        publicationPending?: boolean;
+      }) => void;
+    } = {}
   ) {
     setSaving(true);
     try {
@@ -587,11 +594,18 @@ export default function WorkspacePage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        workspace?: Workspace;
+        oneTimeCredentials?: OneTimeMemberCredentials;
+        publicationPending?: boolean;
+      };
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'İşlem tamamlanamadı.');
       }
-      setWorkspace(data.workspace);
+      if (data.workspace) setWorkspace(data.workspace);
       if (data.oneTimeCredentials) {
         setMemberCredentials(data.oneTimeCredentials);
       }
@@ -603,6 +617,7 @@ export default function WorkspacePage({
       if (!options.silentSuccess) {
         toast.success(data.message || successMessage);
       }
+      options.onResult?.(data);
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'İşlem tamamlanamadı.');
@@ -618,6 +633,7 @@ export default function WorkspacePage({
     offerUndo = true
   ) {
     const previousStatus = property.status;
+    let publicationPendingMessage: string | null = null;
     const success = await postAction(
       {
         action: 'set-property-status',
@@ -628,9 +644,23 @@ export default function WorkspacePage({
       status === 'ACTIVE'
         ? 'Portföy yayına alındı.'
         : 'Portföy yayından kaldırıldı.',
-      { preserveSelection: true, silentSuccess: true }
+      {
+        preserveSelection: true,
+        silentSuccess: true,
+        onResult: (result) => {
+          if (result.publicationPending) {
+            publicationPendingMessage =
+              result.message ||
+              'Yayın doğrulamaları hesabınızla eşleştiriliyor.';
+          }
+        },
+      }
     );
     if (!success) return false;
+    if (publicationPendingMessage) {
+      toast(publicationPendingMessage, { icon: '⏳' });
+      return false;
+    }
 
     const message =
       status === 'ACTIVE'

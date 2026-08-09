@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   requirePrincipal: vi.fn(),
   propertyFindFirst: vi.fn(),
+  propertyUpdate: vi.fn(),
   propertyUpdateMany: vi.fn(),
   propertyFindMany: vi.fn(),
   contactFindFirst: vi.fn(),
@@ -16,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   activityCreate: vi.fn(),
   activityFindMany: vi.fn(),
   auditCreate: vi.fn(),
+  eventFindUnique: vi.fn(),
+  eventCreate: vi.fn(),
   dealFindMany: vi.fn(),
   taskFindMany: vi.fn(),
   matchFindMany: vi.fn(),
@@ -62,6 +65,7 @@ vi.mock('@/lib/prisma', () => {
     crmProperty: {
       findFirst: mocks.propertyFindFirst,
       findMany: mocks.propertyFindMany,
+      update: mocks.propertyUpdate,
       updateMany: mocks.propertyUpdateMany,
     },
     crmPropertyMedia: {
@@ -75,6 +79,10 @@ vi.mock('@/lib/prisma', () => {
       findMany: mocks.activityFindMany,
     },
     managerAuditLog: { create: mocks.auditCreate },
+    operationEvent: {
+      findUnique: mocks.eventFindUnique,
+      create: mocks.eventCreate,
+    },
     crmDeal: { findMany: mocks.dealFindMany },
     crmTask: { findMany: mocks.taskFindMany },
     crmMatch: { findMany: mocks.matchFindMany },
@@ -141,6 +149,7 @@ describe('POST /api/fabrika/workspace update-property', () => {
       callback({
         crmProperty: {
           findFirst: mocks.propertyFindFirst,
+          update: mocks.propertyUpdate,
           updateMany: mocks.propertyUpdateMany,
         },
         crmPropertyMedia: {
@@ -151,6 +160,10 @@ describe('POST /api/fabrika/workspace update-property', () => {
         },
         crmActivity: { create: mocks.activityCreate },
         managerAuditLog: { create: mocks.auditCreate },
+        operationEvent: {
+          findUnique: mocks.eventFindUnique,
+          create: mocks.eventCreate,
+        },
       })
     );
     mocks.accountFindUniqueOrThrow.mockResolvedValue({
@@ -226,5 +239,38 @@ describe('POST /api/fabrika/workspace update-property', () => {
     expect(response.status).toBe(404);
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.propertyUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('doğrulaması eşleşmeyen yayın isteğini kullanıcıya hata vermeden beklemeye alır', async () => {
+    mocks.eventFindUnique.mockResolvedValue(null);
+    mocks.propertyFindFirst.mockResolvedValue({
+      id: 'property-a',
+      title: 'Doğrulama bekleyen portföy',
+      status: 'DRAFT',
+      publicationApprovedAt: null,
+      authorityDocumentVerifiedAt: null,
+      authorityExpiresAt: null,
+      eidsRequired: true,
+      eidsVerifiedAt: null,
+      eidsVerificationReference: null,
+      eidsExemptionReason: null,
+      publicationBlockedAt: null,
+    });
+
+    const response = await POST(
+      request({
+        action: 'set-property-status',
+        status: 'ACTIVE',
+        idempotencyKey: 'property-status:pending-verification',
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      publicationPending: true,
+    });
+    expect(mocks.propertyUpdate).not.toHaveBeenCalled();
+    expect(mocks.eventCreate).not.toHaveBeenCalled();
   });
 });

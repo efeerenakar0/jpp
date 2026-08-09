@@ -32,7 +32,12 @@ const validPayload = {
   companyAccountId: 'company-a',
   provider: 'SAHIBINDEN' as const,
   status: 'ACTIVE' as const,
-  allowedScopes: ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ'] as const,
+  allowedScopes: [
+    'SEARCH_READ',
+    'DETAIL_READ',
+    'MEDIA_READ',
+    'CONTACT_READ',
+  ] as const,
   contractReference: 'agreement-2026-001',
   startsAt: '2026-01-01T00:00:00.000Z',
   expiresAt: '2099-01-01T00:00:00.000Z',
@@ -53,6 +58,14 @@ describe('SourceAuthorization yönetimi', () => {
     expect(result.success).toBe(false);
   });
 
+  it('aktif Sahibinden yetkisinde iletişim kapsamını zorunlu tutar', () => {
+    const result = createSourceAuthorizationSchema.safeParse({
+      ...validPayload,
+      allowedScopes: ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ'],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('bitiş tarihi başlangıçtan önceyse reddeder', () => {
     const result = createSourceAuthorizationSchema.safeParse({
       ...validPayload,
@@ -69,6 +82,7 @@ describe('SourceAuthorization yönetimi', () => {
           'SEARCH_READ',
           'DETAIL_READ',
           'MEDIA_READ',
+          'CONTACT_READ',
           'MEDIA_READ',
         ],
       })
@@ -81,7 +95,12 @@ describe('SourceAuthorization yönetimi', () => {
     expect(mocks.authorizationCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         companyAccountId: 'company-a',
-        allowedScopes: ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ'],
+        allowedScopes: [
+          'SEARCH_READ',
+          'DETAIL_READ',
+          'MEDIA_READ',
+          'CONTACT_READ',
+        ],
       }),
     });
   });
@@ -91,7 +110,12 @@ describe('SourceAuthorization yönetimi', () => {
       id: 'authorization-a',
       startsAt: new Date('2025-01-01T00:00:00.000Z'),
       expiresAt: new Date('2025-02-01T00:00:00.000Z'),
-      allowedScopes: ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ'],
+      allowedScopes: [
+        'SEARCH_READ',
+        'DETAIL_READ',
+        'MEDIA_READ',
+        'CONTACT_READ',
+      ],
     });
 
     await expect(

@@ -43,6 +43,93 @@ const REQUIRED_SOURCE_SCOPES = [
   'CONTACT_READ',
 ] as const;
 
+const PLATFORM_AUTHORIZATION_PREFIX = 'platform:';
+
+function parsePlatformAuthorizationDate(
+  value: string | undefined,
+  fallback: Date,
+  fieldName: string
+) {
+  if (!value?.trim()) return fallback;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Platform kaynak yetkisi ${fieldName} geçersiz.`);
+  }
+  return parsed;
+}
+
+function sahibindenPlatformAuthorizationConfig() {
+  if (
+    process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_ENABLED !== 'true'
+  ) {
+    return null;
+  }
+
+  const reference =
+    process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_REFERENCE?.trim();
+  if (!reference) {
+    throw new Error('Platform kaynak yetkisi sözleşme referansı eksik.');
+  }
+
+  const contractReference = `${PLATFORM_AUTHORIZATION_PREFIX}${reference}`;
+  if (contractReference.length > 200) {
+    throw new Error('Platform kaynak yetkisi sözleşme referansı çok uzun.');
+  }
+
+  const startsAt = parsePlatformAuthorizationDate(
+    process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_STARTS_AT,
+    new Date(0),
+    'başlangıç tarihi'
+  );
+  const expiresAt = process.env
+    .AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_EXPIRES_AT
+    ? parsePlatformAuthorizationDate(
+        process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_EXPIRES_AT,
+        new Date(0),
+        'bitiş tarihi'
+      )
+    : null;
+  if (expiresAt && expiresAt <= startsAt) {
+    throw new Error(
+      'Platform kaynak yetkisi bitiş tarihi başlangıçtan sonra olmalıdır.'
+    );
+  }
+
+  return { contractReference, startsAt, expiresAt };
+}
+
+async function materializeSahibindenPlatformAuthorization(
+  companyAccountId: string
+) {
+  const config = sahibindenPlatformAuthorizationConfig();
+  if (!config) return null;
+
+  return prisma.sourceAuthorization.upsert({
+    where: {
+      companyAccountId_provider_contractReference: {
+        companyAccountId,
+        provider: 'SAHIBINDEN',
+        contractReference: config.contractReference,
+      },
+    },
+    update: {
+      status: 'ACTIVE',
+      allowedScopes: [...REQUIRED_SOURCE_SCOPES],
+      startsAt: config.startsAt,
+      expiresAt: config.expiresAt,
+    },
+    create: {
+      companyAccountId,
+      provider: 'SAHIBINDEN',
+      status: 'ACTIVE',
+      allowedScopes: [...REQUIRED_SOURCE_SCOPES],
+      contractReference: config.contractReference,
+      startsAt: config.startsAt,
+      expiresAt: config.expiresAt,
+    },
+  });
+}
+
 function derivedIdempotencyKey(companyAccountId: string, value: string) {
   return createHash('sha256')
     .update(`${companyAccountId}\0${value}`)
@@ -80,16 +167,42 @@ export async function createHuntJob(input: {
       })
     : null;
 
+  if (
+    authorization?.contractReference.startsWith(
+      PLATFORM_AUTHORIZATION_PREFIX
+    )
+  ) {
+    const platformConfig =
+      body.provider === 'SAHIBINDEN'
+        ? sahibindenPlatformAuthorizationConfig()
+        : null;
+    if (
+      !platformConfig ||
+      authorization.contractReference !== platformConfig.contractReference
+    ) {
+      authorization = null;
+    }
+  }
+
   authorization ||= await prisma.sourceAuthorization.findFirst({
     where: {
       companyAccountId: input.companyAccountId,
       provider: body.provider,
+      NOT: {
+        contractReference: { startsWith: PLATFORM_AUTHORIZATION_PREFIX },
+      },
       status: 'ACTIVE',
       startsAt: { lte: now },
       OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
     },
     orderBy: { updatedAt: 'desc' },
   });
+
+  if (!authorization && body.provider === 'SAHIBINDEN') {
+    authorization = await materializeSahibindenPlatformAuthorization(
+      input.companyAccountId
+    );
+  }
 
   if (body.provider === 'FIXTURE' && process.env.NODE_ENV !== 'production') {
     authorization ||= await prisma.sourceAuthorization.upsert({
