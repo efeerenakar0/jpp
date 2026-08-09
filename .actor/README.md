@@ -9,7 +9,7 @@ Actor çalışma ortamında aşağıdaki gizli değişkenler Apify Console üzer
 tanımlanmalıdır:
 
 - `DATABASE_URL`
-- `WHATSAPP_CREDENTIAL_ENCRYPTION_KEY`
+- `HUNTING_CONTACT_ENCRYPTION_KEY`
 - `HUNTING_CONTACT_HMAC_KEY`
 - `AVCI_LIVE_PROVIDER_ENABLED=true`
 - `AVCI_RUN_ONCE=true`

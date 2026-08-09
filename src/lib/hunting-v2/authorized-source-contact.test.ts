@@ -6,12 +6,12 @@ import { decryptContactPhone } from './contact-crypto';
 import { buildAuthorizedSourceContact } from './authorized-source-contact';
 
 describe('Yetkili kaynak sayfası iletişim kaydı', () => {
-  const previousEncryptionKey = process.env.WHATSAPP_CREDENTIAL_ENCRYPTION_KEY;
+  const previousEncryptionKey = process.env.HUNTING_CONTACT_ENCRYPTION_KEY;
   const previousHmacKey = process.env.HUNTING_CONTACT_HMAC_KEY;
   const previousRetention = process.env.AVCI_CONTACT_RETENTION_DAYS;
 
   beforeEach(() => {
-    process.env.WHATSAPP_CREDENTIAL_ENCRYPTION_KEY =
+    process.env.HUNTING_CONTACT_ENCRYPTION_KEY =
       'test-only-encryption-key-at-least-32-chars';
     process.env.HUNTING_CONTACT_HMAC_KEY =
       'test-only-contact-hmac-key-at-least-32-chars';
@@ -19,7 +19,7 @@ describe('Yetkili kaynak sayfası iletişim kaydı', () => {
   });
 
   afterEach(() => {
-    process.env.WHATSAPP_CREDENTIAL_ENCRYPTION_KEY = previousEncryptionKey;
+    process.env.HUNTING_CONTACT_ENCRYPTION_KEY = previousEncryptionKey;
     process.env.HUNTING_CONTACT_HMAC_KEY = previousHmacKey;
     process.env.AVCI_CONTACT_RETENTION_DAYS = previousRetention;
   });

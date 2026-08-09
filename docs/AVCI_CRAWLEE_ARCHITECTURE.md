@@ -369,7 +369,10 @@ tek işi tamamlar ve kapanır; boş kuyrukta bekleyerek kredi tüketmez.
 Vercel tarafında `AVCI_WORKER_DISPATCH_MODE=apify`,
 `APIFY_AVCI_ACTOR_ID` ve secret store içinde `APIFY_TOKEN` gerekir. Apify
 tarafında web uygulamasıyla aynı `DATABASE_URL`,
-`WHATSAPP_CREDENTIAL_ENCRYPTION_KEY` ve `HUNTING_CONTACT_HMAC_KEY` kullanılır.
+`HUNTING_CONTACT_ENCRYPTION_KEY` ve `HUNTING_CONTACT_HMAC_KEY` kullanılır.
+Eski `enc:v1` kayıtları yalnız web uygulamasında mevcut WhatsApp anahtarıyla
+geriye dönük okunur; yeni Avcı kayıtları ayrı anahtarla `contact:v1` olarak
+şifrelenir.
 Bir Actor çalıştırmasının üst maliyet sınırı tetikleyici tarafından belirlenir;
 sağlayıcı hata gövdesi ve token uygulama hata mesajlarına taşınmaz.
 
@@ -390,6 +393,7 @@ sağlayıcı hata gövdesi ve token uygulama hata mesajlarına taşınmaz.
 - `AVCI_MEDIA_MAX_BYTES`
 - `HUNTING_EXTENSION_ALLOWED_ORIGINS`
 - `WHATSAPP_CREDENTIAL_ENCRYPTION_KEY`
+- `HUNTING_CONTACT_ENCRYPTION_KEY`
 - `HUNTING_CONTACT_HMAC_KEY`
 - ContactProvider credential değişkenleri
 - `BLOB_READ_WRITE_TOKEN`

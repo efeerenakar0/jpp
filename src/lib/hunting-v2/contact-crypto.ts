@@ -1,7 +1,15 @@
 import 'server-only';
 
-import { createHmac } from 'node:crypto';
-import { decryptSecret, encryptSecret } from '../whatsapp-crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+} from 'node:crypto';
+import { decryptSecret } from '../whatsapp-crypto';
+
+const CONTACT_ENCRYPTED_PREFIX = 'contact:v1:';
 
 export function normalizeContactPhone(value: string) {
   let digits = value.replace(/\D/g, '');
@@ -14,11 +22,58 @@ export function normalizeContactPhone(value: string) {
 }
 
 export function encryptContactPhone(value: string) {
-  return encryptSecret(normalizeContactPhone(value));
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', contactEncryptionKey(), iv);
+  const encrypted = Buffer.concat([
+    cipher.update(normalizeContactPhone(value), 'utf8'),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+
+  return `${CONTACT_ENCRYPTED_PREFIX}${iv.toString(
+    'base64url'
+  )}.${authTag.toString('base64url')}.${encrypted.toString('base64url')}`;
 }
 
 export function decryptContactPhone(value: string) {
-  return normalizeContactPhone(decryptSecret(value));
+  if (!value.startsWith(CONTACT_ENCRYPTED_PREFIX)) {
+    return normalizeContactPhone(decryptSecret(value));
+  }
+
+  const key = contactEncryptionKey();
+  try {
+    const [ivText, tagText, encryptedText] = value
+      .slice(CONTACT_ENCRYPTED_PREFIX.length)
+      .split('.');
+    if (!ivText || !tagText || !encryptedText) {
+      throw new Error('Geçersiz şifreli telefon verisi.');
+    }
+
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      key,
+      Buffer.from(ivText, 'base64url')
+    );
+    decipher.setAuthTag(Buffer.from(tagText, 'base64url'));
+    return normalizeContactPhone(
+      Buffer.concat([
+        decipher.update(Buffer.from(encryptedText, 'base64url')),
+        decipher.final(),
+      ]).toString('utf8')
+    );
+  } catch {
+    throw new Error('Şifreli Avcı telefon verisi geçersiz.');
+  }
+}
+
+function contactEncryptionKey() {
+  const secret = process.env.HUNTING_CONTACT_ENCRYPTION_KEY;
+  if (!secret || secret.length < 24) {
+    throw new Error(
+      'HUNTING_CONTACT_ENCRYPTION_KEY en az 24 karakter olarak yapılandırılmalıdır.'
+    );
+  }
+  return createHash('sha256').update(secret).digest();
 }
 
 function hmacKey() {
