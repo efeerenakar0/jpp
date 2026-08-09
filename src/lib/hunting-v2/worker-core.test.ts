@@ -10,7 +10,7 @@ const fixture = (name: string) =>
   readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
 
 describe('Avcı worker çekirdeği', () => {
-  it('LIST ve DETAIL belgelerini telefon üretmeden işler', () => {
+  it('LIST ve DETAIL belgelerini görünür iletişim alanlarıyla işler', () => {
     const result = processFixtureDocuments({
       searchHtml: fixture('search-results.html'),
       searchUrl: 'https://fixture.local/search',
@@ -22,7 +22,8 @@ describe('Avcı worker çekirdeği', () => {
     expect(result.completed).toBe(1);
     expect(result.partial).toBe(1);
     expect(result.details[0]?.images).toHaveLength(2);
-    expect(JSON.stringify(result)).not.toContain('05000000000');
+    expect(result.details[0]?.sellerName).toBe('Fixture İlan Sahibi');
+    expect(result.details[0]?.phones).toEqual(['905000000000']);
   });
 
   it('challenge görünce aşmak yerine durdurur', () => {

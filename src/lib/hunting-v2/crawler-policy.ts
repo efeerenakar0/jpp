@@ -1,4 +1,4 @@
-export const BUSINESS_AI_CRAWLER_USER_AGENT = 'Business-AI-Portfoy-Bulucu/1.0';
+export const BUSINESS_AI_CRAWLER_USER_AGENT = 'Business-AI-Portfoy-Uzmani/2.0';
 
 type CrawlerEnvironment = Readonly<Record<string, string | undefined>>;
 

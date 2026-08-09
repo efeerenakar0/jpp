@@ -29,6 +29,8 @@ import type {
   ParsedSearchListing,
   SourceProvider,
 } from './types';
+import { buildAuthorizedSourceContact } from './authorized-source-contact';
+import { buildWorkerLease } from './worker-lease';
 
 type JobWithAuthorization = Awaited<
   ReturnType<typeof loadJobWithAuthorization>
@@ -143,6 +145,8 @@ async function upsertListingDetail(
     assertAllowedMediaUrl(image.sourceUrl, job.provider as SourceProvider);
   }
   const shouldCopy = job.sourceAuthorization.allowedScopes.includes('MEDIA_COPY');
+  const canReadContacts =
+    job.sourceAuthorization.allowedScopes.includes('CONTACT_READ');
   const copiedImages = await Promise.all(
     detail.images.map(async (image) => {
       if (!shouldCopy) return { ...image, storageKey: null, checksum: null, byteSize: null };
@@ -176,6 +180,7 @@ async function upsertListingDetail(
         category: detail.category,
         subcategory: detail.subcategory,
         sellerType: detail.sellerType,
+        ownerName: detail.sellerName,
         descriptionText: detail.descriptionText,
         sanitizedDescriptionHtml: detail.sanitizedDescriptionHtml,
         province: detail.province,
@@ -213,6 +218,7 @@ async function upsertListingDetail(
         category: detail.category,
         subcategory: detail.subcategory,
         sellerType: detail.sellerType,
+        ownerName: detail.sellerName,
         descriptionText: detail.descriptionText,
         sanitizedDescriptionHtml: detail.sanitizedDescriptionHtml,
         province: detail.province,
@@ -235,6 +241,31 @@ async function upsertListingDetail(
         sourceUpdatedAt: new Date(),
       },
     });
+
+    if (canReadContacts) {
+      for (const phone of detail.phones) {
+        const contact = buildAuthorizedSourceContact({
+          phone,
+          sourceUrl: detail.sourceUrl,
+          authorizationExpiresAt: job.sourceAuthorization.expiresAt,
+        });
+        await tx.huntedContact.upsert({
+          where: {
+            companyAccountId_phoneHmac_listingId: {
+              companyAccountId: job.companyAccountId,
+              phoneHmac: contact.phoneHmac,
+              listingId: listing.id,
+            },
+          },
+          update: contact,
+          create: {
+            ...contact,
+            companyAccountId: job.companyAccountId,
+            listingId: listing.id,
+          },
+        });
+      }
+    }
 
     for (const image of copiedImages) {
       await tx.huntedListingImage.upsert({
@@ -323,7 +354,12 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
   if (process.env.AVCI_LIVE_PROVIDER_ENABLED !== 'true') {
     throw new Error('Canlı kaynak worker yapılandırması kapalı.');
   }
-  ensureAuthorization(job, ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ']);
+  ensureAuthorization(job, [
+    'SEARCH_READ',
+    'DETAIL_READ',
+    'MEDIA_READ',
+    'CONTACT_READ',
+  ]);
   await assertPublicSourceUrl(job.searchUrl, job.provider as SourceProvider);
 
   let discovered = 0;
@@ -345,6 +381,7 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
           'SEARCH_READ',
           'DETAIL_READ',
           'MEDIA_READ',
+          'CONTACT_READ',
         ]);
       } catch {
         authorizationInvalidated = true;
@@ -453,7 +490,12 @@ export async function runHuntJob(jobId: string) {
   const job = await loadJobWithAuthorization(jobId);
   if (!job) throw new Error('Av işi bulunamadı.');
   if (!['QUEUED', 'RUNNING'].includes(job.status)) return job;
-  ensureAuthorization(job, ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ']);
+  ensureAuthorization(job, [
+    'SEARCH_READ',
+    'DETAIL_READ',
+    'MEDIA_READ',
+    'CONTACT_READ',
+  ]);
   await prisma.huntJob.update({
     where: { id: job.id },
     data: {
@@ -488,15 +530,25 @@ export async function runHuntJob(jobId: string) {
 }
 
 export async function runNextHuntJob() {
+  const lease = buildWorkerLease();
   const candidate = await prisma.huntJob.findFirst({
-    where: { status: 'QUEUED' },
+    where: lease.candidateWhere,
     orderBy: { createdAt: 'asc' },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!candidate) return null;
   const claimed = await prisma.huntJob.updateMany({
-    where: { id: candidate.id, status: 'QUEUED' },
-    data: { status: 'RUNNING', lastHeartbeatAt: new Date() },
+    where: {
+      id: candidate.id,
+      OR: [
+        { status: 'QUEUED' },
+        {
+          status: 'RUNNING',
+          lastHeartbeatAt: { lt: lease.staleBefore },
+        },
+      ],
+    },
+    data: { status: 'RUNNING', lastHeartbeatAt: lease.now },
   });
   if (!claimed.count) return null;
   return runHuntJob(candidate.id);

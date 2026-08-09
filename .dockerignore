@@ -1,0 +1,12 @@
+.git
+.next
+.env
+.env.*
+!.env.example
+node_modules
+coverage
+artifacts
+output
+public/downloads
+*.log
+*.zip

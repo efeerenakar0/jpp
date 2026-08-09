@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  type ChangeEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   CheckCircle2,
@@ -20,7 +14,6 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 import AvciV2Workspace from '@/components/fabrika/avci-v2/AvciV2Workspace';
 import StatusBoard from '@/components/fabrika/StatusBoard';
-import { ExtensionImportPanel } from '@/components/fabrika/portfolio-specialist/ExtensionImportPanel';
 import { ImportedListingsSummary } from '@/components/fabrika/portfolio-specialist/ImportedListingsSummary';
 import { PortfolioWorkspace } from '@/components/fabrika/portfolio-specialist/PortfolioWorkspace';
 import { QuickPortfolioWizardLauncher } from '@/components/fabrika/portfolio-specialist/QuickPortfolioWizardLauncher';
@@ -47,7 +40,6 @@ export default function AvciPage() {
   const [activeView, setActiveView] = useState<ActiveView>('discover');
   const [listings, setListings] = useState<HuntingListing[]>([]);
   const [loadingBoard, setLoadingBoard] = useState(true);
-  const [isImporting, setIsImporting] = useState(false);
 
   const fetchListings = useCallback(async () => {
     setLoadingBoard(true);
@@ -131,59 +123,6 @@ export default function AvciPage() {
     }
   }
 
-  async function handleImportPackage(event: ChangeEvent<HTMLInputElement>) {
-    const input = event.currentTarget;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    const lowerName = file.name.toLocaleLowerCase('tr-TR');
-    if (!lowerName.endsWith('.zip') && !lowerName.endsWith('.json')) {
-      toast.error(
-        'Yalnızca eklentinin oluşturduğu ZIP veya JSON dosyası yüklenebilir.'
-      );
-      input.value = '';
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('İçe aktarma dosyası en fazla 10 MB olabilir.');
-      input.value = '';
-      return;
-    }
-
-    setIsImporting(true);
-    try {
-      const formData = new FormData();
-      formData.set('file', file);
-      const result = await apiJson<{
-        added: number;
-        skipped: number;
-        ignoredSensitiveFieldCount: number;
-      }>('/api/fabrika/hunting/bulk-import', {
-        method: 'POST',
-        body: formData,
-      });
-      toast.success(
-        `${result.added} ilan eklendi${
-          result.skipped ? `, ${result.skipped} tekrar atlandı` : ''
-        }.`
-      );
-      if (result.ignoredSensitiveFieldCount > 0) {
-        toast(
-          `${result.ignoredSensitiveFieldCount} kayıttaki hassas alan güvenlik politikası gereği içe alınmadı.`,
-          { icon: 'ℹ️' }
-        );
-      }
-      await fetchListings();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'İlan paketi yüklenemedi.'
-      );
-    } finally {
-      setIsImporting(false);
-      input.value = '';
-    }
-  }
-
   const tabs = [
     { id: 'discover' as const, label: 'Keşfe Çık', icon: Compass },
     {
@@ -203,8 +142,9 @@ export default function AvciPage() {
           <p className={styles.eyebrow}>AI PORTFÖY UZMANI</p>
           <h1>Portföy keşfinden yayına kadar tek akış</h1>
           <p>
-            İzinli kaynaklardan gelen ilanları inceleyin, satış yetkisi sürecini
-            yönetin ve doğrulanmış portföyleri şirket sitenizde yayınlayın.
+            İl ve ilan filtrelerini seçin; izinli kaynaktan gelen kayıtları
+            inceleyin, satış yetkisi sürecini yönetin ve doğrulanmış portföyleri
+            şirket sitenizde yayınlayın.
           </p>
         </div>
         <div className={styles.heroActions}>
@@ -241,7 +181,11 @@ export default function AvciPage() {
         ))}
       </section>
 
-      <div className={styles.tabs} role="tablist" aria-label="AI Portföy Uzmanı bölümleri">
+      <div
+        className={styles.tabs}
+        role="tablist"
+        aria-label="AI Portföy Uzmanı bölümleri"
+      >
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             aria-controls={`panel-${id}`}
@@ -269,10 +213,6 @@ export default function AvciPage() {
           <div className={styles.discoveryWorkspace}>
             <AvciV2Workspace />
           </div>
-          <ExtensionImportPanel
-            isImporting={isImporting}
-            onImport={handleImportPackage}
-          />
           <ImportedListingsSummary listings={listings} />
         </section>
       )}
@@ -287,13 +227,15 @@ export default function AvciPage() {
           <div className={styles.infoBanner}>
             <ShieldCheck aria-hidden="true" />
             <p>
-              Her durum değişikliği şirket hesabına bağlı denetim kaydıyla saklanır.
-              İletişim ancak doğrulanmış izin ve insan onayı sonrasında başlatılabilir.
+              Her durum değişikliği şirket hesabına bağlı denetim kaydıyla
+              saklanır. İletişim ancak doğrulanmış izin ve insan onayı sonrasında
+              başlatılabilir.
             </p>
           </div>
           {loadingBoard ? (
             <div className={styles.loadingPanel}>
-              <Loader2 className="animate-spin" aria-hidden="true" /> Pano yükleniyor…
+              <Loader2 className="animate-spin" aria-hidden="true" /> Pano
+              yükleniyor…
             </div>
           ) : listings.length === 0 ? (
             <div className={styles.emptyPanel}>

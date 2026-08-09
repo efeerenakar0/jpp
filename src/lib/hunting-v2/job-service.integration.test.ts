@@ -32,7 +32,7 @@ const activeAuthorization = {
   companyAccountId: 'company-a',
   provider: 'SAHIBINDEN',
   status: 'ACTIVE',
-  allowedScopes: ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ'],
+  allowedScopes: ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ', 'CONTACT_READ'],
   startsAt: new Date('2025-01-01T00:00:00.000Z'),
   expiresAt: new Date('2099-01-01T00:00:00.000Z'),
 };
@@ -89,6 +89,39 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
     );
   });
 
+  it('serbest bağlantı istemeden filtrelerden owner-only arama URLsi üretir', async () => {
+    await createHuntJob({
+      companyAccountId: 'company-a',
+      createdBy: 'OWNER:owner-a',
+      body: {
+        provider: 'SAHIBINDEN',
+        filters: {
+          listingType: 'SALE',
+          propertyType: 'APARTMENT',
+          province: 'İstanbul',
+          district: 'Kadıköy',
+          furnished: 'YES',
+          minPrice: 3_000_000,
+          maxPrice: 15_000_000,
+        },
+      },
+    });
+
+    expect(mocks.assertPublicSourceUrl).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/satilik-daire/istanbul-kadikoy/sahibinden?'
+      ),
+      'SAHIBINDEN'
+    );
+    expect(mocks.jobUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          searchUrl: expect.stringContaining('a103713=true'),
+        }),
+      })
+    );
+  });
+
   it('canlı provider bayrağı kapalıyken veritabanı işine başlamadan reddeder', async () => {
     process.env.AVCI_LIVE_PROVIDER_ENABLED = 'false';
     await expect(
@@ -108,7 +141,7 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
   it('gerekli yetki kapsamı eksikse fail-closed davranır', async () => {
     mocks.authorizationFindFirst.mockResolvedValue({
       ...activeAuthorization,
-      allowedScopes: ['SEARCH_READ'],
+      allowedScopes: ['SEARCH_READ', 'DETAIL_READ', 'MEDIA_READ'],
     });
     await expect(
       createHuntJob({

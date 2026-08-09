@@ -6,7 +6,7 @@ import {
   failedRequestDelta,
 } from './crawler-policy';
 
-describe('Business AI Portföy Bulucu tarama politikası', () => {
+describe('Business AI Portföy Uzmanı tarama politikası', () => {
   it('ilanları tek tek ve kullanıcıdan hız ayarı istemeden işler', () => {
     const policy = buildCrawlerPolicy({});
 
@@ -46,6 +46,9 @@ describe('Business AI Portföy Bulucu tarama politikası', () => {
   });
 
   it('her istekte ürün adını açıkça bildirir', () => {
+    expect(BUSINESS_AI_CRAWLER_USER_AGENT).toBe(
+      'Business-AI-Portfoy-Uzmani/2.0'
+    );
     const request = buildSourceRequest({
       kind: 'DETAIL',
       sourceListingId: '123456',
