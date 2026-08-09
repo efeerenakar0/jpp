@@ -9,6 +9,7 @@ import {
   buildSahibindenSearchUrl,
   sahibindenSearchFiltersSchema,
 } from './search-filters';
+import { dispatchQueuedHuntWorker } from './worker-dispatch';
 
 export const createHuntJobSchema = z
   .object({
@@ -133,7 +134,7 @@ export async function createHuntJob(input: {
   const idempotencyKey =
     body.idempotencyKey ||
     derivedIdempotencyKey(input.companyAccountId, searchUrl);
-  return prisma.huntJob.upsert({
+  const job = await prisma.huntJob.upsert({
     where: {
       companyAccountId_idempotencyKey: {
         companyAccountId: input.companyAccountId,
@@ -150,4 +151,10 @@ export async function createHuntJob(input: {
       createdBy: input.createdBy,
     },
   });
+
+  if (job.status === 'QUEUED') {
+    await dispatchQueuedHuntWorker();
+  }
+
+  return job;
 }
