@@ -358,6 +358,21 @@ secret'larını kullanır. Railway servisinde start komutunu değiştirmek gerek
 bırakırsa `AVCI_WORKER_STALE_MS` sonrasında başka worker işi idempotent biçimde
 yeniden sahiplenebilir. İlk canlı açılışta tek replica kullanılmalıdır.
 
+### Apify isteğe bağlı worker
+
+Ücretsiz deneme ve düşük hacimli kullanım için `.actor/actor.json`, aynı
+`Dockerfile.avci-worker` konteynerini `AVCI_RUN_ONCE=true` ile çalıştırır.
+Vercel, yalnız `QUEUED` durumunda bir iş oluştuğunda Apify Run Actor API'sini
+Bearer token ile çağırır. Actor kuyruktan en eski işi atomik biçimde sahiplenir,
+tek işi tamamlar ve kapanır; boş kuyrukta bekleyerek kredi tüketmez.
+
+Vercel tarafında `AVCI_WORKER_DISPATCH_MODE=apify`,
+`APIFY_AVCI_ACTOR_ID` ve secret store içinde `APIFY_TOKEN` gerekir. Apify
+tarafında web uygulamasıyla aynı `DATABASE_URL`,
+`WHATSAPP_CREDENTIAL_ENCRYPTION_KEY` ve `HUNTING_CONTACT_HMAC_KEY` kullanılır.
+Bir Actor çalıştırmasının üst maliyet sınırı tetikleyici tarafından belirlenir;
+sağlayıcı hata gövdesi ve token uygulama hata mesajlarına taşınmaz.
+
 ## Ortam değişkenleri
 
 `.env.example` değişken isimlerinin güncel listesidir. Özellikle:
@@ -367,6 +382,10 @@ yeniden sahiplenebilir. İlk canlı açılışta tek replica kullanılmalıdır.
 - `AVCI_CRAWLER_MAX_REQUESTS`
 - `AVCI_WORKER_POLL_MS`
 - `AVCI_WORKER_STALE_MS`
+- `AVCI_WORKER_DISPATCH_MODE`
+- `AVCI_RUN_ONCE`
+- `APIFY_AVCI_ACTOR_ID`
+- `APIFY_TOKEN`
 - `AVCI_CONTACT_RETENTION_DAYS`
 - `AVCI_MEDIA_MAX_BYTES`
 - `HUNTING_EXTENSION_ALLOWED_ORIGINS`

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   authorizationFindFirst: vi.fn(),
   authorizationUpsert: vi.fn(),
   jobUpsert: vi.fn(),
+  dispatchQueuedHuntWorker: vi.fn(),
 }));
 
 vi.mock('./security', () => ({
@@ -23,6 +24,10 @@ vi.mock('@/lib/prisma', () => ({
       upsert: mocks.jobUpsert,
     },
   },
+}));
+
+vi.mock('./worker-dispatch', () => ({
+  dispatchQueuedHuntWorker: mocks.dispatchQueuedHuntWorker,
 }));
 
 import { createHuntJob } from './job-service';
@@ -49,6 +54,7 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
       id: 'job-1',
       status: 'QUEUED',
     });
+    mocks.dispatchQueuedHuntWorker.mockResolvedValue({ status: 'disabled' });
   });
 
   it('tenant kimliğini istemciden değil servis bağlamından kullanır ve idempotent upsert yapar', async () => {
@@ -87,6 +93,25 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
         }),
       })
     );
+    expect(mocks.dispatchQueuedHuntWorker).toHaveBeenCalledTimes(1);
+  });
+
+  it('tamamlanmış idempotent işi yeniden tetiklemez', async () => {
+    mocks.jobUpsert.mockResolvedValue({
+      id: 'job-1',
+      status: 'COMPLETED',
+    });
+
+    await createHuntJob({
+      companyAccountId: 'company-a',
+      createdBy: 'OWNER:owner-a',
+      body: {
+        provider: 'SAHIBINDEN',
+        searchUrl: 'https://www.sahibinden.com/satilik',
+      },
+    });
+
+    expect(mocks.dispatchQueuedHuntWorker).not.toHaveBeenCalled();
   });
 
   it('serbest bağlantı istemeden filtrelerden owner-only arama URLsi üretir', async () => {

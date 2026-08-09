@@ -1,4 +1,8 @@
 import { runNextHuntJob } from '../../src/lib/hunting-v2/worker';
+import {
+  runHuntWorker,
+  shouldRunHuntWorkerOnce,
+} from '../../src/lib/hunting-v2/worker-runtime';
 
 const pollMs = Math.max(
   1_000,
@@ -17,26 +21,22 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
 
 async function main() {
   process.stdout.write('Business AI Portföy Uzmanı worker başlatıldı.\n');
-  while (!shutdownRequested) {
-    try {
-      const result = await runNextHuntJob();
-      if (!result && !shutdownRequested) {
-        await new Promise((resolve) => setTimeout(resolve, pollMs));
-      }
-    } catch (error) {
+  await runHuntWorker({
+    runNext: runNextHuntJob,
+    wait: (milliseconds) =>
+      new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    pollMs,
+    runOnce: shouldRunHuntWorkerOnce(),
+    shouldStop: () => shutdownRequested,
+    reportError: (error) => {
       const message =
         error instanceof Error ? error.message : 'Worker hatası';
       process.stderr.write(`Avcı worker işi başarısız: ${message}\n`);
-      if (!shutdownRequested) {
-        await new Promise((resolve) => setTimeout(resolve, pollMs));
-      }
-    }
-  }
+    },
+  });
   process.stdout.write('Business AI Portföy Uzmanı worker güvenli biçimde durdu.\n');
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : 'Worker başlatılamadı';
-  process.stderr.write(`${message}\n`);
+main().catch(() => {
   process.exitCode = 1;
 });
