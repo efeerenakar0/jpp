@@ -16,6 +16,7 @@ const REQUIRED_READ_SCOPES = [
   'SEARCH_READ',
   'DETAIL_READ',
   'MEDIA_READ',
+  'CONTACT_READ',
 ] as const;
 
 export const createSourceAuthorizationSchema = z

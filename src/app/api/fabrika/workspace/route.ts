@@ -721,6 +721,7 @@ export async function POST(request: Request) {
 
     const input = parsed.data;
     let oneTimeCredentials: OneTimeMemberCredentials | undefined;
+    let publicationPending = false;
 
     if (input.action === 'create-contact') {
       const assignedMemberId = await ensureOwnedResource(
@@ -1217,7 +1218,8 @@ export async function POST(request: Request) {
               { companyAccountId: account.id, now: new Date() }
             )
           ) {
-            throw new Error('Portföy yayın onayı, yetki belgesi ve EİDS doğrulaması tamamlanmalıdır.');
+            publicationPending = true;
+            return;
           }
         }
 
@@ -1633,6 +1635,10 @@ export async function POST(request: Request) {
       success: true,
       workspace: await getWorkspace(account.id, principal.permissions),
       oneTimeCredentials,
+      publicationPending,
+      message: publicationPending
+        ? 'Portföy kaydedildi; paylaşılan yayın doğrulamaları hesabınızla eşleştiriliyor.'
+        : undefined,
     });
   } catch (error) {
     if (error instanceof FabrikaSessionError) return unauthorized();

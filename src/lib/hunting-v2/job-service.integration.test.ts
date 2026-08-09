@@ -46,6 +46,10 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.AVCI_LIVE_PROVIDER_ENABLED = 'true';
+    delete process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_ENABLED;
+    delete process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_REFERENCE;
+    delete process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_STARTS_AT;
+    delete process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_EXPIRES_AT;
     mocks.assertPublicSourceUrl.mockResolvedValue(
       new URL('https://www.sahibinden.com/satilik')
     );
@@ -178,6 +182,94 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
         },
       })
     ).rejects.toThrow('kapsamı eksik');
+    expect(mocks.jobUpsert).not.toHaveBeenCalled();
+  });
+
+  it('platform-geneli Sahibinden iznini tenant için materialize edip işi başlatır', async () => {
+    process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_ENABLED = 'true';
+    process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_REFERENCE =
+      'business-ai-portfoy-uzmani';
+    process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_STARTS_AT =
+      '2026-08-03T00:00:00.000Z';
+    mocks.authorizationFindFirst.mockResolvedValue(null);
+    mocks.authorizationUpsert.mockResolvedValue({
+      ...activeAuthorization,
+      id: 'platform-auth-1',
+      contractReference: 'platform:business-ai-portfoy-uzmani',
+      startsAt: new Date('2026-08-03T00:00:00.000Z'),
+      expiresAt: null,
+    });
+
+    await expect(
+      createHuntJob({
+        companyAccountId: 'company-a',
+        createdBy: 'OWNER:owner-a',
+        body: {
+          provider: 'SAHIBINDEN',
+          searchUrl: 'https://www.sahibinden.com/satilik',
+        },
+      })
+    ).resolves.toMatchObject({ id: 'job-1' });
+
+    expect(mocks.authorizationUpsert).toHaveBeenCalledWith({
+      where: {
+        companyAccountId_provider_contractReference: {
+          companyAccountId: 'company-a',
+          provider: 'SAHIBINDEN',
+          contractReference: 'platform:business-ai-portfoy-uzmani',
+        },
+      },
+      update: {
+        status: 'ACTIVE',
+        allowedScopes: [
+          'SEARCH_READ',
+          'DETAIL_READ',
+          'MEDIA_READ',
+          'CONTACT_READ',
+        ],
+        startsAt: new Date('2026-08-03T00:00:00.000Z'),
+        expiresAt: null,
+      },
+      create: {
+        companyAccountId: 'company-a',
+        provider: 'SAHIBINDEN',
+        status: 'ACTIVE',
+        allowedScopes: [
+          'SEARCH_READ',
+          'DETAIL_READ',
+          'MEDIA_READ',
+          'CONTACT_READ',
+        ],
+        contractReference: 'platform:business-ai-portfoy-uzmani',
+        startsAt: new Date('2026-08-03T00:00:00.000Z'),
+        expiresAt: null,
+      },
+    });
+    expect(mocks.jobUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          sourceAuthorizationId: 'platform-auth-1',
+        }),
+      })
+    );
+  });
+
+  it('platform izni açıkken sözleşme referansı yoksa fail-closed davranır', async () => {
+    process.env.AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_ENABLED = 'true';
+    mocks.authorizationFindFirst.mockResolvedValue(null);
+
+    await expect(
+      createHuntJob({
+        companyAccountId: 'company-a',
+        createdBy: 'OWNER:owner-a',
+        body: {
+          provider: 'SAHIBINDEN',
+          searchUrl: 'https://www.sahibinden.com/satilik',
+        },
+      })
+    ).rejects.toThrow('referansı eksik');
+
+    expect(mocks.authorizationUpsert).not.toHaveBeenCalled();
     expect(mocks.jobUpsert).not.toHaveBeenCalled();
   });
 });

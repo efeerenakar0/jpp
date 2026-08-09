@@ -153,11 +153,20 @@ Canlı provider iki ayrı kilit açılmadan çalışmaz:
 
 1. Ortamda `AVCI_LIVE_PROVIDER_ENABLED=true` olmalıdır.
 2. İlgili tenant ve provider için süresi geçmemiş `ACTIVE`
-   `SourceAuthorization` bulunmalıdır.
+   `SourceAuthorization` bulunmalıdır. Sağlayıcının izni platformdaki tüm
+   tenantları kapsıyorsa sunucu tarafındaki platform yetkisi, ilk iş isteğinde
+   tenant adına ayrı ve denetlenebilir bir `SourceAuthorization` kaydına
+   materialize edilir.
 
 Yetki yalnız platform yöneticisi oturumundan
 `/api/platform-admin/hunting/source-authorizations` endpoint'iyle
 oluşturulabilir. Müşteri hesabı kendi kendine yetki veremez.
+
+Platform-geneli Sahibinden izni için
+`AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_ENABLED=true` ve denetlenebilir bir
+`AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_REFERENCE` zorunludur. İsteğe bağlı
+başlangıç/bitiş tarihleri ISO-8601 biçiminde verilir. Bu sunucu ayarı kapatılırsa
+önceden materialize edilmiş `platform:` kayıtları yeni işlerde kullanılmaz.
 
 Örnek istek gövdesi:
 
@@ -381,6 +390,10 @@ sağlayıcı hata gövdesi ve token uygulama hata mesajlarına taşınmaz.
 `.env.example` değişken isimlerinin güncel listesidir. Özellikle:
 
 - `AVCI_LIVE_PROVIDER_ENABLED`
+- `AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_ENABLED`
+- `AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_REFERENCE`
+- `AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_STARTS_AT`
+- `AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_EXPIRES_AT`
 - `AVCI_CRAWLER_CONCURRENCY`
 - `AVCI_CRAWLER_MAX_REQUESTS`
 - `AVCI_WORKER_POLL_MS`
