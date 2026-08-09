@@ -46,13 +46,17 @@ export async function importHuntedContact(input: {
       where: {
         companyAccountId: input.companyAccountId,
         listingId: listing.id,
-        phoneHmac: hmac,
+        OR: [
+          { phoneHmac: hmac },
+          { phoneCiphertext: null, sourceType: 'LEGACY_UNVERIFIED' },
+        ],
       },
     });
     if (existing) {
       return tx.huntedContact.update({
         where: { id: existing.id },
         data: {
+          phoneHmac: hmac,
           phoneCiphertext: ciphertext,
           maskedPhone,
           subjectRole: resolved.subjectRole,
