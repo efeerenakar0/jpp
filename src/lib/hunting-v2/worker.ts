@@ -23,6 +23,7 @@ import {
   buildCrawlerPolicy,
   buildSourceRequest,
   failedRequestDelta,
+  initialSahibindenRequestKind,
 } from './crawler-policy';
 import type {
   ParsedListingDetail,
@@ -362,7 +363,8 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
   ]);
   await assertPublicSourceUrl(job.searchUrl, job.provider as SourceProvider);
 
-  let discovered = 0;
+  const initialRequestKind = initialSahibindenRequestKind(job.searchUrl);
+  let discovered = initialRequestKind === 'DETAIL' ? 1 : 0;
   let completed = 0;
   let partial = 0;
   let failed = 0;
@@ -461,7 +463,7 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
 
   await crawler.run([
     buildSourceRequest({
-      kind: 'LIST',
+      kind: initialRequestKind,
       url: job.searchUrl,
     }),
   ]);
