@@ -1,13 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
+  CalendarDays,
   CheckCircle2,
   Compass,
+  FilePlus2,
+  Info,
   Layers3,
   Loader2,
-  RefreshCw,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
@@ -16,7 +19,6 @@ import AvciV2Workspace from '@/components/fabrika/avci-v2/AvciV2Workspace';
 import StatusBoard from '@/components/fabrika/StatusBoard';
 import { ImportedListingsSummary } from '@/components/fabrika/portfolio-specialist/ImportedListingsSummary';
 import { PortfolioWorkspace } from '@/components/fabrika/portfolio-specialist/PortfolioWorkspace';
-import { QuickPortfolioWizardLauncher } from '@/components/fabrika/portfolio-specialist/QuickPortfolioWizardLauncher';
 import type {
   HuntingListing,
   HuntingStatus,
@@ -24,6 +26,16 @@ import type {
 import styles from './avci.module.css';
 
 type ActiveView = 'discover' | 'authorization' | 'portfolios';
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const TIME_RANGE_OPTIONS = [
+  { id: '1d', label: '1 Gün', days: 1, description: 'Son 24 saat' },
+  { id: '7d', label: '1 Hafta', days: 7, description: 'Son 7 gün' },
+  { id: '14d', label: '14 Gün', days: 14, description: 'Son 14 gün' },
+  { id: '30d', label: '1 Ay', days: 30, description: 'Son 30 gün' },
+] as const;
+
+type TimeRange = (typeof TIME_RANGE_OPTIONS)[number]['id'];
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -38,6 +50,8 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function AvciPage() {
   const [activeView, setActiveView] = useState<ActiveView>('discover');
+  const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const [rangeAnchor, setRangeAnchor] = useState(() => Date.now());
   const [listings, setListings] = useState<HuntingListing[]>([]);
   const [loadingBoard, setLoadingBoard] = useState(true);
 
@@ -78,17 +92,36 @@ export default function AvciPage() {
     return () => controller.abort();
   }, []);
 
+  const activeRange = TIME_RANGE_OPTIONS.find(
+    (option) => option.id === timeRange
+  )!;
+  const periodListings = useMemo(() => {
+    const rangeStart = rangeAnchor - activeRange.days * DAY_IN_MS;
+    return listings.filter((listing) => {
+      const dateValue = listing.createdAt || listing.updatedAt || listing.lastSeenAt;
+      if (!dateValue) return false;
+      const timestamp = Date.parse(dateValue);
+      return (
+        Number.isFinite(timestamp) &&
+        timestamp >= rangeStart &&
+        timestamp <= rangeAnchor
+      );
+    });
+  }, [activeRange.days, listings, rangeAnchor]);
+
   const counts = useMemo(
     () => ({
-      total: listings.length,
-      negotiation: listings.filter((listing) => listing.status === 'YELLOW')
-        .length,
-      authorized: listings.filter(
+      total: periodListings.length,
+      negotiation: periodListings.filter(
+        (listing) => listing.status === 'YELLOW'
+      ).length,
+      authorized: periodListings.filter(
         (listing) => listing.status === 'AUTHORIZED'
       ).length,
-      joined: listings.filter((listing) => listing.status === 'GREEN').length,
+      joined: periodListings.filter((listing) => listing.status === 'GREEN')
+        .length,
     }),
-    [listings]
+    [periodListings]
   );
 
   async function handleStatusChange(
@@ -123,6 +156,33 @@ export default function AvciPage() {
     }
   }
 
+  async function handlePortfolioJoin(
+    _listingId: string,
+    portfolioImportId: string
+  ) {
+    try {
+      const result = await apiJson<{ message?: string }>(
+        '/api/fabrika/portfolio-imports',
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'approve',
+            id: portfolioImportId,
+          }),
+        }
+      );
+      toast.success(result.message || 'Kayıt şirket portföyüne eklendi.');
+      await fetchListings();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Portföye katılım tamamlanamadı.'
+      );
+    }
+  }
+
   const tabs = [
     { id: 'discover' as const, label: 'Keşfe Çık', icon: Compass },
     {
@@ -136,50 +196,6 @@ export default function AvciPage() {
   return (
     <div className={styles.page}>
       <Toaster position="bottom-right" />
-
-      <header className={styles.hero}>
-        <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>AI PORTFÖY UZMANI</p>
-          <h1>Portföy keşfinden yayına kadar tek akış</h1>
-          <p>
-            İl ve ilan filtrelerini seçin; izinli kaynaktan gelen kayıtları
-            inceleyin, satış yetkisi sürecini yönetin ve doğrulanmış portföyleri
-            şirket sitenizde yayınlayın.
-          </p>
-        </div>
-        <div className={styles.heroActions}>
-          <QuickPortfolioWizardLauncher />
-          <button
-            className={styles.refreshButton}
-            disabled={loadingBoard}
-            onClick={() => void fetchListings()}
-            type="button"
-          >
-            <RefreshCw
-              className={loadingBoard ? 'animate-spin' : ''}
-              aria-hidden="true"
-            />
-            Yenile
-          </button>
-        </div>
-      </header>
-
-      <section className={styles.metrics} aria-label="Portföy uzmanı özeti">
-        {[
-          { label: 'Toplam kayıt', value: counts.total, icon: Layers3 },
-          { label: 'Sıcak pazarlık', value: counts.negotiation, icon: Sparkles },
-          { label: 'Satış yetkisi', value: counts.authorized, icon: ShieldCheck },
-          { label: 'Portföye katıldı', value: counts.joined, icon: CheckCircle2 },
-        ].map((metric) => (
-          <article className={styles.metricCard} key={metric.label}>
-            <metric.icon aria-hidden="true" />
-            <span>
-              <small>{metric.label}</small>
-              <strong>{metric.value}</strong>
-            </span>
-          </article>
-        ))}
-      </section>
 
       <div
         className={styles.tabs}
@@ -203,6 +219,111 @@ export default function AvciPage() {
         ))}
       </div>
 
+      <section
+        aria-labelledby="statistics-period-title"
+        className={styles.statsToolbar}
+      >
+        <div className={styles.statsToolbarCopy}>
+          <span className={styles.statsToolbarIcon}>
+            <CalendarDays aria-hidden="true" />
+          </span>
+          <span>
+            <strong id="statistics-period-title">Analiz Dönemi</strong>
+            <small aria-live="polite">
+              {activeRange.description} içinde eklenen kayıtlar
+            </small>
+          </span>
+        </div>
+        <div
+          aria-label="İstatistik tarih aralığı"
+          className={styles.rangeSelector}
+          role="group"
+        >
+          {TIME_RANGE_OPTIONS.map((option) => (
+            <button
+              aria-pressed={timeRange === option.id}
+              className={
+                timeRange === option.id
+                  ? styles.activeRangeButton
+                  : styles.rangeButton
+              }
+              key={option.id}
+              onClick={() => {
+                setTimeRange(option.id);
+                setRangeAnchor(Date.now());
+              }}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.metrics} aria-label="Portföy uzmanı özeti">
+        {[
+          {
+            label: 'Tespit edilen portföyler',
+            value: counts.total,
+            icon: Layers3,
+            documentHref: null,
+            info: null,
+          },
+          {
+            label: 'Aktif & Olumlu portföy Görüşmeleri',
+            value: counts.negotiation,
+            icon: Sparkles,
+            documentHref: null,
+            info: null,
+          },
+          {
+            label: 'Yetki onayı alınan portföyler',
+            value: counts.authorized,
+            icon: ShieldCheck,
+            documentHref: '/fabrika/belgeler',
+            info: null,
+          },
+          {
+            label: 'Yetkili portföyler',
+            value: counts.joined,
+            icon: CheckCircle2,
+            documentHref: null,
+            info: 'Satış yetkisini aldığınız portföyler.',
+          },
+        ].map((metric) => (
+          <article className={styles.metricCard} key={metric.label}>
+            <metric.icon aria-hidden="true" />
+            <span>
+              <span className={styles.metricLabelRow}>
+                <small>{metric.label}</small>
+                {metric.documentHref && (
+                  <Link
+                    aria-label="Satış yetkisi belgesi oluştur"
+                    className={styles.metricDocumentAction}
+                    href={metric.documentHref}
+                    title="Belge oluştur"
+                  >
+                    <FilePlus2 aria-hidden="true" />
+                  </Link>
+                )}
+                {metric.info && (
+                  <span
+                    aria-label={metric.info}
+                    className={styles.metricInfo}
+                    data-tooltip={metric.info}
+                    role="img"
+                    tabIndex={0}
+                  >
+                    <Info aria-hidden="true" />
+                  </span>
+                )}
+              </span>
+              <strong>{metric.value}</strong>
+            </span>
+          </article>
+        ))}
+      </section>
+
       {activeView === 'discover' && (
         <section
           aria-labelledby="tab-discover"
@@ -213,7 +334,10 @@ export default function AvciPage() {
           <div className={styles.discoveryWorkspace}>
             <AvciV2Workspace />
           </div>
-          <ImportedListingsSummary listings={listings} />
+          <ImportedListingsSummary
+            listings={periodListings}
+            periodLabel={activeRange.description}
+          />
         </section>
       )}
 
@@ -237,9 +361,9 @@ export default function AvciPage() {
               <Loader2 className="animate-spin" aria-hidden="true" /> Pano
               yükleniyor…
             </div>
-          ) : listings.length === 0 ? (
+          ) : periodListings.length === 0 ? (
             <div className={styles.emptyPanel}>
-              <p>Panoya eklenmiş portföy adayı yok.</p>
+              <p>{activeRange.description} içinde eklenen portföy adayı yok.</p>
               <button onClick={() => setActiveView('discover')} type="button">
                 Keşfe çık
               </button>
@@ -247,7 +371,8 @@ export default function AvciPage() {
           ) : (
             <div className={styles.boardWorkspace}>
               <StatusBoard
-                listings={listings}
+                listings={periodListings}
+                onPortfolioJoin={handlePortfolioJoin}
                 onStatusChange={handleStatusChange}
               />
             </div>

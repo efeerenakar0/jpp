@@ -109,7 +109,7 @@ export async function createStudioBatch(input: {
       model:
         resolveStudioImageEngine(input.preset) === 'CREATIVE'
           ? 'stable-image-ultra'
-          : 'realistic-real-estate-v1',
+          : 'adaptive-real-estate-v2',
       status: 'UPLOADING',
       createdByMemberId: input.actor.memberId,
       idempotencyKey,

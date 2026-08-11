@@ -1366,7 +1366,7 @@
   }
 }
 
-@media (min-width: 1120px) {
+@media (min-width: 1024px) {
   .primaryGrid {
     grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
     align-items: stretch;
@@ -1511,6 +1511,534 @@
   }
 }
 
+/* /fabrika ana sayfa — ultra AI referansındaki koyu komuta merkezi. */
+.dashboard {
+  --bceo-bg: #020a13;
+  --bceo-panel: #061421;
+  --bceo-panel-soft: #081a2a;
+  --bceo-border: rgba(94, 143, 181, 0.48);
+  --bceo-border-strong: rgba(73, 169, 231, 0.62);
+  --bceo-text: #f4f8ff;
+  --bceo-muted: #9aaabd;
+  --bceo-cyan: #36a8ff;
+  --bceo-cyan-soft: rgba(54, 168, 255, 0.12);
+  --bceo-violet: #9b63ff;
+  --bceo-violet-soft: rgba(155, 99, 255, 0.14);
+  --bceo-blue: #287dff;
+  --bceo-green: #6ce89a;
+  --bceo-amber: #f2b84b;
+  color: var(--bceo-text);
+  background:
+    radial-gradient(circle at 72% 2%, rgba(0, 111, 219, 0.1), transparent 29rem),
+    radial-gradient(circle at 18% 52%, rgba(31, 93, 255, 0.07), transparent 30rem),
+    linear-gradient(145deg, #020812 0%, #03101d 52%, #020a14 100%);
+}
+
+.dashboard::before {
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(52, 133, 194, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(52, 133, 194, 0.045) 1px, transparent 1px);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 84%);
+}
+
+.content {
+  width: min(100%, 1920px);
+  gap: 10px;
+  padding: 5px 14px 12px;
+}
+
+.primaryGrid {
+  gap: 12px;
+}
+
+.panel {
+  border-color: rgba(91, 139, 177, 0.5);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(15, 83, 145, 0.08), transparent 42%),
+    linear-gradient(145deg, rgba(4, 18, 31, 0.98), rgba(2, 13, 24, 0.99));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.workflowPanel::before {
+  display: none;
+}
+
+.panelHeader,
+.salesHeader {
+  padding: 16px 20px 10px;
+}
+
+.panelTitle,
+.dialogTitle {
+  color: var(--bceo-text) !important;
+  font-size: clamp(1.42rem, 1.9vw, 1.78rem);
+  font-weight: 700;
+  letter-spacing: -0.025em !important;
+}
+
+.panelDescription,
+.dialogDescription {
+  margin-top: 3px;
+  color: #b3c0cf;
+  font-size: 0.76rem;
+  font-weight: 450;
+  line-height: 1.45;
+}
+
+.quickWorkflowButton {
+  min-height: 46px;
+  padding: 7px 11px;
+  border-color: rgba(154, 95, 255, 0.56);
+  color: #d6ddff;
+  background:
+    linear-gradient(135deg, rgba(57, 38, 106, 0.5), rgba(13, 25, 46, 0.86));
+  box-shadow:
+    inset 0 0 16px rgba(103, 74, 255, 0.08),
+    0 0 18px rgba(71, 61, 204, 0.08);
+}
+
+.quickWorkflowButton:hover {
+  border-color: rgba(173, 124, 255, 0.9);
+  background: linear-gradient(135deg, rgba(70, 44, 127, 0.62), rgba(16, 31, 56, 0.92));
+}
+
+.quickWorkflowButton > svg,
+.quickWorkflowCopy strong {
+  color: #a882ff;
+}
+
+.quickWorkflowCopy strong {
+  font-size: 0.73rem;
+  font-weight: 650;
+}
+
+.quickWorkflowCopy small {
+  color: #94a4b8;
+}
+
+.workflowBody {
+  padding: 0 13px 7px;
+}
+
+.workflowCard {
+  border-color: color-mix(in srgb, var(--card-accent) 62%, rgba(64, 104, 139, 0.64));
+  border-radius: 11px;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--card-accent) 8%, transparent), transparent 60%),
+    rgba(2, 12, 23, 0.97);
+  box-shadow:
+    inset 0 0 24px color-mix(in srgb, var(--card-accent) 7%, transparent),
+    0 0 16px color-mix(in srgb, var(--card-accent) 8%, transparent);
+}
+
+.workflowButton {
+  gap: 7px;
+  padding: 8px;
+}
+
+.stepBadge {
+  top: 8px;
+  left: 8px;
+  min-width: 34px;
+  min-height: 24px;
+  border-color: rgba(85, 168, 255, 0.78);
+  color: #fff;
+  font-size: 0.69rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #166cff, #2c86ff);
+  box-shadow: 0 4px 12px rgba(19, 103, 255, 0.32);
+}
+
+.workflowCopy {
+  padding: 0 3px 1px;
+}
+
+.workflowCopy strong,
+.secondaryCopy strong {
+  color: #f4f7ff;
+  font-size: 0.94rem;
+  font-weight: 630;
+}
+
+.workflowCopy small,
+.secondaryCopy small {
+  color: #9aaabd;
+  font-size: 0.68rem;
+  font-weight: 430;
+}
+
+.moduleVisual {
+  min-height: 94px;
+  border-radius: 8px;
+  background-color: #020b16;
+  background-image:
+    linear-gradient(to bottom, transparent 64%, rgba(1, 8, 17, 0.34)),
+    url('/business-ceo/homepage-ai-sprite-v1.png');
+  background-repeat: no-repeat;
+  background-size: 100% 100%, 300% 300%;
+}
+
+.moduleVisual::after {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  border-radius: inherit;
+  box-shadow: inset 0 0 22px rgba(0, 10, 25, 0.26);
+}
+
+.moduleVisual > * {
+  opacity: 0;
+}
+
+.moduleVisual[data-module='portfolio-specialist'] {
+  background-position: center, 0% 0%;
+}
+
+.moduleVisual[data-module='studio'] {
+  background-position: center, 50% 0%;
+}
+
+.moduleVisual[data-module='advertising-design'] {
+  background-position: center, 100% 0%;
+}
+
+.moduleVisual[data-module='marketing-specialist'] {
+  background-position: center, 0% 50%;
+}
+
+.workflowConnector span,
+.workflowConnectorVertical span {
+  color: #8bd7ff;
+  background: #061421;
+}
+
+.salesPanel {
+  min-height: 465px;
+}
+
+.salesHeader {
+  border-bottom-color: transparent;
+}
+
+.whatsappButton {
+  min-height: 38px;
+  border-color: rgba(83, 212, 112, 0.54);
+  color: #76e895;
+  background: rgba(37, 112, 56, 0.16);
+  box-shadow: inset 0 0 13px rgba(70, 204, 101, 0.08);
+}
+
+.whatsappButton:hover {
+  border-color: rgba(112, 236, 140, 0.85);
+  background: rgba(47, 137, 69, 0.24);
+}
+
+.salesMetrics {
+  gap: 8px;
+  padding: 2px 13px 9px;
+}
+
+.salesMetric {
+  min-height: 58px;
+  padding: 7px 10px;
+  border-color: rgba(66, 106, 141, 0.34);
+  color: var(--bceo-text);
+  background: rgba(5, 20, 34, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.015);
+}
+
+.salesMetricIcon {
+  color: #4fb8ff;
+}
+
+.salesMetric dt,
+.conversationPhone,
+.conversationPreview,
+.conversationTime {
+  color: #91a3b7;
+}
+
+.salesMetric dd,
+.conversationName {
+  color: #f3f7ff;
+}
+
+.salesList {
+  max-height: 318px;
+  gap: 6px;
+  padding: 0 13px 14px;
+}
+
+.conversationRow {
+  min-height: 62px;
+  padding: 7px 9px;
+  border-color: rgba(60, 105, 143, 0.37);
+  background: rgba(3, 15, 26, 0.78);
+  box-shadow: none;
+}
+
+.conversationAvatar {
+  width: 38px;
+  height: 38px;
+  border-color: rgba(47, 152, 231, 0.42);
+  color: #79c9ff;
+  background: #071b2d;
+}
+
+.conversationName {
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.conversationPhone,
+.conversationPreview,
+.conversationTime {
+  font-size: 0.58rem;
+}
+
+.statusBadge {
+  min-height: 25px;
+  border-color: rgba(48, 132, 198, 0.4) !important;
+  color: #7bc9ff !important;
+  background: rgba(8, 39, 64, 0.74) !important;
+}
+
+.messageButton,
+.deleteButton {
+  width: 34px;
+  height: 34px;
+  border-color: rgba(60, 112, 151, 0.38);
+  color: #78c8ff;
+  background: rgba(5, 24, 40, 0.88);
+}
+
+.emptyState,
+.errorState,
+.loadingState {
+  border-color: rgba(64, 111, 150, 0.38);
+  color: #92a5b8;
+  background: rgba(3, 16, 28, 0.62);
+}
+
+.emptyState strong,
+.errorState strong {
+  color: #f0f6ff;
+}
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  border-color: rgba(78, 128, 165, 0.48);
+  border-style: solid;
+  border-width: 1px;
+  border-radius: 13px;
+  background: rgba(3, 16, 28, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.metricStripItem {
+  display: grid;
+  min-width: 0;
+  min-height: 68px;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 8px 16px;
+  border-left-style: solid;
+  border-left-width: 1px;
+  border-left-color: rgba(69, 112, 146, 0.35);
+}
+
+.metricStripItem:first-child {
+  border-left: 0;
+}
+
+.metricStripItem > svg {
+  color: #4bafff;
+}
+
+.metricStripItem dd {
+  margin: 0;
+  color: #f4f8ff;
+  font-size: 1.12rem;
+  font-weight: 560;
+}
+
+.metricStripItem dt,
+.metricStripItem span {
+  display: block;
+}
+
+.metricStripItem dt {
+  color: #f3f7ff;
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.metricStripItem span {
+  color: #8799ad;
+  font-size: 0.58rem;
+}
+
+.secondaryGrid {
+  gap: 7px;
+}
+
+.secondaryCard {
+  min-height: 276px;
+  grid-template-rows: 158px minmax(116px, 1fr);
+  border-color: rgba(76, 123, 160, 0.5);
+  color: var(--bceo-text);
+  background: linear-gradient(155deg, rgba(5, 20, 34, 0.98), rgba(2, 12, 22, 0.99));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
+}
+
+.secondaryCard:hover {
+  border-color: color-mix(in srgb, var(--card-accent) 62%, #367dae);
+  box-shadow: 0 13px 28px rgba(0, 0, 0, 0.25);
+}
+
+.moduleImageFrame {
+  height: 158px;
+  min-height: 158px;
+  background: #020a13;
+}
+
+.moduleImageFrame::after {
+  background:
+    linear-gradient(to bottom, transparent 68%, rgba(1, 9, 17, 0.22)),
+    radial-gradient(circle at 50% 54%, transparent 54%, rgba(1, 8, 15, 0.14));
+  mix-blend-mode: normal;
+}
+
+.moduleImage {
+  opacity: 1;
+  filter: none;
+}
+
+.secondaryCopy {
+  min-height: 116px;
+  padding: 15px 44px 14px 16px;
+  border-top-color: rgba(71, 113, 147, 0.31);
+}
+
+.secondaryCopy strong {
+  font-size: 0.95rem;
+}
+
+.secondaryArrow {
+  right: 16px;
+  bottom: 16px;
+  color: #eff8ff;
+}
+
+.referenceRibbon,
+.statusBar {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .metricStrip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .primaryGrid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(430px, 1fr);
+    align-items: stretch;
+  }
+
+  .workflowDesktop {
+    min-height: 366px;
+    grid-template-columns: minmax(0, 1.25fr) 18px minmax(0, 1.05fr) 18px minmax(0, 1fr);
+  }
+
+  .workflowDesktop .sourceStack {
+    gap: 8px;
+  }
+
+  .workflowDesktop .sourceStack .workflowCard:first-child {
+    min-height: 198px;
+  }
+
+  .workflowDesktop .sourceStack .workflowCard:last-child {
+    min-height: 160px;
+  }
+
+  .workflowDesktop .moduleVisual[data-module='studio'] {
+    min-height: 86px;
+  }
+
+  .workflowDesktop > .workflowCard {
+    min-height: 226px;
+    transform: translateY(12px);
+  }
+
+  .metricStrip {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .secondaryGrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .secondaryCard {
+    min-height: 238px;
+    grid-template-rows: 142px minmax(94px, 1fr);
+  }
+
+  .moduleImageFrame {
+    height: 142px;
+    min-height: 142px;
+  }
+
+  .secondaryCopy {
+    min-height: 94px;
+  }
+}
+
+@media (max-width: 720px) {
+  .content {
+    padding: 8px;
+  }
+
+  .panelHeader,
+  .salesHeader {
+    padding: 15px;
+  }
+
+  .workflowBody {
+    padding: 0 12px 13px;
+  }
+
+  .workflowCard {
+    min-height: 178px;
+  }
+
+  .moduleVisual {
+    min-height: 108px;
+  }
+
+  .metricStripItem {
+    border-top-color: rgba(69, 112, 146, 0.35);
+  }
+
+  .salesPanel {
+    min-height: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard *,
   .dashboard *::before,
@@ -1526,6 +2054,8 @@
   }
 }
 
+/* Eski açık tema, görsel geri dönüş için kaynakta tutulur fakat artık çalıştırılmaz. */
+@media not all {
 /* Bright executive dashboard — scoped to the /fabrika home presentation. */
 .dashboard {
   --bceo-bg: #edf2f8;
@@ -2080,4 +2610,5 @@
   .referenceBrand:nth-child(odd) {
     border-left: 0;
   }
+}
 }

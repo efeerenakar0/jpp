@@ -7,12 +7,17 @@ import {
   Camera,
   Edit3,
   ExternalLink,
+  Globe2,
+  ImagePlus,
   Loader2,
+  Plus,
   Search,
+  ShieldCheck,
   UserRound,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { buildPortfolioRows, filterPortfolioRows } from './portfolio-specialist-data';
+import { QuickPortfolioWizardLauncher } from './QuickPortfolioWizardLauncher';
 import type {
   HuntingListing,
   PortfolioFilter,
@@ -173,6 +178,45 @@ export function PortfolioWorkspace({
 
   return (
     <section className="space-y-4">
+      <div className="overflow-hidden rounded-2xl border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(8,47,73,0.58),rgba(2,6,23,0.92)_55%)] p-5 shadow-[0_18px_50px_rgba(2,132,199,0.08)]">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200">
+              <Plus className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">
+                Şirket portföyü
+              </p>
+              <h2 className="mt-1 text-xl font-black text-white">
+                Kendi Portföyümüzü Ekle
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                Portföy bilgilerini ve görsellerini girin, yayın kontrollerini tamamlayın ve ilanı şirket web sitesinde yayınlanmaya hazırlayın.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 xl:items-end">
+            <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-slate-300">
+              <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2">
+                <ImagePlus className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+                Görseller
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2">
+                <ShieldCheck className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+                Bilgiler
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2">
+                <Globe2 className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+                Web yayını
+              </span>
+            </div>
+            <QuickPortfolioWizardLauncher />
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/55 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Portföy filtreleri">
           {filters.map((item) => (

@@ -45,6 +45,32 @@ function unauthorizedApiResponse() {
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hostname = request.headers
+    .get('host')
+    ?.split(':')[0]
+    .toLocaleLowerCase('en-US');
+
+  if (
+    pathname === '/' &&
+    hostname &&
+    hostname !== 'localhost' &&
+    !hostname.endsWith('.localhost') &&
+    !hostname.endsWith('.vercel.app')
+  ) {
+    const publicWorkspace = await prisma.developerWorkspace.findUnique({
+      where: { customHostname: hostname },
+      select: { temporarySlug: true, siteStatus: true, domainStatus: true },
+    });
+    if (
+      publicWorkspace?.siteStatus === 'PUBLISHED' &&
+      publicWorkspace.domainStatus === 'VERIFIED'
+    ) {
+      const publicUrl = request.nextUrl.clone();
+      publicUrl.pathname = `/site/${publicWorkspace.temporarySlug}`;
+      return NextResponse.rewrite(publicUrl);
+    }
+  }
+
   const rootRedirect = resolveRootRedirect(pathname);
 
   if (rootRedirect) {

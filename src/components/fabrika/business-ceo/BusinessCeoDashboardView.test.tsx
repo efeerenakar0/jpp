@@ -39,10 +39,8 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('aria-labelledby="business-ceo-workflow-title"');
     expect(html).toContain('aria-labelledby="business-ceo-sales-title"');
-    expect(html).toContain('aria-label="Business CEO AI sistem durumu"');
-    expect(html).toContain('BUSINESS CEO');
-    expect(html).toContain('Real Estate');
-    expect(html).toContain('Sistem durumu: Tüm servisler çalışıyor');
+    expect(html).not.toContain('aria-label="Business CEO AI sistem durumu"');
+    expect(html).not.toContain('aria-label="Örnek iş ortakları"');
     expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-developer.png');
     expect(html).toContain('alt="AI Yazılımcı modül görseli"');
     expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-partner-finder.png');
@@ -197,6 +195,6 @@ describe('BusinessCeoDashboardView', () => {
 
     expect(html).toContain('Canlı veriler alınamadı.');
     expect(html).toContain('Yeniden dene');
-    expect(html).toContain('Sistem durumu: Kontrol gerekli');
+    expect(html).not.toContain('aria-label="Business CEO AI sistem durumu"');
   });
 });

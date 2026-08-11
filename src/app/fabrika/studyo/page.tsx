@@ -1,5 +1,6 @@
-"use client";
+'use client';
 
+import Link from 'next/link';
 import {
   ChangeEvent,
   DragEvent,
@@ -8,43 +9,79 @@ import {
   useMemo,
   useRef,
   useState,
-} from "react";
+} from 'react';
 import {
-  Aperture,
-  AlertCircle,
+  ArrowRight,
   Check,
   CheckCircle2,
+  ChevronRight,
+  Clock3,
   Download,
-  Film,
+  FolderOpen,
   History,
   Home,
+  Image as ImageIcon,
   ImagePlus,
+  Images,
   Loader2,
+  Maximize2,
   Plus,
   RefreshCw,
+  SlidersHorizontal,
   Sparkles,
   UploadCloud,
   WandSparkles,
   X,
-} from "lucide-react";
-import dynamic from "next/dynamic";
-import PosterMaker from "@/components/fabrika/PosterMaker";
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+
 import {
   DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
   STUDIO_ENHANCEMENT_PRESETS,
   type StudioEnhancementPreset,
   type StudioEnhancementPresetId,
-} from "@/lib/studio-enhancement";
-import { summarizeStudioBatchHistory } from "@/lib/studio-history";
-import toast from "react-hot-toast";
-import styles from "./studio.module.css";
+} from '@/lib/studio-enhancement';
+import { summarizeStudioBatchHistory } from '@/lib/studio-history';
+import styles from './studio-v2.module.css';
 
-const PortfolioVideoStudio = dynamic(
-  () => import("@/components/fabrika/PortfolioVideoStudio"),
-  { ssr: false },
-);
+type StudioTab = 'enhancer' | 'history';
+type StudioScreen = 'upload' | 'results';
+type StudioSource = 'portfolio' | 'computer';
 
-type StudioScreen = "upload" | "results";
+type WorkspaceProperty = {
+  id: string;
+  title: string;
+  referenceCode?: string | null;
+  location: string | null;
+  status: string;
+};
+
+type PropertyMediaSummary = {
+  id: string;
+  url: string;
+  fileName: string;
+  isCover: boolean;
+  variantType: 'ORIGINAL' | 'ENHANCED' | 'CREATIVE';
+  usageRightsStatus: 'CONFIRMED' | 'UNVERIFIED' | 'RESTRICTED';
+  mediaType: 'PHOTO' | 'POSTER' | 'MARKETING_ASSET';
+};
+
+type StudioBatchItem = {
+  id: string;
+  originalUrl: string;
+  originalFileName: string;
+  outputUrl: string | null;
+  outputFileName: string | null;
+  status:
+    | 'PENDING'
+    | 'UPLOADING'
+    | 'PROCESSING'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'ATTACHED';
+  errorMessage: string | null;
+  attachedMediaId: string | null;
+};
 
 type StudioResult = {
   itemId: string;
@@ -55,191 +92,181 @@ type StudioResult = {
   attachedMediaId: string | null;
 };
 
-type WorkspaceProperty = {
-  id: string;
-  title: string;
-  referenceCode?: string | null;
-  location: string | null;
-  status: string;
-};
-
-type StudioArea = "enhancer" | "history" | "poster" | "video" | "ad-history";
-type StudioStartMode = "existing" | "new" | "images";
-
-const STUDIO_DRAFT_KEY = "business-ceo-ai:studio-enhancer-draft";
-
-type PropertyMediaSummary = {
-  id: string;
-  url: string;
-  fileName: string;
-  isCover: boolean;
-  variantType: "ORIGINAL" | "ENHANCED" | "CREATIVE";
-  usageRightsStatus: "CONFIRMED" | "UNVERIFIED" | "RESTRICTED";
-  mediaType: "PHOTO" | "POSTER" | "MARKETING_ASSET";
-};
-
-type StudioBatchItem = {
-  id: string;
-  originalUrl: string;
-  originalFileName: string;
-  outputUrl: string | null;
-  outputFileName: string | null;
-  status:
-    | "PENDING"
-    | "UPLOADING"
-    | "PROCESSING"
-    | "COMPLETED"
-    | "FAILED"
-    | "ATTACHED";
-  errorMessage: string | null;
-  attachedMediaId: string | null;
-};
-
 type StudioBatchSummary = {
   id: string;
   status:
-    | "PENDING"
-    | "UPLOADING"
-    | "PROCESSING"
-    | "COMPLETED"
-    | "PARTIAL"
-    | "FAILED"
-    | "ATTACHED";
+    | 'PENDING'
+    | 'UPLOADING'
+    | 'PROCESSING'
+    | 'COMPLETED'
+    | 'PARTIAL'
+    | 'FAILED'
+    | 'ATTACHED';
   createdAt: string;
   expiresAt: string | null;
   property: { id: string; title: string; location: string | null } | null;
   items: Array<{
     id: string;
-    status: StudioBatchItem["status"];
+    status: StudioBatchItem['status'];
     originalFileName: string;
+    originalUrl: string;
+    outputUrl: string | null;
+    outputFileName: string | null;
+    attachedMediaId: string | null;
     attemptCount: number;
     errorMessage: string | null;
   }>;
 };
 
-export default function StudioPage() {
-  const [studioArea, setStudioArea] = useState<StudioArea>("enhancer");
-  const [startMode, setStartMode] = useState<StudioStartMode>("existing");
-  const [newPropertyTitle, setNewPropertyTitle] = useState("");
-  const [newPropertyLocation, setNewPropertyLocation] = useState("");
-  const [screen, setScreen] = useState<StudioScreen>("upload");
-  const [files, setFiles] = useState<File[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [results, setResults] = useState<StudioResult[]>([]);
-  const [isPreparingZip, setIsPreparingZip] = useState(false);
-  const [activeResult, setActiveResult] = useState(0);
-  const [workspaceProperties, setWorkspaceProperties] = useState<
-    WorkspaceProperty[]
-  >([]);
-  const [selectedPropertyId, setSelectedPropertyId] = useState("");
-  const [propertyMedia, setPropertyMedia] = useState<PropertyMediaSummary[]>(
-    [],
+const STUDIO_DRAFT_KEY = 'business-ceo-ai:studio-enhancer-v2-draft';
+const MAX_PHOTOS = 12;
+
+const SIMPLE_PRESETS = STUDIO_ENHANCEMENT_PRESETS.filter((preset) =>
+  ['professional-camera', 'light-color', 'natural'].includes(preset.id)
+);
+
+function formatStudioDate(value: string) {
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function isEligiblePhoto(item: PropertyMediaSummary) {
+  return (
+    item.mediaType === 'PHOTO' &&
+    item.variantType !== 'CREATIVE' &&
+    item.usageRightsStatus !== 'RESTRICTED'
   );
-  const [selectedSourceMediaIds, setSelectedSourceMediaIds] = useState<
-    string[]
-  >([]);
+}
+
+async function responseJson<T>(response: Response): Promise<T> {
+  return (await response.json().catch(() => ({}))) as T;
+}
+
+export default function StudioPage() {
+  const [activeTab, setActiveTab] = useState<StudioTab>('enhancer');
+  const [screen, setScreen] = useState<StudioScreen>('upload');
+  const [source, setSource] = useState<StudioSource>('portfolio');
+  const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
+  const [propertyMedia, setPropertyMedia] = useState<PropertyMediaSummary[]>([]);
+  const [selectedSourceMediaIds, setSelectedSourceMediaIds] = useState<string[]>([]);
   const [requestedMediaIds, setRequestedMediaIds] = useState<string[]>([]);
+  const [isLoadingPropertyMedia, setIsLoadingPropertyMedia] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [selectedPresetId, setSelectedPresetId] =
+    useState<StudioEnhancementPresetId>('professional-camera');
+  const [enhancementInstruction, setEnhancementInstruction] = useState(
+    DEFAULT_STUDIO_ENHANCEMENT_PROMPT
+  );
+  const [isProcessing, setIsProcessing] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [batchItems, setBatchItems] = useState<StudioBatchItem[]>([]);
-  const [selectedResultItemIds, setSelectedResultItemIds] = useState<string[]>(
-    [],
-  );
+  const [results, setResults] = useState<StudioResult[]>([]);
+  const [selectedResultItemIds, setSelectedResultItemIds] = useState<string[]>([]);
+  const [activeResult, setActiveResult] = useState(0);
+  const [comparePosition, setComparePosition] = useState(50);
   const [recentBatches, setRecentBatches] = useState<StudioBatchSummary[]>([]);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
-  const [comparePosition, setComparePosition] = useState(50);
+  const [isPreparingZip, setIsPreparingZip] = useState(false);
   const [isAttaching, setIsAttaching] = useState(false);
-  const [selectedPresetId, setSelectedPresetId] =
-    useState<StudioEnhancementPresetId>("professional-camera");
-  const [enhancementInstruction, setEnhancementInstruction] = useState(
-    DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
-  );
+  const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
+  const [newPropertyTitle, setNewPropertyTitle] = useState('');
+  const [newPropertyLocation, setNewPropertyLocation] = useState('');
+  const [attachedPropertyId, setAttachedPropertyId] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const instructionRef = useRef<HTMLTextAreaElement>(null);
-  const loadedBatchHistoryRef = useRef(false);
+  const loadedHistoryRef = useRef(false);
   const notifiedBatchIdsRef = useRef(new Set<string>());
-  const isAdDesign = ["poster", "video", "ad-history"].includes(studioArea);
+
+  const filePreviews = useMemo(
+    () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [files]
+  );
+
+  const selectedProperty = workspaceProperties.find(
+    (property) => property.id === selectedPropertyId
+  );
+  const eligiblePropertyMedia = propertyMedia.filter(isEligiblePhoto);
+  const selectedPropertyMedia = eligiblePropertyMedia.filter((item) =>
+    selectedSourceMediaIds.includes(item.id)
+  );
+  const totalSelected = selectedSourceMediaIds.length + files.length;
+  const activePhoto = results[activeResult];
+  const mediaEditorPropertyId = attachedPropertyId || selectedPropertyId;
 
   const loadRecentBatches = useCallback(async () => {
     try {
-      const response = await fetch("/api/fabrika/studio/batches", {
-        cache: "no-store",
-      });
-      const data = await response.json();
+      const response = await fetch('/api/fabrika/studio/batches', { cache: 'no-store' });
+      const data = await responseJson<{ success?: boolean; error?: string; batches?: StudioBatchSummary[] }>(response);
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Son çalışmalar yüklenemedi.");
+        throw new Error(data.error || 'Geçmiş çalışmalar yüklenemedi.');
       }
-      const batches = (data.batches || []) as StudioBatchSummary[];
-      const finishedIds = batches
+      const nextBatches = data.batches || [];
+      const finishedIds = nextBatches
         .filter((batch) =>
-          ["COMPLETED", "PARTIAL", "FAILED", "ATTACHED"].includes(batch.status),
+          ['COMPLETED', 'PARTIAL', 'FAILED', 'ATTACHED'].includes(batch.status)
         )
         .map((batch) => batch.id);
-      if (!loadedBatchHistoryRef.current) {
+      if (!loadedHistoryRef.current) {
         finishedIds.forEach((id) => notifiedBatchIdsRef.current.add(id));
-        loadedBatchHistoryRef.current = true;
+        loadedHistoryRef.current = true;
       } else {
         const newlyFinished = finishedIds.filter(
-          (id) => !notifiedBatchIdsRef.current.has(id),
+          (id) => !notifiedBatchIdsRef.current.has(id)
         );
         newlyFinished.forEach((id) => notifiedBatchIdsRef.current.add(id));
         if (newlyFinished.length) {
           toast.success(
             newlyFinished.length === 1
-              ? "Stüdyo çalışmanız tamamlandı. Son çalışmalardan açabilirsiniz."
-              : `${newlyFinished.length} stüdyo çalışmanız tamamlandı.`,
+              ? 'Fotoğraflarınız hazır. Geçmiş Çalışmalarım bölümünden açabilirsiniz.'
+              : `${newlyFinished.length} çalışmanız tamamlandı.`
           );
         }
       }
-      setRecentBatches(batches);
+      setRecentBatches(nextBatches);
     } catch {
-      // The creation and editor flows remain usable if history cannot load.
+      // The enhancer stays usable if history is temporarily unavailable.
     } finally {
       setIsLoadingBatches(false);
     }
   }, []);
-
-  const filePreviews = useMemo(
-    () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
-    [files],
-  );
 
   useEffect(() => {
     return () => filePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
   }, [filePreviews]);
 
   useEffect(() => {
-    return () =>
-      results.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
-  }, [results]);
-
-  useEffect(() => {
-    async function loadProperties() {
+    async function loadWorkspace() {
       try {
-        const response = await fetch("/api/fabrika/workspace", {
-          cache: "no-store",
-        });
-        const data = await response.json();
+        const response = await fetch('/api/fabrika/workspace', { cache: 'no-store' });
+        const data = await responseJson<{
+          success?: boolean;
+          workspace?: { properties?: WorkspaceProperty[] };
+        }>(response);
         if (response.ok && data.success) {
           setWorkspaceProperties(
-            (data.workspace.properties || []).filter(
-              (property: WorkspaceProperty) =>
-                ["ACTIVE", "RESERVED", "DRAFT"].includes(property.status),
-            ),
+            (data.workspace?.properties || []).filter((property) =>
+              ['ACTIVE', 'RESERVED', 'DRAFT'].includes(property.status)
+            )
           );
         }
       } catch {
-        // Studio remains available when no workspace record exists yet.
+        // Computer uploads remain available without a workspace response.
       }
     }
-    void loadProperties();
+    void loadWorkspace();
   }, []);
 
   useEffect(() => {
-    const initial = window.setTimeout(() => void loadRecentBatches(), 0);
+    const firstLoad = window.setTimeout(() => void loadRecentBatches(), 0);
     const interval = window.setInterval(() => void loadRecentBatches(), 8_000);
     return () => {
-      window.clearTimeout(initial);
+      window.clearTimeout(firstLoad);
       window.clearInterval(interval);
     };
   }, [loadRecentBatches]);
@@ -247,16 +274,16 @@ export default function StudioPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const search = new URLSearchParams(window.location.search);
-      const area = search.get("area");
-      const propertyId = search.get("propertyId");
-      const mediaIds = (search.get("mediaIds") || "")
-        .split(",")
+      const propertyId = search.get('propertyId');
+      const mediaIds = (search.get('mediaIds') || '')
+        .split(',')
         .map((id) => id.trim())
         .filter(Boolean);
-      if (area === "poster") setStudioArea("poster");
-      if (area === "video") setStudioArea("video");
-      if (area === "history") setStudioArea("history");
-      if (propertyId) setSelectedPropertyId(propertyId);
+      if (search.get('area') === 'history') setActiveTab('history');
+      if (propertyId) {
+        setSource('portfolio');
+        setSelectedPropertyId(propertyId);
+      }
       if (mediaIds.length) setRequestedMediaIds(mediaIds);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -265,35 +292,29 @@ export default function StudioPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
+        const requestedPropertyId = new URLSearchParams(window.location.search).get(
+          'propertyId'
+        );
         const raw = window.sessionStorage.getItem(STUDIO_DRAFT_KEY);
         if (!raw) return;
         const draft = JSON.parse(raw) as Record<string, unknown>;
-        if (["existing", "new", "images"].includes(String(draft.startMode))) {
-          setStartMode(draft.startMode as StudioStartMode);
+        if (
+          !requestedPropertyId &&
+          (draft.source === 'portfolio' || draft.source === 'computer')
+        ) {
+          setSource(draft.source);
         }
-        if (typeof draft.selectedPropertyId === "string") {
+        if (!requestedPropertyId && typeof draft.selectedPropertyId === 'string') {
           setSelectedPropertyId(draft.selectedPropertyId);
         }
-        if (typeof draft.newPropertyTitle === "string") {
-          setNewPropertyTitle(draft.newPropertyTitle.slice(0, 180));
-        }
-        if (typeof draft.newPropertyLocation === "string") {
-          setNewPropertyLocation(draft.newPropertyLocation.slice(0, 240));
-        }
-        if (typeof draft.enhancementInstruction === "string") {
-          setEnhancementInstruction(
-            draft.enhancementInstruction.slice(0, 10_000),
-          );
-        }
         if (
-          typeof draft.selectedPresetId === "string" &&
-          STUDIO_ENHANCEMENT_PRESETS.some(
-            (preset) => preset.id === draft.selectedPresetId,
-          )
+          typeof draft.selectedPresetId === 'string' &&
+          STUDIO_ENHANCEMENT_PRESETS.some((preset) => preset.id === draft.selectedPresetId)
         ) {
-          setSelectedPresetId(
-            draft.selectedPresetId as StudioEnhancementPresetId,
-          );
+          setSelectedPresetId(draft.selectedPresetId as StudioEnhancementPresetId);
+        }
+        if (typeof draft.enhancementInstruction === 'string') {
+          setEnhancementInstruction(draft.enhancementInstruction.slice(0, 10_000));
         }
       } catch {
         window.sessionStorage.removeItem(STUDIO_DRAFT_KEY);
@@ -303,258 +324,232 @@ export default function StudioPage() {
   }, []);
 
   useEffect(() => {
+    if (screen !== 'upload') return;
     const timer = window.setTimeout(() => {
       window.sessionStorage.setItem(
         STUDIO_DRAFT_KEY,
         JSON.stringify({
-          startMode,
+          source,
           selectedPropertyId,
-          newPropertyTitle,
-          newPropertyLocation,
-          enhancementInstruction,
           selectedPresetId,
+          enhancementInstruction,
           savedAt: new Date().toISOString(),
-        }),
+        })
       );
-    }, 350);
+    }, 300);
     return () => window.clearTimeout(timer);
-  }, [
-    enhancementInstruction,
-    newPropertyLocation,
-    newPropertyTitle,
-    selectedPresetId,
-    selectedPropertyId,
-    startMode,
-  ]);
+  }, [enhancementInstruction, screen, selectedPresetId, selectedPropertyId, source]);
 
   useEffect(() => {
-    if (!selectedPropertyId) return;
+    if (!selectedPropertyId || source !== 'portfolio') return;
     let cancelled = false;
-    fetch(
-      `/api/fabrika/properties/${encodeURIComponent(selectedPropertyId)}/media`,
-      { cache: "no-store" },
-    )
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || "Portföy görselleri yüklenemedi.");
-        }
-        if (cancelled) return;
-        const items = (data.items || []) as PropertyMediaSummary[];
-        setPropertyMedia(items);
-        setSelectedSourceMediaIds((current) => {
-          const wanted = requestedMediaIds.length ? requestedMediaIds : current;
-          return wanted.filter((id) => items.some((item) => item.id === id));
-        });
-        setRequestedMediaIds([]);
+    const timer = window.setTimeout(() => {
+      setIsLoadingPropertyMedia(true);
+      fetch(`/api/fabrika/properties/${encodeURIComponent(selectedPropertyId)}/media`, {
+        cache: 'no-store',
       })
-      .catch((error) => {
-        if (!cancelled) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Portföy görselleri yüklenemedi.",
+        .then(async (response) => {
+          const data = await responseJson<{
+            success?: boolean;
+            error?: string;
+            items?: PropertyMediaSummary[];
+          }>(response);
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Portföy fotoğrafları yüklenemedi.');
+          }
+          if (cancelled) return;
+          const items = data.items || [];
+          const eligible = items.filter(isEligiblePhoto);
+          const requested = requestedMediaIds.filter((id) =>
+            eligible.some((item) => item.id === id)
           );
-        }
-      });
+          setPropertyMedia(items);
+          setSelectedSourceMediaIds(
+            (requested.length ? requested : eligible.map((item) => item.id)).slice(
+              0,
+              MAX_PHOTOS
+            )
+          );
+          setRequestedMediaIds([]);
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : 'Portföy fotoğrafları yüklenemedi.'
+            );
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoadingPropertyMedia(false);
+        });
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [requestedMediaIds, selectedPropertyId]);
+  }, [requestedMediaIds, selectedPropertyId, source]);
 
-  const addFiles = (newFiles: File[]) => {
-    const images = newFiles.filter((file) => file.type.startsWith("image/"));
-    if (images.length !== newFiles.length)
-      toast.error("Yalnızca görsel dosyaları yükleyebilirsiniz.");
+  function chooseSource(nextSource: StudioSource) {
+    setSource(nextSource);
+    if (nextSource === 'computer') {
+      setSelectedPropertyId('');
+      setPropertyMedia([]);
+      setSelectedSourceMediaIds([]);
+    }
+  }
+
+  function addFiles(nextFiles: File[]) {
+    const images = nextFiles.filter((file) =>
+      ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+    );
+    if (images.length !== nextFiles.length) {
+      toast.error('Yalnızca JPG, PNG veya WebP fotoğraf yükleyebilirsiniz.');
+    }
     if (!images.length) return;
-
     setFiles((current) => {
       const known = new Set(
-        current.map((file) => `${file.name}-${file.size}-${file.lastModified}`),
+        current.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
       );
       const combined = [
         ...current,
         ...images.filter(
-          (file) =>
-            !known.has(`${file.name}-${file.size}-${file.lastModified}`),
+          (file) => !known.has(`${file.name}-${file.size}-${file.lastModified}`)
         ),
       ];
-      const available = Math.max(0, 12 - selectedSourceMediaIds.length);
+      const available = Math.max(0, MAX_PHOTOS - selectedSourceMediaIds.length);
       if (combined.length > available) {
-        toast.error(
-          "Portföy görselleriyle birlikte tek işlemde en fazla 12 fotoğraf seçebilirsiniz.",
-        );
+        toast.error(`Tek çalışmada en fazla ${MAX_PHOTOS} fotoğraf işleyebilirsiniz.`);
       }
       return combined.slice(0, available);
     });
-  };
+  }
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(event.target.files ?? []));
-    event.target.value = "";
-  };
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    addFiles(Array.from(event.target.files || []));
+    event.target.value = '';
+  }
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     addFiles(Array.from(event.dataTransfer.files));
-  };
+  }
 
-  const removeFile = (index: number) => {
-    setFiles((current) =>
-      current.filter((_, itemIndex) => itemIndex !== index),
-    );
-  };
-
-  const changeSelectedProperty = (propertyId: string) => {
-    setSelectedPropertyId(propertyId);
-    setPropertyMedia([]);
-    setSelectedSourceMediaIds([]);
-  };
-
-  const chooseStartMode = (mode: StudioStartMode) => {
-    setStartMode(mode);
-    if (mode !== "existing") {
-      setSelectedPropertyId("");
-      setPropertyMedia([]);
-      setSelectedSourceMediaIds([]);
-    }
-  };
-
-  const selectEnhancementPreset = (preset: StudioEnhancementPreset) => {
+  function selectPreset(preset: StudioEnhancementPreset) {
     setSelectedPresetId(preset.id);
     setEnhancementInstruction(preset.prompt);
-    if (preset.id === "custom") {
-      requestAnimationFrame(() => instructionRef.current?.focus());
-    }
-  };
+  }
 
-  const selectedWorkspaceProperty = workspaceProperties.find(
-    (property) => property.id === selectedPropertyId,
-  );
-
-  const createDraftPropertyForStudio = async () => {
-    const title = newPropertyTitle.trim();
-    if (title.length < 3) {
-      throw new Error("Yeni portföy için en az 3 karakterlik bir ad yazın.");
+  async function createDraftProperty(title: string, location: string) {
+    const safeTitle = title.trim();
+    if (safeTitle.length < 3) {
+      throw new Error('Yeni portföy için en az 3 karakterlik bir ad yazın.');
     }
     const referenceCode = `ST-${window.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const response = await fetch("/api/fabrika/workspace", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await fetch('/api/fabrika/workspace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: "create-property",
-        title,
+        action: 'create-property',
+        title: safeTitle,
         referenceCode,
-        location: newPropertyLocation.trim() || null,
-        status: "DRAFT",
+        location: location.trim() || null,
+        status: 'DRAFT',
       }),
     });
-    const data = await response.json();
+    const data = await responseJson<{
+      success?: boolean;
+      error?: string;
+      workspace?: { properties?: WorkspaceProperty[] };
+    }>(response);
     if (!response.ok || !data.success) {
-      throw new Error(data.error || "Yeni portföy taslağı oluşturulamadı.");
+      throw new Error(data.error || 'Yeni portföy oluşturulamadı.');
     }
-    const properties = (data.workspace?.properties || []) as WorkspaceProperty[];
-    const created = properties.find(
-      (property) => property.referenceCode === referenceCode,
-    );
-    if (!created) {
-      throw new Error("Portföy taslağı oluştu ancak yeni kayıt doğrulanamadı.");
-    }
+    const properties = data.workspace?.properties || [];
+    const created = properties.find((property) => property.referenceCode === referenceCode);
+    if (!created) throw new Error('Portföy oluşturuldu ancak yeni kayıt açılamadı.');
     setWorkspaceProperties(properties);
     setSelectedPropertyId(created.id);
     return created.id;
-  };
+  }
 
-  const startProcessing = async () => {
-    if (startMode === "existing" && !selectedPropertyId) {
-      toast.error("Devam etmek için mevcut portföylerden birini seçin.");
+  async function startProcessing() {
+    if (source === 'portfolio' && !selectedPropertyId) {
+      toast.error('Önce bir portföy seçin.');
       return;
     }
-    if (!files.length && !selectedSourceMediaIds.length) {
-      toast.error(
-        "Bilgisayarınızdan veya portföyden en az bir fotoğraf seçin.",
-      );
+    if (!totalSelected) {
+      toast.error('İyileştirmek için en az bir fotoğraf ekleyin.');
+      fileInputRef.current?.focus();
       return;
     }
-    const safeInstruction = enhancementInstruction.trim();
-    if (!safeInstruction) {
-      toast.error(
-        "İyileştirme talimatınızı yazın veya hazır seçeneklerden birini seçin.",
-      );
-      instructionRef.current?.focus();
-      return;
-    }
-    if (safeInstruction.length > 10_000) {
-      toast.error("İyileştirme talimatı en fazla 10.000 karakter olabilir.");
-      instructionRef.current?.focus();
+    if (!enhancementInstruction.trim()) {
+      toast.error('Bir iyileştirme seçeneği belirleyin.');
       return;
     }
 
     setIsProcessing(true);
-    setErrorMessage("");
-
+    setErrorMessage('');
     try {
-      const effectivePropertyId =
-        startMode === "new"
-          ? await createDraftPropertyForStudio()
-          : startMode === "existing"
-            ? selectedPropertyId
-            : "";
       const formData = new FormData();
-      files.forEach((file) => formData.append("photos", file));
-      formData.set("prompt", safeInstruction);
-      formData.set("preset", selectedPresetId);
-      if (effectivePropertyId) formData.set("propertyId", effectivePropertyId);
-      formData.set("mediaIdsJson", JSON.stringify(selectedSourceMediaIds));
-      const createResponse = await fetch("/api/fabrika/studio/batches", {
-        method: "POST",
+      files.forEach((file) => formData.append('photos', file));
+      formData.set('prompt', enhancementInstruction.trim());
+      formData.set('preset', selectedPresetId);
+      if (selectedPropertyId) formData.set('propertyId', selectedPropertyId);
+      formData.set('mediaIdsJson', JSON.stringify(selectedSourceMediaIds));
+      const response = await fetch('/api/fabrika/studio/batches', {
+        method: 'POST',
         body: formData,
       });
-      const created = await createResponse.json();
-      if (!createResponse.ok || !created.success || !created.batch) {
-        throw new Error(created.error || "Stüdyo işlemi başlatılamadı.");
+      const data = await responseJson<{
+        success?: boolean;
+        error?: string;
+        batch?: { id: string; items?: StudioBatchItem[] };
+      }>(response);
+      if (!response.ok || !data.success || !data.batch) {
+        throw new Error(data.error || 'Fotoğraf iyileştirme başlatılamadı.');
       }
-      const nextBatchId = String(created.batch.id);
-      setBatchId(nextBatchId);
-      setBatchItems((created.batch.items || []) as StudioBatchItem[]);
+      setBatchId(data.batch.id);
+      setBatchItems(data.batch.items || []);
       setFiles([]);
       setSelectedSourceMediaIds([]);
-      toast.success(
-        "Görseller sıraya alındı. Bu sayfada beklemeniz gerekmez; tamamlandığında Son çalışmalar bölümünden açabilirsiniz.",
-      );
-      await loadRecentBatches();
-      setStudioArea("history");
       window.sessionStorage.removeItem(STUDIO_DRAFT_KEY);
+      await loadRecentBatches();
+      setActiveTab('history');
+      toast.success('Fotoğraflar işleme alındı. Bu sayfada beklemeniz gerekmiyor.');
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "İşlem sırasında bir hata oluştu.";
+        error instanceof Error ? error.message : 'Fotoğraflar işleme alınamadı.';
       setErrorMessage(message);
       toast.error(message);
     } finally {
       setIsProcessing(false);
     }
-  };
+  }
 
-  const openBatch = async (nextBatchId: string) => {
-    setErrorMessage("");
+  async function openBatch(nextBatchId: string) {
+    setErrorMessage('');
     try {
       const response = await fetch(
         `/api/fabrika/studio/batches/${encodeURIComponent(nextBatchId)}`,
-        { cache: "no-store" },
+        { cache: 'no-store' }
       );
-      const data = await response.json();
+      const data = await responseJson<{
+        success?: boolean;
+        error?: string;
+        batch?: { propertyId?: string | null; items?: StudioBatchItem[] };
+      }>(response);
       if (!response.ok || !data.success || !data.batch) {
-        throw new Error(data.error || "Stüdyo çalışması açılamadı.");
+        throw new Error(data.error || 'Çalışma açılamadı.');
       }
-      const nextItems = (data.batch.items || []) as StudioBatchItem[];
+      const nextItems = data.batch.items || [];
       const completed = nextItems
         .filter(
           (item) =>
             item.outputUrl &&
             item.outputFileName &&
-            (item.status === "COMPLETED" || item.status === "ATTACHED"),
+            ['COMPLETED', 'ATTACHED'].includes(item.status)
         )
         .map((item) => ({
           itemId: item.id,
@@ -568,1310 +563,843 @@ export default function StudioPage() {
       setBatchItems(nextItems);
       setResults(completed);
       setSelectedResultItemIds(completed.map((item) => item.itemId));
-      setSelectedPropertyId(data.batch.propertyId || "");
+      setSelectedPropertyId(data.batch.propertyId || '');
+      setAttachedPropertyId(
+        completed.some((item) => item.attachedMediaId)
+          ? data.batch.propertyId || ''
+          : ''
+      );
       setActiveResult(0);
       setComparePosition(50);
-      setScreen("results");
-      setStudioArea("enhancer");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setScreen('results');
+      setActiveTab('enhancer');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Stüdyo çalışması açılamadı.",
-      );
+      toast.error(error instanceof Error ? error.message : 'Çalışma açılamadı.');
     }
-  };
+  }
 
-  const downloadAllResults = async () => {
-    if (!results.length || !batchId || isPreparingZip) return;
+  async function downloadSelectedResults() {
+    if (!batchId || !selectedResultItemIds.length || isPreparingZip) return;
     setIsPreparingZip(true);
     try {
       const response = await fetch(
         `/api/fabrika/studio/batches/${encodeURIComponent(batchId)}/zip`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ itemIds: selectedResultItemIds }),
-        },
+        }
       );
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(data?.error || "ZIP dosyası hazırlanamadı.");
+        const data = await responseJson<{ error?: string }>(response);
+        throw new Error(data.error || 'İndirme dosyası hazırlanamadı.');
       }
       const archive = await response.blob();
       const archiveUrl = URL.createObjectURL(archive);
-      const anchor = document.createElement("a");
+      const anchor = document.createElement('a');
       anchor.href = archiveUrl;
-      anchor.download = "Business_CEO_AI_Studio_Iyilestirilmis.zip";
+      anchor.download = 'Business_CEO_AI_Studio_Fotograflar.zip';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(archiveUrl), 1_000);
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "ZIP dosyası hazırlanamadı. Görselleri tek tek indirebilirsiniz.",
-      );
+      toast.error(error instanceof Error ? error.message : 'Fotoğraflar indirilemedi.');
     } finally {
       setIsPreparingZip(false);
     }
-  };
+  }
 
-  const resetStudio = () => {
-    setStudioArea("enhancer");
-    setScreen("upload");
+  async function attachSelectedResults(
+    targetPropertyId = selectedPropertyId,
+    makeCover = false
+  ) {
+    if (!batchId || !targetPropertyId || !selectedResultItemIds.length) return false;
+    setIsAttaching(true);
+    try {
+      const response = await fetch(
+        `/api/fabrika/studio/batches/${encodeURIComponent(batchId)}/attach`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            propertyId: targetPropertyId,
+            itemIds: selectedResultItemIds,
+          }),
+        }
+      );
+      const data = await responseJson<{
+        success?: boolean;
+        error?: string;
+        items?: Array<{ id: string; fingerprint: string }>;
+      }>(response);
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Fotoğraflar portföye eklenemedi.');
+      }
+      const attachedByItem = new Map(
+        (data.items || []).map((item) => [
+          item.fingerprint.replace('studio-item:', ''),
+          item.id,
+        ])
+      );
+      setResults((current) =>
+        current.map((result) => ({
+          ...result,
+          attachedMediaId: attachedByItem.get(result.itemId) || result.attachedMediaId,
+        }))
+      );
+      if (makeCover) {
+        const firstId = selectedResultItemIds[0];
+        const coverMediaId =
+          attachedByItem.get(firstId) ||
+          results.find((result) => result.itemId === firstId)?.attachedMediaId;
+        if (coverMediaId) {
+          const coverResponse = await fetch(
+            `/api/fabrika/properties/${encodeURIComponent(targetPropertyId)}/media/${encodeURIComponent(coverMediaId)}`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ isCover: true }),
+            }
+          );
+          const coverData = await responseJson<{ success?: boolean; error?: string }>(
+            coverResponse
+          );
+          if (!coverResponse.ok || !coverData.success) {
+            throw new Error(coverData.error || 'Kapak fotoğrafı ayarlanamadı.');
+          }
+        }
+      }
+      setSelectedPropertyId(targetPropertyId);
+      setAttachedPropertyId(targetPropertyId);
+      await loadRecentBatches();
+      toast.success(`${data.items?.length || 0} fotoğraf portföye eklendi.`);
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Fotoğraflar portföye eklenemedi.'
+      );
+      return false;
+    } finally {
+      setIsAttaching(false);
+    }
+  }
+
+  async function createPortfolioAndAttach() {
+    setIsCreatingPortfolio(true);
+    try {
+      const propertyId = await createDraftProperty(
+        newPropertyTitle,
+        newPropertyLocation
+      );
+      const attached = await attachSelectedResults(propertyId);
+      if (attached) {
+        toast.success('Yeni portföy hazır. Fotoğrafları sıralayabilirsiniz.');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Yeni portföy oluşturulamadı.');
+    } finally {
+      setIsCreatingPortfolio(false);
+    }
+  }
+
+  async function retryBatchItem(itemId: string) {
+    if (!batchId) return;
+    setBatchItems((current) =>
+      current.map((item) =>
+        item.id === itemId
+          ? { ...item, status: 'PROCESSING', errorMessage: null }
+          : item
+      )
+    );
+    try {
+      const response = await fetch(
+        `/api/fabrika/studio/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}/process`,
+        { method: 'POST' }
+      );
+      const data = await responseJson<{
+        success?: boolean;
+        error?: string;
+        item?: StudioBatchItem;
+      }>(response);
+      if (!response.ok || !data.success || !data.item?.outputUrl) {
+        throw new Error(data.error || 'Fotoğraf yeniden işlenemedi.');
+      }
+      const item = data.item;
+      setBatchItems((current) =>
+        current.map((candidate) => (candidate.id === item.id ? item : candidate))
+      );
+      const result = {
+        itemId: item.id,
+        name: item.outputFileName || item.originalFileName,
+        previewUrl: item.outputUrl!,
+        downloadUrl: item.outputUrl!,
+        sourceUrl: item.originalUrl,
+        attachedMediaId: item.attachedMediaId,
+      };
+      setResults((current) =>
+        current.some((candidate) => candidate.itemId === item.id)
+          ? current
+          : [...current, result]
+      );
+      setSelectedResultItemIds((current) =>
+        current.includes(item.id) ? current : [...current, item.id]
+      );
+      toast.success('Fotoğraf yeniden işlendi.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Fotoğraf yeniden işlenemedi.';
+      setBatchItems((current) =>
+        current.map((item) =>
+          item.id === itemId
+            ? { ...item, status: 'FAILED', errorMessage: message }
+            : item
+        )
+      );
+      toast.error(message);
+    }
+  }
+
+  function resetStudio() {
+    setScreen('upload');
+    setActiveTab('enhancer');
     setFiles([]);
     setResults([]);
     setBatchId(null);
     setBatchItems([]);
     setSelectedResultItemIds([]);
     setActiveResult(0);
-    setErrorMessage("");
-    setSelectedPresetId("professional-camera");
-    setEnhancementInstruction(DEFAULT_STUDIO_ENHANCEMENT_PROMPT);
-  };
+    setAttachedPropertyId('');
+    setErrorMessage('');
+  }
 
-  const activePhoto = results[activeResult];
-
-  const discardActiveResult = () => {
-    if (!activePhoto) return;
-    setSelectedResultItemIds((current) =>
-      current.filter((id) => id !== activePhoto.itemId),
-    );
-    setResults((current) =>
-      current.filter((result) => result.itemId !== activePhoto.itemId),
-    );
-    setActiveResult((current) => Math.max(0, current - 1));
-    toast.success("İyileştirilmiş sonuç kaldırıldı; orijinal görsel korunuyor.");
-  };
-
-  const attachSelectedResults = async (makeCover = false) => {
-    if (!batchId || !selectedPropertyId || !selectedResultItemIds.length)
-      return;
-    setIsAttaching(true);
-    try {
-      const response = await fetch(
-        `/api/fabrika/studio/batches/${encodeURIComponent(batchId)}/attach`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            propertyId: selectedPropertyId,
-            itemIds: selectedResultItemIds,
-          }),
-        },
-      );
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Görseller portföye eklenemedi.");
-      }
-      const attachedByItem = new Map<string, string>(
-        (data.items || []).map(
-          (item: { id: string; fingerprint: string }): [string, string] => [
-            item.fingerprint.replace("studio-item:", ""),
-            item.id,
-          ],
-        ),
-      );
-      setResults((current) =>
-        current.map((result) => ({
-          ...result,
-          attachedMediaId:
-            attachedByItem.get(result.itemId) || result.attachedMediaId,
-        })),
-      );
-      if (makeCover) {
-        const firstSelectedItemId = selectedResultItemIds[0];
-        const coverMediaId =
-          attachedByItem.get(firstSelectedItemId) ||
-          results.find((result) => result.itemId === firstSelectedItemId)
-            ?.attachedMediaId;
-        if (!coverMediaId) {
-          throw new Error("Kapak yapılacak görsel portföye bağlanamadı.");
-        }
-        const coverResponse = await fetch(
-          `/api/fabrika/properties/${encodeURIComponent(selectedPropertyId)}/media/${encodeURIComponent(coverMediaId)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ isCover: true }),
-          },
-        );
-        const coverData = await coverResponse.json();
-        if (!coverResponse.ok || !coverData.success) {
-          throw new Error(
-            coverData.error || "Görsel kapak olarak belirlenemedi.",
-          );
-        }
-      }
-      toast.success(`${data.items.length} görsel portföye eklendi.`);
-      if (makeCover) {
-        toast.success("İlk seçili görsel portföy kapağı yapıldı.");
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Görseller portföye eklenemedi.",
-      );
-    } finally {
-      setIsAttaching(false);
-    }
-  };
-
-  const retryBatchItem = async (itemId: string) => {
-    if (!batchId) return;
-    setBatchItems((current) =>
-      current.map((item) =>
-        item.id === itemId
-          ? { ...item, status: "PROCESSING", errorMessage: null }
-          : item,
-      ),
-    );
-    try {
-      const response = await fetch(
-        `/api/fabrika/studio/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}/process`,
-        { method: "POST" },
-      );
-      const data = await response.json();
-      if (!response.ok || !data.success || !data.item?.outputUrl) {
-        throw new Error(data.error || "Görsel yeniden işlenemedi.");
-      }
-      const item = data.item as StudioBatchItem;
-      setBatchItems((current) =>
-        current.map((candidate) =>
-          candidate.id === item.id ? item : candidate,
-        ),
-      );
-      setResults((current) => {
-        if (current.some((result) => result.itemId === item.id)) return current;
-        return [
-          ...current,
-          {
-            itemId: item.id,
-            name: item.outputFileName || item.originalFileName,
-            previewUrl: item.outputUrl!,
-            downloadUrl: item.outputUrl!,
-            sourceUrl: item.originalUrl,
-            attachedMediaId: item.attachedMediaId,
-          },
-        ];
-      });
-      setSelectedResultItemIds((current) =>
-        current.includes(item.id) ? current : [...current, item.id],
-      );
-      toast.success(`${item.originalFileName} yeniden işlendi.`);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Görsel yeniden işlenemedi.";
-      setBatchItems((current) =>
-        current.map((item) =>
-          item.id === itemId
-            ? { ...item, status: "FAILED", errorMessage: message }
-            : item,
-        ),
-      );
-      toast.error(message);
-    }
-  };
-
-  const eligiblePropertyMedia = propertyMedia.filter(
-    (item) =>
-      item.mediaType === "PHOTO" &&
-      item.variantType !== "CREATIVE" &&
-      item.usageRightsStatus !== "RESTRICTED",
-  );
-  const selectedPropertyMedia = eligiblePropertyMedia.filter((item) =>
-    selectedSourceMediaIds.includes(item.id),
-  );
-  const sourceCandidates = [
-    ...selectedPropertyMedia.map((item) => ({
-      id: item.id,
-      url: item.url,
-      name: item.fileName,
-      kind: "portfolio" as const,
-    })),
-    ...filePreviews.map(({ file, url }) => ({
-      id: `${file.name}-${file.lastModified}`,
-      url,
-      name: file.name,
-      kind: "upload" as const,
-    })),
-  ];
-  const activeSourceUrl =
-    activePhoto?.sourceUrl || sourceCandidates[0]?.url || "";
-  const activeOutputUrl = activePhoto?.previewUrl || activeSourceUrl;
-  const totalSelected = files.length + selectedSourceMediaIds.length;
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div>
-          <p className={styles.eyebrow}>
-            {isAdDesign ? "AI · Reklam üretimi" : "AI · Görsel iyileştirme"}
-          </p>
-          <h1>{isAdDesign ? "AI Reklam Tasarımı" : "AI Stüdyo"}</h1>
+        <div className={styles.heroCopy}>
+          <span className={styles.eyebrow}>AI FOTOĞRAF STÜDYOSU</span>
+          <h1>Fotoğraflarınızı tek dokunuşla iyileştirin.</h1>
           <p>
-            {isAdDesign
-              ? "Portföyünüze özel poster ve videoları tek, anlaşılır bir akışta hazırlayın."
-              : "Portföy fotoğraflarını iyileştirin; işler arka planda sürerken paneli kullanmaya devam edin."}
+            Portföyünüzü seçin veya fotoğrafları yükleyin. Işık, renk, netlik ve
+            kalite ayarlarını sistem otomatik yapsın.
           </p>
         </div>
-        <div className={styles.heroActions}>
-          <button
-            type="button"
-            onClick={() =>
-              screen === "results"
-                ? resetStudio()
-                : setStudioArea(isAdDesign ? "ad-history" : "history")
-            }
-            className={styles.secondaryButton}
-          >
-            {screen === "results" ? <RefreshCw /> : <History />}
-            {screen === "results" ? "Yeni çalışma" : "Eski çalışmalar"}
+        {screen === 'results' && (
+          <button className={styles.newWorkButton} onClick={resetStudio} type="button">
+            <Plus aria-hidden="true" /> Yeni çalışma
           </button>
-        </div>
+        )}
       </header>
 
-      <div
-        role="tablist"
-        aria-label={isAdDesign ? "Reklam tasarımı çalışma alanları" : "Stüdyo çalışma alanları"}
-        className={styles.studioTabs}
-      >
-        {isAdDesign ? (
-          <>
-            <button type="button" role="tab" aria-selected={studioArea === "poster"} onClick={() => setStudioArea("poster")}>
-              <ImagePlus /> Poster Yapıcı
-            </button>
-            <button type="button" role="tab" aria-selected={studioArea === "video"} onClick={() => setStudioArea("video")}>
-              <Film /> Video Stüdyosu
-            </button>
-            <button type="button" role="tab" aria-selected={studioArea === "ad-history"} onClick={() => setStudioArea("ad-history")}>
-              <History /> Eski Çalışmalarım
-            </button>
-          </>
-        ) : (
-          <>
-            <button type="button" role="tab" aria-selected={studioArea === "enhancer"} onClick={() => setStudioArea("enhancer")}>
-              <Sparkles /> Resim İyileştirici
-            </button>
-            <button type="button" role="tab" aria-selected={studioArea === "history"} onClick={() => setStudioArea("history")}>
-              <History /> Eski Çalışmalarım
-            </button>
-          </>
-        )}
-      </div>
+      <nav className={styles.tabs} role="tablist" aria-label="AI Stüdyo bölümleri">
+        <button
+          aria-selected={activeTab === 'enhancer'}
+          onClick={() => setActiveTab('enhancer')}
+          role="tab"
+          type="button"
+        >
+          <span><Sparkles aria-hidden="true" /></span>
+          <b>Fotoğraf İyileştirici</b>
+          <small>Yeni bir çalışma başlatın</small>
+        </button>
+        <button
+          aria-selected={activeTab === 'history'}
+          onClick={() => setActiveTab('history')}
+          role="tab"
+          type="button"
+        >
+          <span><History aria-hidden="true" /></span>
+          <b>Geçmiş Çalışmalarım</b>
+          <small>Eski sonuçları görüntüleyin</small>
+        </button>
+      </nav>
 
-      <main className={styles.studioBody}>
-        {studioArea === "video" ? (
-          <section className={styles.posterWorkspace}>
-            <PortfolioVideoStudio />
-          </section>
-        ) : studioArea === "poster" ? (
-          <section className={styles.posterWorkspace}>
-            <PosterMaker />
-          </section>
-        ) : studioArea === "ad-history" ? (
-          <section className={styles.posterWorkspace}>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 sm:p-8">
-              <h2 className="text-xl font-bold text-white">Eski reklam çalışmalarınız</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Portföye kaydettiğiniz posterler ilgili portföyün medya alanında; bu oturumda oluşturduğunuz MP4 videolar ise Video Stüdyosu içindeki çalışma listesinde görünür.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <a href="/fabrika/portfoyler" className="rounded-lg border border-cyan-300/25 px-4 py-2 text-sm font-semibold text-cyan-100">Portföy medyasını aç</a>
-                <button type="button" onClick={() => setStudioArea("video")} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-bold text-slate-950">Video çalışmalarını aç</button>
+      {activeTab === 'enhancer' && screen === 'upload' && (
+        <main className={styles.flow} role="tabpanel">
+          <ol className={styles.steps} aria-label="Fotoğraf iyileştirme adımları">
+            <li data-active="true"><span>1</span><b>Kaynağı seçin</b></li>
+            <li data-active={totalSelected > 0}><span>2</span><b>Fotoğrafları kontrol edin</b></li>
+            <li data-active={totalSelected > 0}><span>3</span><b>İyileştirmeyi başlatın</b></li>
+          </ol>
+
+          <section className={styles.flowCard}>
+            <div className={styles.sectionHeading}>
+              <span className={styles.sectionNumber}>1</span>
+              <div>
+                <h2>Fotoğraflar nereden gelsin?</h2>
+                <p>Size uygun olan seçeneğe bir kez dokunmanız yeterli.</p>
               </div>
             </div>
-          </section>
-        ) : studioArea === "history" ? null : screen === "upload" ? (
-          <section className={styles.enhancerWorkspace}>
-            <div className={styles.hiddenIntro}>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300">
-                <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-300 text-[10px] text-emerald-950">
-                  1
-                </span>
-                Görselleri yükleyin
-              </div>
-              <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                Portföy fotoğraflarınızı öne çıkarın
-              </h2>
-              <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-                Ham fotoğraflarınızı yükleyin; stüdyo ışık, renk, netlik ve
-                genel kaliteyi otomatik olarak iyileştirsin.
-              </p>
+
+            <div className={styles.sourceChoices} role="group" aria-label="Fotoğraf kaynağı">
+              <button
+                aria-pressed={source === 'portfolio'}
+                onClick={() => chooseSource('portfolio')}
+                type="button"
+              >
+                <span><Home aria-hidden="true" /></span>
+                <b>Portföyümden seç</b>
+                <small>Portföyü seçince fotoğraflar otomatik gelir.</small>
+                <CheckCircle2 className={styles.choiceCheck} aria-hidden="true" />
+              </button>
+              <button
+                aria-pressed={source === 'computer'}
+                onClick={() => chooseSource('computer')}
+                type="button"
+              >
+                <span><UploadCloud aria-hidden="true" /></span>
+                <b>Bilgisayarımdan yükle</b>
+                <small>JPG, PNG veya WebP fotoğrafları ekleyin.</small>
+                <CheckCircle2 className={styles.choiceCheck} aria-hidden="true" />
+              </button>
             </div>
 
-            <section className="mb-5 rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-white">Nasıl başlamak istersiniz?</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">Seçiminiz otomatik taslak olarak bu tarayıcıda kaydedilir.</p>
-                </div>
-                <span className="text-[11px] font-semibold text-emerald-300">1 / 3 · Kaynak seçimi</span>
-              </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-3" role="group" aria-label="Stüdyo başlangıç seçimi">
-                {([
-                  ["existing", "Mevcut portföy seç", "Kayıtlı fotoğrafları kullanın veya yenilerini ekleyin."],
-                  ["new", "Yeni portföy oluştur", "Fotoğraflarla birlikte taslak portföy oluşturun."],
-                  ["images", "Yalnızca resim iyileştir", "Portföye bağlamadan hızlıca sonuç alın."],
-                ] as const).map(([id, title, description]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={startMode === id}
-                    onClick={() => chooseStartMode(id)}
-                    className={`rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${startMode === id ? "border-cyan-300/60 bg-cyan-300/10" : "border-slate-700 bg-slate-950/55 hover:border-slate-500"}`}
-                  >
-                    <b className="block text-sm text-white">{title}</b>
-                    <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span>
-                  </button>
-                ))}
-              </div>
-              {startMode === "new" && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="text-xs font-semibold text-slate-300">
-                    Portföy adı
-                    <input
-                      value={newPropertyTitle}
-                      maxLength={180}
-                      onChange={(event) => setNewPropertyTitle(event.target.value)}
-                      placeholder="Örn. Oba deniz manzaralı 3+1"
-                      className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-cyan-300"
-                    />
-                  </label>
-                  <label className="text-xs font-semibold text-slate-300">
-                    Konum (isteğe bağlı)
-                    <input
-                      value={newPropertyLocation}
-                      maxLength={240}
-                      onChange={(event) => setNewPropertyLocation(event.target.value)}
-                      placeholder="Örn. Antalya / Alanya / Oba"
-                      className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-cyan-300"
-                    />
-                  </label>
-                </div>
-              )}
-            </section>
-
-            <div className={styles.controlPanel}>
-              <div className={styles.panelHeading}>
-                <div>
-                  <b>Görseller</b>
-                  <span>{totalSelected} seçili kaynak</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Plus /> Görsel ekle
-                </button>
-              </div>
-              <input
-                ref={fileInputRef}
-                className="sr-only"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                multiple
-                onChange={handleFileChange}
-              />
-              <div className={styles.sourceThumbs}>
-                {sourceCandidates.slice(0, 3).map((item, index) => (
-                  <div key={item.id} data-active={index === 0}>
-                    {/* Local object URLs and tenant media URLs require a native image element. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.url} alt={item.name} />
-                    {index === 0 && (
-                      <span>
-                        <Check />
-                      </span>
-                    )}
-                  </div>
-                ))}
-                {!sourceCandidates.length && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className={styles.emptyThumb}
-                  >
-                    <UploadCloud />
-                    <span>Görsel seçin</span>
-                  </button>
-                )}
-              </div>
-
-              <div className={styles.selectedOriginal}>
-                <span>Seçili görsel (orijinal)</span>
-                {activeSourceUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={activeSourceUrl} alt="Seçili orijinal kaynak" />
-                ) : (
-                  <div>
-                    <ImagePlus />
-                    <small>Karşılaştırma için bir fotoğraf ekleyin</small>
-                  </div>
-                )}
-              </div>
-              {startMode === "existing" && (
-                <label className={styles.propertySelect} htmlFor="studio-property">
-                  <span className="flex items-center gap-2 text-xs text-slate-300">
-                    <Home className="h-4 w-4 text-emerald-400" />
-                    Portföy seçin
-                  </span>
+            {source === 'portfolio' && (
+              <div className={styles.portfolioPicker}>
+                <label htmlFor="studio-property">Hangi portföy?</label>
+                <div className={styles.selectShell}>
+                  <Home aria-hidden="true" />
                   <select
                     id="studio-property"
+                    onChange={(event) => {
+                      setSelectedPropertyId(event.target.value);
+                      setPropertyMedia([]);
+                      setSelectedSourceMediaIds([]);
+                    }}
                     value={selectedPropertyId}
-                    onChange={(event) => changeSelectedProperty(event.target.value)}
-                    className="min-w-0 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
                   >
                     <option value="">Portföy seçin</option>
                     {workspaceProperties.map((property) => (
                       <option key={property.id} value={property.id}>
-                        {property.title}
-                        {property.location ? ` · ${property.location}` : ""}
+                        {property.title}{property.location ? ` · ${property.location}` : ''}
                       </option>
                     ))}
                   </select>
-                </label>
-              )}
-
-              {startMode === "existing" && selectedPropertyId && (
-                <section className={styles.propertyMedia}>
-                  {selectedWorkspaceProperty && (
-                    <div className="mb-4 flex flex-col gap-2 rounded-lg border border-cyan-300/15 bg-slate-950/45 p-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-extrabold text-white">
-                          {selectedWorkspaceProperty.title}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {selectedWorkspaceProperty.location ||
-                            "Konum bilgisi girilmemiş"}
-                        </p>
-                      </div>
-                      <span className="w-fit rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-bold text-cyan-100">
-                        {propertyMedia.length} medya
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-white">
-                        Portföyden seç
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Bilgisayardan yüklenenlerle birlikte en fazla 12 görsel
-                        işlenir. Kreatif ve kısıtlı medya listelenmez.
-                      </p>
-                    </div>
-                    <button
-                      className="text-xs font-semibold text-cyan-200 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                      onClick={() => {
-                        const eligible = propertyMedia.filter(
-                          (item) =>
-                            item.mediaType === "PHOTO" &&
-                            item.variantType !== "CREATIVE" &&
-                            item.usageRightsStatus !== "RESTRICTED",
-                        );
-                        setSelectedSourceMediaIds((current) =>
-                          current.length === eligible.length
-                            ? []
-                            : eligible
-                                .slice(0, Math.max(0, 12 - files.length))
-                                .map((item) => item.id),
-                        );
-                      }}
-                      type="button"
-                    >
-                      {selectedSourceMediaIds.length
-                        ? "Seçimi kaldır"
-                        : "Uygun görselleri seç"}
-                    </button>
-                  </div>
-                  {propertyMedia.length ? (
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                      {propertyMedia
-                        .filter(
-                          (item) =>
-                            item.mediaType === "PHOTO" &&
-                            item.variantType !== "CREATIVE" &&
-                            item.usageRightsStatus !== "RESTRICTED",
-                        )
-                        .map((item) => {
-                          const selected = selectedSourceMediaIds.includes(
-                            item.id,
-                          );
-                          const disabled =
-                            !selected &&
-                            selectedSourceMediaIds.length + files.length >= 12;
-                          return (
-                            <button
-                              aria-pressed={selected}
-                              className={`group relative aspect-[4/3] overflow-hidden rounded-lg border text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-40 ${
-                                selected
-                                  ? "border-cyan-300 ring-2 ring-cyan-300/20"
-                                  : "border-slate-700 hover:border-slate-500"
-                              }`}
-                              disabled={disabled}
-                              key={item.id}
-                              onClick={() =>
-                                setSelectedSourceMediaIds((current) =>
-                                  current.includes(item.id)
-                                    ? current.filter((id) => id !== item.id)
-                                    : [...current, item.id],
-                                )
-                              }
-                              type="button"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                alt={item.fileName}
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                                src={item.url}
-                              />
-                              <span
-                                className={`absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full border ${
-                                  selected
-                                    ? "border-cyan-100 bg-cyan-300 text-cyan-950"
-                                    : "border-white/40 bg-slate-950/70 text-transparent"
-                                }`}
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/90 to-transparent px-2 pb-1.5 pt-5 text-[9px] font-semibold text-white">
-                                {item.isCover ? "Kapak · " : ""}
-                                {item.variantType === "ENHANCED"
-                                  ? "İyileştirilmiş"
-                                  : "Orijinal"}
-                              </span>
-                            </button>
-                          );
-                        })}
-                    </div>
-                  ) : (
-                    <p className="mt-4 rounded-lg border border-dashed border-slate-700 p-5 text-center text-xs text-slate-400">
-                      Bu portföyde uygun fotoğraf yok. Aşağıdan
-                      bilgisayarınızdan yükleyebilirsiniz.
-                    </p>
-                  )}
-                </section>
-              )}
-
-              <div className={styles.instructionPanel}>
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <label
-                      htmlFor="studio-enhancement-instruction"
-                      className="text-sm font-bold text-white"
-                    >
-                      İyileştirme talimatı
-                    </label>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">
-                      Hazır bir seçenek kullanın veya metni ihtiyacınıza göre
-                      düzenleyin.
-                    </p>
-                  </div>
-                  <span className="text-[11px] font-medium text-slate-500">
-                    {enhancementInstruction.length.toLocaleString("tr-TR")} /
-                    10.000
-                  </span>
+                  <ChevronRight aria-hidden="true" />
                 </div>
-
-                <div
-                  className="mt-4 flex flex-wrap gap-2"
-                  aria-label="Hazır iyileştirme talimatları"
-                >
-                  {STUDIO_ENHANCEMENT_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      aria-pressed={selectedPresetId === preset.id}
-                      title={preset.description}
-                      onClick={() => selectEnhancementPreset(preset)}
-                      className={`rounded-full border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
-                        selectedPresetId === preset.id
-                          ? "border-emerald-300/50 bg-emerald-300/15 text-emerald-100"
-                          : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500 hover:text-white"
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-
-                <textarea
-                  ref={instructionRef}
-                  id="studio-enhancement-instruction"
-                  value={enhancementInstruction}
-                  maxLength={10_000}
-                  rows={8}
-                  onChange={(event) => {
-                    setEnhancementInstruction(event.target.value);
-                    if (
-                      STUDIO_ENHANCEMENT_PRESETS.find(
-                        (preset) => preset.id === selectedPresetId,
-                      )?.prompt !== event.target.value
-                    ) {
-                      setSelectedPresetId("custom");
-                    }
-                  }}
-                  placeholder="Görselde nasıl bir iyileştirme istediğinizi yazın…"
-                  className="mt-4 min-h-44 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/15"
-                />
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  Kaynak görsel image-to-image olarak işlenir. Düşük dönüşüm
-                  gücü, mimariyi ve mevcut nesneleri korumaya yardımcı olur.
-                </p>
-              </div>
-
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(event) =>
-                  event.key === "Enter" && fileInputRef.current?.click()
-                }
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={handleDrop}
-                className={styles.dropZone}
-              >
-                <div className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-emerald-500 text-emerald-950">
-                  <UploadCloud className="h-8 w-8 stroke-[2.5]" />
-                </div>
-                <h2 className="mt-5 text-lg font-extrabold text-white">
-                  Fotoğrafları buraya bırakın
-                </h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  veya bilgisayarınızdan seçmek için tıklayın
-                </p>
-                <p className="mt-4 text-xs font-medium text-slate-500">
-                  JPG, PNG veya WEBP · Birden fazla fotoğraf seçebilirsiniz
-                </p>
-              </div>
-
-              {filePreviews.length > 0 && (
-                <div className={styles.uploadedFiles}>
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-sm font-bold text-white">
-                      Yüklenecek fotoğraflar{" "}
-                      <span className="text-emerald-300">({files.length})</span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setFiles([])}
-                      className="text-xs font-bold text-slate-400 transition hover:text-white"
-                    >
-                      Tümünü kaldır
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                    {filePreviews.map(({ file, url }, index) => (
-                      <div
-                        key={`${file.name}-${file.lastModified}`}
-                        className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-white/10 bg-slate-900"
-                      >
-                        {/* Native img is used because this is a local, user-selected object URL. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={url}
-                          alt={file.name}
-                          className="h-full w-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            removeFile(index);
-                          }}
-                          className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/65 text-white opacity-100 transition hover:bg-rose-500 sm:opacity-0 sm:group-hover:opacity-100"
-                          aria-label={`${file.name} dosyasını kaldır`}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                        <div className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-6 text-[10px] font-medium text-white">
-                          {file.name}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className={styles.controlFooter}>
-                <div>
-                  <span>İşlem arka planda devam eder; sayfada beklemeniz gerekmez.</span>
-                  <small className="mt-1 block text-[11px] text-emerald-300">Taslak otomatik kaydedildi · 2 / 3</small>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => window.location.assign("/fabrika")}
-                    className="!border !border-slate-700 !bg-transparent !text-slate-200"
-                  >
-                    Kaydet ve çık
-                  </button>
-                  <button
-                    type="button"
-                    onClick={startProcessing}
-                    disabled={
-                      !totalSelected ||
-                      isProcessing ||
-                      (startMode === "existing" && !selectedPropertyId) ||
-                      (startMode === "new" && newPropertyTitle.trim().length < 3)
-                    }
-                  >
-                    {isProcessing ? <Loader2 className="animate-spin" /> : <WandSparkles />}
-                    Devam et · {totalSelected || 0} görsel
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <section
-              className={styles.comparePanel}
-              aria-label="Önce ve sonra karşılaştırması"
-            >
-              <div className={styles.compareCanvas}>
-                {activeSourceUrl ? (
-                  <>
-                    {/* Tenant media and generated result URLs require native image elements. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={activeSourceUrl}
-                      alt="Orijinal görsel"
-                      className={styles.originalImage}
-                    />
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={activeOutputUrl}
-                      alt="İyileştirilmiş görsel"
-                      className={styles.enhancedImage}
-                      style={{ clipPath: `inset(0 0 0 ${comparePosition}%)` }}
-                    />
-                    <span className={styles.originalLabel}>Orijinal</span>
-                    <span className={styles.enhancedLabel}>
-                      {activePhoto ? "İyileştirilmiş" : "Önizleme"}
-                    </span>
-                    <i
-                      className={styles.compareDivider}
-                      style={{ left: `${comparePosition}%` }}
-                    >
-                      <b>‹ ›</b>
-                    </i>
-                    <input
-                      className={styles.compareRange}
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={comparePosition}
-                      onChange={(event) =>
-                        setComparePosition(Number(event.target.value))
-                      }
-                      aria-label="Önce ve sonra karşılaştırma çizgisi"
-                    />
-                  </>
-                ) : (
-                  <div className={styles.emptyCompare}>
-                    <Aperture />
-                    <h2>Karşılaştırma alanı</h2>
-                    <p>
-                      Bir portföy fotoğrafı seçtiğinizde orijinal ve
-                      iyileştirilmiş görüntü burada yan yana açılır.
-                    </p>
-                  </div>
+                {isLoadingPropertyMedia && (
+                  <p className={styles.inlineStatus} role="status">
+                    <Loader2 className={styles.spin} aria-hidden="true" /> Fotoğraflar getiriliyor…
+                  </p>
                 )}
-              </div>
-              {results.length > 1 && (
-                <div className={styles.resultStrip}>
-                  {results.map((result, index) => (
-                    <button
-                      key={result.itemId}
-                      type="button"
-                      data-active={activeResult === index}
-                      onClick={() => setActiveResult(index)}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={result.previewUrl} alt={result.name} />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <aside className={styles.rightRail}>
-              <section className={styles.downloadCard}>
-                <div className={styles.railTitle}>
-                  <span>İndirme seçenekleri</span>
-                  <Download />
-                </div>
-                {activePhoto ? (
-                  <>
-                    <a
-                      href={activePhoto.downloadUrl}
-                      download={activePhoto.name}
-                    >
-                      <span>Yüksek çözünürlük</span>
-                      <Download />
-                    </a>
-                    <a
-                      href={activePhoto.downloadUrl}
-                      download={activePhoto.name}
-                    >
-                      <span>Web için görsel</span>
-                      <Download />
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    <button type="button" disabled>
-                      Yüksek çözünürlük
-                    </button>
-                    <button type="button" disabled>
-                      Web için görsel
-                    </button>
-                  </>
+                {!isLoadingPropertyMedia && selectedProperty && (
+                  <p className={styles.inlineSuccess} role="status">
+                    <CheckCircle2 aria-hidden="true" />
+                    {selectedSourceMediaIds.length
+                      ? `${selectedSourceMediaIds.length} uygun fotoğraf otomatik seçildi.`
+                      : 'Bu portföyde iyileştirilebilecek fotoğraf bulunamadı.'}
+                  </p>
                 )}
-                <button
-                  type="button"
-                  onClick={downloadAllResults}
-                  disabled={
-                    !results.length ||
-                    isPreparingZip ||
-                    !selectedResultItemIds.length
-                  }
-                >
-                  {isPreparingZip ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <Download />
-                  )}{" "}
-                  Pazarlama paketi (ZIP)
-                </button>
-              </section>
-            </aside>
-
-            {errorMessage && (
-              <div role="alert" className={styles.errorBanner}>
-                <div className="flex gap-3">
-                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-300" />
-                  <div>
-                    <p className="text-sm font-bold text-rose-100">
-                      İşlem tamamlanamadı
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-rose-100/80">
-                      {errorMessage}
-                    </p>
-                  </div>
-                </div>
               </div>
             )}
-          </section>
-        ) : (
-          <section className={styles.resultsWorkspace}>
-            <div className={styles.resultsHeader}>
-              <div>
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-bold text-emerald-200">
-                  <CheckCircle2 className="h-4 w-4" /> İşlem tamamlandı
-                </div>
-                <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
-                  Portföye hazır görselleriniz.
-                </h1>
-                <p className="mt-2 text-sm text-slate-400">
-                  İyileştirilmiş sonucu inceleyin veya tüm görselleri tek ZIP
-                  dosyası halinde indirin.
-                </p>
-              </div>
-              {results.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedResultItemIds((current) =>
-                        current.length === results.length
-                          ? []
-                          : results.map((result) => result.itemId),
-                      )
+
+            {(source === 'computer' || selectedPropertyId) && (
+              <>
+                <input
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  multiple
+                  onChange={handleFileChange}
+                  ref={fileInputRef}
+                  type="file"
+                />
+                <div
+                  className={styles.dropZone}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleDrop}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      fileInputRef.current?.click();
                     }
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-4 py-3 text-sm font-bold text-slate-200 transition hover:border-slate-500 hover:text-white"
-                  >
-                    <Check className="h-4 w-4" />
-                    {selectedResultItemIds.length === results.length
-                      ? "Seçimi kaldır"
-                      : "Tümünü seç"}
-                  </button>
-                  {selectedPropertyId && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => void attachSelectedResults()}
-                        disabled={!selectedResultItemIds.length || isAttaching}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm font-extrabold text-emerald-200 transition hover:bg-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-45"
-                      >
-                        {isAttaching ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ImagePlus className="h-4 w-4" />
-                        )}
-                        Seçili {selectedResultItemIds.length} görseli portföye
-                        ekle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void attachSelectedResults(true)}
-                        disabled={!selectedResultItemIds.length || isAttaching}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-3 text-sm font-extrabold text-cyan-100 transition hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-45"
-                      >
-                        <Home className="h-4 w-4" />
-                        İlk seçiliyi kapak yap
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={downloadAllResults}
-                    disabled={isPreparingZip || !selectedResultItemIds.length}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-3 text-sm font-extrabold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isPreparingZip ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                    {isPreparingZip
-                      ? "ZIP hazırlanıyor…"
-                      : `Seçili ${selectedResultItemIds.length} görseli ZIP indir`}
-                  </button>
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span><UploadCloud aria-hidden="true" /></span>
+                  <div>
+                    <b>
+                      {source === 'portfolio'
+                        ? 'İsterseniz başka fotoğraf da ekleyin'
+                        : 'Fotoğrafları buraya bırakın'}
+                    </b>
+                    <small>veya bilgisayardan seçmek için tıklayın</small>
+                  </div>
+                  <button tabIndex={-1} type="button">Fotoğraf seç</button>
                 </div>
-              )}
+              </>
+            )}
+          </section>
+
+          {totalSelected > 0 && (
+            <section className={styles.flowCard}>
+              <div className={styles.sectionHeading}>
+                <span className={styles.sectionNumber}>2</span>
+                <div>
+                  <h2>Fotoğrafları kontrol edin</h2>
+                  <p>{totalSelected} fotoğraf hazır. İstemediğinizi kaldırabilirsiniz.</p>
+                </div>
+                <span className={styles.countBadge}>{totalSelected}/{MAX_PHOTOS}</span>
+              </div>
+
+              <div className={styles.photoGrid}>
+                {selectedPropertyMedia.map((item) => (
+                  <article key={item.id}>
+                    {/* Tenant-owned media URLs are displayed directly. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img alt={item.fileName} loading="lazy" src={item.url} />
+                    <span>{item.isCover ? 'Kapak fotoğrafı' : 'Portföy fotoğrafı'}</span>
+                    <button
+                      aria-label={`${item.fileName} fotoğrafını kaldır`}
+                      onClick={() =>
+                        setSelectedSourceMediaIds((current) =>
+                          current.filter((id) => id !== item.id)
+                        )
+                      }
+                      type="button"
+                    ><X aria-hidden="true" /></button>
+                  </article>
+                ))}
+                {filePreviews.map(({ file, url }, index) => (
+                  <article key={`${file.name}-${file.lastModified}`}>
+                    {/* Local object URLs require a native image element. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img alt={file.name} src={url} />
+                    <span>Bilgisayardan eklendi</span>
+                    <button
+                      aria-label={`${file.name} fotoğrafını kaldır`}
+                      onClick={() =>
+                        setFiles((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index)
+                        )
+                      }
+                      type="button"
+                    ><X aria-hidden="true" /></button>
+                  </article>
+                ))}
+                {totalSelected < MAX_PHOTOS && (
+                  <button
+                    className={styles.addMorePhoto}
+                    onClick={() => fileInputRef.current?.click()}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" />
+                    <span>Fotoğraf ekle</span>
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+
+          <section className={styles.flowCard}>
+            <div className={styles.sectionHeading}>
+              <span className={styles.sectionNumber}>3</span>
+              <div>
+                <h2>Nasıl iyileştirilsin?</h2>
+                <p>Önerilen “Otomatik” seçeneği çoğu fotoğraf için yeterlidir.</p>
+              </div>
             </div>
 
-            {!selectedPropertyId && (
-              <label className="mb-6 flex flex-col gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-xs font-bold text-cyan-100 sm:flex-row sm:items-center sm:justify-between">
-                Sonuçları kaydetmek için portföy seçin
-                <select
-                  value={selectedPropertyId}
-                  onChange={(event) =>
-                    changeSelectedProperty(event.target.value)
+            <div className={styles.presetChoices}>
+              {SIMPLE_PRESETS.map((preset) => (
+                <button
+                  aria-pressed={selectedPresetId === preset.id}
+                  key={preset.id}
+                  onClick={() => selectPreset(preset)}
+                  type="button"
+                >
+                  <span>
+                    {preset.id === 'professional-camera' ? (
+                      <WandSparkles aria-hidden="true" />
+                    ) : preset.id === 'light-color' ? (
+                      <SlidersHorizontal aria-hidden="true" />
+                    ) : (
+                      <ImageIcon aria-hidden="true" />
+                    )}
+                  </span>
+                  <b>
+                    {preset.id === 'professional-camera' ? 'Otomatik' : preset.label}
+                  </b>
+                  <small>{preset.description}</small>
+                  <Check className={styles.presetCheck} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.autoEngine}>
+              <div>
+                <span><Sparkles aria-hidden="true" /></span>
+                <div>
+                  <b>Akıllı analiz açık</b>
+                  <small>Sistem her fotoğrafı ayrı analiz edip gereken ayarı uygular.</small>
+                </div>
+              </div>
+              <ul>
+                <li><Check /> Işık ve pozlama</li>
+                <li><Check /> Renk ve beyaz dengesi</li>
+                <li><Check /> Netlik ve detay</li>
+                <li><Check /> Kontrast ve gölgeler</li>
+              </ul>
+            </div>
+
+            <details className={styles.advancedSettings}>
+              <summary><SlidersHorizontal aria-hidden="true" /> İleri ayarlar</summary>
+              <div>
+                <div className={styles.allPresets}>
+                  {STUDIO_ENHANCEMENT_PRESETS.map((preset) => (
+                    <button
+                      aria-pressed={selectedPresetId === preset.id}
+                      key={preset.id}
+                      onClick={() => selectPreset(preset)}
+                      type="button"
+                    >{preset.label}</button>
+                  ))}
+                </div>
+                <label htmlFor="studio-instruction">Özel iyileştirme talimatı</label>
+                <textarea
+                  id="studio-instruction"
+                  maxLength={10_000}
+                  onChange={(event) => {
+                    setEnhancementInstruction(event.target.value);
+                    setSelectedPresetId('custom');
+                  }}
+                  rows={5}
+                  value={enhancementInstruction}
+                />
+              </div>
+            </details>
+
+            {errorMessage && <p className={styles.errorMessage} role="alert">{errorMessage}</p>}
+
+            <div className={styles.startBar}>
+              <div>
+                <b>{totalSelected ? `${totalSelected} fotoğraf hazır` : 'Henüz fotoğraf seçilmedi'}</b>
+                <small>İşlem arka planda devam eder; sayfada beklemeniz gerekmez.</small>
+              </div>
+              <button
+                disabled={!totalSelected || isProcessing || (source === 'portfolio' && !selectedPropertyId)}
+                onClick={() => void startProcessing()}
+                type="button"
+              >
+                {isProcessing ? <Loader2 className={styles.spin} /> : <WandSparkles />}
+                {isProcessing ? 'Başlatılıyor…' : 'Fotoğrafları iyileştir'}
+                {!isProcessing && <ArrowRight aria-hidden="true" />}
+              </button>
+            </div>
+          </section>
+        </main>
+      )}
+
+      {activeTab === 'enhancer' && screen === 'results' && (
+        <main className={styles.results} role="tabpanel">
+          <section className={styles.resultHero}>
+            <div>
+              <span><CheckCircle2 aria-hidden="true" /> Çalışma tamamlandı</span>
+              <h2>İyileştirilmiş fotoğraflarınız hazır.</h2>
+              <p>Ortadaki çizgiyi sürükleyerek önce ve sonra görünümünü karşılaştırın.</p>
+            </div>
+            <button onClick={() => void downloadSelectedResults()} type="button">
+              {isPreparingZip ? <Loader2 className={styles.spin} /> : <Download />}
+              Seçili fotoğrafları indir
+            </button>
+          </section>
+
+          {activePhoto ? (
+            <section className={styles.comparisonCard}>
+              <div className={styles.compareCanvas}>
+                {/* Studio result URLs are tenant-owned generated media. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img alt="Orijinal fotoğraf" src={activePhoto.sourceUrl} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt="İyileştirilmiş fotoğraf"
+                  className={styles.enhancedImage}
+                  src={activePhoto.previewUrl}
+                  style={{ clipPath: `inset(0 0 0 ${comparePosition}%)` }}
+                />
+                <span className={styles.beforeLabel}>Önce</span>
+                <span className={styles.afterLabel}>Sonra</span>
+                <i className={styles.compareLine} style={{ left: `${comparePosition}%` }}>
+                  <b><Maximize2 aria-hidden="true" /></b>
+                </i>
+                <input
+                  aria-label="Önce ve sonra karşılaştırma çizgisi"
+                  max="100"
+                  min="0"
+                  onChange={(event) => setComparePosition(Number(event.target.value))}
+                  type="range"
+                  value={comparePosition}
+                />
+              </div>
+              <aside>
+                <span>Seçili fotoğraf</span>
+                <h3>{activePhoto.name}</h3>
+                <a download={activePhoto.name} href={activePhoto.downloadUrl}>
+                  <Download aria-hidden="true" /> Bu fotoğrafı indir
+                </a>
+                <button
+                  onClick={() => {
+                    setResults((current) =>
+                      current.filter((result) => result.itemId !== activePhoto.itemId)
+                    );
+                    setSelectedResultItemIds((current) =>
+                      current.filter((id) => id !== activePhoto.itemId)
+                    );
+                    setActiveResult((current) => Math.max(0, current - 1));
+                  }}
+                  type="button"
+                ><X aria-hidden="true" /> Bu sonucu kaldır</button>
+              </aside>
+            </section>
+          ) : (
+            <p className={styles.errorMessage}>Hazır bir sonuç bulunamadı.</p>
+          )}
+
+          {results.length > 1 && (
+            <section className={styles.resultGallery}>
+              <div>
+                <h3>Tüm sonuçlar</h3>
+                <button
+                  onClick={() =>
+                    setSelectedResultItemIds((current) =>
+                      current.length === results.length
+                        ? []
+                        : results.map((result) => result.itemId)
+                    )
                   }
-                  className="h-10 min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-white outline-none focus:border-cyan-300 sm:min-w-72"
+                  type="button"
+                >
+                  {selectedResultItemIds.length === results.length
+                    ? 'Seçimi kaldır'
+                    : 'Tümünü seç'}
+                </button>
+              </div>
+              <div>
+                {results.map((result, index) => {
+                  const selected = selectedResultItemIds.includes(result.itemId);
+                  return (
+                    <article data-active={activeResult === index} key={result.itemId}>
+                      <button onClick={() => setActiveResult(index)} type="button">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img alt={result.name} loading="lazy" src={result.previewUrl} />
+                      </button>
+                      <button
+                        aria-label={`${result.name} sonucunu seç`}
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setSelectedResultItemIds((current) =>
+                            current.includes(result.itemId)
+                              ? current.filter((id) => id !== result.itemId)
+                              : [...current, result.itemId]
+                          )
+                        }
+                        type="button"
+                      ><Check /></button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {batchItems.some((item) => item.status === 'FAILED') && (
+            <section className={styles.retryCard}>
+              <h3>Bazı fotoğraflar tamamlanamadı</h3>
+              <p>Hazır sonuçlar korunur. Yalnızca hata veren fotoğrafı tekrar deneyin.</p>
+              {batchItems
+                .filter((item) => item.status === 'FAILED')
+                .map((item) => (
+                  <div key={item.id}>
+                    <span>{item.originalFileName}</span>
+                    <button onClick={() => void retryBatchItem(item.id)} type="button">
+                      <RefreshCw /> Tekrar dene
+                    </button>
+                  </div>
+                ))}
+            </section>
+          )}
+
+          <section className={styles.destinationSection}>
+            <div className={styles.sectionHeading}>
+              <span className={styles.sectionNumber}><FolderOpen /></span>
+              <div>
+                <h2>Fotoğraflarla ne yapmak istersiniz?</h2>
+                <p>İndirin, var olan portföye ekleyin veya yeni portföy oluşturun.</p>
+              </div>
+            </div>
+            <div className={styles.destinationGrid}>
+              <article>
+                <span><Download /></span>
+                <h3>Bilgisayarıma indir</h3>
+                <p>Seçtiğiniz fotoğrafları tek ZIP dosyası olarak alın.</p>
+                <button
+                  disabled={!selectedResultItemIds.length || isPreparingZip}
+                  onClick={() => void downloadSelectedResults()}
+                  type="button"
+                >
+                  {isPreparingZip ? <Loader2 className={styles.spin} /> : <Download />}
+                  Fotoğrafları indir
+                </button>
+              </article>
+
+              <article>
+                <span><Home /></span>
+                <h3>Mevcut portföye ekle</h3>
+                <p>Portföyü seçin; fotoğraflar medya alanına eklensin.</p>
+                <select
+                  aria-label="Fotoğrafların ekleneceği portföy"
+                  onChange={(event) => setSelectedPropertyId(event.target.value)}
+                  value={selectedPropertyId}
                 >
                   <option value="">Portföy seçin</option>
                   {workspaceProperties.map((property) => (
-                    <option key={property.id} value={property.id}>
-                      {property.title}
-                      {property.location ? ` · ${property.location}` : ""}
-                    </option>
+                    <option key={property.id} value={property.id}>{property.title}</option>
                   ))}
                 </select>
-              </label>
-            )}
+                <button
+                  disabled={!selectedPropertyId || !selectedResultItemIds.length || isAttaching}
+                  onClick={() => void attachSelectedResults(selectedPropertyId)}
+                  type="button"
+                >
+                  {isAttaching ? <Loader2 className={styles.spin} /> : <ImagePlus />}
+                  Portföye ekle
+                </button>
+              </article>
 
-            {batchItems.some((item) => item.status === "FAILED") && (
-              <section className="mb-6 rounded-xl border border-rose-400/25 bg-rose-400/[0.07] p-4">
-                <h2 className="text-sm font-bold text-rose-100">
-                  Yeniden denenebilecek görseller
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-rose-100/70">
-                  Başarılı sonuçlar korunur; yalnızca hata veren görsel yeniden
-                  işlenir.
-                </p>
-                <ul className="mt-3 space-y-2">
-                  {batchItems
-                    .filter((item) => item.status === "FAILED")
-                    .map((item) => (
-                      <li
-                        key={item.id}
-                        className="flex flex-col gap-2 rounded-lg border border-rose-300/15 bg-slate-950/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-white">
-                            {item.originalFileName}
-                          </p>
-                          <p className="mt-1 text-[11px] text-rose-200/75">
-                            {item.errorMessage || "Görsel işlenemedi."}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void retryBatchItem(item.id)}
-                          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-300/30 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" /> Tekrar dene
-                        </button>
-                      </li>
-                    ))}
-                </ul>
-              </section>
-            )}
-
-            {activePhoto ? (
-              <div className={styles.resultsCompare}>
-                <div className={`${styles.compareCanvas} min-h-[28rem]`}>
-                  {/* Tenant media and generated result URLs require native image elements. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={activePhoto.sourceUrl}
-                    alt="Orijinal görsel"
-                    className={styles.originalImage}
-                  />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={activePhoto.previewUrl}
-                    alt="İyileştirilmiş görsel"
-                    className={styles.enhancedImage}
-                    style={{ clipPath: `inset(0 0 0 ${comparePosition}%)` }}
-                  />
-                  <span className={styles.originalLabel}>Orijinal</span>
-                  <span className={styles.enhancedLabel}>İyileştirilmiş</span>
-                  <i
-                    className={styles.compareDivider}
-                    style={{ left: `${comparePosition}%` }}
-                  >
-                    <b>‹ ›</b>
-                  </i>
-                  <input
-                    className={styles.compareRange}
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={comparePosition}
-                    onChange={(event) =>
-                      setComparePosition(Number(event.target.value))
-                    }
-                    aria-label="Önce ve sonra karşılaştırma çizgisi"
-                  />
-                </div>
-                <div className="flex flex-col p-5 sm:p-7">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">
-                    Seçili sonuç
-                  </p>
-                  <h2 className="mt-2 break-all text-lg font-semibold text-white">
-                    {activePhoto.name}
-                  </h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">
-                    Ortadaki çizgiyi sürükleyerek işlem öncesi ve sonrası
-                    arasındaki farkı inceleyin.
-                  </p>
-                  {activePhoto.attachedMediaId && (
-                    <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-bold text-emerald-200">
-                      <CheckCircle2 className="h-4 w-4" /> Portföye eklendi
-                    </div>
+              <article>
+                <span><Plus /></span>
+                <h3>Yeni portföy oluştur</h3>
+                <p>Fotoğraflarla birlikte yeni bir portföy taslağı açın.</p>
+                <input
+                  aria-label="Yeni portföy adı"
+                  maxLength={180}
+                  onChange={(event) => setNewPropertyTitle(event.target.value)}
+                  placeholder="Portföy adı"
+                  value={newPropertyTitle}
+                />
+                <input
+                  aria-label="Yeni portföy konumu"
+                  maxLength={240}
+                  onChange={(event) => setNewPropertyLocation(event.target.value)}
+                  placeholder="Konum (isteğe bağlı)"
+                  value={newPropertyLocation}
+                />
+                <button
+                  disabled={
+                    newPropertyTitle.trim().length < 3 ||
+                    !selectedResultItemIds.length ||
+                    isCreatingPortfolio ||
+                    isAttaching
+                  }
+                  onClick={() => void createPortfolioAndAttach()}
+                  type="button"
+                >
+                  {isCreatingPortfolio || isAttaching ? (
+                    <Loader2 className={styles.spin} />
+                  ) : (
+                    <Plus />
                   )}
-                  <a
-                    href={activePhoto.downloadUrl}
-                    download={activePhoto.name}
-                    className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm font-extrabold text-emerald-200 transition hover:bg-emerald-300/20"
-                  >
-                    <Download className="h-4 w-4" /> Bu görseli indir
-                  </a>
-                  <button
-                    type="button"
-                    onClick={discardActiveResult}
-                    className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-4 py-3 text-sm font-bold text-slate-200 transition hover:border-rose-300/50 hover:text-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
-                  >
-                    <X className="h-4 w-4" /> İyileştirilmişi kaldır, orijinali koru
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-3xl border border-rose-400/30 bg-rose-400/10 p-6 text-sm text-rose-100">
-                İşlenmiş görseller alınamadı. Lütfen yeni bir işlem başlatın.
-              </div>
-            )}
+                  Oluştur ve fotoğrafları ekle
+                </button>
+              </article>
+            </div>
 
-            {results.length > 1 && (
-              <div className={styles.otherResults}>
-                <p className="mb-3 text-sm font-bold text-white">
-                  Diğer sonuçlar
-                </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {results.map((result, index) => {
-                    const selected = selectedResultItemIds.includes(
-                      result.itemId,
-                    );
-                    return (
-                      <article
-                        key={result.itemId}
-                        className={`relative overflow-hidden rounded-xl border transition ${
-                          activeResult === index
-                            ? "border-emerald-300 ring-2 ring-emerald-300/25"
-                            : "border-white/10 hover:border-white/30"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setActiveResult(index)}
-                          className="group relative block aspect-[4/3] w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={result.previewUrl}
-                            alt={result.name}
-                            loading="lazy"
-                            className="h-full w-full object-cover"
-                          />
-                          <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-6 text-left text-[10px] font-bold text-white">
-                            Görsel {index + 1}
-                          </span>
-                        </button>
-                        <button
-                          aria-label={`${result.name} sonucunu seç`}
-                          aria-pressed={selected}
-                          className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border ${
-                            selected
-                              ? "border-emerald-100 bg-emerald-300 text-emerald-950"
-                              : "border-white/40 bg-slate-950/75 text-transparent"
-                          }`}
-                          onClick={() =>
-                            setSelectedResultItemIds((current) =>
-                              current.includes(result.itemId)
-                                ? current.filter((id) => id !== result.itemId)
-                                : [...current, result.itemId],
-                            )
-                          }
-                          type="button"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                      </article>
-                    );
-                  })}
+            {mediaEditorPropertyId && results.some((result) => result.attachedMediaId) && (
+              <div className={styles.mediaEditorCallout}>
+                <span><Images aria-hidden="true" /></span>
+                <div>
+                  <b>Fotoğraflar portföye eklendi</b>
+                  <small>Sıralamayı değiştirin, kapak fotoğrafını seçin veya istemediğinizi kaldırın.</small>
                 </div>
+                <Link
+                  href={`/fabrika/portfoyler?propertyId=${encodeURIComponent(mediaEditorPropertyId)}&media=1`}
+                >
+                  Fotoğrafları düzenle <ArrowRight aria-hidden="true" />
+                </Link>
               </div>
             )}
           </section>
-        )}
-      </main>
+        </main>
+      )}
 
-      {studioArea === "history" && (
-        <section id="studio-recent" className={styles.recentWorks}>
-          <div className={styles.recentHeader}>
+      {activeTab === 'history' && (
+        <main className={styles.historyPanel} role="tabpanel">
+          <div className={styles.historyHeader}>
             <div>
-              <h2>Son çalışmalar</h2>
-              <p>
-                İşlemler arka planda sürer. Çalışmalar ve çıktılar 7 gün
-                saklanır.
-              </p>
+              <span className={styles.eyebrow}>GEÇMİŞ ÇALIŞMALARIM</span>
+              <h2>Tüm çalışmalarınız tek yerde.</h2>
+              <p>İşlemler arka planda devam eder. Hazır olduğunda buradan açabilirsiniz.</p>
             </div>
-            <span>{recentBatches.length} çalışma</span>
+            <button onClick={() => void loadRecentBatches()} type="button">
+              <RefreshCw aria-hidden="true" /> Yenile
+            </button>
           </div>
-          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-            {recentBatches.map((item) => {
-              const {
-                completed,
-                failed,
-                progress: progressValue,
-                ready,
-                openable,
-                label: statusLabel,
-              } = summarizeStudioBatchHistory({
-                batchStatus: item.status,
-                itemStatuses: item.items.map((batchItem) => batchItem.status),
+
+          <div className={styles.historyGrid}>
+            {recentBatches.map((batch) => {
+              const summary = summarizeStudioBatchHistory({
+                batchStatus: batch.status,
+                itemStatuses: batch.items.map((item) => item.status),
               });
+              const cover = batch.items.find((item) => item.outputUrl)?.outputUrl ||
+                batch.items[0]?.originalUrl;
               return (
-                <article
-                  key={item.id}
-                  className="rounded-lg border border-slate-800 bg-slate-950/55 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-100">
-                        {item.property?.title || "Portföysüz görsel çalışması"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {new Date(item.createdAt).toLocaleString("tr-TR", {
-                          day: "2-digit",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
-                        ready
-                          ? "bg-emerald-400/10 text-emerald-300"
-                          : item.status === "FAILED"
-                            ? "bg-rose-400/10 text-rose-300"
-                            : "bg-amber-400/10 text-amber-200"
-                      }`}
-                    >
-                      {statusLabel}
-                    </span>
-                  </div>
-                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                    <div
-                      className="h-full rounded-full bg-emerald-400 transition-[width]"
-                      style={{
-                        width: `${Math.max(item.status === "PROCESSING" ? 8 : 0, progressValue)}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>
-                      {completed}/{item.items.length} görsel hazır
-                    </span>
-                    <span>%{progressValue}</span>
-                  </div>
-                  <ul className="mt-3 space-y-1" aria-label="Dosya işlem durumları">
-                    {item.items.slice(0, 4).map((batchItem) => (
-                      <li
-                        key={batchItem.id}
-                        className="flex items-center justify-between gap-3 text-[11px] text-slate-400"
-                      >
-                        <span className="truncate">{batchItem.originalFileName}</span>
-                        <span
-                          className={
-                            batchItem.status === "FAILED"
-                              ? "shrink-0 text-rose-300"
-                              : ["COMPLETED", "ATTACHED"].includes(batchItem.status)
-                                ? "shrink-0 text-emerald-300"
-                                : "shrink-0 text-amber-200"
-                          }
-                        >
-                          {batchItem.status === "FAILED"
-                            ? "Hata"
-                            : ["COMPLETED", "ATTACHED"].includes(batchItem.status)
-                              ? "%100"
-                              : batchItem.status === "PROCESSING"
-                                ? "İşleniyor"
-                                : "Sırada"}
-                        </span>
-                      </li>
-                    ))}
-                    {item.items.length > 4 && (
-                      <li className="text-[11px] text-slate-600">
-                        +{item.items.length - 4} dosya daha
-                      </li>
+                <article key={batch.id}>
+                  <div className={styles.historyCover}>
+                    {cover ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img alt="" loading="lazy" src={cover} />
+                    ) : (
+                      <ImageIcon aria-hidden="true" />
                     )}
-                  </ul>
-                  <button
-                    type="button"
-                    disabled={!openable}
-                    onClick={() => void openBatch(item.id)}
-                    className="mt-4 inline-flex w-full items-center justify-center rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-emerald-400/50 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    {ready
-                      ? "Sonuçları aç"
-                      : failed
-                        ? "Aç ve tekrar dene"
-                        : "Arka planda devam ediyor"}
-                  </button>
+                    <span data-status={summary.ready ? 'ready' : batch.status.toLowerCase()}>
+                      {summary.label}
+                    </span>
+                  </div>
+                  <div className={styles.historyContent}>
+                    <span><Clock3 /> {formatStudioDate(batch.createdAt)}</span>
+                    <h3>{batch.property?.title || 'Portföysüz fotoğraf çalışması'}</h3>
+                    <p>{summary.completed}/{batch.items.length} fotoğraf hazır</p>
+                    <div className={styles.progressTrack}>
+                      <i style={{ width: `${summary.progress}%` }} />
+                    </div>
+                    <button
+                      disabled={!summary.openable}
+                      onClick={() => void openBatch(batch.id)}
+                      type="button"
+                    >
+                      {summary.ready
+                        ? 'Sonuçları aç'
+                        : summary.failed
+                          ? 'Aç ve tekrar dene'
+                          : 'Arka planda işleniyor'}
+                      {summary.openable ? <ArrowRight /> : <Loader2 className={styles.spin} />}
+                    </button>
+                  </div>
                 </article>
               );
             })}
-            {!recentBatches.length && !isLoadingBatches && (
-              <div className={styles.emptyRecent}>
-                <ImagePlus />
-                <span>İlk iyileştirme çalışmanız burada görünecek.</span>
-              </div>
-            )}
-            {isLoadingBatches && (
-              <div className="rounded-lg border border-slate-800 p-5 text-sm text-slate-400">
-                Son çalışmalar yükleniyor…
-              </div>
-            )}
           </div>
-        </section>
+
+          {!recentBatches.length && !isLoadingBatches && (
+            <div className={styles.emptyHistory}>
+              <span><ImagePlus aria-hidden="true" /></span>
+              <h3>Henüz çalışma yok</h3>
+              <p>İlk fotoğraflarınızı iyileştirdiğinizde sonuçlar burada görünecek.</p>
+              <button onClick={() => setActiveTab('enhancer')} type="button">
+                İlk çalışmayı başlat <ArrowRight />
+              </button>
+            </div>
+          )}
+
+          {isLoadingBatches && (
+            <div className={styles.loadingHistory} role="status">
+              <Loader2 className={styles.spin} /> Çalışmalar yükleniyor…
+            </div>
+          )}
+        </main>
       )}
     </div>
   );

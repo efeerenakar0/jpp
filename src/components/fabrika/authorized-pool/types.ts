@@ -14,6 +14,8 @@ export type AuthorizedPoolListing = {
   imageUrl: string | null;
   authorityExpiresAt: string;
   isOwn: boolean;
+  duplicateCount: number;
+  authorizedOfficeCount: number;
   request: {
     id: string;
     status: PoolRequestStatus;

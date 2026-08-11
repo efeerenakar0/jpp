@@ -7,20 +7,22 @@ import {
   CheckCircle2,
   CirclePause,
   CirclePlay,
-  Link2,
-  ListFilter,
+  House,
   LoaderCircle,
   MapPin,
   Radar,
   RotateCcw,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
   UserRoundCheck,
   XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
+import {
+  HUNT_PROPERTY_TYPE_OPTIONS,
+  type HuntPropertyType,
+} from '@/lib/hunting-v2/property-types';
 import type { HuntJobStatus, HuntJobSummary } from './types';
 
 const STORAGE_KEY = 'jasmine-avci-v2-current-job';
@@ -64,27 +66,17 @@ type LocationOption = {
   name: string;
 };
 
-type ListingType = 'SALE' | 'RENT';
-type PropertyType = 'APARTMENT' | 'RESIDENCE' | 'VILLA' | 'DETACHED_HOUSE';
-type FurnishedOption = 'ANY' | 'YES' | 'NO';
-type InputMode = 'FILTERS' | 'URL';
-
 export default function HuntJobPanel({
   onJobChange,
   onJobFinished,
 }: HuntJobPanelProps) {
-  const [inputMode, setInputMode] = useState<InputMode>('FILTERS');
-  const [searchUrl, setSearchUrl] = useState('');
-  const [listingType, setListingType] = useState<ListingType>('SALE');
-  const [propertyType, setPropertyType] =
-    useState<PropertyType>('APARTMENT');
-  const [furnished, setFurnished] = useState<FurnishedOption>('ANY');
   const [provinces, setProvinces] = useState<LocationOption[]>([]);
   const [districts, setDistricts] = useState<LocationOption[]>([]);
+  const [neighborhoods, setNeighborhoods] = useState<LocationOption[]>([]);
   const [provinceId, setProvinceId] = useState('');
   const [districtId, setDistrictId] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
+  const [neighborhoodId, setNeighborhoodId] = useState('');
+  const [propertyType, setPropertyType] = useState<HuntPropertyType | ''>('');
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [job, setJob] = useState<HuntJobSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -120,6 +112,22 @@ export default function HuntJobPanel({
       .finally(() => setLocationsLoading(false));
     return () => controller.abort();
   }, [provinceId]);
+
+  useEffect(() => {
+    if (!districtId) return;
+    const controller = new AbortController();
+    void apiJson<{ items: LocationOption[] }>(
+      `/api/fabrika/hunting/locations?districtId=${encodeURIComponent(districtId)}`,
+      { signal: controller.signal }
+    )
+      .then(({ items }) => setNeighborhoods(items))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        toast.error('Mahalle seçenekleri yüklenemedi.');
+      })
+      .finally(() => setLocationsLoading(false));
+    return () => controller.abort();
+  }, [districtId]);
 
   const loadJob = useCallback(
     async (jobId: string, quiet = false) => {
@@ -192,21 +200,21 @@ export default function HuntJobPanel({
 
   async function startJob(event: React.FormEvent) {
     event.preventDefault();
-    const province =
-      inputMode === 'FILTERS'
-        ? provinces.find((option) => option.id === Number(provinceId))
-        : null;
-    const district =
-      inputMode === 'FILTERS'
-        ? districts.find((option) => option.id === Number(districtId))
-        : null;
-    if (inputMode === 'FILTERS' && (!province || !district)) {
-      toast.error('İl ve ilçe seçimini tamamlayın.');
+    const province = provinces.find(
+      (option) => option.id === Number(provinceId)
+    );
+    const district = districts.find(
+      (option) => option.id === Number(districtId)
+    );
+    const neighborhood = neighborhoods.find(
+      (option) => option.id === Number(neighborhoodId)
+    );
+    if (!province || !district || !neighborhood) {
+      toast.error('İl, ilçe ve mahalle seçimini tamamlayın.');
       return;
     }
-    const normalizedSearchUrl = searchUrl.trim();
-    if (inputMode === 'URL' && !normalizedSearchUrl) {
-      toast.error('Sahibinden bağlantısını girin.');
+    if (!propertyType) {
+      toast.error('Bir gayrimenkul türü seçin.');
       return;
     }
     setLoading(true);
@@ -218,19 +226,12 @@ export default function HuntJobPanel({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             provider: 'SAHIBINDEN',
-            ...(inputMode === 'URL'
-              ? { searchUrl: normalizedSearchUrl }
-              : {
-                  filters: {
-                    listingType,
-                    propertyType,
-                    province: province!.name,
-                    district: district!.name,
-                    furnished,
-                    minPrice: minPrice ? Number(minPrice) : null,
-                    maxPrice: maxPrice ? Number(maxPrice) : null,
-                  },
-                }),
+            filters: {
+              province: province.name,
+              district: district.name,
+              neighborhood: neighborhood.name,
+              propertyType,
+            },
             idempotencyKey: crypto.randomUUID(),
           }),
         }
@@ -276,124 +277,35 @@ export default function HuntJobPanel({
           </div>
           <div>
             <h2 className="text-base font-semibold text-white">
-              Portföy kaynağını seç
+              Satış yetkisini almak istediğiniz portföyleri belirleyin
             </h2>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">
-              İstersen bölge ve ilan ayrıntılarını burada seç, istersen tek ilan
-              veya filtrelenmiş sonuç bağlantısını yapıştır. Business AI Portföy
-              Uzmanı detayları sırayla işler ve portföyüne aktarır.
+              İl, ilçe ve gayrimenkul türünü seçerek arama kriterlerinizi
+              belirleyin. AI Portföy Uzmanı, seçtiğiniz kriterlere uygun
+              potansiyel gayrimenkulleri farklı kaynaklardan keşfederek satış
+              yetkisi sürecini başlatsın.
             </p>
           </div>
         </div>
 
         <form className="mt-5 space-y-4" onSubmit={startJob}>
-          <div
-            aria-label="Portföy kaynağı giriş yöntemi"
-            className="grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950 p-1"
-            role="tablist"
-          >
-            <button
-              aria-controls="avci-filter-fields"
-              aria-selected={inputMode === 'FILTERS'}
-              className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
-                inputMode === 'FILTERS'
-                  ? 'bg-emerald-500 text-emerald-950'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
-              }`}
-              id="avci-filter-tab"
-              onClick={() => setInputMode('FILTERS')}
-              role="tab"
-              type="button"
-            >
-              <ListFilter className="h-4 w-4" /> Filtreleri seç
-            </button>
-            <button
-              aria-controls="avci-url-fields"
-              aria-selected={inputMode === 'URL'}
-              className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
-                inputMode === 'URL'
-                  ? 'bg-emerald-500 text-emerald-950'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
-              }`}
-              id="avci-url-tab"
-              onClick={() => setInputMode('URL')}
-              role="tab"
-              type="button"
-            >
-              <Link2 className="h-4 w-4" /> Bağlantı yapıştır
-            </button>
-          </div>
-
-          <div
-            aria-labelledby="avci-filter-tab"
-            className={`grid gap-3 sm:grid-cols-2 xl:grid-cols-3 ${
-              inputMode === 'FILTERS' ? '' : 'hidden'
-            }`}
-            id="avci-filter-fields"
-            role="tabpanel"
-          >
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium text-slate-300">İşlem</span>
-              <select
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={inputMode !== 'FILTERS'}
-                onChange={(event) =>
-                  setListingType(event.target.value as ListingType)
-                }
-                value={listingType}
-              >
-                <option value="SALE">Satılık</option>
-                <option value="RENT">Kiralık</option>
-              </select>
-            </label>
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium text-slate-300">Konut tipi</span>
-              <select
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={inputMode !== 'FILTERS'}
-                onChange={(event) =>
-                  setPropertyType(event.target.value as PropertyType)
-                }
-                value={propertyType}
-              >
-                <option value="APARTMENT">Daire</option>
-                <option value="RESIDENCE">Rezidans</option>
-                <option value="VILLA">Villa</option>
-                <option value="DETACHED_HOUSE">Müstakil ev</option>
-              </select>
-            </label>
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium text-slate-300">Eşya durumu</span>
-              <select
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={inputMode !== 'FILTERS'}
-                onChange={(event) =>
-                  setFurnished(event.target.value as FurnishedOption)
-                }
-                value={furnished}
-              >
-                <option value="ANY">Farketmez</option>
-                <option value="YES">Eşyalı</option>
-                <option value="NO">Eşyasız</option>
-              </select>
-            </label>
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="space-y-1.5">
               <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                 <MapPin className="h-3.5 w-3.5" /> İl
               </span>
               <select
                 className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={
-                  inputMode !== 'FILTERS' ||
-                  (locationsLoading && !provinces.length)
-                }
+                disabled={locationsLoading && !provinces.length}
                 onChange={(event) => {
                   setProvinceId(event.target.value);
                   setDistrictId('');
+                  setNeighborhoodId('');
                   setDistricts([]);
+                  setNeighborhoods([]);
                   setLocationsLoading(Boolean(event.target.value));
                 }}
-                required={inputMode === 'FILTERS'}
+                required
                 value={provinceId}
               >
                 <option value="">İl seçin</option>
@@ -408,11 +320,14 @@ export default function HuntJobPanel({
               </span>
               <select
                 className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={
-                  inputMode !== 'FILTERS' || !provinceId || locationsLoading
-                }
-                onChange={(event) => setDistrictId(event.target.value)}
-                required={inputMode === 'FILTERS'}
+                disabled={!provinceId || locationsLoading}
+                onChange={(event) => {
+                  setDistrictId(event.target.value);
+                  setNeighborhoodId('');
+                  setNeighborhoods([]);
+                  setLocationsLoading(Boolean(event.target.value));
+                }}
+                required
                 value={districtId}
               >
                 <option value="">İlçe seçin</option>
@@ -421,95 +336,78 @@ export default function HuntJobPanel({
                 ))}
               </select>
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="space-y-1.5">
-                <span className="text-xs font-medium text-slate-300">En düşük fiyat</span>
-                <input
-                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                  disabled={inputMode !== 'FILTERS'}
-                  min="0"
-                  onChange={(event) => setMinPrice(event.target.value)}
-                  placeholder="₺"
-                  type="number"
-                  value={minPrice}
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-xs font-medium text-slate-300">En yüksek fiyat</span>
-                <input
-                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                  disabled={inputMode !== 'FILTERS'}
-                  min="0"
-                  onChange={(event) => setMaxPrice(event.target.value)}
-                  placeholder="₺"
-                  type="number"
-                  value={maxPrice}
-                />
-              </label>
-            </div>
-          </div>
-          <div
-            aria-labelledby="avci-url-tab"
-            className={inputMode === 'URL' ? '' : 'hidden'}
-            id="avci-url-fields"
-            role="tabpanel"
-          >
             <label className="space-y-1.5">
-              <span className="text-xs font-medium text-slate-300">
-                Sahibinden bağlantısı
+              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
+                <House className="h-3.5 w-3.5" /> Mahalle
               </span>
-              <div className="relative">
-                <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  autoComplete="url"
-                  className="h-11 w-full rounded-lg border border-slate-700 bg-slate-950 pl-10 pr-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                  disabled={inputMode !== 'URL'}
-                  inputMode="url"
-                  onChange={(event) => setSearchUrl(event.target.value)}
-                  placeholder="https://www.sahibinden.com/ilan/.../detay"
-                  required={inputMode === 'URL'}
-                  type="url"
-                  value={searchUrl}
-                />
-              </div>
-              <span className="block text-[11px] leading-4 text-slate-500">
-                Tek ilan detay bağlantısı veya filtrelenmiş sonuç bağlantısı
-                kullanabilirsin.
-              </span>
+              <select
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                disabled={!districtId || locationsLoading}
+                onChange={(event) => setNeighborhoodId(event.target.value)}
+                required
+                value={neighborhoodId}
+              >
+                <option value="">Mahalle seçin</option>
+                {neighborhoods.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
+              </select>
             </label>
           </div>
+          <fieldset className="space-y-2.5">
+            <legend className="text-xs font-semibold text-slate-300">
+              Gayrimenkul türü
+            </legend>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+              {HUNT_PROPERTY_TYPE_OPTIONS.map((option) => {
+                const selected = propertyType === option.value;
+                return (
+                  <label
+                    className={`flex min-h-12 cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition focus-within:ring-2 focus-within:ring-emerald-400/60 ${
+                      selected
+                        ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100 shadow-[0_0_0_1px_rgba(52,211,153,0.12)]'
+                        : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-slate-600 hover:bg-slate-800/70'
+                    }`}
+                    key={option.value}
+                  >
+                    <input
+                      checked={selected}
+                      className="sr-only"
+                      name="propertyType"
+                      onChange={() => setPropertyType(option.value)}
+                      required
+                      type="radio"
+                      value={option.value}
+                    />
+                    <span>{option.label}</span>
+                    {selected ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                    ) : (
+                      <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-slate-600" />
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
           <div className="flex flex-col gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
-              <UserRoundCheck className="h-4 w-4" /> Kimden: Sahibinden
+              <UserRoundCheck className="h-4 w-4" /> Kimden: Sahibinden Satıcılar
             </span>
             <Button
               className="h-10 bg-emerald-500 font-semibold text-emerald-950 hover:bg-emerald-400"
               disabled={
-                loading ||
-                (inputMode === 'FILTERS'
-                  ? locationsLoading || !districtId
-                  : !searchUrl.trim())
+                loading || locationsLoading || !neighborhoodId || !propertyType
               }
               type="submit"
             >
               {loading ? (
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                inputMode === 'FILTERS' ? (
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
-                ) : (
-                  <Link2 className="mr-2 h-4 w-4" />
-                )
+                <SlidersHorizontal className="mr-2 h-4 w-4" />
               )}
               Portföyü oluşturmaya başla
             </Button>
-          </div>
-          <div className="flex items-start gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5 text-xs leading-5 text-sky-200">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-            Sayfa sınırı veya bekleme ayarı gerekmez. İşlem sunucuda tek tek ve
-            kontrollü yürütülür; kaynak doğrulaması gösterirse güvenli biçimde
-            duraklar. Yazılı CONTACT_READ yetkisi varsa sayfada görünür satıcı
-            ve telefon bilgileri şifrelenerek kaydedilir.
           </div>
         </form>
       </div>

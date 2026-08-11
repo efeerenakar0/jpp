@@ -5,7 +5,7 @@ import {
 } from '@/lib/fabrika-session';
 import { listPartners } from '@/lib/partner-outreach/service';
 import { getPartnerIdFromSearchParams } from '@/lib/partner-network-view';
-import PartnerNetworkClient from '@/components/fabrika/PartnerNetworkClient';
+import PartnerFinderClient from '@/components/fabrika/PartnerFinderClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +49,7 @@ export default async function PartnerNetworkPage({
   const initialPartnerId = getPartnerIdFromSearchParams(await searchParams);
 
   return (
-    <PartnerNetworkClient
+    <PartnerFinderClient
       initialPartners={data.partners}
       owner={data.owner}
       initialPartnerId={initialPartnerId}

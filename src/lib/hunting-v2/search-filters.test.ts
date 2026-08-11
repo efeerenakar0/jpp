@@ -5,72 +5,70 @@ import {
 } from './search-filters';
 
 describe('Business AI Portföy Uzmanı filtre bağlantısı', () => {
-  it('il, ilçe ve konut tipinden yalnız sahibinden ilanlarını hedefleyen URL üretir', () => {
+  it('il, ilçe ve mahalleden yalnız sahibinden emlak ilanlarını hedefleyen URL üretir', () => {
     expect(
       buildSahibindenSearchUrl({
-        listingType: 'RENT',
-        propertyType: 'APARTMENT',
         province: 'İstanbul',
         district: 'Kadıköy',
-        furnished: 'ANY',
-        minPrice: null,
-        maxPrice: null,
+        neighborhood: 'Caddebostan',
+        propertyType: 'KONUT',
       })
     ).toBe(
-      'https://www.sahibinden.com/kiralik-daire/istanbul-kadikoy/sahibinden?sorting=date_desc'
+      'https://www.sahibinden.com/emlak-konut/istanbul-kadikoy-caddebostan?a27=38460&sorting=date_desc'
     );
   });
 
-  it('eşyalı ve fiyat seçimlerini kaynak URL parametrelerine güvenli biçimde ekler', () => {
+  it('Türkçe konum adlarını güvenli URL parçalarına dönüştürür', () => {
     expect(
       buildSahibindenSearchUrl({
-        listingType: 'SALE',
-        propertyType: 'VILLA',
         province: 'Muğla',
         district: 'Bodrum',
-        furnished: 'YES',
-        minPrice: 5_000_000,
-        maxPrice: 25_000_000,
+        neighborhood: 'Gümüşlük',
+        propertyType: 'TURISTIK_TESIS',
       })
-    ).toBe(
-      'https://www.sahibinden.com/satilik-villa/mugla-bodrum/sahibinden?a103713=true&price_min=5000000&price_max=25000000&sorting=date_desc'
+    ).toContain(
+      '/emlak-turistik-tesis/mugla-bodrum-gumusluk?a27=38460&'
     );
   });
 
-  it('eşyasız seçimini açıkça taşır ve serbest URL/hostname kabul etmez', () => {
+  it('konut projelerini proje kaynağına yönlendirir', () => {
     expect(
       buildSahibindenSearchUrl({
-        listingType: 'RENT',
-        propertyType: 'RESIDENCE',
-        province: 'İzmir',
-        district: 'Çeşme',
-        furnished: 'NO',
-        minPrice: null,
-        maxPrice: null,
-      })
-    ).toContain('a103713=false');
-
-    expect(() =>
-      sahibindenSearchFiltersSchema.parse({
-        listingType: 'RENT',
-        propertyType: 'APARTMENT',
-        province: 'https://evil.example',
+        province: 'İstanbul',
         district: 'Kadıköy',
-        furnished: 'ANY',
+        neighborhood: 'Caddebostan',
+        propertyType: 'KONUT_PROJELERI',
       })
-    ).toThrow();
+    ).toBe(
+      'https://www.sahibinden.com/emlak-projeler/istanbul-kadikoy-caddebostan?sorting=date_desc'
+    );
   });
 
-  it('minimum fiyat maksimum fiyattan büyükse reddeder', () => {
+  it('site kategori yollarını güncel Sahibinden yollarıyla eşler', () => {
+    expect(
+      buildSahibindenSearchUrl({
+        province: 'Antalya',
+        district: 'Alanya',
+        neighborhood: 'Oba',
+        propertyType: 'DEVREN_MULK',
+      })
+    ).toContain('/devre-mulk/antalya-alanya-oba?');
+  });
+
+  it('serbest URL ve eksik mahalle kabul etmez', () => {
     expect(() =>
       sahibindenSearchFiltersSchema.parse({
-        listingType: 'SALE',
-        propertyType: 'APARTMENT',
-        province: 'Ankara',
-        district: 'Çankaya',
-        furnished: 'ANY',
-        minPrice: 10_000_000,
-        maxPrice: 1_000_000,
+        province: 'https://evil.example',
+        district: 'Kadıköy',
+        neighborhood: 'Caddebostan',
+        propertyType: 'KONUT',
+      })
+    ).toThrow();
+
+    expect(() =>
+      sahibindenSearchFiltersSchema.parse({
+        province: 'İstanbul',
+        district: 'Kadıköy',
       })
     ).toThrow();
   });

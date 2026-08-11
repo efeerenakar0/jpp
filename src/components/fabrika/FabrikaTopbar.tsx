@@ -40,6 +40,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import BusinessCeoLogo from '@/components/common/BusinessCeoLogo';
 import { BUSINESS_CEO_MODULES } from '@/lib/business-ceo-dashboard';
 import FabrikaCommandPalette from './FabrikaCommandPalette';
 import FabrikaJobIndicator from './FabrikaJobIndicator';
@@ -86,37 +87,43 @@ interface FabrikaTopbarProps {
   session: FabrikaClientSession;
 }
 
-function BusinessCeoWordmark({ bright = false }: { bright?: boolean }) {
+function BusinessCeoWordmark({ dashboardHome = false }: { dashboardHome?: boolean }) {
+  if (dashboardHome) {
+    return (
+      <Link
+        href="/fabrika"
+        className="group flex min-h-11 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        aria-label="Business CEO AI ana ekran"
+      >
+        <span
+          className="relative block h-6 w-[202px] shrink-0 overflow-hidden"
+          aria-hidden="true"
+        >
+          <Image
+            alt=""
+            className="pointer-events-none absolute left-[-28px] top-[-23px] h-[941px] w-[1672px] max-w-none select-none"
+            height={941}
+            src="/business-ceo/homepage-reference-v3.png"
+            unoptimized
+            width={1672}
+          />
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href="/fabrika"
       className="group flex min-h-11 items-center rounded-lg pr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       aria-label="Business CEO AI ana ekran"
     >
-      <span className={`flex min-w-0 whitespace-nowrap ${bright ? 'flex-col items-start leading-none' : 'items-center'}`}>
-        <span className={`font-black tracking-[-0.035em] ${
-          bright
-            ? 'text-[15px] text-[#070b16] sm:text-[18px] md:text-[21px]'
-            : 'text-[11px] tracking-[0.055em] text-white sm:text-[14px] md:text-[16px]'
-        }`}>
-          BUSINESS CEO{' '}
-          <span className="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            AI
-          </span>
-        </span>
-        {bright ? (
-          <span className="mt-1 text-[8px] font-bold uppercase tracking-[0.34em] text-blue-700 sm:text-[9px]">
-            Real Estate
-          </span>
-        ) : (
-          <>
-            <span className="mx-2 h-5 w-px shrink-0 bg-slate-600 sm:mx-3" aria-hidden="true" />
-            <span className="text-[10px] font-medium tracking-[0.04em] text-slate-300 sm:text-xs md:text-sm">
-              Real Estate
-            </span>
-          </>
-        )}
-      </span>
+      <BusinessCeoLogo
+        className="w-[146px] sm:w-[178px] md:w-[205px]"
+        decorative
+        priority
+        tone="dark"
+      />
     </Link>
   );
 }
@@ -224,13 +231,13 @@ export default function FabrikaTopbar({
   }
 
   return (
-    <header className={`relative z-40 flex min-h-[68px] shrink-0 items-center justify-between gap-3 border-b px-4 py-2 backdrop-blur-xl sm:px-6 lg:px-9 ${
+    <header className={`relative z-40 flex min-h-[68px] shrink-0 items-center justify-between gap-3 border-b py-2 backdrop-blur-xl ${
       isDashboardHome
-        ? 'border-[#cdd9e9] bg-[#f6f8fc]/95 text-[#0a1b53] shadow-[0_4px_18px_rgba(52,74,116,0.05)]'
-        : 'border-cyan-300/15 bg-[#050d18]/95'
+        ? 'border-[#15334b] bg-[linear-gradient(180deg,rgba(0,9,21,0.98),rgba(0,10,23,0.98))] px-4 text-slate-100 sm:px-6 lg:px-7'
+        : 'border-cyan-300/15 bg-[#050d18]/95 px-4 sm:px-6 lg:px-9'
     }`}>
       <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-        <BusinessCeoWordmark bright={isDashboardHome} />
+        <BusinessCeoWordmark dashboardHome={isDashboardHome} />
         {!isDashboardHome ? (
           <>
             <span className="hidden h-8 w-px bg-slate-800 lg:block" />
@@ -242,13 +249,13 @@ export default function FabrikaTopbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-        <FabrikaJobIndicator bright={isDashboardHome} />
+        <FabrikaJobIndicator bright={false} />
         <button
           type="button"
           onClick={() => setCommandOpen(true)}
           className={`hidden min-h-10 items-center gap-2 rounded-xl border px-3 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:flex ${
             isDashboardHome
-              ? 'border-slate-200 bg-white/75 text-[#425274] shadow-sm hover:border-blue-200 hover:bg-white hover:text-blue-700'
+              ? 'border-[#285071] bg-[#061426] text-slate-300 shadow-[0_0_18px_rgba(19,116,190,0.08)] hover:border-sky-400/55 hover:bg-[#0a1b30] hover:text-sky-200'
               : 'border-slate-800 bg-[#091525] text-slate-400 hover:border-cyan-300/30 hover:text-slate-100'
           }`}
           aria-label="Panelde ara"
@@ -263,7 +270,7 @@ export default function FabrikaTopbar({
           <Link
             className={`hidden min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:flex ${
               isDashboardHome
-                ? 'border-slate-200 bg-white/75 text-[#14285d] hover:border-blue-200 hover:bg-white'
+                ? 'border-[#365269] bg-[#0b1522] text-slate-100 hover:border-sky-400/45 hover:bg-[#101d2c]'
                 : 'border-amber-100/25 bg-amber-100/[0.04] text-slate-200 hover:border-amber-100/45 hover:bg-amber-100/[0.08]'
             }`}
             href="/fabrika/ayarlar"
@@ -272,13 +279,13 @@ export default function FabrikaTopbar({
             <span className="hidden lg:inline">Şirket Ayarlarınız</span>
           </Link>
         ) : null}
-        <NotificationBell bright={isDashboardHome} />
+        <NotificationBell bright={false} />
         <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
           <SheetTrigger asChild>
             <button
               className={`grid h-10 w-10 place-items-center rounded-xl border shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 isDashboardHome
-                  ? 'border-slate-200 bg-white/75 text-blue-700 hover:border-blue-200 hover:bg-white'
+                  ? 'border-[#285071] bg-[#061426] text-sky-300 hover:border-sky-400/55 hover:bg-[#0a1b30]'
                   : 'border-slate-800 bg-[#091525] text-slate-300 hover:border-cyan-300/35 hover:text-cyan-200'
               }`}
               type="button"
@@ -313,21 +320,21 @@ export default function FabrikaTopbar({
               type="button"
               className={`flex min-h-11 min-w-0 items-center gap-2 rounded-xl border px-1.5 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:px-2 ${
                 isDashboardHome
-                  ? 'border-slate-200 bg-white/75 hover:border-blue-200 hover:bg-white'
+                  ? 'border-[#203a52] bg-[#071421] hover:border-sky-400/45 hover:bg-[#0a1a2a]'
                   : 'border-transparent hover:border-cyan-300/25 hover:bg-cyan-300/[0.05]'
               }`}
               aria-label="Şirket ve hesap menüsü"
             >
-              <CompanyMark {...account} bright={isDashboardHome} />
+              <CompanyMark {...account} bright={false} />
               <span className="hidden min-w-0 max-w-40 lg:block">
-                <span className={`block truncate text-xs font-semibold ${isDashboardHome ? 'text-[#0a1b53]' : 'text-slate-100'}`}>
+                <span className="block truncate text-xs font-semibold text-slate-100">
                   {account.companyName}
                 </span>
-                <span className={`block truncate text-[10px] ${isDashboardHome ? 'text-[#61708e]' : 'text-slate-500'}`}>
+                <span className="block truncate text-[10px] text-slate-500">
                   {session.principalType === 'OWNER' ? 'Patron hesabı' : 'Çalışan hesabı'}
                 </span>
               </span>
-              <ChevronDown className={`hidden h-4 w-4 lg:block ${isDashboardHome ? 'text-[#61708e]' : 'text-slate-500'}`} aria-hidden="true" />
+              <ChevronDown className="hidden h-4 w-4 text-slate-500 lg:block" aria-hidden="true" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent

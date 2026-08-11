@@ -21,6 +21,8 @@ const payload: AuthorizedPoolPayload = {
       imageUrl: null,
       authorityExpiresAt: '2027-08-05T12:00:00.000Z',
       isOwn: false,
+      duplicateCount: 0,
+      authorizedOfficeCount: 1,
       request: null,
     },
   ],
@@ -50,7 +52,7 @@ describe('AuthorizedPoolView', () => {
 
     expect(html).toContain('Deniz manzaralı 3+1 daire');
     expect(html).toContain('Güven Emlak');
-    expect(html).toContain('Portföy sahibine ulaşma talebi gönder');
+    expect(html).toContain('İletişim iste');
     expect(html).not.toContain('Telefon');
     expect(html).not.toContain('Belge URL');
   });

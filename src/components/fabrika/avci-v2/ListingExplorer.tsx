@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   Check,
   Clipboard,
-  Download,
   ExternalLink,
   FileText,
   ImageIcon,
@@ -78,7 +77,6 @@ export default function ListingExplorer({
   );
   const [detail, setDetail] = useState<HuntingListingDetail | null>(null);
   const [query, setQuery] = useState('');
-  const [onlyContactReady, setOnlyContactReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -95,7 +93,6 @@ export default function ListingExplorer({
     try {
       const params = new URLSearchParams({ page: '1', pageSize: '48' });
       if (jobId) params.set('jobId', jobId);
-      if (onlyContactReady) params.set('contactReady', 'true');
       setResponse(
         await apiJson<HuntingListingsResponse>(
           `/api/fabrika/hunting/listings?${params}`
@@ -108,7 +105,7 @@ export default function ListingExplorer({
     } finally {
       setLoading(false);
     }
-  }, [jobId, onlyContactReady]);
+  }, [jobId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -144,7 +141,6 @@ export default function ListingExplorer({
         listing.province,
         listing.district,
         listing.neighborhood,
-        listing.sourceListingId,
       ]
         .filter(Boolean)
         .some((value) =>
@@ -166,16 +162,6 @@ export default function ListingExplorer({
     if (!detail) return;
     await loadDetail(detail.id);
     await loadListings();
-  }
-
-  function downloadCurrentJob() {
-    if (!jobId) return;
-    const link = document.createElement('a');
-    link.href = `/api/fabrika/hunting/jobs/${encodeURIComponent(jobId)}/export`;
-    link.download = '';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
   }
 
   async function evaluateContact(contact: HuntingContactSummary) {
@@ -297,7 +283,9 @@ export default function ListingExplorer({
     <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-white">İlan gezgini</h2>
+          <h2 className="text-base font-semibold text-white">
+            Keşfedilen &amp; İletişim Sürecine Alınan Portföyler
+          </h2>
           <p className="mt-1 text-xs text-slate-400">
             Galeri, açıklama, tüm özellikler, veri tamlığı ve güvenli iletişim
             durumunu tek ekranda inceleyin.
@@ -309,29 +297,10 @@ export default function ListingExplorer({
             <input
               className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 pl-9 pr-3 text-xs text-white outline-none focus:border-emerald-500 sm:w-72"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Başlık, konum veya ilan no ara"
+              placeholder="Başlık veya konum ara"
               value={query}
             />
           </label>
-          <label className="flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-300">
-            <input
-              checked={onlyContactReady}
-              className="accent-emerald-500"
-              onChange={(event) => setOnlyContactReady(event.target.checked)}
-              type="checkbox"
-            />
-            Sadece iletişime hazır
-          </label>
-          <Button
-            className="h-9 border-slate-700 bg-slate-950 px-3 text-xs text-slate-300 hover:bg-slate-800"
-            disabled={!jobId}
-            onClick={downloadCurrentJob}
-            type="button"
-            variant="outline"
-          >
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            JSON indir
-          </Button>
           <Button
             aria-label="İlanları yenile"
             className="h-9 border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800"

@@ -10,6 +10,7 @@ import {
   authorizedPoolEligibility,
   sanitizeAuthorizedPoolListing,
 } from './authorized-portfolio-pool';
+import { deduplicateAuthorizedPool } from './authorized-portfolio-pool-dedupe';
 
 type PrincipalRef = { type: 'OWNER' | 'EMPLOYEE'; id: string };
 
@@ -174,6 +175,7 @@ export async function listAuthorizedPortfolioPool(
           area: true,
           propertyType: true,
           imageUrl: true,
+          sourceListingId: true,
           status: true,
           authorityDocumentVerifiedAt: true,
           authorityExpiresAt: true,
@@ -190,7 +192,7 @@ export async function listAuthorizedPortfolioPool(
     take: 100,
   });
 
-  return shares.flatMap((share) => {
+  const eligibleShares = shares.flatMap((share) => {
     if (share.property.companyAccountId !== share.ownerCompanyAccountId) return [];
     const eligibility = authorizedPoolEligibility(
       {
@@ -208,9 +210,24 @@ export async function listAuthorizedPortfolioPool(
     );
     if (!eligibility.eligible) return [];
 
-    const request = share.contactRequests[0] ?? null;
-    return [
-      {
+    return [{
+      ...share,
+      isOwn: share.ownerCompanyAccountId === requesterCompanyAccountId,
+      hasRequesterHistory: share.contactRequests.length > 0,
+      sourceListingId: share.property.sourceListingId,
+      title: share.property.title,
+      location: share.property.location,
+      price: share.property.price,
+      roomCount: share.property.roomCount,
+      area: share.property.area,
+      propertyType: share.property.propertyType,
+    }];
+  });
+
+  return deduplicateAuthorizedPool(eligibleShares).map(
+    ({ representative: share, duplicateCount, authorizedOfficeCount }) => {
+      const request = share.contactRequests[0] ?? null;
+      return {
         ...sanitizeAuthorizedPoolListing({
           id: share.id,
           propertyId: share.property.id,
@@ -225,7 +242,9 @@ export async function listAuthorizedPortfolioPool(
           imageUrl: share.property.imageUrl,
           authorityExpiresAt: share.authorityExpiresAt,
         }),
-        isOwn: share.ownerCompanyAccountId === requesterCompanyAccountId,
+        isOwn: share.isOwn,
+        duplicateCount,
+        authorizedOfficeCount,
         request: request
           ? {
               id: request.id,
@@ -233,9 +252,9 @@ export async function listAuthorizedPortfolioPool(
               createdAt: request.createdAt.toISOString(),
             }
           : null,
-      },
-    ];
-  });
+      };
+    }
+  );
 }
 
 export async function listPoolManagement(companyAccountId: string, now: Date) {

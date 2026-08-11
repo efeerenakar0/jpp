@@ -59,3 +59,18 @@ export async function fetchDistrictOptions(
   url.searchParams.set('limit', '1000');
   return fetchLocationOptions(url, fetcher);
 }
+
+export async function fetchNeighborhoodOptions(
+  districtId: number,
+  fetcher: LocationFetcher = fetch
+) {
+  if (!Number.isInteger(districtId) || districtId < 1) {
+    throw new Error('Geçerli bir ilçe seçin.');
+  }
+  const url = new URL(
+    `${LOCATION_API_BASE_URL}/districts/${districtId}/neighborhoods`
+  );
+  url.searchParams.set('fields', 'id,name');
+  url.searchParams.set('limit', '1000');
+  return fetchLocationOptions(url, fetcher);
+}

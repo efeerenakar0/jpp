@@ -46,47 +46,6 @@ export type BusinessCeoDashboardViewProps = {
   initialWorkflowIntent?: PortfolioWorkflowLaunchIntent | null;
 };
 
-function DashboardStatusBar({
-  error,
-  loading,
-  whatsappError,
-}: {
-  error: string | null;
-  loading: boolean;
-  whatsappError: string | null;
-}) {
-  const status = loading
-    ? { label: 'Sistem durumu: Kontrol ediliyor', tone: 'checking' }
-    : error || whatsappError
-      ? { label: 'Sistem durumu: Kontrol gerekli', tone: 'warning' }
-      : { label: 'Sistem durumu: Tüm servisler çalışıyor', tone: 'healthy' };
-
-  return (
-    <footer
-      aria-label="Business CEO AI sistem durumu"
-      className={styles.statusBar}
-    >
-      <div className={styles.statusBarInner}>
-        <div aria-label="Business CEO AI | Real Estate" className={styles.footerBrand}>
-          <span>BUSINESS CEO</span>
-          <span className={styles.footerAi}>AI</span>
-          <span aria-hidden="true" className={styles.footerDivider} />
-          <span className={styles.footerSector}>Real Estate</span>
-        </div>
-        <div
-          aria-live="polite"
-          className={styles.systemStatus}
-          data-status={status.tone}
-          role="status"
-        >
-          <span aria-hidden="true" className={styles.systemStatusDot} />
-          {status.label}
-        </div>
-      </div>
-    </footer>
-  );
-}
-
 function metricValue(value: number | null | undefined) {
   return typeof value === 'number'
     ? new Intl.NumberFormat('tr-TR').format(value)
@@ -149,30 +108,6 @@ function DashboardMetricStrip({ metrics }: { metrics: AssistantMetrics | null })
   );
 }
 
-const REFERENCE_BRANDS = [
-  ['NOVA', 'REALTY'],
-  ['VISTA', 'HOMES'],
-  ['URBANCORE', ''],
-  ['PRIME', 'ESTATE'],
-  ['BLUEHARBOR', ''],
-] as const;
-
-function ReferenceRibbon() {
-  return (
-    <div aria-label="Örnek iş ortakları" className={styles.referenceRibbon}>
-      {REFERENCE_BRANDS.map(([name, suffix], index) => (
-        <div className={styles.referenceBrand} key={name}>
-          <span aria-hidden="true" className={styles.referenceMark} data-mark={index + 1} />
-          <span>
-            <strong>{name}</strong>
-            {suffix ? <small>{suffix}</small> : null}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function BusinessCeoDashboardView({
   appointments,
   conversations,
@@ -218,14 +153,7 @@ export function BusinessCeoDashboardView({
         </div>
         <DashboardMetricStrip metrics={metrics} />
         <ModuleCardGrid onSelect={setSelectedModule} />
-        <ReferenceRibbon />
       </div>
-
-      <DashboardStatusBar
-        error={error}
-        loading={loading}
-        whatsappError={whatsappError}
-      />
 
       <ModuleLaunchDialog
         module={selectedModule}

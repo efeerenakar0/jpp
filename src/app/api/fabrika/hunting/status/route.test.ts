@@ -99,7 +99,10 @@ describe('/api/fabrika/hunting/status', () => {
     const response = await GET();
     expect(response.status).toBe(200);
     expect(mocks.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { companyAccountId: 'company-a' } })
+      expect.objectContaining({
+        where: { companyAccountId: 'company-a' },
+        select: expect.objectContaining({ createdAt: true }),
+      })
     );
   });
 

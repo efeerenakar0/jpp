@@ -51,8 +51,10 @@ import {
 import {
   ChangeEvent,
   FormEvent,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { toast } from 'sonner';
@@ -508,9 +510,13 @@ async function fetchLocationOptions(
 export default function WorkspacePage({
   mode,
   initialView,
+  initialPropertyId,
+  initialOpenMedia = false,
 }: {
   mode: WorkspaceMode;
   initialView?: WorkspaceInitialView;
+  initialPropertyId?: string;
+  initialOpenMedia?: boolean;
 }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
@@ -528,6 +534,7 @@ export default function WorkspacePage({
   );
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [mediaProperty, setMediaProperty] = useState<Property | null>(null);
+  const initialPropertyAppliedRef = useRef(false);
   const [profileView, setProfileView] = useState<
     'overview' | 'activity'
   >('overview');
@@ -546,7 +553,7 @@ export default function WorkspacePage({
   );
   const meta = pageMeta[mode];
 
-  async function loadWorkspace() {
+  const loadWorkspace = useCallback(async () => {
     try {
       const response = await fetch('/api/fabrika/workspace', {
         cache: 'no-store',
@@ -556,6 +563,16 @@ export default function WorkspacePage({
         throw new Error(data.error || 'Çalışma alanı yüklenemedi.');
       }
       setWorkspace(data.workspace);
+      if (initialPropertyId && !initialPropertyAppliedRef.current) {
+        const requestedProperty = (data.workspace.properties as Property[]).find(
+          (property) => property.id === initialPropertyId
+        );
+        if (requestedProperty) {
+          setSelectedPropertyId(requestedProperty.id);
+          if (initialOpenMedia) setMediaProperty(requestedProperty);
+        }
+        initialPropertyAppliedRef.current = true;
+      }
       if (data.oneTimeCredentials) {
         setMemberCredentials(data.oneTimeCredentials);
       }
@@ -564,7 +581,7 @@ export default function WorkspacePage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [initialOpenMedia, initialPropertyId]);
 
   useEffect(() => {
     const initialLoad = window.setTimeout(loadWorkspace, 0);
@@ -573,7 +590,7 @@ export default function WorkspacePage({
       window.clearTimeout(initialLoad);
       window.clearInterval(refreshInterval);
     };
-  }, []);
+  }, [loadWorkspace]);
 
   async function postAction(
     payload: Record<string, unknown>,

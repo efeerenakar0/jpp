@@ -1010,6 +1010,7 @@ model CompanyAccount {
   huntedOutreachApprovals     HuntedOutreachApproval[]
   websiteIntegrations         WebsiteIntegration[]
   generatedWebsites           GeneratedWebsite[]
+  developerWorkspace          DeveloperWorkspace?
   websitePromptVersions       WebsitePromptVersion[]
   propertyMedia               CrmPropertyMedia[]
   studioBatches               StudioBatch[]
@@ -2254,6 +2255,34 @@ model GeneratedWebsite {
   promptVersions   WebsitePromptVersion[]
 
   @@index([companyAccountId, createdAt])
+}
+
+model DeveloperWorkspace {
+  id                String         @id @default(cuid())
+  companyAccountId  String         @unique
+  companyAccount    CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade, map: "DeveloperWorkspace_company_fkey")
+  websiteMode       String         @default("UNDECIDED")
+  siteStatus        String         @default("DRAFT")
+  temporarySlug     String         @unique
+  customHostname    String?        @unique
+  cnameTarget       String         @default("cname.vercel-dns-0.com")
+  domainStatus      String         @default("NOT_CONFIGURED")
+  sslStatus         String         @default("NOT_CONFIGURED")
+  brandName         String
+  logoData          String?        @db.Text
+  primaryColor      String         @default("#0f766e")
+  accentColor       String         @default("#14b8a6")
+  contactEmail      String?
+  contactPhone      String?
+  whatsappPhone     String?
+  address           String?        @db.Text
+  socialAccounts    Json           @default("[]")
+  lastDomainCheckAt DateTime?
+  publishedAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([siteStatus, updatedAt], map: "DeveloperWorkspace_site_status_idx")
 }
 
 model WebsiteIntegration {
