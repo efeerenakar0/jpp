@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   requireFabrikaPrincipal: vi.fn(),
   updateMany: vi.fn(),
   enforceRateLimit: vi.fn(),
+  dispatchQueuedHuntWorker: vi.fn(),
 }));
 
 vi.mock('@/lib/fabrika-session', () => ({
@@ -22,6 +23,10 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/hunting-v2/rate-limit', () => ({
   enforceHuntingRateLimit: mocks.enforceRateLimit,
+}));
+
+vi.mock('@/lib/hunting-v2/worker-dispatch', () => ({
+  dispatchQueuedHuntWorker: mocks.dispatchQueuedHuntWorker,
 }));
 
 vi.mock('@/lib/hunting-v2/api', () => ({
@@ -44,6 +49,10 @@ describe('Avcı job resume route', () => {
       member: null,
     });
     mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.dispatchQueuedHuntWorker.mockResolvedValue({
+      status: 'started',
+      runId: 'run-a',
+    });
   });
 
   it('yalnız aynı tenant içindeki duraklatılmış işi kuyruğa alır', async () => {
@@ -60,7 +69,9 @@ describe('Avcı job resume route', () => {
     await expect(response.json()).resolves.toEqual({
       jobId: 'job-a',
       status: 'QUEUED',
+      workerRunId: 'run-a',
     });
+    expect(mocks.dispatchQueuedHuntWorker).toHaveBeenCalledWith('job-a');
     expect(mocks.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'job-a',

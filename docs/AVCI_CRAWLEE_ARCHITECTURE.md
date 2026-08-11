@@ -127,8 +127,10 @@ yalnız durdurulabilir durumları yeniden `QUEUED` yapar.
 ## Tarama temposu ve doğal bitiş
 
 - Kullanıcı arayüzünde sayfa, bekleme veya eşzamanlılık ayarı yoktur.
-- Worker tek istek eşzamanlılığıyla çalışır ve aynı alan adına varsayılan olarak
-  en az 13 saniye ara verir.
+- Worker tek istek eşzamanlılığıyla çalışır. Job içindeki seri başlangıç kapısı,
+  `robots.txt` ile her LIST/DETAIL top-level navigasyon başlangıcını en az
+  13 saniye ayırır. Crawlee'nin alan adı gecikmesi ek korumadır; bu garantinin
+  kaynağı değildir.
 - `AVCI_CRAWLER_DELAY_SECS` 13–300 saniye,
   `AVCI_CRAWLER_MAX_REQUESTS_PER_MINUTE` 1–5 aralığında sunucudan
   yapılandırılabilir.
@@ -138,9 +140,13 @@ yalnız durdurulabilir durumları yeniden `QUEUED` yapar.
 - Canlı Apify Actor işi Türkiye `RESIDENTIAL` havuzundan tek bir oturum seçer.
   Aynı iş boyunca oturum, çerez ve çıkış tutarlı kalır; yeni iş yeni oturumla
   başlar. Sağlayıcı farklı bir IP verebilir ancak benzersiz IP garantisi yoktur.
-- `robots.txt` kontrolü de aynı proxy oturumundan yapılır. İlk sayfa isteği bu
-  kontrolün başlangıcından en az 13 saniye sonra başlar ve izin verilmeyen her
-  LIST/DETAIL adresi navigasyondan önce reddedilir.
+- `robots.txt` kontrolü de aynı proxy oturumundan ve aynı başlangıç kapısından
+  yapılır. İzin verilmeyen her LIST/DETAIL adresi navigasyondan önce reddedilir.
+- Bu kapı process/job-local'dır. Standby kullanılmayan Actor'da her Run API
+  çağrısı ayrı bir run başlatabilir ve hesap planı birden fazla eşzamanlı Actor
+  run'ina izin verebilir. İlk canlı denemede aynı anda yalnız bir Actor run
+  çalıştırılmalıdır; yatay ölçeklemeden önce PostgreSQL advisory lock veya
+  Redis/KV tabanlı alan-adı başlangıç kapısı gerekir.
 - Worker kendini `Business-AI-Portfoy-Uzmani/2.0` adıyla bildirir; challenge
   sonrası proxy/oturum değiştirerek yeniden deneme, gizlenme veya challenge
   aşma kullanmaz.
@@ -381,13 +387,16 @@ yeniden sahiplenebilir. İlk canlı açılışta tek replica kullanılmalıdır.
 Ücretsiz deneme ve düşük hacimli kullanım için `.actor/actor.json`, aynı
 `Dockerfile.avci-worker` konteynerini `AVCI_RUN_ONCE=true` ile çalıştırır.
 Vercel, yalnız `QUEUED` durumunda bir iş oluştuğunda Apify Run Actor API'sini
-Bearer token ile çağırır. Actor kuyruktan en eski işi atomik biçimde sahiplenir,
-tek işi tamamlar ve kapanır; boş kuyrukta bekleyerek kredi tüketmez.
+Bearer token ile çağırır. Actor input'una yalnız `jobId` ve 20 dakika geçerli,
+tek işe bağlı HMAC capability eklenir. Actor bu işi tamamlar ve kapanır; boş
+kuyrukta bekleyerek kredi tüketmez.
 
 Vercel tarafında `AVCI_WORKER_DISPATCH_MODE=apify`,
-`APIFY_AVCI_ACTOR_ID` ve secret store içinde `APIFY_TOKEN` gerekir. Apify
-tarafında web uygulamasıyla aynı `DATABASE_URL`,
-`HUNTING_CONTACT_ENCRYPTION_KEY` ve `HUNTING_CONTACT_HMAC_KEY` kullanılır.
+`APIFY_AVCI_ACTOR_ID`, secret store içinde `APIFY_TOKEN` ve en az 32 karakterlik
+`AVCI_WORKER_SIGNING_SECRET` gerekir. Apify tarafında yalnız sabit
+`AVCI_WORKER_API_URL` bulunur; `DATABASE_URL`, telefon şifreleme/HMAC anahtarları
+ve Blob token Actor'a verilmez. Veritabanı ve kişisel veri işlemleri Vercel'deki
+korumalı internal API tarafında yapılır.
 Actor tanımı `AVCI_APIFY_PROXY_REQUIRED=true`, `RESIDENTIAL` grup ve `TR` ülke
 ayarını zorunlu tutar. Hesap bu proxyye erişemiyorsa doğrudan bağlantıya düşmez;
 iş güvenli biçimde başarısız olur.
@@ -417,6 +426,8 @@ sağlayıcı hata gövdesi ve token uygulama hata mesajlarına taşınmaz.
 - `AVCI_WORKER_STALE_MS`
 - `AVCI_WORKER_DISPATCH_MODE`
 - `AVCI_RUN_ONCE`
+- `AVCI_WORKER_API_URL`
+- `AVCI_WORKER_SIGNING_SECRET`
 - `APIFY_AVCI_ACTOR_ID`
 - `APIFY_TOKEN`
 - `AVCI_CONTACT_RETENTION_DAYS`
