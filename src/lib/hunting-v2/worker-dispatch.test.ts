@@ -46,7 +46,7 @@ describe('Avcı worker tetikleyicisi', () => {
     expect(`${url.origin}${url.pathname}`).toBe(
       'https://api.apify.com/v2/actors/efeerenakar0~business-ai-portfoy-uzmani/runs'
     );
-    expect(url.searchParams.get('memory')).toBe('512');
+    expect(url.searchParams.get('memory')).toBe('2048');
     expect(url.searchParams.get('timeout')).toBe('900');
     expect(url.searchParams.get('maxTotalChargeUsd')).toBe('0.25');
     expect(requestInit).toMatchObject({

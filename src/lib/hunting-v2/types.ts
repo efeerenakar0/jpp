@@ -78,6 +78,7 @@ export type ParsedSearchListing = {
 export type ParsedSearchPage = {
   listings: ParsedSearchListing[];
   nextPageUrl: string | null;
+  reportedTotal: number | null;
 };
 
 export type ParsedListingImage = {

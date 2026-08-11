@@ -127,15 +127,29 @@ yalnız durdurulabilir durumları yeniden `QUEUED` yapar.
 ## Tarama temposu ve doğal bitiş
 
 - Kullanıcı arayüzünde sayfa, bekleme veya eşzamanlılık ayarı yoktur.
-- Worker tek istek eşzamanlılığıyla çalışır ve aynı alan adına varsayılan olarak
-  20 saniye ara verir.
-- `AVCI_CRAWLER_DELAY_SECS` 10–300 saniye,
-  `AVCI_CRAWLER_MAX_REQUESTS_PER_MINUTE` 1–6 aralığında sunucudan
+- Worker tek istek eşzamanlılığıyla çalışır. Job içindeki seri başlangıç kapısı,
+  `robots.txt` ile her LIST/DETAIL top-level navigasyon başlangıcını en az
+  13 saniye ayırır. Crawlee'nin alan adı gecikmesi ek korumadır; bu garantinin
+  kaynağı değildir.
+- `AVCI_CRAWLER_DELAY_SECS` 13–300 saniye,
+  `AVCI_CRAWLER_MAX_REQUESTS_PER_MINUTE` 1–5 aralığında sunucudan
   yapılandırılabilir.
-- Sabit bir sayfa sınırı uygulanmaz. Sonraki sayfa bağlantısı kalmadığında kuyruk
-  doğal olarak tamamlanır; yinelenen URL ve ilanlar benzersiz anahtarla elenir.
-- Worker kendini `Business-AI-Portfoy-Uzmani/2.0` adıyla bildirir; oturum
-  döndürme, gizlenme veya challenge aşma kullanmaz.
+- İş başına ilan sayısı en fazla 11'dir. Ortam değeri daha yüksek verilse bile
+  worker 12. ilanı kuyruğa almaz; yinelenen URL ve ilanlar benzersiz anahtarla
+  elenir.
+- Canlı Apify Actor işi Türkiye `RESIDENTIAL` havuzundan tek bir oturum seçer.
+  Aynı iş boyunca oturum, çerez ve çıkış tutarlı kalır; yeni iş yeni oturumla
+  başlar. Sağlayıcı farklı bir IP verebilir ancak benzersiz IP garantisi yoktur.
+- `robots.txt` kontrolü de aynı proxy oturumundan ve aynı başlangıç kapısından
+  yapılır. İzin verilmeyen her LIST/DETAIL adresi navigasyondan önce reddedilir.
+- Bu kapı process/job-local'dır. Standby kullanılmayan Actor'da her Run API
+  çağrısı ayrı bir run başlatabilir ve hesap planı birden fazla eşzamanlı Actor
+  run'ina izin verebilir. İlk canlı denemede aynı anda yalnız bir Actor run
+  çalıştırılmalıdır; yatay ölçeklemeden önce PostgreSQL advisory lock veya
+  Redis/KV tabanlı alan-adı başlangıç kapısı gerekir.
+- Worker kendini `Business-AI-Portfoy-Uzmani/2.0` adıyla bildirir; challenge
+  sonrası proxy/oturum değiştirerek yeniden deneme, gizlenme veya challenge
+  aşma kullanmaz.
 
 ## JSON çıktısı
 
@@ -337,8 +351,9 @@ saklama politikasına uygun zamanlanmış iş eklenmelidir.
   işlemiyle görünür ve kontrollüdür.
 - Kısmi detaylar `PARTIAL`, erişilemeyen kayıtlar uygun acquisition durumuyla
   tutulur.
-- Challenge algılanırsa `SOURCE_CHALLENGE` kaydedilir, hassas veri içermeyen
-  özet oluşturulur ve aşma denenmez.
+- HTTP 401, 403 veya 429 ya da challenge içeriği algılanırsa
+  `SOURCE_CHALLENGE` kaydedilir, hassas veri içermeyen özet oluşturulur ve aşma
+  denenmez.
 - Resume öncesinde kaynak erişimi, sözleşme ve challenge sebebi insan
   tarafından kontrol edilmelidir.
 
@@ -379,6 +394,9 @@ Vercel tarafında `AVCI_WORKER_DISPATCH_MODE=apify`,
 `APIFY_AVCI_ACTOR_ID` ve secret store içinde `APIFY_TOKEN` gerekir. Apify
 tarafında web uygulamasıyla aynı `DATABASE_URL`,
 `HUNTING_CONTACT_ENCRYPTION_KEY` ve `HUNTING_CONTACT_HMAC_KEY` kullanılır.
+Actor tanımı `AVCI_APIFY_PROXY_REQUIRED=true`, `RESIDENTIAL` grup ve `TR` ülke
+ayarını zorunlu tutar. Hesap bu proxyye erişemiyorsa doğrudan bağlantıya düşmez;
+iş güvenli biçimde başarısız olur.
 Eski `enc:v1` kayıtları yalnız web uygulamasında mevcut WhatsApp anahtarıyla
 geriye dönük okunur; yeni Avcı kayıtları ayrı anahtarla `contact:v1` olarak
 şifrelenir.
@@ -394,8 +412,13 @@ sağlayıcı hata gövdesi ve token uygulama hata mesajlarına taşınmaz.
 - `AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_REFERENCE`
 - `AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_STARTS_AT`
 - `AVCI_SAHIBINDEN_PLATFORM_AUTHORIZATION_EXPIRES_AT`
-- `AVCI_CRAWLER_CONCURRENCY`
-- `AVCI_CRAWLER_MAX_REQUESTS`
+- `AVCI_CRAWLER_DELAY_SECS`
+- `AVCI_CRAWLER_MAX_REQUESTS_PER_MINUTE`
+- `AVCI_CRAWLER_MAX_LISTINGS_PER_JOB`
+- `AVCI_APIFY_PROXY_ENABLED`
+- `AVCI_APIFY_PROXY_REQUIRED`
+- `AVCI_APIFY_PROXY_GROUPS`
+- `AVCI_APIFY_PROXY_COUNTRY_CODE`
 - `AVCI_WORKER_POLL_MS`
 - `AVCI_WORKER_STALE_MS`
 - `AVCI_WORKER_DISPATCH_MODE`
