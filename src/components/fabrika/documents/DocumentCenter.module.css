@@ -13,6 +13,22 @@
   color: var(--doc-text);
 }
 
+.embeddedPage {
+  width: 100%;
+  min-width: 0;
+  gap: 14px;
+  padding: 0;
+  background: transparent;
+}
+
+.embeddedPage .tabs {
+  top: 8px;
+  border: 1px solid var(--doc-border);
+  border-radius: 10px;
+  padding-inline: 6px;
+  background: rgba(7, 19, 29, 0.94);
+}
+
 .hero {
   display: flex;
   align-items: end;

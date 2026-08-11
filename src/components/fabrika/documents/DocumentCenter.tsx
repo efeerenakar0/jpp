@@ -48,6 +48,12 @@ import styles from './DocumentCenter.module.css';
 
 type MainTab = 'catalog' | 'drafts' | 'completed' | 'archive';
 
+export type DocumentCenterVariant = 'standalone' | 'embedded';
+
+type DocumentCenterProps = {
+  variant?: DocumentCenterVariant;
+};
+
 const tabItems: Array<{
   id: MainTab;
   label: string;
@@ -240,7 +246,9 @@ function DocumentList({
   );
 }
 
-export default function DocumentCenter() {
+export default function DocumentCenter({
+  variant = 'standalone',
+}: DocumentCenterProps) {
   const [data, setData] = useState<DocumentCenterPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<MainTab>('catalog');
@@ -403,57 +411,66 @@ export default function DocumentCenter() {
 
   if (loading || !data) return <LoadingState />;
 
+  const embedded = variant === 'embedded';
+
   return (
-    <div className={styles.page}>
-      <header className={styles.hero}>
-        <div>
-          <p className={styles.eyebrow}>M6 · SÖZLEŞME VE BELGELER</p>
-          <div className={styles.titleRow}>
-            <span className={styles.titleIcon} aria-hidden="true">
-              <Files />
-            </span>
-            <div>
-              <h1>Belge Merkezi</h1>
-              <p>
-                Gayrimenkul sözleşmeleri ve formlarınızı hazırlayın, onay
-                süreçlerini yönetin ve sürümlü PDF veya DOCX olarak arşivleyin.
-              </p>
+    <div
+      className={`${styles.page} ${embedded ? styles.embeddedPage : ''}`}
+      data-variant={variant}
+    >
+      {!embedded ? (
+        <header className={styles.hero}>
+          <div>
+            <p className={styles.eyebrow}>M6 · SÖZLEŞME VE BELGELER</p>
+            <div className={styles.titleRow}>
+              <span className={styles.titleIcon} aria-hidden="true">
+                <Files />
+              </span>
+              <div>
+                <h1>Belge Merkezi</h1>
+                <p>
+                  Gayrimenkul sözleşmeleri ve formlarınızı hazırlayın, onay
+                  süreçlerini yönetin ve sürümlü PDF veya DOCX olarak arşivleyin.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-        <div className={styles.heroActions}>
-          <button type="button" onClick={() => setTab('completed')}>
-            <History aria-hidden="true" /> Geçmiş
-          </button>
-          <button type="button" onClick={switchToCatalog}>
-            <Settings2 aria-hidden="true" /> Şablon yönetimi
-          </button>
-        </div>
-      </header>
+          <div className={styles.heroActions}>
+            <button type="button" onClick={() => setTab('completed')}>
+              <History aria-hidden="true" /> Geçmiş
+            </button>
+            <button type="button" onClick={switchToCatalog}>
+              <Settings2 aria-hidden="true" /> Şablon yönetimi
+            </button>
+          </div>
+        </header>
+      ) : null}
 
-      <section className={styles.actionBar}>
-        <button
-          type="button"
-          onClick={switchToCatalog}
-          className={styles.newDocumentButton}
-        >
-          <Plus aria-hidden="true" /> Yeni belge
-        </button>
-        <button
-          type="button"
-          onClick={switchToCatalog}
-          className={styles.templateManagementButton}
-        >
-          <FileSignature aria-hidden="true" /> Şablon kataloğu
-        </button>
-        <div className={styles.legalNotice}>
-          <ShieldCheck aria-hidden="true" />
-          <span>
-            Belgeleriniz ıslak imza, e-imza ve mevzuata uygunluk kontrolüne
-            hazır biçimde saklanır. {DOCUMENT_LEGAL_NOTICE}
-          </span>
-        </div>
-      </section>
+      {!embedded ? (
+        <section className={styles.actionBar}>
+          <button
+            type="button"
+            onClick={switchToCatalog}
+            className={styles.newDocumentButton}
+          >
+            <Plus aria-hidden="true" /> Yeni belge
+          </button>
+          <button
+            type="button"
+            onClick={switchToCatalog}
+            className={styles.templateManagementButton}
+          >
+            <FileSignature aria-hidden="true" /> Şablon kataloğu
+          </button>
+          <div className={styles.legalNotice}>
+            <ShieldCheck aria-hidden="true" />
+            <span>
+              Belgeleriniz ıslak imza, e-imza ve mevzuata uygunluk kontrolüne
+              hazır biçimde saklanır. {DOCUMENT_LEGAL_NOTICE}
+            </span>
+          </div>
+        </section>
+      ) : null}
 
       <section className={styles.metrics} aria-label="Belge Merkezi özeti">
         {[
