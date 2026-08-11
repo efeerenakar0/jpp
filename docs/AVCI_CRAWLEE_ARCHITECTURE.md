@@ -387,13 +387,16 @@ yeniden sahiplenebilir. İlk canlı açılışta tek replica kullanılmalıdır.
 Ücretsiz deneme ve düşük hacimli kullanım için `.actor/actor.json`, aynı
 `Dockerfile.avci-worker` konteynerini `AVCI_RUN_ONCE=true` ile çalıştırır.
 Vercel, yalnız `QUEUED` durumunda bir iş oluştuğunda Apify Run Actor API'sini
-Bearer token ile çağırır. Actor kuyruktan en eski işi atomik biçimde sahiplenir,
-tek işi tamamlar ve kapanır; boş kuyrukta bekleyerek kredi tüketmez.
+Bearer token ile çağırır. Actor input'una yalnız `jobId` ve 20 dakika geçerli,
+tek işe bağlı HMAC capability eklenir. Actor bu işi tamamlar ve kapanır; boş
+kuyrukta bekleyerek kredi tüketmez.
 
 Vercel tarafında `AVCI_WORKER_DISPATCH_MODE=apify`,
-`APIFY_AVCI_ACTOR_ID` ve secret store içinde `APIFY_TOKEN` gerekir. Apify
-tarafında web uygulamasıyla aynı `DATABASE_URL`,
-`HUNTING_CONTACT_ENCRYPTION_KEY` ve `HUNTING_CONTACT_HMAC_KEY` kullanılır.
+`APIFY_AVCI_ACTOR_ID`, secret store içinde `APIFY_TOKEN` ve en az 32 karakterlik
+`AVCI_WORKER_SIGNING_SECRET` gerekir. Apify tarafında yalnız sabit
+`AVCI_WORKER_API_URL` bulunur; `DATABASE_URL`, telefon şifreleme/HMAC anahtarları
+ve Blob token Actor'a verilmez. Veritabanı ve kişisel veri işlemleri Vercel'deki
+korumalı internal API tarafında yapılır.
 Actor tanımı `AVCI_APIFY_PROXY_REQUIRED=true`, `RESIDENTIAL` grup ve `TR` ülke
 ayarını zorunlu tutar. Hesap bu proxyye erişemiyorsa doğrudan bağlantıya düşmez;
 iş güvenli biçimde başarısız olur.
@@ -423,6 +426,8 @@ sağlayıcı hata gövdesi ve token uygulama hata mesajlarına taşınmaz.
 - `AVCI_WORKER_STALE_MS`
 - `AVCI_WORKER_DISPATCH_MODE`
 - `AVCI_RUN_ONCE`
+- `AVCI_WORKER_API_URL`
+- `AVCI_WORKER_SIGNING_SECRET`
 - `APIFY_AVCI_ACTOR_ID`
 - `APIFY_TOKEN`
 - `AVCI_CONTACT_RETENTION_DAYS`

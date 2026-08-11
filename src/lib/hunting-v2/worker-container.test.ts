@@ -50,6 +50,9 @@ describe('Avcı worker konteyneri', () => {
       usesStandbyMode: false,
       environmentVariables: {
         AVCI_RUN_ONCE: 'true',
+        AVCI_LIVE_PROVIDER_ENABLED: 'true',
+        AVCI_WORKER_API_URL:
+          'https://jpp-ufeb.vercel.app/api/internal/hunting-worker',
         AVCI_APIFY_PROXY_ENABLED: 'true',
         AVCI_APIFY_PROXY_REQUIRED: 'true',
         AVCI_APIFY_PROXY_GROUPS: 'RESIDENTIAL',
@@ -64,5 +67,17 @@ describe('Avcı worker konteyneri', () => {
     expect(dockerfile).toContain(
       'CMD ["xvfb-run", "-a", "npm", "run", "worker:avci"]'
     );
+  });
+
+  it('Actor veri duzlemi veritabani ve telefon sirlarini dogrudan import etmez', () => {
+    const worker = readFileSync(
+      join(process.cwd(), 'src/lib/hunting-v2/worker.ts'),
+      'utf8'
+    );
+
+    expect(worker).not.toContain("from '@/lib/prisma'");
+    expect(worker).not.toContain("from './contact-crypto'");
+    expect(worker).not.toContain("from './authorized-source-contact'");
+    expect(worker).not.toContain("from './media'");
   });
 });

@@ -1,5 +1,8 @@
 import 'server-only';
 
+import { randomUUID } from 'node:crypto';
+import { createHuntWorkerCapability } from './worker-capability';
+
 type DispatchEnvironment = Readonly<Record<string, string | undefined>>;
 
 type DispatchDependencies = {
@@ -36,6 +39,7 @@ function apifyRunUrl(actorId: string) {
 }
 
 export async function dispatchQueuedHuntWorker(
+  jobId: string,
   dependencies: DispatchDependencies = {}
 ): Promise<WorkerDispatchResult> {
   const env = dependencies.env || process.env;
@@ -55,6 +59,19 @@ export async function dispatchQueuedHuntWorker(
   }
 
   const fetchImpl = dependencies.fetchImpl || fetch;
+  const capability = createHuntWorkerCapability(
+    {
+      jobId,
+      leaseId: randomUUID(),
+      lifetimeSeconds: 20 * 60,
+    },
+    env
+  );
+  const actorInput = JSON.stringify({
+    version: 1,
+    jobId,
+    capability,
+  });
   let response: Response;
   try {
     response = await fetchImpl(apifyRunUrl(actorId), {
@@ -64,7 +81,7 @@ export async function dispatchQueuedHuntWorker(
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: '{}',
+      body: actorInput,
       cache: 'no-store',
       signal: AbortSignal.timeout(APIFY_REQUEST_TIMEOUT_MS),
     });
