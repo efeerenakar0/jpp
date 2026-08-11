@@ -142,7 +142,7 @@ export async function importPartnerOrganizations(input: {
     domain: normalizeDomain(candidate.websiteUrl),
     sourceIds: [candidate.sourceUrl],
     completeness: Object.values(candidate).filter((value) => value != null && value !== '').length,
-  }))).slice(0, 25);
+  }))).slice(0, 30);
   let acceptedCount = 0;
   for (const candidate of candidates) {
     const score = scorePartnerCandidate({

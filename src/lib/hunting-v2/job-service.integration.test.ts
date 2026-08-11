@@ -125,27 +125,26 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
       body: {
         provider: 'SAHIBINDEN',
         filters: {
-          listingType: 'SALE',
-          propertyType: 'APARTMENT',
           province: 'İstanbul',
           district: 'Kadıköy',
-          furnished: 'YES',
-          minPrice: 3_000_000,
-          maxPrice: 15_000_000,
+          neighborhood: 'Caddebostan',
+          propertyType: 'KONUT',
         },
       },
     });
 
     expect(mocks.assertPublicSourceUrl).toHaveBeenCalledWith(
       expect.stringContaining(
-        '/satilik-daire/istanbul-kadikoy/sahibinden?'
+        '/emlak-konut/istanbul-kadikoy-caddebostan?'
       ),
       'SAHIBINDEN'
     );
     expect(mocks.jobUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
-          searchUrl: expect.stringContaining('a103713=true'),
+          searchUrl: expect.stringMatching(
+            /a27=38460.*sorting=date_desc/
+          ),
         }),
       })
     );

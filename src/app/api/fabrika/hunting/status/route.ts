@@ -97,6 +97,7 @@ export async function GET() {
         sourceProvider: true,
         acquisitionStatus: true,
         completenessScore: true,
+        createdAt: true,
         lastSeenAt: true,
         updatedAt: true,
         status: true,

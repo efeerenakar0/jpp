@@ -45,6 +45,12 @@ next-env.d.ts
 
 /src/generated/prisma
 /backups
+/tmp/
+/public/business-ceo/business-ceo-ai-dark.png
+/public/business-ceo/business-ceo-ai-light.png
 /.wpp_auth
 /.wwebjs_cache
 *.log
+/.agents/**/__pycache__/
+/design-system/
+/output/

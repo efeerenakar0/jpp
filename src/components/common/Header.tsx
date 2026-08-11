@@ -41,7 +41,7 @@ export default function Header() {
       <div className="container mx-auto px-4 md:px-6 flex items-center justify-between">
         {/* Brand Logo - Stitch Glass Design */}
         <Link href="/" className="flex items-center gap-3 group">
-          <BusinessCeoMark />
+          <BusinessCeoMark priority />
         </Link>
 
         {/* Desktop Nav - Google Stitch Inspired */}

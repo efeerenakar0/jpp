@@ -1,13 +1,8 @@
 import { z } from 'zod';
-
-export const LISTING_TYPES = ['SALE', 'RENT'] as const;
-export const PROPERTY_TYPES = [
-  'APARTMENT',
-  'RESIDENCE',
-  'VILLA',
-  'DETACHED_HOUSE',
-] as const;
-export const FURNISHED_OPTIONS = ['ANY', 'YES', 'NO'] as const;
+import {
+  HUNT_PROPERTY_TYPE_PATHS,
+  HUNT_PROPERTY_TYPE_VALUES,
+} from './property-types';
 
 const locationNameSchema = z
   .string()
@@ -16,49 +11,21 @@ const locationNameSchema = z
   .max(80)
   .regex(/^[\p{L}\p{M}\s.'-]+$/u, 'Geçerli bir konum seçin.');
 
-const priceSchema = z.number().int().min(0).max(1_000_000_000_000).nullable();
-
 export const sahibindenSearchFiltersSchema = z
   .object({
-    listingType: z.enum(LISTING_TYPES),
-    propertyType: z.enum(PROPERTY_TYPES),
     province: locationNameSchema,
     district: locationNameSchema,
-    furnished: z.enum(FURNISHED_OPTIONS).default('ANY'),
-    minPrice: priceSchema.optional().default(null),
-    maxPrice: priceSchema.optional().default(null),
+    neighborhood: locationNameSchema,
+    propertyType: z.enum(HUNT_PROPERTY_TYPE_VALUES),
   })
-  .strict()
-  .refine(
-    ({ minPrice, maxPrice }) =>
-      minPrice === null || maxPrice === null || minPrice <= maxPrice,
-    {
-      message: 'Minimum fiyat maksimum fiyattan büyük olamaz.',
-      path: ['maxPrice'],
-    }
-  );
+  .strict();
 
 export type SahibindenSearchFilters = z.infer<
   typeof sahibindenSearchFiltersSchema
 >;
 
-const CATEGORY_PATHS: Record<
-  SahibindenSearchFilters['listingType'],
-  Record<SahibindenSearchFilters['propertyType'], string>
-> = {
-  SALE: {
-    APARTMENT: 'satilik-daire',
-    RESIDENCE: 'satilik-rezidans',
-    VILLA: 'satilik-villa',
-    DETACHED_HOUSE: 'satilik-mustakil-ev',
-  },
-  RENT: {
-    APARTMENT: 'kiralik-daire',
-    RESIDENCE: 'kiralik-rezidans',
-    VILLA: 'kiralik-villa',
-    DETACHED_HOUSE: 'kiralik-mustakil-ev',
-  },
-};
+const SAHIBINDEN_OWNER_FILTER_KEY = 'a27';
+const SAHIBINDEN_OWNER_FILTER_VALUE = '38460';
 
 export function sahibindenLocationSlug(value: string) {
   return value
@@ -78,20 +45,19 @@ export function sahibindenLocationSlug(value: string) {
 
 export function buildSahibindenSearchUrl(input: SahibindenSearchFilters) {
   const filters = sahibindenSearchFiltersSchema.parse(input);
-  const category = CATEGORY_PATHS[filters.listingType][filters.propertyType];
-  const location = `${sahibindenLocationSlug(filters.province)}-${sahibindenLocationSlug(filters.district)}`;
+  const location = [filters.province, filters.district, filters.neighborhood]
+    .map(sahibindenLocationSlug)
+    .join('-');
+  const categoryPath = HUNT_PROPERTY_TYPE_PATHS[filters.propertyType];
   const url = new URL(
-    `https://www.sahibinden.com/${category}/${location}/sahibinden`
+    `https://www.sahibinden.com/${categoryPath}/${location}`
   );
 
-  if (filters.furnished !== 'ANY') {
-    url.searchParams.set('a103713', filters.furnished === 'YES' ? 'true' : 'false');
-  }
-  if (filters.minPrice !== null) {
-    url.searchParams.set('price_min', String(filters.minPrice));
-  }
-  if (filters.maxPrice !== null) {
-    url.searchParams.set('price_max', String(filters.maxPrice));
+  if (filters.propertyType !== 'KONUT_PROJELERI') {
+    url.searchParams.set(
+      SAHIBINDEN_OWNER_FILTER_KEY,
+      SAHIBINDEN_OWNER_FILTER_VALUE
+    );
   }
   url.searchParams.set('sorting', 'date_desc');
   return url.toString();

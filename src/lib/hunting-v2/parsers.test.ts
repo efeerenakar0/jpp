@@ -22,9 +22,20 @@ describe('Avcı v2 HTML parserları', () => {
       'fixture-1001',
       'fixture-1002',
     ]);
+    expect(result.reportedTotal).toBeNull();
     expect(result.nextPageUrl).toBe(
       'https://www.sahibinden.com/satilik?pagingOffset=20'
     );
+  });
+
+  it('kaynağın bildirdiği toplamı okur ve boş olmayan sayfayı sessizce sıfır saymaz', () => {
+    const result = parseSearchResultsHtml(
+      '<html><body><span class="searchResultsNumValue">1.234</span></body></html>',
+      'https://www.sahibinden.com/emlak-konut'
+    );
+
+    expect(result.listings).toHaveLength(0);
+    expect(result.reportedTotal).toBe(1234);
   });
 
   it('DETAIL içeriğini, görünür satıcıyı ve telefonu yapılandırır', () => {

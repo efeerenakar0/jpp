@@ -51,7 +51,9 @@ export function parseSearchResultsHtml(
 
   $('.searchResultsItem, [data-listing-id]').each((_, element) => {
     const row = $(element);
-    const anchor = row.find('a.classifiedTitle, a[data-listing-link]').first();
+    const anchor = row
+      .find('a.classifiedTitle, a[data-listing-link], a[href*="/ilan/"]')
+      .first();
     const sourceUrl = absoluteUrl(anchor.attr('href'), pageUrl);
     if (!sourceUrl) return;
 
@@ -59,7 +61,7 @@ export function parseSearchResultsHtml(
       row.attr('data-id') ||
       row.attr('data-listing-id') ||
       listingIdFromUrl(sourceUrl);
-    const title = cleanText(anchor.text());
+    const title = cleanText(anchor.attr('title')) || cleanText(anchor.text());
     if (!sourceListingId || !title || unique.has(sourceListingId)) return;
 
     unique.set(sourceListingId, {
@@ -67,11 +69,18 @@ export function parseSearchResultsHtml(
       sourceUrl,
       title,
       priceText: cleanText(
-        row.find('.searchResultsPriceValue, [data-listing-price]').first().text()
+        row
+          .find(
+            '.searchResultsPriceValue, .classified-price, [data-listing-price]'
+          )
+          .first()
+          .text()
       ),
       locationText: cleanText(
         row
-          .find('.searchResultsLocationValue, [data-listing-location]')
+          .find(
+            '.searchResultsLocationValue, .classified-location, [data-listing-location]'
+          )
           .first()
           .text()
       ),
@@ -81,10 +90,20 @@ export function parseSearchResultsHtml(
   const nextHref =
     $('a[rel="next"]').first().attr('href') ||
     $('a.prevNextBut:contains("Sonraki")').first().attr('href');
+  const totalText =
+    cleanText($('.searchResultsNumValue').first().text()) ||
+    cleanText($('body').text())?.match(
+      /aram(?:a|anız)da\s*([\d.]+)\s*ilan\s*bulundu/iu
+    )?.[1] ||
+    null;
+  const reportedTotal = totalText
+    ? Number(totalText.replace(/\./g, ''))
+    : null;
 
   return {
     listings: [...unique.values()],
     nextPageUrl: absoluteUrl(nextHref, pageUrl),
+    reportedTotal: Number.isFinite(reportedTotal) ? reportedTotal : null,
   };
 }
 

@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { QuickPortfolioWizardLauncher } from './QuickPortfolioWizardLauncher';
 
 describe('QuickPortfolioWizardLauncher', () => {
-  it('launches the canonical dashboard workflow in hunter mode', () => {
+  it('launches the canonical dashboard workflow for an owned portfolio', () => {
     const html = renderToStaticMarkup(<QuickPortfolioWizardLauncher />);
     expect(html).toContain(
-      'href="/fabrika?workflow=portfolio&amp;entry=hunter&amp;step=source"'
+      'href="/fabrika?workflow=portfolio&amp;entry=studio&amp;step=source"'
     );
-    expect(html).toContain('Hızlı portföy akışını başlat');
+    expect(html).toContain('Portföy bilgilerini gir');
   });
 });

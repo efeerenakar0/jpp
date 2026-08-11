@@ -14,5 +14,11 @@ tanımlanmalıdır:
 - `AVCI_LIVE_PROVIDER_ENABLED=true`
 - `AVCI_RUN_ONCE=true`
 
+Actor tanımı canlı taramada `RESIDENTIAL` proxy grubunu, `TR` ülke çıkışını,
+tek oturumu, istekler arasında en az 13 saniyeyi ve iş başına en fazla 11
+ilanı zorunlu tutar. Proxy erişimi yoksa worker doğrudan bağlantıya düşmez;
+işi hata ile durdurur. `robots.txt` kontrolü de aynı Türkiye proxy oturumu
+üzerinden yapılır.
+
 Worker, kaynak doğrulaması veya erişim kısıtlaması gördüğünde durur. CAPTCHA ya
 da site güvenlik kontrollerini aşmaya çalışmaz.

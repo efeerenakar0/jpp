@@ -7,11 +7,19 @@
   "dockerfile": "../Dockerfile.avci-worker",
   "dockerContextDir": "..",
   "readme": "./README.md",
-  "defaultMemoryMbytes": 512,
-  "minMemoryMbytes": 512,
-  "maxMemoryMbytes": 1024,
+  "defaultMemoryMbytes": 2048,
+  "minMemoryMbytes": 2048,
+  "maxMemoryMbytes": 2048,
   "usesStandbyMode": false,
   "environmentVariables": {
-    "AVCI_RUN_ONCE": "true"
+    "AVCI_RUN_ONCE": "true",
+    "AVCI_APIFY_PROXY_ENABLED": "true",
+    "AVCI_APIFY_PROXY_REQUIRED": "true",
+    "AVCI_APIFY_PROXY_GROUPS": "RESIDENTIAL",
+    "AVCI_APIFY_PROXY_COUNTRY_CODE": "TR",
+    "AVCI_CRAWLER_DELAY_SECS": "13",
+    "AVCI_CRAWLER_MAX_REQUESTS_PER_MINUTE": "5",
+    "AVCI_CRAWLER_MAX_LISTINGS_PER_JOB": "11",
+    "CRAWLEE_XVFB": "1"
   }
 }

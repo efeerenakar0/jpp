@@ -21,7 +21,13 @@ function dateLabel(value?: string) {
   }).format(date);
 }
 
-export function ImportedListingsSummary({ listings }: { listings: HuntingListing[] }) {
+export function ImportedListingsSummary({
+  listings,
+  periodLabel,
+}: {
+  listings: HuntingListing[];
+  periodLabel?: string;
+}) {
   return (
     <section className="rounded-2xl border border-cyan-400/15 bg-slate-950/55 p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -29,7 +35,10 @@ export function ImportedListingsSummary({ listings }: { listings: HuntingListing
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
             İçe aktarılan portföyler
           </p>
-          <h2 className="mt-1 text-base font-semibold text-white">Son keşif kayıtları</h2>
+          <h2 className="mt-1 text-base font-semibold text-white">
+            Son keşif kayıtları
+            {periodLabel ? ` · ${periodLabel}` : ''}
+          </h2>
           <p className="mt-1 text-xs leading-5 text-slate-400">
             Kaynak, izin ve son işlem bilgileri. Telefon bilgisi bu özet ekranda gösterilmez.
           </p>
@@ -41,7 +50,11 @@ export function ImportedListingsSummary({ listings }: { listings: HuntingListing
 
       {listings.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-slate-700 p-8 text-center">
-          <p className="text-sm font-medium text-slate-200">Henüz içe aktarılan ilan yok</p>
+          <p className="text-sm font-medium text-slate-200">
+            {periodLabel
+              ? `${periodLabel} içinde içe aktarılan ilan yok`
+              : 'Henüz içe aktarılan ilan yok'}
+          </p>
           <p className="mt-1 text-xs text-slate-500">
             Filtreli bir arama kuyruğu başlatın veya eklenti paketini yükleyin.
           </p>

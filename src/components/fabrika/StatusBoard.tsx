@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Clock,
   CheckCircle2,
+  Loader2,
   XCircle,
   Search,
   Sparkles,
@@ -58,12 +59,19 @@ interface StatusBoardProps {
       authorizationNote?: string;
     }
   ) => void | Promise<void>;
+  onPortfolioJoin: (listingId: string, portfolioImportId: string) => Promise<void>;
   onDeleteListing?: (id: string) => void;
 }
 
-export default function StatusBoard({ listings, onStatusChange, onDeleteListing }: StatusBoardProps) {
+export default function StatusBoard({
+  listings,
+  onStatusChange,
+  onPortfolioJoin,
+  onDeleteListing,
+}: StatusBoardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [eliminating, setEliminating] = useState<Listing | null>(null);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const filtered = listings.filter((l) => {
     if (!searchTerm) return true;
@@ -210,16 +218,42 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
                 <div className="flex gap-1.5">
                   {targetStatuses.map((ts) => (
                     <button
+                      disabled={
+                        joiningId === listing.id ||
+                        (ts.status === 'GREEN' && !listing.portfolioImport?.id)
+                      }
                       key={ts.status}
-                      onClick={() => {
+                      onClick={async () => {
                         if (ts.status === 'RED') {
                           setEliminating(listing);
                           return;
                         }
+                        if (ts.status === 'GREEN') {
+                          if (!listing.portfolioImport?.id) return;
+                          setJoiningId(listing.id);
+                          try {
+                            await onPortfolioJoin(
+                              listing.id,
+                              listing.portfolioImport.id
+                            );
+                          } finally {
+                            setJoiningId(null);
+                          }
+                          return;
+                        }
                         void onStatusChange(listing.id, ts.status);
                       }}
-                      className={`px-2.5 py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer border active:scale-95 ${ts.btnClass}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer border active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${ts.btnClass}`}
+                      title={
+                        ts.status === 'GREEN' && !listing.portfolioImport?.id
+                          ? 'Önce satış yetkisi onay kaydı oluşturulmalı.'
+                          : undefined
+                      }
+                      type="button"
                     >
+                      {ts.status === 'GREEN' && joiningId === listing.id && (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      )}
                       {ts.label}
                     </button>
                   ))}
@@ -258,7 +292,7 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
       {/* Grid Columns */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-4">
         {renderColumn({
-          title: 'Sıcak Pazarlıkta',
+          title: 'Görüşmesi sürenler',
           badgeText: 'Aday',
           badgeBg: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
           borderColor: 'border-amber-500/20',
@@ -270,13 +304,14 @@ export default function StatusBoard({ listings, onStatusChange, onDeleteListing 
           ],
         })}
         {renderColumn({
-          title: 'Satış Yetkisi Alındı',
+          title: 'Satış Yetkisi alınmaya hazır',
           badgeText: 'Onay',
           badgeBg: 'bg-sky-500/20 text-sky-300 border border-sky-500/30',
           borderColor: 'border-sky-500/20',
           items: authorizedListings,
           icon: BadgeCheck,
           targetStatuses: [
+            { label: 'Portföyümüze Kat', status: 'GREEN', btnClass: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25' },
             { label: 'Pazarlığa Döndür', status: 'YELLOW', btnClass: 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20' },
             { label: 'Elendi', status: 'RED', btnClass: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' },
           ],

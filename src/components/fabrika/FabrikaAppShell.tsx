@@ -71,7 +71,7 @@ export default function FabrikaAppShell({
       <div
         className={`business-ceo-shell flex h-dvh min-h-0 flex-col overflow-hidden ${
           isDashboardHome
-            ? 'bg-[#edf2f8] text-[#0a1b53]'
+            ? 'bg-[#000512] text-slate-100'
             : 'bg-[#050d18] text-slate-100'
         }`}
       >
@@ -93,7 +93,7 @@ export default function FabrikaAppShell({
         <main
           id="fabrika-main"
           className={`business-ceo-main min-h-0 flex-1 overflow-y-auto ${
-            isDashboardHome ? 'bg-[#edf2f8]' : 'bg-[#050d18]'
+            isDashboardHome ? 'bg-[#000512]' : 'bg-[#050d18]'
           }`}
           data-ceo-route={pathname}
           tabIndex={-1}

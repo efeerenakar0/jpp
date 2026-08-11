@@ -6,6 +6,7 @@ vi.mock('server-only', () => ({}));
 import {
   MAX_STUDIO_IMAGE_BYTES,
   StudioImageError,
+  analyseStudioImage,
   enhanceStudioImage,
   resolveStudioImageEngine,
 } from './studio-image-engine';
@@ -25,6 +26,25 @@ describe('studio image engine selection', () => {
 });
 
 describe('enhanceStudioImage REALISTIC', () => {
+  it('analyses each image before choosing exposure and contrast recovery', async () => {
+    const dark = await sharp({
+      create: {
+        width: 96,
+        height: 96,
+        channels: 3,
+        background: { r: 32, g: 36, b: 40 },
+      },
+    })
+      .jpeg()
+      .toBuffer();
+
+    await expect(analyseStudioImage(dark, 'image/jpeg')).resolves.toMatchObject({
+      needsShadowRecovery: true,
+      needsHighlightRecovery: false,
+      needsContrastRecovery: true,
+    });
+  });
+
   it('auto-orients EXIF photos while preserving their physical dimensions', async () => {
     const input = await sharp({
       create: {
@@ -121,6 +141,36 @@ describe('enhanceStudioImage REALISTIC', () => {
     });
 
     expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('can pass low-resolution photos through a configured GPU restoration bridge', async () => {
+    const source = await sharp({
+      create: {
+        width: 80,
+        height: 60,
+        channels: 3,
+        background: '#777777',
+      },
+    })
+      .jpeg()
+      .toBuffer();
+    const upscaled = await sharp(source).resize(160, 120).jpeg().toBuffer();
+    const superResolutionProvider = vi.fn().mockResolvedValue({
+      buffer: upscaled,
+      mimeType: 'image/jpeg' as const,
+      model: 'realesrgan-x4plus',
+    });
+
+    const result = await enhanceStudioImage({
+      engine: 'REALISTIC',
+      image: source,
+      mimeType: 'image/jpeg',
+      prompt: 'Doğal kalite artışı.',
+      superResolutionProvider,
+    });
+
+    expect(superResolutionProvider).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ width: 160, height: 120, engine: 'REALISTIC' });
   });
 
   it('uses Stability only for the explicit CREATIVE mode', async () => {

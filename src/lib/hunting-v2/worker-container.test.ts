@@ -11,7 +11,10 @@ describe('Avcı worker konteyneri', () => {
 
     expect(dockerfile).toContain('CRAWLEE_STORAGE_DIR=/tmp/crawlee-storage');
     expect(dockerfile).toContain('NODE_OPTIONS=--conditions=react-server');
-    expect(dockerfile).toContain('USER node');
+    expect(dockerfile).toContain(
+      'FROM apify/actor-node-playwright-chrome:24-1.62.1'
+    );
+    expect(dockerfile).toContain('USER myuser');
     expect(dockerfile).toContain('ENTRYPOINT ["tini", "-s", "--"]');
   });
 
@@ -27,6 +30,10 @@ describe('Avcı worker konteyneri', () => {
   });
 
   it('Apify Actor tanımı aynı güvenli worker konteynerini tek seferlik çalıştırır', () => {
+    const dockerfile = readFileSync(
+      join(process.cwd(), 'Dockerfile.avci-worker'),
+      'utf8'
+    );
     const actorDefinition = JSON.parse(
       readFileSync(join(process.cwd(), '.actor/actor.json'), 'utf8')
     );
@@ -36,12 +43,24 @@ describe('Avcı worker konteyneri', () => {
       name: 'business-ai-portfoy-uzmani-worker',
       dockerfile: '../Dockerfile.avci-worker',
       dockerContextDir: '..',
-      defaultMemoryMbytes: 512,
-      minMemoryMbytes: 512,
+      defaultMemoryMbytes: 2048,
+      minMemoryMbytes: 2048,
       usesStandbyMode: false,
       environmentVariables: {
         AVCI_RUN_ONCE: 'true',
+        AVCI_APIFY_PROXY_ENABLED: 'true',
+        AVCI_APIFY_PROXY_REQUIRED: 'true',
+        AVCI_APIFY_PROXY_GROUPS: 'RESIDENTIAL',
+        AVCI_APIFY_PROXY_COUNTRY_CODE: 'TR',
+        AVCI_CRAWLER_DELAY_SECS: '13',
+        AVCI_CRAWLER_MAX_REQUESTS_PER_MINUTE: '5',
+        AVCI_CRAWLER_MAX_LISTINGS_PER_JOB: '11',
+        CRAWLEE_XVFB: '1',
       },
     });
+    expect(actorDefinition.maxMemoryMbytes).toBe(2048);
+    expect(dockerfile).toContain(
+      'CMD ["xvfb-run", "-a", "npm", "run", "worker:avci"]'
+    );
   });
 });

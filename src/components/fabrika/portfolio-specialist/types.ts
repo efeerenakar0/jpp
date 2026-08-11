@@ -10,6 +10,7 @@ export type HuntingListing = {
   sourceProvider?: string | null;
   acquisitionStatus?: string | null;
   completenessScore?: number;
+  createdAt?: string;
   lastSeenAt?: string;
   updatedAt?: string;
   status: HuntingStatus;
