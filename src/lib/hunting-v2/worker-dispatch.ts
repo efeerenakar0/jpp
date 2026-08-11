@@ -17,7 +17,7 @@ export type WorkerDispatchResult =
   | { status: 'disabled' }
   | { status: 'started'; runId: string };
 
-const APIFY_RUN_MEMORY_MB = 512;
+const APIFY_RUN_MEMORY_MB = 2048;
 const APIFY_RUN_TIMEOUT_SECONDS = 900;
 const APIFY_MAX_TOTAL_CHARGE_USD = 0.25;
 const APIFY_REQUEST_TIMEOUT_MS = 10_000;

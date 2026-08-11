@@ -2,7 +2,8 @@ import 'server-only';
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { CheerioCrawler } from '@crawlee/cheerio';
+import { PlaywrightCrawler } from '@crawlee/playwright';
+import { Actor } from 'apify';
 import prisma from '@/lib/prisma';
 import {
   assertAllowedMediaUrl,
@@ -20,10 +21,15 @@ import {
 } from './parsers';
 import { copyHuntingImage } from './media';
 import {
+  BUSINESS_AI_CRAWLER_USER_AGENT,
+  buildApifyProxyPolicy,
   buildCrawlerPolicy,
   buildSourceRequest,
   failedRequestDelta,
+  getCrawlerListingLimit,
   initialSahibindenRequestKind,
+  isSourceChallengeStatus,
+  selectUniqueListingsWithinLimit,
 } from './crawler-policy';
 import type {
   ParsedListingDetail,
@@ -32,6 +38,10 @@ import type {
 } from './types';
 import { buildAuthorizedSourceContact } from './authorized-source-contact';
 import { buildWorkerLease } from './worker-lease';
+import {
+  buildStickySessionPoolOptions,
+  prepareSourceNetworkPolicy,
+} from './source-network-policy';
 
 type JobWithAuthorization = Awaited<
   ReturnType<typeof loadJobWithAuthorization>
@@ -317,6 +327,29 @@ async function markChallenge(jobId: string) {
   });
 }
 
+async function createWorkerProxyConfiguration() {
+  const policy = buildApifyProxyPolicy();
+
+  if (!process.env.ACTOR_RUN_ID) {
+    throw new Error(
+      'Türkiye proxy zorunlu ancak worker Apify Actor ortamında çalışmıyor.'
+    );
+  }
+
+  if (!policy.enabled) {
+    throw new Error('Türkiye proxy zorunlu ancak Apify proxy kapalı.');
+  }
+
+  const proxyConfiguration = await Actor.createProxyConfiguration({
+    groups: policy.groups,
+    countryCode: policy.countryCode,
+  });
+  if (!proxyConfiguration) {
+    throw new Error('Türkiye proxy yapılandırması oluşturulamadı.');
+  }
+  return proxyConfiguration;
+}
+
 async function processFixtureJob(job: NonNullable<JobWithAuthorization>) {
   const [searchHtml, detailHtml] = await Promise.all([
     readFile(fixturePath('search-results.html'), 'utf8'),
@@ -371,9 +404,49 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
   let challengeSeen = false;
   let authorizationInvalidated = false;
   const discoveredListingIds = new Set<string>();
-  const crawler = new CheerioCrawler({
-    ...buildCrawlerPolicy(),
-    async requestHandler({ request, body, addRequests }) {
+  const listingLimit = getCrawlerListingLimit();
+  const proxyConfiguration = await createWorkerProxyConfiguration();
+  const crawlerPolicy = buildCrawlerPolicy();
+  const { sourceSessionId, robotsFile, requestStartGate } =
+    await prepareSourceNetworkPolicy({
+      jobId: job.id,
+      sourceUrl: job.searchUrl,
+      delaySeconds: crawlerPolicy.sameDomainDelaySecs,
+      proxyConfiguration,
+    });
+  if (!robotsFile.isAllowed(job.searchUrl, BUSINESS_AI_CRAWLER_USER_AGENT)) {
+    throw new Error('Kaynağın robots.txt politikası bu aramaya izin vermiyor.');
+  }
+  const crawler = new PlaywrightCrawler({
+    ...crawlerPolicy,
+    // Crawlee 3.17 robots.txt dosyasını proxy dışında indirir. Yukarıda aynı
+    // job oturumu ve Türkiye proxy bağlantısı üzerinden kontrol edildi.
+    respectRobotsTxtFile: false,
+    headless: false,
+    persistCookiesPerSession: true,
+    proxyConfiguration,
+    sessionPoolOptions: buildStickySessionPoolOptions(sourceSessionId),
+    navigationTimeoutSecs: 75,
+    requestHandlerTimeoutSecs: 120,
+    browserPoolOptions: {
+      operationTimeoutSecs: 90,
+    },
+    preNavigationHooks: [
+      async ({ request }) => {
+        if (
+          !robotsFile.isAllowed(
+            request.url,
+            BUSINESS_AI_CRAWLER_USER_AGENT
+          )
+        ) {
+          throw new Error(
+            'Kaynağın robots.txt politikası bu sayfaya izin vermiyor.'
+          );
+        }
+        await requestStartGate.waitForTurn();
+      },
+    ],
+    async requestHandler({ request, page, response, addRequests }) {
       if (await isJobCancelled(job.id)) {
         crawler.stop('Av işi kullanıcı tarafından durduruldu.');
         return;
@@ -399,9 +472,15 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
         crawler.stop('Kaynak yetkisi artık geçerli değil.');
         return;
       }
-      const html = Buffer.isBuffer(body) ? body.toString('utf8') : String(body);
+      const statusCode = response?.status() || 0;
+      if (isSourceChallengeStatus(statusCode)) {
+        throw new SourceChallengeError(
+          `Kaynak güvenlik doğrulaması gösterdi (HTTP ${statusCode}).`
+        );
+      }
+      const html = await page.content();
       assertNoSourceChallenge(html);
-      const loadedUrl = request.loadedUrl || request.url;
+      const loadedUrl = request.loadedUrl || page.url() || request.url;
       validateRedirectTarget(loadedUrl, job.provider as SourceProvider);
 
       if (request.userData.kind === 'DETAIL') {
@@ -409,14 +488,37 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
         await upsertListingDetail(job, detail);
         completed += 1;
       } else {
-        const page = parseSearchResultsHtml(html, loadedUrl);
-        for (const item of page.listings) {
+        const searchPage = parseSearchResultsHtml(html, loadedUrl);
+        if (!searchPage.listings.length && searchPage.reportedTotal === null) {
+          throw new SourceChallengeError(
+            'Kaynak güvenlik doğrulaması gösterdi veya arama sayfası yüklenemedi.'
+          );
+        }
+        if (
+          !searchPage.listings.length &&
+          searchPage.reportedTotal !== null &&
+          searchPage.reportedTotal > 0
+        ) {
+          throw new Error(
+            'Kaynak ilan bildirdi ancak sonuç tablosu okunamadı.'
+          );
+        }
+        const remainingListingCount = Math.max(
+          0,
+          listingLimit - discoveredListingIds.size
+        );
+        const selectedListings = selectUniqueListingsWithinLimit({
+          listings: searchPage.listings,
+          discoveredListingIds,
+          limit: discoveredListingIds.size + remainingListingCount,
+        });
+        for (const item of selectedListings) {
           await upsertDiscoveredListing(job, item);
           discoveredListingIds.add(item.sourceListingId);
         }
         discovered = discoveredListingIds.size;
         await addRequests(
-          page.listings.map((item) =>
+          selectedListings.map((item) =>
             buildSourceRequest({
               kind: 'DETAIL',
               sourceListingId: item.sourceListingId,
@@ -424,11 +526,14 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
             })
           )
         );
-        if (page.nextPageUrl) {
+        if (
+          searchPage.nextPageUrl &&
+          discoveredListingIds.size < listingLimit
+        ) {
           await addRequests([
             buildSourceRequest({
               kind: 'LIST',
-              url: page.nextPageUrl,
+              url: searchPage.nextPageUrl,
             }),
           ]);
         }
@@ -447,7 +552,10 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
     async failedRequestHandler({ request }) {
       if (
         request.errorMessages.some((message) =>
-          message.includes('Kaynak güvenlik doğrulaması')
+          message.includes('Kaynak güvenlik doğrulaması') ||
+          /Request blocked - received (?:401|403|429) status code/i.test(
+            message
+          )
         )
       ) {
         challengeSeen = true;
@@ -458,6 +566,14 @@ async function processLiveJob(job: NonNullable<JobWithAuthorization>) {
       const delta = failedRequestDelta(request.userData.kind);
       failed += delta.failed;
       partial += delta.partial;
+      await prisma.huntJob.update({
+        where: { id: job.id },
+        data: {
+          errorSummary:
+            request.errorMessages.at(-1)?.slice(0, 1000) ||
+            'Kaynak isteği tamamlanamadı.',
+        },
+      });
     },
   });
 
