@@ -4,6 +4,9 @@ vi.mock('server-only', () => ({}));
 
 import { dispatchQueuedHuntWorker } from './worker-dispatch';
 
+const signingSecret =
+  'test-only-worker-signing-secret-with-more-than-32-characters';
+
 describe('Avcı worker tetikleyicisi', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -13,7 +16,7 @@ describe('Avcı worker tetikleyicisi', () => {
     const fetchImpl = vi.fn();
 
     await expect(
-      dispatchQueuedHuntWorker({ env: {}, fetchImpl })
+      dispatchQueuedHuntWorker('job-a', { env: {}, fetchImpl })
     ).resolves.toEqual({ status: 'disabled' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -27,11 +30,12 @@ describe('Avcı worker tetikleyicisi', () => {
     );
 
     await expect(
-      dispatchQueuedHuntWorker({
+      dispatchQueuedHuntWorker('job-a', {
         env: {
           AVCI_WORKER_DISPATCH_MODE: 'apify',
           APIFY_AVCI_ACTOR_ID: 'efeerenakar0~business-ai-portfoy-uzmani',
           APIFY_TOKEN: 'secret-apify-token',
+          AVCI_WORKER_SIGNING_SECRET: signingSecret,
         },
         fetchImpl,
       })
@@ -51,12 +55,19 @@ describe('Avcı worker tetikleyicisi', () => {
     expect(url.searchParams.get('maxTotalChargeUsd')).toBe('0.25');
     expect(requestInit).toMatchObject({
       method: 'POST',
-      body: '{}',
       headers: expect.objectContaining({
         Authorization: 'Bearer secret-apify-token',
         'Content-Type': 'application/json',
       }),
     });
+    const actorInput = JSON.parse(String(requestInit.body));
+    expect(actorInput).toMatchObject({
+      version: 1,
+      jobId: 'job-a',
+      capability: expect.any(String),
+    });
+    expect(String(requestInit.body)).not.toContain('DATABASE_URL');
+    expect(String(requestInit.body)).not.toContain('HUNTING_CONTACT');
     expect(requestUrl).not.toContain('secret-apify-token');
   });
 
@@ -66,18 +77,19 @@ describe('Avcı worker tetikleyicisi', () => {
     );
 
     await expect(
-      dispatchQueuedHuntWorker({
+      dispatchQueuedHuntWorker('job-a', {
         env: {
           AVCI_WORKER_DISPATCH_MODE: 'apify',
           APIFY_AVCI_ACTOR_ID: 'actor-id',
           APIFY_TOKEN: 'secret-apify-token',
+          AVCI_WORKER_SIGNING_SECRET: signingSecret,
         },
         fetchImpl,
       })
     ).rejects.toThrow('Worker başlatılamadı');
 
     await expect(
-      dispatchQueuedHuntWorker({
+      dispatchQueuedHuntWorker('job-a', {
         env: { AVCI_WORKER_DISPATCH_MODE: 'apify' },
         fetchImpl,
       })
@@ -86,18 +98,19 @@ describe('Avcı worker tetikleyicisi', () => {
 
   it('desteklenmeyen modu ve ağ hatasını güvenli mesajla reddeder', async () => {
     await expect(
-      dispatchQueuedHuntWorker({
+      dispatchQueuedHuntWorker('job-a', {
         env: { AVCI_WORKER_DISPATCH_MODE: 'unknown' },
         fetchImpl: vi.fn(),
       })
     ).rejects.toThrow('Desteklenmeyen');
 
     await expect(
-      dispatchQueuedHuntWorker({
+      dispatchQueuedHuntWorker('job-a', {
         env: {
           AVCI_WORKER_DISPATCH_MODE: 'apify',
           APIFY_AVCI_ACTOR_ID: 'actor-id',
           APIFY_TOKEN: 'secret-apify-token',
+          AVCI_WORKER_SIGNING_SECRET: signingSecret,
         },
         fetchImpl: vi.fn().mockRejectedValue(new Error('secret network body')),
       })
@@ -106,11 +119,12 @@ describe('Avcı worker tetikleyicisi', () => {
 
   it('başarılı HTTP yanıtında doğrulanabilir run kimliği ister', async () => {
     await expect(
-      dispatchQueuedHuntWorker({
+      dispatchQueuedHuntWorker('job-a', {
         env: {
           AVCI_WORKER_DISPATCH_MODE: 'apify',
           APIFY_AVCI_ACTOR_ID: 'actor-id',
           APIFY_TOKEN: 'secret-apify-token',
+          AVCI_WORKER_SIGNING_SECRET: signingSecret,
         },
         fetchImpl: vi
           .fn()

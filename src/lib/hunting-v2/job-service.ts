@@ -266,7 +266,7 @@ export async function createHuntJob(input: {
   });
 
   if (job.status === 'QUEUED') {
-    await dispatchQueuedHuntWorker();
+    await dispatchQueuedHuntWorker(job.id);
   }
 
   return job;

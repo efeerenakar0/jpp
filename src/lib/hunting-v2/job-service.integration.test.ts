@@ -97,7 +97,7 @@ describe('Avcı job servisi entegrasyon sınırları', () => {
         }),
       })
     );
-    expect(mocks.dispatchQueuedHuntWorker).toHaveBeenCalledTimes(1);
+    expect(mocks.dispatchQueuedHuntWorker).toHaveBeenCalledWith('job-1');
   });
 
   it('tamamlanmış idempotent işi yeniden tetiklemez', async () => {

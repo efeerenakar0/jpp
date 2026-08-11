@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 import { huntingApiError, principalActor } from '@/lib/hunting-v2/api';
 import { enforceHuntingRateLimit } from '@/lib/hunting-v2/rate-limit';
+import { dispatchQueuedHuntWorker } from '@/lib/hunting-v2/worker-dispatch';
 
 export const runtime = 'nodejs';
 
@@ -31,7 +32,15 @@ export async function POST(
       },
     });
     if (!result.count) throw new Error('Devam ettirilebilir av işi bulunamadı.');
-    return NextResponse.json({ jobId: id, status: 'QUEUED' }, { status: 202 });
+    const dispatch = await dispatchQueuedHuntWorker(id);
+    return NextResponse.json(
+      {
+        jobId: id,
+        status: 'QUEUED',
+        workerRunId: dispatch.status === 'started' ? dispatch.runId : null,
+      },
+      { status: 202 }
+    );
   } catch (error) {
     return huntingApiError(error);
   }
