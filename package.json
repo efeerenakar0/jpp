@@ -38,6 +38,7 @@
     "@wppconnect-team/wppconnect": "^2.2.3",
     "adm-zip": "^0.6.0",
     "apify": "3.7.2",
+    "animejs": "^4.5.0",
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",

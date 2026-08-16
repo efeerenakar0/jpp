@@ -1,13 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import {
-  FABRIKA_ENTRY_PATH,
-  resolveRootRedirect,
-} from './root-navigation';
+import { resolveRootRedirect } from './root-navigation';
 
 describe('root navigation', () => {
-  it('redirects the public root directly to Fabrika login', () => {
-    expect(resolveRootRedirect('/')).toBe(FABRIKA_ENTRY_PATH);
-    expect(FABRIKA_ENTRY_PATH).toBe('/fabrika-giris');
+  it('keeps the public root available for the marketing website', () => {
+    expect(resolveRootRedirect('/')).toBeNull();
   });
 
   it('does not intercept any other route', () => {

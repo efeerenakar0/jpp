@@ -1,0 +1,190 @@
+.bceo-support {
+  --bceo-surface-page: #f5f7fa;
+  --bceo-surface-page-deep: #ffffff;
+  --bceo-surface-elevated: #ffffff;
+  --bceo-surface-interactive: #eef2f7;
+  --bceo-text-primary: #07111f;
+  --bceo-text-secondary: #34435a;
+  --bceo-text-muted: #59677c;
+  --bceo-border-subtle: #dde3ec;
+  --bceo-border-strong: #c5cfdb;
+  --bceo-accent-primary: #2448ff;
+  --bceo-accent-primary-hover: #1737d6;
+  --bceo-accent-signal: #2448ff;
+  --bceo-focus-ring: #2448ff;
+  --bceo-state-warning: #8a4f00;
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, transparent 0, transparent calc(50% - 0.5px), rgba(7, 17, 31, 0.055) 50%, transparent calc(50% + 0.5px)),
+    var(--bceo-surface-page);
+  color: var(--bceo-text-primary);
+}
+
+.bceo-support__main {
+  position: relative;
+  min-height: calc(100vh - var(--bceo-nav-height));
+  padding: clamp(5rem, 10vw, 9.5rem) 0 clamp(5rem, 9vw, 8rem);
+  overflow: hidden;
+}
+
+.bceo-support__main::before {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: min(46vw, 44rem);
+  height: 1px;
+  background: linear-gradient(90deg, var(--bceo-accent-primary), transparent);
+  content: "";
+}
+
+.bceo-support__grid {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.36fr) minmax(0, 1fr);
+  gap: clamp(3rem, 8vw, 9rem);
+  align-items: start;
+}
+
+.bceo-support__rail {
+  position: sticky;
+  top: calc(var(--bceo-nav-height) + 2rem);
+  display: grid;
+  gap: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bceo-border-strong);
+  color: var(--bceo-text-muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  line-height: 1.55;
+  text-transform: uppercase;
+}
+
+.bceo-support__rail strong {
+  color: var(--bceo-state-warning);
+  font: inherit;
+}
+
+.bceo-support__document {
+  position: relative;
+  max-width: 52rem;
+}
+
+.bceo-support__mark {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-bottom: clamp(2rem, 4vw, 3.75rem);
+  border: 1px solid var(--bceo-border-strong);
+  color: var(--bceo-accent-signal);
+  place-items: center;
+}
+
+.bceo-support__document h1 {
+  max-width: 13ch;
+  margin: 1rem 0 1.35rem;
+  color: var(--bceo-text-primary);
+  font-family: var(--bceo-font-display);
+  font-size: clamp(3rem, 7vw, 6.75rem);
+  font-weight: 580;
+  letter-spacing: -0.065em;
+  line-height: 0.91;
+}
+
+.bceo-support__lead {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--bceo-text-secondary);
+  font-size: clamp(1.05rem, 1.5vw, 1.35rem);
+  line-height: 1.65;
+}
+
+.bceo-support__notice {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.34fr) minmax(0, 1fr);
+  gap: 1.5rem clamp(2rem, 5vw, 5rem);
+  margin-top: clamp(3.5rem, 7vw, 6.5rem);
+  padding: 1.6rem;
+  border-block: 1px solid #e8c785;
+  background: #fff8e8;
+}
+
+.bceo-support__notice span {
+  grid-row: 1 / span 2;
+  color: var(--bceo-state-warning);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.11em;
+  line-height: 1.55;
+  text-transform: uppercase;
+}
+
+.bceo-support__notice p {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--bceo-text-secondary);
+  line-height: 1.75;
+}
+
+.bceo-support__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.75rem;
+  align-items: center;
+  margin-top: clamp(3rem, 6vw, 5rem);
+}
+
+.bceo-support__back {
+  display: inline-flex;
+  min-height: 2.75rem;
+  gap: 0.65rem;
+  align-items: center;
+  color: var(--bceo-text-secondary);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.bceo-support__back:hover {
+  color: var(--bceo-accent-primary);
+}
+
+@media (max-width: 52rem) {
+  .bceo-support__grid {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+  }
+
+  .bceo-support__rail {
+    position: static;
+    grid-template-columns: 1fr auto;
+  }
+
+  .bceo-support__rail span:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .bceo-support__notice {
+    grid-template-columns: 1fr;
+  }
+
+  .bceo-support__notice span {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 34rem) {
+  .bceo-support__main {
+    padding-top: 4rem;
+  }
+
+  .bceo-support__rail {
+    grid-template-columns: 1fr;
+  }
+
+  .bceo-support__document h1 {
+    font-size: clamp(2.8rem, 15vw, 4.5rem);
+  }
+
+  .bceo-support__actions,
+  .bceo-support__actions .bceo-button {
+    width: 100%;
+  }
+}
