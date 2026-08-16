@@ -8,6 +8,7 @@ import { z } from 'zod';
 import {
   buildInternationalFallback,
   getInternationalMarket,
+  getInternationalPortal,
   parseInternationalPlan,
 } from '@/lib/international-marketing';
 import { createCompanyNotification } from '@/lib/fabrika-notifications';
@@ -21,6 +22,7 @@ import prisma from '@/lib/prisma';
 const requestSchema = z.object({
   propertyId: z.string().trim().min(1).max(120),
   countryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()),
+  portalId: z.string().trim().min(1).max(120),
 });
 
 export async function POST(request: Request) {
@@ -37,6 +39,22 @@ export async function POST(request: Request) {
     const market = getInternationalMarket(parsed.data.countryCode);
     if (!market) {
       return NextResponse.json({ error: 'Desteklenen bir ülke seçin.' }, { status: 400 });
+    }
+    const portal = getInternationalPortal(market, parsed.data.portalId);
+    if (!portal) {
+      return NextResponse.json(
+        { error: 'Seçilen portal bu ülke için desteklenmiyor.' },
+        { status: 400 },
+      );
+    }
+    if (portal.eligibility === 'unsupported') {
+      return NextResponse.json(
+        {
+          error:
+            'Bu portal Türkiye’deki portföyler için uygun değil. Sistem tarafından önerilen başka bir kanalı seçin.',
+        },
+        { status: 400 },
+      );
     }
 
     const property = await prisma.crmProperty.findFirst({
@@ -57,6 +75,7 @@ export async function POST(request: Request) {
       companyName: principal.account.companyName,
       property,
       market,
+      portal,
     });
     const verifiedProperty = {
       title: property.title,
@@ -67,24 +86,45 @@ export async function POST(request: Request) {
       area: property.area,
       description: property.description,
     };
-    const portals = market.portals.map((portal) => ({
+    const portalRules = {
       portalId: portal.id,
       portalName: portal.name,
       accountType: portal.accountType,
       note: portal.note,
-    }));
+      eligibility: portal.eligibility,
+      publishMode: portal.publishMode,
+      eligibilityNote: portal.eligibilityNote,
+      titleLimit: portal.titleLimit,
+      descriptionLimit: portal.descriptionLimit,
+      listingOrder: portal.listingOrder,
+      requiredFields: portal.requiredFields,
+      imageGuidance: portal.imageGuidance,
+      mediaRules: portal.mediaRules,
+    };
+    const marketPlaybook = {
+      sourceCurrency: 'TRY',
+      portalCurrencyContext: market.currency,
+      timezone: market.timezone,
+      measurementSystem: market.measurementSystem,
+      buyerFocus: market.buyerFocus,
+      recommendedSocialChannels: market.socialChannels,
+    };
     const prompt = `Sen uluslararası gayrimenkul ilanları hazırlayan kıdemli bir editörsün.
 Hedef ülke: ${market.country}
 Yayın dili: ${market.language}
 Şirket: ${principal.account.companyName}
 Doğrulanmış portföy verisi: ${JSON.stringify(verifiedProperty)}
-Hedef portallar: ${JSON.stringify(portals)}
+Ülke oyun planı: ${JSON.stringify(marketPlaybook)}
+Seçilen tek portal: ${JSON.stringify(portalRules)}
 
-Her portal için o platformdaki okuyucuya uygun, doğal ve birbirinden farklı bir ilan başlığı, açıklaması ve kısa yayın adımları yaz.
+Yalnız seçilen portal için o platformdaki okuyucuya uygun, doğal bir ilan başlığı, açıklaması ve kısa yayın adımları yaz.
+Bu tek portal metninin Türkçe geri çevirisini de yaz. Ayrıca ülke için önerilen her sosyal kanalın amacı, doğru görsel formatı, içerik açısı, yerel dilde CTA'sı ve yerel saatle test edilecek yayın aralığını ayrı hazırla.
 Yalnızca doğrulanmış portföy verisini kullan. Bilinmeyen özellik, yatırım getirisi, vatandaşlık, ikamet, hukuki uygunluk, indirim, teslim tarihi veya portal ücreti uydurma.
+Kaynak fiyat TRY'dir. "Portal para birimi bağlamı" yalnızca gelecekteki yayın kontrolü içindir. Döviz kuru verilmediği için para sembolünü değiştirme, kur dönüşümü yapma ve yabancı para tutarı uydurma; fiyatı TRY olarak koru.
+Portal yalnızca kampanya modundaysa portal ilanı vaat etme; yerel dilde açılış sayfası, reklam ve uygunluk doğrulama adımları hazırla.
 Başlık ve açıklamalar ${market.language} dilinde; strateji, uyarılar ve yayın adımları Türkçe olsun.
 Yalnızca şu yapıda geçerli JSON döndür:
-{"strategy":"...","warnings":["..."],"portalCopies":[{"portalId":"...","title":"...","body":"...","steps":["..."]}]}`;
+{"strategy":"...","warnings":["..."],"portalCopies":[{"portalId":"...","title":"...","body":"...","titleTr":"...","bodyTr":"...","steps":["..."]}],"socialPlan":{"channels":[{"channel":"...","objective":"...","format":"...","contentAngle":"...","localCta":"...","publishingWindow":"..."}],"complianceNotes":["..."]}}`;
 
     const aiResult = await callCompanyMarketingAI(principal.account.id, [
       {
@@ -93,13 +133,19 @@ Yalnızca şu yapıda geçerli JSON döndür:
       },
       { role: 'user', content: prompt },
     ]);
-    const plan = parseInternationalPlan(aiResult.content, fallback, market);
+    const plan = parseInternationalPlan(
+      aiResult.content,
+      fallback,
+      market,
+      portal,
+      property.price,
+    );
 
     const campaign = await prisma.adCampaign.create({
       data: {
         companyAccountId: principal.account.id,
         propertyId: property.id,
-        name: `${market.flag} ${market.country} · ${property.title}`,
+        name: `${market.flag} ${market.country} · ${portal.name} · ${property.title}`,
         description: plan.strategy,
         type: 'international',
         objective: 'Yurt dışı ilan yayını',
@@ -129,7 +175,7 @@ Yalnızca şu yapıda geçerli JSON döndür:
       companyAccountId: principal.account.id,
       type: NotificationType.AD_COPY_READY,
       title: `${market.country} ilan planı hazır`,
-      message: `${property.title} için ${market.portals.length} portala özel metin ve yayın rehberi hazırlandı.`,
+      message: `${property.title} için yalnız ${portal.name} kurallarına uygun metin ve yayın rehberi hazırlandı.`,
       link: '/fabrika/pazarlamaci',
       important: false,
       dedupeKey: `international-campaign-ready:${campaign.id}`,

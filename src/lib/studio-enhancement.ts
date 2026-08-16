@@ -1,5 +1,5 @@
 export const DEFAULT_STUDIO_ENHANCEMENT_PROMPT =
-  'Bu görseli profesyonel, tam kare bir kamerayla ve kaliteli bir lensle çekilmiş gibi iyileştir. Pozlama, beyaz dengesi, ışıklandırma, renk doğruluğu, kontrast, dinamik aralık, netlik ve detay seviyesini doğal biçimde düzenle. Gölgelerdeki ve parlak alanlardaki detayları geri kazandır. Perspektifi ve dikey çizgileri gerektiğinde düzelt. Görselin gerçekçi görünümünü koru; aşırı HDR, yapay renkler veya plastik dokular oluşturma. Görseldeki binanın, odanın, mobilyaların, manzaranın ve diğer nesnelerin yapısını değiştirme. Yeni nesne, insan, yazı, logo, filigran veya mimari unsur ekleme. Sonuç, profesyonel bir emlak ve mimari fotoğraf çekimi kalitesinde, temiz, doğal ve gerçekçi olsun.';
+  'Bu görseli profesyonel bir emlak fotoğrafı gibi iyileştir fakat çekildiği zamanı kesinlikle değiştirme: gece fotoğrafı gece, mavi saat mavi saat, gündüz fotoğrafı gündüz kalsın. Fotoğrafın tamamını fazla aydınlatmak yerine mevcut lamba, aplik, tavan, pencere, havuz ve bahçe ışıklarını doğal ve davetkâr göster; yalnızca görünen ışık kaynaklarının çevresine gerçekçi ve hafif bir ışık yayılımı ekle. Genel pozlamayı ve gölge derinliğini kaynağa yakın tut. Doğal renk ayrımı, kontrollü kontrast, tonal derinlik, doğru beyaz dengesi, temiz detay ve hafif netlik kullan. Pencere, lamba, tavan, beyaz duvar, yansıma ve gökyüzü ayrıntılarını koru; patlamış beyaz, yapay HDR veya düz gri gölge oluşturma. Kadrajı, perspektifi, mimariyi, mobilyaları, nesneleri, manzarayı ve bütün mülk özelliklerini aynen koru. Olmayan yeni bir lamba, LED, pencere, mobilya, peyzaj veya mimari unsur ekleme; hiçbir fiziksel unsuru kaldırma, taşıma veya yeniden tasarlama.';
 
 export const STUDIO_NEGATIVE_PROMPT =
   'text, letters, numbers, logo, watermark, people, new objects, removed objects, altered architecture, redesigned room, changed furniture, changed facade, fake windows, new pool, distorted geometry, oversaturated colors, excessive HDR, plastic textures, unrealistic lighting, blur, noise, low resolution';
@@ -43,9 +43,9 @@ export const STUDIO_ENHANCEMENT_PRESETS: StudioEnhancementPreset[] = [
   {
     id: 'evening',
     label: 'Akşam çekimi',
-    description: 'Doğal akşam atmosferi ve kontrollü iç mekân ışıkları.',
+    description: 'Mevcut akşam veya gece atmosferini ve ışıkları korur.',
     prompt:
-      'Bu gayrimenkul görselini doğal ve gerçekçi bir akşam çekimi estetiğinde iyileştir. Mevcut ışık kaynaklarını sıcak ve dengeli göster; gökyüzünü ve ortam ışığını gerçekçi mavi saat tonlarına yaklaştır. Binanın, odanın, mobilyaların, havuzun, manzaranın ve diğer tüm nesnelerin yapısını ve konumunu aynen koru. Yeni lamba, pencere, havuz, insan, yazı, logo veya başka bir unsur ekleme. Aşırı sinematik, yapay veya fazla doygun bir sonuç oluşturma.',
+      'Görsel zaten akşam, gece veya mavi saatte çekildiyse bu zamanı aynen koruyarak mevcut lamba, aplik, pencere, havuz ve bahçe ışıklarını sıcak, dengeli ve davetkâr göster. Gündüz fotoğrafını akşama, gece fotoğrafını gündüze dönüştürme; gökyüzünü değiştirme. Binanın, odanın, mobilyaların, havuzun, manzaranın ve diğer tüm nesnelerin yapısını ve konumunu aynen koru. Yeni lamba, pencere, havuz, insan, yazı, logo veya başka bir fiziksel unsur ekleme. Aşırı sinematik, yapay veya fazla doygun bir sonuç oluşturma.',
   },
   {
     id: 'natural',

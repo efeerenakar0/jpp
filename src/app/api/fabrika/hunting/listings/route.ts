@@ -77,7 +77,9 @@ export async function GET(request: Request) {
     };
     const where = {
       companyAccountId: principal.account.id,
-      ...(query.jobId ? { huntJobId: query.jobId } : {}),
+      ...(query.jobId
+        ? { jobLinks: { some: { jobId: query.jobId } } }
+        : {}),
       ...(query.acquisitionStatus
         ? { acquisitionStatus: query.acquisitionStatus }
         : {}),

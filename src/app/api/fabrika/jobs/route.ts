@@ -83,6 +83,8 @@ export async function GET() {
             kind: "STUDIO",
             title: job.property?.title || "Stüdyo görsel işlemi",
             status: job.status,
+            completed,
+            total: job.items.length,
             progress: job.items.length
               ? Math.round((completed / job.items.length) * 100)
               : 0,

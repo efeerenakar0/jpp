@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 
 const mocks = vi.hoisted(() => ({
   requireFabrikaPrincipal: vi.fn(),
-  enhanceWithStableImageUltra: vi.fn(),
+  enhanceWithOpenRouterFluxKlein: vi.fn(),
 }));
 
 vi.mock('@/lib/fabrika-session', () => ({
@@ -12,8 +12,8 @@ vi.mock('@/lib/fabrika-session', () => ({
   requireFabrikaPrincipal: mocks.requireFabrikaPrincipal,
 }));
 
-vi.mock('@/lib/stability-ultra', () => ({
-  StabilityUltraError: class StabilityUltraError extends Error {
+vi.mock('@/lib/openrouter-studio-image', () => ({
+  OpenRouterStudioImageError: class OpenRouterStudioImageError extends Error {
     constructor(
       readonly code: string,
       readonly status: number
@@ -21,7 +21,7 @@ vi.mock('@/lib/stability-ultra', () => ({
       super(code);
     }
   },
-  enhanceWithStableImageUltra: mocks.enhanceWithStableImageUltra,
+  enhanceWithOpenRouterFluxKlein: mocks.enhanceWithOpenRouterFluxKlein,
 }));
 
 vi.mock('@/lib/studio-enhancement', () => ({
@@ -38,7 +38,7 @@ describe('POST /api/fabrika/studio/process', () => {
       account: { id: 'company-a' },
       member: null,
     });
-    mocks.enhanceWithStableImageUltra.mockResolvedValue({
+    mocks.enhanceWithOpenRouterFluxKlein.mockResolvedValue({
       buffer: Buffer.from([255, 216, 255, 217]),
       mimeType: 'image/jpeg',
       extension: 'jpg',
@@ -70,7 +70,7 @@ describe('POST /api/fabrika/studio/process', () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(
       Uint8Array.from([255, 216, 255, 217])
     );
-    expect(mocks.enhanceWithStableImageUltra).toHaveBeenCalledWith({
+    expect(mocks.enhanceWithOpenRouterFluxKlein).toHaveBeenCalledWith({
       image: Buffer.from([255, 216, 255, 217]),
       mimeType: 'image/png',
       prompt: 'Işığı doğal biçimde düzelt.',
@@ -94,6 +94,6 @@ describe('POST /api/fabrika/studio/process', () => {
       code: 'INVALID_IMAGE',
       error: expect.stringContaining('fotoğraf'),
     });
-    expect(mocks.enhanceWithStableImageUltra).not.toHaveBeenCalled();
+    expect(mocks.enhanceWithOpenRouterFluxKlein).not.toHaveBeenCalled();
   });
 });

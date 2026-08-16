@@ -46,6 +46,9 @@ next-env.d.ts
 /src/generated/prisma
 /backups
 /tmp/
+/artifacts/
+/storage/
+/.codex/
 /public/business-ceo/business-ceo-ai-dark.png
 /public/business-ceo/business-ceo-ai-light.png
 /.wpp_auth

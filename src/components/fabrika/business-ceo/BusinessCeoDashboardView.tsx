@@ -1,6 +1,4 @@
 'use client';
-
-import { useState } from 'react';
 import {
   CalendarDays,
   CheckSquare2,
@@ -12,11 +10,9 @@ import {
 
 import { PortfolioWorkflowDialog } from '@/components/fabrika/executive-dashboard/PortfolioWorkflowContent';
 import { usePortfolioWorkflowController } from '@/components/fabrika/executive-dashboard/usePortfolioWorkflowController';
-import type { BusinessCeoModuleDefinition } from '@/lib/business-ceo-dashboard';
 import type { PortfolioWorkflowLaunchIntent } from '@/lib/portfolio-workflow-intent';
 
 import { ModuleCardGrid } from './ModuleCardGrid';
-import { ModuleLaunchDialog } from './ModuleLaunchDialog';
 import { SalesExpertPanel } from './SalesExpertPanel';
 import type {
   AssistantMetrics,
@@ -122,8 +118,6 @@ export function BusinessCeoDashboardView({
   whatsappError = null,
   initialWorkflowIntent = null,
 }: BusinessCeoDashboardViewProps) {
-  const [selectedModule, setSelectedModule] =
-    useState<BusinessCeoModuleDefinition | null>(null);
   const workflow = usePortfolioWorkflowController({
     initialIntent: initialWorkflowIntent,
   });
@@ -134,7 +128,6 @@ export function BusinessCeoDashboardView({
         <div className={styles.primaryGrid}>
           <WorkflowBoard
             onQuickWorkflow={workflow.resumeWorkflow}
-            onSelect={setSelectedModule}
             workflowStatus={workflow.status}
           />
           <SalesExpertPanel
@@ -152,15 +145,9 @@ export function BusinessCeoDashboardView({
           />
         </div>
         <DashboardMetricStrip metrics={metrics} />
-        <ModuleCardGrid onSelect={setSelectedModule} />
+        <ModuleCardGrid />
       </div>
 
-      <ModuleLaunchDialog
-        module={selectedModule}
-        onOpenChange={(open) => {
-          if (!open) setSelectedModule(null);
-        }}
-      />
       <PortfolioWorkflowDialog
         draft={workflow.draft}
         entryMode={workflow.entryMode}

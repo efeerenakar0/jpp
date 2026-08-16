@@ -1,135 +1,105 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
 import { dispatchQueuedHuntWorker } from './worker-dispatch';
 
-const signingSecret =
-  'test-only-worker-signing-secret-with-more-than-32-characters';
+const actorInput = {
+  startUrls: [
+    'https://www.sahibinden.com/emlak-konut/antalya-alanya-oba/sahibinden',
+  ] as [string],
+  enrichment: true as const,
+  maxResults: 50,
+};
 
-describe('Avcı worker tetikleyicisi', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('tetikleme modu kapalıyken dış servise istek göndermez', async () => {
+describe('ClearPath Avci worker tetikleyicisi', () => {
+  it('tetikleme modu kapaliyken dis servise istek gondermez', async () => {
     const fetchImpl = vi.fn();
-
-    await expect(
-      dispatchQueuedHuntWorker('job-a', { env: {}, fetchImpl })
-    ).resolves.toEqual({ status: 'disabled' });
+    await expect(dispatchQueuedHuntWorker(actorInput, { env: {}, fetchImpl })).resolves.toEqual({
+      status: 'disabled',
+    });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('Apify Actor çalıştırmasını bearer token ve harcama sınırıyla başlatır', async () => {
+  it('resmi /acts endpointine exact actor input ve server-side token ile baslar', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: { id: 'run-123' } }), {
-        status: 201,
-        headers: { 'content-type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({
+          data: {
+            id: 'run-123',
+            defaultDatasetId: 'dataset-123',
+            status: 'READY',
+          },
+        }),
+        { status: 201 }
+      )
     );
-
     await expect(
-      dispatchQueuedHuntWorker('job-a', {
+      dispatchQueuedHuntWorker(actorInput, {
         env: {
           AVCI_WORKER_DISPATCH_MODE: 'apify',
-          APIFY_AVCI_ACTOR_ID: 'efeerenakar0~business-ai-portfoy-uzmani',
           APIFY_TOKEN: 'secret-apify-token',
-          AVCI_WORKER_SIGNING_SECRET: signingSecret,
         },
         fetchImpl,
       })
-    ).resolves.toEqual({ status: 'started', runId: 'run-123' });
+    ).resolves.toEqual({
+      status: 'started',
+      runId: 'run-123',
+      datasetId: 'dataset-123',
+      actorId: 'clearpath~sahibinden-scraper-pro',
+      apifyStatus: 'READY',
+    });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [requestUrl, requestInit] = fetchImpl.mock.calls[0] as [
       string,
       RequestInit,
     ];
     const url = new URL(requestUrl);
     expect(`${url.origin}${url.pathname}`).toBe(
-      'https://api.apify.com/v2/actors/efeerenakar0~business-ai-portfoy-uzmani/runs'
+      'https://api.apify.com/v2/acts/clearpath~sahibinden-scraper-pro/runs'
     );
-    expect(url.searchParams.get('memory')).toBe('2048');
-    expect(url.searchParams.get('timeout')).toBe('900');
-    expect(url.searchParams.get('maxTotalChargeUsd')).toBe('0.25');
-    expect(requestInit).toMatchObject({
-      method: 'POST',
-      headers: expect.objectContaining({
-        Authorization: 'Bearer secret-apify-token',
-        'Content-Type': 'application/json',
-      }),
-    });
-    const actorInput = JSON.parse(String(requestInit.body));
-    expect(actorInput).toMatchObject({
-      version: 1,
-      jobId: 'job-a',
-      capability: expect.any(String),
-    });
-    expect(String(requestInit.body)).not.toContain('DATABASE_URL');
-    expect(String(requestInit.body)).not.toContain('HUNTING_CONTACT');
+    expect(url.searchParams.get('memory')).toBe('1024');
+    expect(url.searchParams.get('timeout')).toBe('600');
+    expect(url.searchParams.get('maxTotalChargeUsd')).toBe('0.75');
+    expect(requestInit.body).toBe(JSON.stringify(actorInput));
+    expect(requestInit.headers).toEqual(
+      expect.objectContaining({ Authorization: 'Bearer secret-apify-token' })
+    );
     expect(requestUrl).not.toContain('secret-apify-token');
   });
 
-  it('eksik ayarda fail-closed davranır ve sağlayıcı yanıtını sızdırmaz', async () => {
+  it('eski APIFY_AVCI_ACTOR_ID degeri ClearPath actorunu ezemez', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
-      new Response('secret-apify-token', { status: 401 })
+      new Response(JSON.stringify({ data: { id: 'run-123' } }), { status: 201 })
     );
-
-    await expect(
-      dispatchQueuedHuntWorker('job-a', {
-        env: {
-          AVCI_WORKER_DISPATCH_MODE: 'apify',
-          APIFY_AVCI_ACTOR_ID: 'actor-id',
-          APIFY_TOKEN: 'secret-apify-token',
-          AVCI_WORKER_SIGNING_SECRET: signingSecret,
-        },
-        fetchImpl,
-      })
-    ).rejects.toThrow('Worker başlatılamadı');
-
-    await expect(
-      dispatchQueuedHuntWorker('job-a', {
-        env: { AVCI_WORKER_DISPATCH_MODE: 'apify' },
-        fetchImpl,
-      })
-    ).rejects.toThrow('Apify worker ayarları eksik');
+    await dispatchQueuedHuntWorker(actorInput, {
+      env: {
+        AVCI_WORKER_DISPATCH_MODE: 'apify',
+        APIFY_AVCI_ACTOR_ID: 'legacy~worker',
+        APIFY_TOKEN: 'secret-apify-token',
+      },
+      fetchImpl,
+    });
+    expect(String(fetchImpl.mock.calls[0][0])).toContain(
+      'clearpath~sahibinden-scraper-pro'
+    );
   });
 
-  it('desteklenmeyen modu ve ağ hatasını güvenli mesajla reddeder', async () => {
+  it('eksik token ve saglayici hatasinda fail-closed davranir', async () => {
     await expect(
-      dispatchQueuedHuntWorker('job-a', {
-        env: { AVCI_WORKER_DISPATCH_MODE: 'unknown' },
+      dispatchQueuedHuntWorker(actorInput, {
+        env: { AVCI_WORKER_DISPATCH_MODE: 'apify' },
         fetchImpl: vi.fn(),
       })
-    ).rejects.toThrow('Desteklenmeyen');
-
+    ).rejects.toThrow('Apify worker ayarlari eksik');
     await expect(
-      dispatchQueuedHuntWorker('job-a', {
+      dispatchQueuedHuntWorker(actorInput, {
         env: {
           AVCI_WORKER_DISPATCH_MODE: 'apify',
-          APIFY_AVCI_ACTOR_ID: 'actor-id',
-          APIFY_TOKEN: 'secret-apify-token',
-          AVCI_WORKER_SIGNING_SECRET: signingSecret,
+          APIFY_TOKEN: 'secret',
         },
-        fetchImpl: vi.fn().mockRejectedValue(new Error('secret network body')),
+        fetchImpl: vi.fn().mockResolvedValue(new Response('secret', { status: 401 })),
       })
-    ).rejects.toThrow('Worker başlatılamadı');
-  });
-
-  it('başarılı HTTP yanıtında doğrulanabilir run kimliği ister', async () => {
-    await expect(
-      dispatchQueuedHuntWorker('job-a', {
-        env: {
-          AVCI_WORKER_DISPATCH_MODE: 'apify',
-          APIFY_AVCI_ACTOR_ID: 'actor-id',
-          APIFY_TOKEN: 'secret-apify-token',
-          AVCI_WORKER_SIGNING_SECRET: signingSecret,
-        },
-        fetchImpl: vi
-          .fn()
-          .mockResolvedValue(new Response('not-json', { status: 201 })),
-      })
-    ).rejects.toThrow('yanıtı doğrulanamadı');
+    ).rejects.toThrow('Worker baslatilamadi');
   });
 });

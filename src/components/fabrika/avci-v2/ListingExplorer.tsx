@@ -9,6 +9,7 @@ import {
   Clipboard,
   ExternalLink,
   FileText,
+  Gauge,
   ImageIcon,
   LoaderCircle,
   MapPin,
@@ -28,6 +29,7 @@ import {
   CONTACT_STATUS_META,
   contactUiStatus,
 } from './contact-status';
+import type { HuntScanContext } from './HuntQuotaGuide';
 import type {
   HuntingContactSummary,
   HuntingListingDetail,
@@ -66,11 +68,13 @@ const ACQUISITION_LABELS: Record<string, string> = {
 type ListingExplorerProps = {
   jobId: string | null;
   refreshToken: number;
+  scanContext?: HuntScanContext | null;
 };
 
 export default function ListingExplorer({
   jobId,
   refreshToken,
+  scanContext = null,
 }: ListingExplorerProps) {
   const [response, setResponse] = useState<HuntingListingsResponse | null>(
     null
@@ -87,11 +91,21 @@ export default function ListingExplorer({
   const [draftTone, setDraftTone] = useState<'samimi' | 'resmi' | 'acil'>(
     'samimi'
   );
+  const listingPageSize = Math.max(
+    1,
+    Math.min(
+      50,
+      scanContext?.requestedResults || scanContext?.perRunLimit || 50
+    )
+  );
 
   const loadListings = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: '1', pageSize: '48' });
+      const params = new URLSearchParams({
+        page: '1',
+        pageSize: String(listingPageSize),
+      });
       if (jobId) params.set('jobId', jobId);
       setResponse(
         await apiJson<HuntingListingsResponse>(
@@ -105,7 +119,7 @@ export default function ListingExplorer({
     } finally {
       setLoading(false);
     }
-  }, [jobId]);
+  }, [jobId, listingPageSize]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -313,6 +327,39 @@ export default function ListingExplorer({
           </Button>
         </div>
       </div>
+
+      {scanContext && (
+        <div
+          aria-label="Seçilen tarama sınırları"
+          className="mt-4 grid gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3 sm:grid-cols-3"
+        >
+          <span className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-950/55 px-3 text-xs text-slate-300">
+            <Gauge aria-hidden="true" className="h-4 w-4 shrink-0 text-emerald-300" />
+            <span>
+              <strong className="block text-white">{scanContext.label}</strong>
+              Bu tarama en fazla {scanContext.requestedResults} ilan getirir.
+            </span>
+          </span>
+          <span className="flex min-h-11 items-center rounded-lg bg-slate-950/55 px-3 text-xs text-slate-300">
+            <span>
+              <strong className="block text-white">
+                {scanContext.remaining === null ? 'Aylık limit' : 'Aylık kalan hak'}
+              </strong>
+              {scanContext.remaining === null
+                ? `${scanContext.monthlyLimit} ilan`
+                : `${scanContext.remaining} / ${scanContext.monthlyLimit} ilan`}
+            </span>
+          </span>
+          <span className="flex min-h-11 items-center rounded-lg bg-slate-950/55 px-3 text-xs text-slate-300">
+            <span aria-live="polite">
+              <strong className="block text-white">Bu işin sonucu</strong>
+              {jobId && scanContext.jobId === jobId && !loading
+                ? `${response?.pagination.total || 0} ilan bulundu`
+                : 'Tarama başlayınca burada görünür'}
+            </span>
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid gap-3 pt-5 sm:grid-cols-2 xl:grid-cols-3">

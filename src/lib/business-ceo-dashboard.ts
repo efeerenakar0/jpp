@@ -51,7 +51,7 @@ export const BUSINESS_CEO_MODULES: {
       title: 'AI Reklam Tasarımı',
       shortTitle: 'Reklam Tasarımı',
       description: 'Portföyleriniz için poster ve video çalışmaları oluşturun.',
-      href: '/fabrika/studyo?area=poster',
+      href: '/fabrika/reklam-tasarimi',
       actionLabel: 'Tasarım oluştur',
       accent: 'violet',
     },

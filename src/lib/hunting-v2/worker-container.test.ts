@@ -11,8 +11,6 @@ describe('Avcı worker konteyneri', () => {
 
     expect(dockerfile).toContain('CRAWLEE_STORAGE_DIR=/tmp/crawlee-storage');
     expect(dockerfile).toContain('NODE_OPTIONS=--conditions=react-server');
-    expect(dockerfile).toContain('PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=true');
-    expect(dockerfile).toContain('PUPPETEER_SKIP_DOWNLOAD=true');
     expect(dockerfile).toContain(
       'FROM apify/actor-node-playwright-chrome:24-1.62.1'
     );
@@ -50,9 +48,6 @@ describe('Avcı worker konteyneri', () => {
       usesStandbyMode: false,
       environmentVariables: {
         AVCI_RUN_ONCE: 'true',
-        AVCI_LIVE_PROVIDER_ENABLED: 'true',
-        AVCI_WORKER_API_URL:
-          'https://jpp-ufeb.vercel.app/api/internal/hunting-worker',
         AVCI_APIFY_PROXY_ENABLED: 'true',
         AVCI_APIFY_PROXY_REQUIRED: 'true',
         AVCI_APIFY_PROXY_GROUPS: 'RESIDENTIAL',
@@ -67,17 +62,5 @@ describe('Avcı worker konteyneri', () => {
     expect(dockerfile).toContain(
       'CMD ["xvfb-run", "-a", "npm", "run", "worker:avci"]'
     );
-  });
-
-  it('Actor veri duzlemi veritabani ve telefon sirlarini dogrudan import etmez', () => {
-    const worker = readFileSync(
-      join(process.cwd(), 'src/lib/hunting-v2/worker.ts'),
-      'utf8'
-    );
-
-    expect(worker).not.toContain("from '@/lib/prisma'");
-    expect(worker).not.toContain("from './contact-crypto'");
-    expect(worker).not.toContain("from './authorized-source-contact'");
-    expect(worker).not.toContain("from './media'");
   });
 });

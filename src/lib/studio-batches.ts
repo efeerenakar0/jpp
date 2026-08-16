@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { Prisma } from '@prisma/client';
-import { del } from '@vercel/blob';
+import { NotificationType, type Prisma } from '@prisma/client';
+import { del, head } from '@vercel/blob';
 import prisma from '@/lib/prisma';
 import {
   fetchOwnedMediaBytes,
@@ -17,14 +17,45 @@ import { summarizeStudioBatch } from '@/lib/studio-batch-rules';
 import {
   enhanceStudioImage,
   resolveStudioImageEngine,
+  resolveStudioImageModelTier,
+  StudioImageError,
 } from '@/lib/studio-image-engine';
+import {
+  OPENROUTER_STUDIO_FLUX_IMAGE_MODEL,
+  OpenRouterStudioImageError,
+} from '@/lib/openrouter-studio-image';
 import {
   studioItemFailureTransition,
   studioItemLeaseExpiry,
 } from '@/lib/studio-batch-lease';
+import {
+  isStudioImageType,
+  STUDIO_MAX_FILE_BYTES,
+  STUDIO_MAX_PHOTOS,
+  STUDIO_MAX_TOTAL_BYTES,
+  studioUploadAccountPrefix,
+  studioUploadFileName,
+  type StudioUploadedFile,
+} from '@/lib/studio-upload';
+import { createCompanyNotification } from '@/lib/fabrika-notifications';
 
-export const STUDIO_BATCH_MAX_ITEMS = 12;
+export const STUDIO_BATCH_MAX_ITEMS = STUDIO_MAX_PHOTOS;
+export const STUDIO_BATCH_MAX_CONCURRENT_ITEMS = 5;
 const STUDIO_BATCH_RETENTION_DAYS = 7;
+
+const LEGACY_STUDIO_SAFETY_ERROR_MARKERS = [
+  'guvenlik icin bu sonuc kaydedilmedi',
+  'güvenlik kontrolünde reddedildi',
+  'guvenlik kontrolunde reddedildi',
+  'yapay zeka gecersiz bir gorsel dondurdu',
+] as const;
+
+export function isLegacyStudioSafetyFailure(message?: string | null) {
+  const normalized = message?.trim().toLocaleLowerCase('tr-TR') ?? '';
+  return LEGACY_STUDIO_SAFETY_ERROR_MARKERS.some((marker) =>
+    normalized.includes(marker)
+  );
+}
 
 function expiresAt() {
   const value = new Date();
@@ -37,8 +68,10 @@ export async function createStudioBatch(input: {
   propertyId?: string | null;
   mediaIds?: string[];
   files?: File[];
+  uploadedFiles?: StudioUploadedFile[];
   prompt: string;
   preset?: string | null;
+  title?: string | null;
   idempotencyKey?: string | null;
 }) {
   const prompt = input.prompt.trim();
@@ -51,9 +84,10 @@ export async function createStudioBatch(input: {
     await assertOwnedProperty(input.actor, input.propertyId);
   }
   const files = input.files ?? [];
+  const uploadedFiles = input.uploadedFiles ?? [];
   const mediaIds = [...new Set(input.mediaIds ?? [])];
   if (files.length) validatePropertyMediaFiles(files);
-  const totalItems = files.length + mediaIds.length;
+  const totalItems = files.length + uploadedFiles.length + mediaIds.length;
   if (!totalItems) {
     throw new PropertyMediaError(
       'Bilgisayarınızdan veya portföyden en az bir görsel seçin.'
@@ -63,6 +97,49 @@ export async function createStudioBatch(input: {
     throw new PropertyMediaError(
       `Tek işlemde en fazla ${STUDIO_BATCH_MAX_ITEMS} görsel işleyebilirsiniz.`
     );
+  }
+  if (new Set(uploadedFiles.map((file) => file.pathname)).size !== uploadedFiles.length) {
+    throw new PropertyMediaError('Aynı yüklenmiş fotoğraf birden fazla kez gönderilemez.');
+  }
+
+  const ownedUploadPrefix = `${studioUploadAccountPrefix(input.actor.companyAccountId)}/`;
+  const verifiedUploads = await Promise.all(
+    uploadedFiles.map(async (file) => {
+      if (
+        !file.url.startsWith('https://') ||
+        !file.pathname.startsWith(ownedUploadPrefix) ||
+        file.pathname.includes('..') ||
+        !isStudioImageType(file.mimeType) ||
+        file.byteSize <= 0 ||
+        file.byteSize > STUDIO_MAX_FILE_BYTES
+      ) {
+        throw new PropertyMediaError('Yüklenen fotoğraflardan biri geçersiz.');
+      }
+      const blob = await head(file.url);
+      if (
+        blob.pathname !== file.pathname ||
+        !blob.pathname.startsWith(ownedUploadPrefix) ||
+        !isStudioImageType(blob.contentType) ||
+        blob.size <= 0 ||
+        blob.size > STUDIO_MAX_FILE_BYTES
+      ) {
+        throw new PropertyMediaError('Yüklenen fotoğraf doğrulanamadı.');
+      }
+      return {
+        ...file,
+        url: blob.url,
+        pathname: blob.pathname,
+        mimeType: blob.contentType,
+        byteSize: blob.size,
+        fileName: studioUploadFileName(file.fileName),
+      };
+    })
+  );
+  const totalUploadBytes =
+    files.reduce((total, file) => total + file.size, 0) +
+    verifiedUploads.reduce((total, file) => total + file.byteSize, 0);
+  if (totalUploadBytes > STUDIO_MAX_TOTAL_BYTES) {
+    throw new PropertyMediaError('Seçilen fotoğrafların toplam boyutu 120 MB sınırını aşıyor.');
   }
   const ownedMedia = mediaIds.length
     ? await prisma.crmPropertyMedia.findMany({
@@ -100,16 +177,11 @@ export async function createStudioBatch(input: {
     data: {
       companyAccountId: input.actor.companyAccountId,
       propertyId: input.propertyId || null,
+      title: input.title?.trim().slice(0, 180) || null,
       prompt,
       preset: input.preset || null,
-      provider:
-        resolveStudioImageEngine(input.preset) === 'CREATIVE'
-          ? 'STABILITY'
-          : 'SHARP',
-      model:
-        resolveStudioImageEngine(input.preset) === 'CREATIVE'
-          ? 'stable-image-ultra'
-          : 'adaptive-real-estate-v2',
+      provider: 'OPENROUTER',
+      model: OPENROUTER_STUDIO_FLUX_IMAGE_MODEL,
       status: 'UPLOADING',
       createdByMemberId: input.actor.memberId,
       idempotencyKey,
@@ -135,6 +207,22 @@ export async function createStudioBatch(input: {
       status: 'PENDING' as const,
       })
     );
+    verifiedUploads.forEach((file, uploadIndex) => {
+      itemData.push({
+        batchId: batch.id,
+        sourceMediaId: null,
+        originalUrl: file.url,
+        originalStorageKey: file.pathname,
+        originalFileName: file.fileName,
+        originalMimeType: file.mimeType,
+        originalWidth: null,
+        originalHeight: null,
+        originalByteSize: file.byteSize,
+        sortOrder: ownedMedia.length + uploadIndex,
+        fingerprint: `blob:${file.pathname}`,
+        status: 'PENDING',
+      });
+    });
     for (const [fileIndex, file] of files.entries()) {
       const stored = await persistPropertyMediaFile({
         companyAccountId: input.actor.companyAccountId,
@@ -152,7 +240,7 @@ export async function createStudioBatch(input: {
         originalWidth: null,
         originalHeight: null,
         originalByteSize: stored.byteSize,
-        sortOrder: ownedMedia.length + fileIndex,
+        sortOrder: ownedMedia.length + verifiedUploads.length + fileIndex,
         fingerprint: `upload:${stored.checksum}`,
         status: 'PENDING',
       });
@@ -271,6 +359,41 @@ async function refreshBatchStatus(batchId: string) {
       },
       update: {},
     });
+
+    // İş tamamlandığında kullanıcı sayfada olmasa da Bildirimler > Tümü
+    // altında görünsün. Aynı batch yeniden senkron edilirse dedupeKey ikinci
+    // bir bildirim oluşmasını engeller.
+    try {
+      const readyCount = items.filter((item) =>
+        ['COMPLETED', 'ATTACHED'].includes(item.status),
+      ).length;
+      const failedCount = items.filter((item) => item.status === 'FAILED').length;
+      const title =
+        status === 'COMPLETED' || status === 'ATTACHED'
+          ? 'Stüdyo görselleri hazır'
+          : status === 'PARTIAL'
+            ? 'Stüdyo işlemi kısmen tamamlandı'
+            : 'Stüdyo İşleme Hatası';
+      const message =
+        status === 'COMPLETED' || status === 'ATTACHED'
+          ? `${readyCount} fotoğraf iyileştirildi. Sonuçları görmek için çalışmayı açabilirsiniz.`
+          : status === 'PARTIAL'
+            ? `${readyCount} fotoğraf hazır, ${failedCount} fotoğraf tekrar denenebilir.`
+            : 'Fotoğraflar işlenemedi. Stüdyo geçmişinden tekrar deneyebilirsiniz.';
+      await createCompanyNotification({
+        companyAccountId: batch.companyAccountId,
+        type: NotificationType.STUDIO_READY,
+        title,
+        message,
+        link: '/fabrika/studyo#studio-recent',
+        important: status === 'FAILED' || status === 'PARTIAL',
+        dedupeKey: `studio-ready:${batchId}:${status}`,
+        metadata: { batchId, status, readyCount, failedCount, itemCount: items.length },
+      });
+    } catch (notificationError) {
+      // Bildirim üretilememesi görsel işinin başarısını etkilememeli.
+      console.warn('[Studio notification warning]', notificationError);
+    }
   }
 }
 
@@ -294,10 +417,70 @@ export async function processStudioBatchItem(input: {
   if (item.status === 'ATTACHED' || (item.status === 'COMPLETED' && item.outputUrl)) {
     return item;
   }
-  await prisma.studioBatchItem.update({
-    where: { id: item.id },
-    data: { status: 'PROCESSING', errorMessage: null },
-  });
+  let effectiveLeaseOwner = input.leaseOwner;
+  if (input.leaseOwner) {
+    if (item.status !== 'PROCESSING' || item.leaseOwner !== input.leaseOwner) {
+      throw new PropertyMediaError('Bu fotograf baska bir islem tarafindan ele alinmis.', 409);
+    }
+  } else {
+    effectiveLeaseOwner = `studio-browser:${randomUUID()}`;
+    const now = new Date();
+    const claimed = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`studio-batch:${item.batchId}`}))::text
+      `;
+      const activeInBatch = await tx.studioBatchItem.count({
+        where: {
+          batchId: item.batchId,
+          status: 'PROCESSING',
+          leaseExpiresAt: { gt: now },
+        },
+      });
+      if (activeInBatch >= STUDIO_BATCH_MAX_CONCURRENT_ITEMS) {
+        return { count: 0, capacityReached: true };
+      }
+      const result = await tx.studioBatchItem.updateMany({
+        where: {
+          id: item.id,
+          batchId: item.batchId,
+          OR: [
+            { status: { in: ['PENDING', 'FAILED'] } },
+            { status: 'PROCESSING', leaseExpiresAt: { lte: now } },
+          ],
+        },
+        data: {
+          status: 'PROCESSING',
+          errorMessage: null,
+          leaseOwner: effectiveLeaseOwner,
+          leaseExpiresAt: studioItemLeaseExpiry(now),
+          nextAttemptAt: null,
+          lastAttemptAt: now,
+          attemptCount: { increment: 1 },
+        },
+      });
+      return { count: result.count, capacityReached: false };
+    });
+    if (claimed.capacityReached) {
+      throw new PropertyMediaError(
+        `Ayni anda en fazla ${STUDIO_BATCH_MAX_CONCURRENT_ITEMS} fotograf islenebilir.`,
+        429
+      );
+    }
+    if (!claimed.count) {
+      const latest = await prisma.studioBatchItem.findUnique({ where: { id: item.id } });
+      if (
+        latest &&
+        (latest.status === 'ATTACHED' ||
+          (latest.status === 'COMPLETED' && latest.outputUrl))
+      ) {
+        return latest;
+      }
+      throw new PropertyMediaError('Bu fotograf zaten isleniyor.', 409);
+    }
+  }
+  if (!effectiveLeaseOwner) {
+    throw new PropertyMediaError('Fotograf islem kilidi olusturulamadi.', 500);
+  }
   await prisma.studioBatch.update({
     where: { id: item.batchId },
     data: { status: 'PROCESSING', startedAt: item.batch.startedAt ?? new Date() },
@@ -306,8 +489,16 @@ export async function processStudioBatchItem(input: {
     const source = await fetchOwnedMediaBytes(item.originalUrl, {
       maxBytes: 9 * 1024 * 1024,
     });
+    const useSafeLocalRetry =
+      item.status === 'FAILED' && isLegacyStudioSafetyFailure(item.errorMessage);
     const processed = await enhanceStudioImage({
-      engine: resolveStudioImageEngine(item.batch.preset),
+      engine:
+        item.batch.model === OPENROUTER_STUDIO_FLUX_IMAGE_MODEL
+          ? 'REALISTIC'
+          : resolveStudioImageEngine(item.batch.preset),
+      modelTier: useSafeLocalRetry
+        ? 'STANDARD'
+        : resolveStudioImageModelTier(item.batch.model),
       image: source.bytes,
       mimeType: source.mimeType,
       prompt: item.batch.prompt,
@@ -322,8 +513,12 @@ export async function processStudioBatchItem(input: {
       mimeType: processed.mimeType,
       folder: `studio-output/${item.batch.id}`,
     });
-    const updated = await prisma.studioBatchItem.update({
-      where: { id: item.id },
+    const completed = await prisma.studioBatchItem.updateMany({
+      where: {
+        id: item.id,
+        status: 'PROCESSING',
+        leaseOwner: effectiveLeaseOwner,
+      },
       data: {
         status: 'COMPLETED',
         outputUrl: stored.url,
@@ -339,15 +534,31 @@ export async function processStudioBatchItem(input: {
         nextAttemptAt: null,
       },
     });
+    if (!completed.count) {
+      throw new PropertyMediaError('Fotograf sonucu guvenli bicimde kaydedilemedi.', 409);
+    }
+    const updated = await prisma.studioBatchItem.findUniqueOrThrow({
+      where: { id: item.id },
+    });
     await refreshBatchStatus(item.batchId);
     return updated;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Görsel işlenemedi.';
     if (!input.leaseOwner) {
-      await prisma.studioBatchItem.update({
-        where: { id: item.id },
-        data: { status: 'FAILED', errorMessage: message.slice(0, 2_000) },
+      await prisma.studioBatchItem.updateMany({
+        where: {
+          id: item.id,
+          status: 'PROCESSING',
+          leaseOwner: effectiveLeaseOwner,
+        },
+        data: {
+          status: 'FAILED',
+          errorMessage: message.slice(0, 2_000),
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          nextAttemptAt: null,
+        },
       });
       await refreshBatchStatus(item.batchId);
     }
@@ -389,6 +600,15 @@ export async function processNextStudioBatchItem(input: {
   });
   if (!candidate) return null;
 
+  const activeInBatch = await prisma.studioBatchItem.count({
+    where: {
+      batchId: candidate.batch.id,
+      status: 'PROCESSING',
+      leaseExpiresAt: { gt: now },
+    },
+  });
+  if (activeInBatch >= STUDIO_BATCH_MAX_CONCURRENT_ITEMS) return null;
+
   const claimed = await prisma.studioBatchItem.updateMany({
     where: {
       id: candidate.id,
@@ -428,6 +648,10 @@ export async function processNextStudioBatchItem(input: {
       attemptCount: candidate.attemptCount + 1,
       now,
       message,
+      retryable:
+        error instanceof OpenRouterStudioImageError
+          ? error.code === 'PROVIDER_ERROR'
+          : !(error instanceof StudioImageError),
     });
     await prisma.studioBatchItem.updateMany({
       where: {
@@ -481,6 +705,7 @@ export function studioBatchFingerprint(input: {
   propertyId?: string | null;
   mediaIds: string[];
   files: File[];
+  uploadedFiles?: StudioUploadedFile[];
   prompt: string;
 }) {
   return createHash('sha256')
@@ -493,7 +718,9 @@ export function studioBatchFingerprint(input: {
           file.size,
           file.lastModified,
         ]),
+        uploadedFiles: (input.uploadedFiles ?? []).map((file) => file.pathname).sort(),
         prompt: input.prompt.trim(),
+        model: OPENROUTER_STUDIO_FLUX_IMAGE_MODEL,
       })
     )
     .digest('hex');

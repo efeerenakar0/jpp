@@ -2,6 +2,7 @@
 
 import { ArrowUpRight } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import {
   BUSINESS_CEO_MODULES,
@@ -18,8 +19,8 @@ const MODULE_CARD_IMAGES: Partial<
   >
 > = {
   developer: {
-    src: '/business-ceo/modules/ai-developer.png',
-    alt: 'AI Yazılımcı modül görseli',
+    src: '/business-ceo/modules/ai-developer-page-v3.png',
+    alt: 'AI Yazılımcı sayfa içi önizlemesi',
   },
   'partner-finder': {
     src: '/business-ceo/modules/ai-partner-finder.png',
@@ -39,25 +40,19 @@ const MODULE_CARD_IMAGES: Partial<
   },
 };
 
-export function ModuleCardGrid({
-  onSelect,
-}: {
-  onSelect: (module: BusinessCeoModuleDefinition) => void;
-}) {
+export function ModuleCardGrid() {
   return (
     <nav aria-label="Business CEO AI modülleri" className={styles.secondaryGrid}>
       {BUSINESS_CEO_MODULES.secondary.map((module) => {
         const image = MODULE_CARD_IMAGES[module.key];
 
         return (
-          <button
-            aria-haspopup="dialog"
-            aria-label={`${module.title} ayrıntılarını aç`}
+          <Link
+            aria-label={`${module.title} sayfasını aç`}
             className={styles.secondaryCard}
             data-accent={module.accent}
+            href={module.href}
             key={module.key}
-            onClick={() => onSelect(module)}
-            type="button"
           >
             {image ? (
               <span className={styles.moduleImageFrame}>
@@ -78,7 +73,7 @@ export function ModuleCardGrid({
               <ArrowUpRight aria-hidden="true" className={styles.secondaryArrow} />
               <span className="sr-only">{module.actionLabel}</span>
             </span>
-          </button>
+          </Link>
         );
       })}
     </nav>

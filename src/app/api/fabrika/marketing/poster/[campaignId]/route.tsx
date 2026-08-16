@@ -8,6 +8,20 @@ import { assertPublicUrl } from '@/lib/portfolio-connectors';
 
 export const runtime = 'nodejs';
 
+const POSTER_FORMATS = {
+  square: { width: 1080, height: 1080, padding: '70px' },
+  portrait: { width: 1080, height: 1350, padding: '82px 70px' },
+  story: { width: 1080, height: 1920, padding: '110px 82px' },
+  landscape: { width: 1200, height: 675, padding: '54px 64px' },
+  pin: { width: 1000, height: 1500, padding: '86px 68px' },
+} as const;
+
+type PosterFormat = keyof typeof POSTER_FORMATS;
+
+function normalizePosterFormat(value: string | null): PosterFormat {
+  return value && value in POSTER_FORMATS ? (value as PosterFormat) : 'square';
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ campaignId: string }> }
@@ -26,9 +40,10 @@ export async function GET(
     if (!campaign) return new Response('Poster bulunamadı.', { status: 404 });
 
     const url = new URL(request.url);
-    const format = url.searchParams.get('format') === 'story' ? 'story' : 'square';
+    const format = normalizePosterFormat(url.searchParams.get('format'));
     const download = url.searchParams.get('download') === '1';
-    const size = format === 'story' ? { width: 1080, height: 1920 } : { width: 1080, height: 1080 };
+    const formatConfig = POSTER_FORMATS[format];
+    const size = { width: formatConfig.width, height: formatConfig.height };
     let imageUrl: string | null = null;
     if (campaign.property?.imageUrl) {
       try {
@@ -84,7 +99,7 @@ export async function GET(
               justifyContent: template === 'EDITORIAL' ? 'center' : 'flex-end',
               width: '100%',
               height: '100%',
-              padding: format === 'story' ? '110px 82px' : '70px',
+              padding: formatConfig.padding,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 32 }}>
@@ -93,10 +108,10 @@ export async function GET(
                 {principal.account.companyName.toUpperCase()}
               </div>
             </div>
-            <div style={{ display: 'flex', maxWidth: template === 'EDITORIAL' ? '72%' : '92%', fontSize: format === 'story' ? 78 : 68, lineHeight: 1.04, fontWeight: 800 }}>
+            <div style={{ display: 'flex', maxWidth: template === 'EDITORIAL' ? '72%' : '92%', fontSize: format === 'story' || format === 'pin' ? 78 : format === 'landscape' ? 56 : 68, lineHeight: 1.04, fontWeight: 800 }}>
               {campaign.posterHeadline || campaign.name}
             </div>
-            <div style={{ display: 'flex', marginTop: 26, fontSize: format === 'story' ? 38 : 30, color: '#d1fae5' }}>
+            <div style={{ display: 'flex', marginTop: 26, fontSize: format === 'story' || format === 'pin' ? 38 : format === 'landscape' ? 25 : 30, color: '#d1fae5' }}>
               {[campaign.posterSubline, price].filter(Boolean).join(' · ')}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 44, alignSelf: 'flex-start', background: accent, color: '#02120d', padding: '20px 30px', borderRadius: 14, fontSize: 24, fontWeight: 800, letterSpacing: 1 }}>

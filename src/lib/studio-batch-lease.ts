@@ -11,8 +11,10 @@ export function studioItemFailureTransition(input: {
   attemptCount: number;
   now: Date;
   message: string;
+  retryable?: boolean;
 }) {
-  const exhausted = input.attemptCount >= STUDIO_ITEM_MAX_ATTEMPTS;
+  const exhausted =
+    input.retryable === false || input.attemptCount >= STUDIO_ITEM_MAX_ATTEMPTS;
   const retryDelay =
     RETRY_DELAYS_MS[
       Math.min(Math.max(input.attemptCount - 1, 0), RETRY_DELAYS_MS.length - 1)

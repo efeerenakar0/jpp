@@ -1,0 +1,5 @@
+ALTER TABLE "StudioBatch"
+ADD COLUMN IF NOT EXISTS "title" TEXT;
+
+ALTER TABLE "StudioBatchItem"
+ADD COLUMN IF NOT EXISTS "title" TEXT;

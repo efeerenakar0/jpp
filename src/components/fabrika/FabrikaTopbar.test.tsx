@@ -53,6 +53,7 @@ describe('FabrikaTopbar role safety and keyboard surface', () => {
 
     expect(html).toContain('aria-label="Business CEO AI ana ekran"');
     expect(html).toContain('/business-ceo/homepage-reference-v3.png');
+    expect(html).toContain('REAL ESTATE');
     expect(html).not.toContain('Real Estate');
     expect(html).not.toContain('Real Estate Operations');
     expect(html).not.toContain('aria-label="Açık temaya geç"');
@@ -68,6 +69,7 @@ describe('FabrikaTopbar role safety and keyboard surface', () => {
     const html = renderTopbar(baseSession);
 
     expect(html).toContain('%2Fbusiness-ceo%2Fbusiness-ceo-ai-dark-header.png');
+    expect(html).toContain('REAL ESTATE');
     expect(html).not.toContain('Real Estate');
   });
 

@@ -976,6 +976,8 @@ model CompanyAccount {
   googleCalendarConnection    GoogleCalendarConnection?
   calendarSyncLogs            CalendarSyncLog[]
   huntedListings              HuntedListing[]
+  huntingMonthlyQuotas        HuntingMonthlyQuota[]
+  huntingActiveJobLock        HuntingActiveJobLock?
   portfolioSources            PortfolioSource[]
   portfolioImports            PortfolioImportItem[]
   adCampaigns                 AdCampaign[]
@@ -1543,6 +1545,7 @@ model CrmPropertyMedia {
 
 model StudioBatch {
   id                String            @id @default(cuid())
+  title             String?
   companyAccountId  String
   companyAccount    CompanyAccount    @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
   propertyId        String?
@@ -1572,6 +1575,7 @@ model StudioBatch {
 
 model StudioBatchItem {
   id                 String                @id @default(cuid())
+  title              String?
   batchId            String
   batch              StudioBatch           @relation(fields: [batchId], references: [id], onDelete: Cascade)
   sourceMediaId      String?
@@ -1963,6 +1967,7 @@ model HuntedListing {
   contacts          HuntedContact[]
   policyDecisions   ContactPolicyDecision[]
   outreachApprovals HuntedOutreachApproval[]
+  jobLinks          HuntJobListing[]
 
   @@unique([companyAccountId, sourceUrl])
   @@unique([companyAccountId, sourceProvider, sourceListingId])
@@ -2000,6 +2005,20 @@ model HuntJob {
   provider              SourceProvider
   searchUrl             String              @db.Text
   idempotencyKey        String
+  propertyType          String?
+  requestedResults      Int                 @default(0)
+  quotaPeriodStart      DateTime?
+  quotaReserved         Int                 @default(0)
+  searchCacheId         String?
+  searchCache           HuntingSearchCache? @relation(fields: [searchCacheId], references: [id], onDelete: SetNull)
+  apifyActorId          String?
+  apifyRunId            String?
+  apifyDatasetId        String?
+  apifyStatus           String?
+  actorInput            Json?
+  dispatchStrategy      String              @default("CLEARPATH_CACHE_V1")
+  cacheHit              Boolean             @default(false)
+  ingestedAt            DateTime?
   status                HuntJobStatus       @default(QUEUED)
   totalDiscovered       Int                 @default(0)
   totalCompleted        Int                 @default(0)
@@ -2014,11 +2033,104 @@ model HuntJob {
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
-  listings HuntedListing[]
+  listings     HuntedListing[]
+  listingLinks HuntJobListing[]
+  activeLock   HuntingActiveJobLock?
 
   @@unique([companyAccountId, idempotencyKey])
   @@index([companyAccountId, status, createdAt])
   @@index([status, updatedAt])
+  @@index([searchCacheId, status])
+  @@index([apifyRunId])
+  @@index([companyAccountId, propertyType, quotaPeriodStart])
+}
+
+model HuntJobListing {
+  jobId     String
+  job       HuntJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   HuntedListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  position  Int
+  createdAt DateTime      @default(now())
+
+  @@id([jobId, listingId])
+  @@unique([jobId, position])
+  @@index([listingId, createdAt])
+}
+
+model HuntingSearchCache {
+  id               String    @id @default(cuid())
+  cacheKey         String    @unique
+  provider         SourceProvider
+  propertyType     String
+  searchUrl        String    @db.Text
+  strategyVersion  String    @default("CLEARPATH_OWNER_ROTATION_V2")
+  status           String    @default("FETCHING")
+  actorId          String
+  actorInput        Json
+  requestedResults Int
+  apifyRunId       String?   @unique
+  apifyDatasetId   String?
+  totalRaw         Int       @default(0)
+  totalAccepted    Int       @default(0)
+  totalRejected    Int       @default(0)
+  expiresAt        DateTime
+  completedAt      DateTime?
+  errorSummary     String?   @db.Text
+  dispatchLeaseId  String?
+  dispatchLeaseUntil DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  jobs  HuntJob[]
+  items HuntingSearchCacheItem[]
+
+  @@index([status, expiresAt])
+  @@index([propertyType, createdAt])
+  @@index([dispatchLeaseUntil])
+}
+
+model HuntingSearchCacheItem {
+  id               String             @id @default(cuid())
+  searchCacheId    String
+  searchCache      HuntingSearchCache @relation(fields: [searchCacheId], references: [id], onDelete: Cascade)
+  sourceListingId  String
+  sourceUrl        String             @db.Text
+  deterministicRank String
+  payloadJson      Json
+  createdAt        DateTime           @default(now())
+
+  @@unique([searchCacheId, sourceListingId])
+  @@index([searchCacheId, deterministicRank])
+}
+
+model HuntingMonthlyQuota {
+  id               String         @id @default(cuid())
+  companyAccountId String
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  propertyType     String
+  periodStart      DateTime
+  periodEnd        DateTime
+  monthlyLimit     Int
+  reserved         Int            @default(0)
+  used             Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([companyAccountId, propertyType, periodStart])
+  @@index([companyAccountId, periodEnd])
+}
+
+model HuntingActiveJobLock {
+  companyAccountId String         @id
+  companyAccount   CompanyAccount @relation(fields: [companyAccountId], references: [id], onDelete: Cascade)
+  huntJobId        String         @unique
+  huntJob          HuntJob        @relation(fields: [huntJobId], references: [id], onDelete: Cascade)
+  expiresAt        DateTime
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([expiresAt])
 }
 
 model HuntedListingImage {

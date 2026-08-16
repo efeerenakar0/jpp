@@ -13,8 +13,6 @@
   "usesStandbyMode": false,
   "environmentVariables": {
     "AVCI_RUN_ONCE": "true",
-    "AVCI_LIVE_PROVIDER_ENABLED": "true",
-    "AVCI_WORKER_API_URL": "https://jpp-ufeb.vercel.app/api/internal/hunting-worker",
     "AVCI_APIFY_PROXY_ENABLED": "true",
     "AVCI_APIFY_PROXY_REQUIRED": "true",
     "AVCI_APIFY_PROXY_GROUPS": "RESIDENTIAL",

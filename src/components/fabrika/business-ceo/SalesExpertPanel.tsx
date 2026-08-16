@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Bot,
   CalendarDays,
   Clock3,
   Inbox,
@@ -9,10 +10,13 @@ import {
   RefreshCw,
   Send,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { type FormEvent, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import WhatsAppConnectionPanel from '@/components/fabrika/WhatsAppConnectionPanel';
 import {
@@ -362,6 +366,8 @@ export function SalesExpertPanel({
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
+  const [aiSavingId, setAiSavingId] = useState<string | null>(null);
+  const [aiOverrides, setAiOverrides] = useState<Record<string, boolean>>({});
   const rows = useMemo(
     () => buildSalesConversationRows(conversations, appointments),
     [appointments, conversations]
@@ -377,6 +383,36 @@ export function SalesExpertPanel({
     : whatsappConnected
       ? 'WhatsApp Bağlı'
       : 'WhatsApp Bağla';
+
+  function isAiEnabled(row: SalesConversationRow) {
+    return aiOverrides[row.id] ?? row.aiEnabled !== false;
+  }
+
+  async function toggleConversationAi(row: SalesConversationRow) {
+    if (aiSavingId) return;
+    const nextValue = !isAiEnabled(row);
+    setAiSavingId(row.id);
+    setAiOverrides((current) => ({ ...current, [row.id]: nextValue }));
+    try {
+      const response = await fetch('/api/fabrika/assistant/conversations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, aiEnabled: nextValue }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || 'AI durumu değiştirilemedi.');
+      toast.success(
+        nextValue
+          ? `${row.customerName} sohbetinde yapay zekâ tekrar devrede.`
+          : `${row.customerName} sohbetini artık ekip yanıtlayacak.`
+      );
+    } catch (error) {
+      setAiOverrides((current) => ({ ...current, [row.id]: !nextValue }));
+      throw error;
+    } finally {
+      setAiSavingId(null);
+    }
+  }
 
   async function confirmConversationDelete() {
     if (!conversationToDelete || deletingConversationId) return;
@@ -414,18 +450,26 @@ export function SalesExpertPanel({
             Gerçek müşteri konuşmalarınızı ve satış takibinizi yönetin.
           </p>
         </div>
-        {isOwner ? (
-          <button
-            aria-expanded={whatsappOpen}
-            aria-haspopup="dialog"
-            className={styles.whatsappButton}
-            onClick={() => setWhatsappOpen(true)}
-            type="button"
-          >
-            <WhatsAppLogo />
-            {whatsappButtonLabel}
-          </button>
-        ) : null}
+        <span className={styles.salesHeaderActions}>
+          <Link className={styles.chatsButton} href="/fabrika/asistan">
+            <MessageCircle aria-hidden="true" /> Sohbetler
+          </Link>
+          {isOwner ? (
+            <button
+              aria-expanded={whatsappOpen}
+              aria-haspopup="dialog"
+              className={styles.whatsappButton}
+              onClick={() => setWhatsappOpen(true)}
+              type="button"
+            >
+              <WhatsAppLogo />
+              <span className={styles.whatsappButtonCopy}>
+                {whatsappButtonLabel}
+                <small><i data-connected={whatsappConnected} /> {whatsappConnected ? 'WhatsApp bağlı' : 'WhatsApp bağlı değil'}</small>
+              </span>
+            </button>
+          ) : null}
+        </span>
       </header>
 
       {isOwner && whatsappError ? (
@@ -517,6 +561,22 @@ export function SalesExpertPanel({
               <span className={styles.statusBadge} data-status={row.status}>
                 {statusLabels[row.status]}
               </span>
+              <button
+                aria-pressed={isAiEnabled(row)}
+                className={styles.aiModeButton}
+                disabled={aiSavingId === row.id}
+                onClick={() => {
+                  void toggleConversationAi(row).catch((error) => {
+                    toast.error(
+                      error instanceof Error ? error.message : 'AI durumu değiştirilemedi.'
+                    );
+                  });
+                }}
+                type="button"
+              >
+                {isAiEnabled(row) ? <Bot aria-hidden="true" /> : <UserRound aria-hidden="true" />}
+                {isAiEnabled(row) ? 'AI Aktif' : 'AI Kapalı'}
+              </button>
               <span className={styles.conversationActions}>
                 {isOwner ? (
                   <button

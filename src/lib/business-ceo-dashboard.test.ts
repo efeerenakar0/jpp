@@ -41,6 +41,18 @@ describe('Business CEO AI dashboard catalog', () => {
         ?.href
     ).toBe('/fabrika/tapu-takip');
   });
+
+  it('keeps Studio and advertising design on separate workspaces', () => {
+    expect(
+      BUSINESS_CEO_MODULES.workflow.find((module) => module.key === 'studio')
+        ?.href
+    ).toBe('/fabrika/studyo?area=enhancer');
+    expect(
+      BUSINESS_CEO_MODULES.workflow.find(
+        (module) => module.key === 'advertising-design'
+      )?.href
+    ).toBe('/fabrika/reklam-tasarimi');
+  });
 });
 
 describe('sales expert conversation helpers', () => {

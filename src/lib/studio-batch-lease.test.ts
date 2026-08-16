@@ -45,4 +45,20 @@ describe('studio batch worker lease rules', () => {
       leaseExpiresAt: null,
     });
   });
+
+  it('does not retry a provider result that was rejected after generation', () => {
+    expect(
+      studioItemFailureTransition({
+        attemptCount: 1,
+        now,
+        message: 'Kadraj guvenlik kontrolunden gecmedi.',
+        retryable: false,
+      })
+    ).toMatchObject({
+      status: 'FAILED',
+      nextAttemptAt: null,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+    });
+  });
 });

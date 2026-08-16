@@ -10,6 +10,8 @@ type Job = {
   title: string;
   status: string;
   progress: number;
+  completed?: number;
+  total?: number;
   href: string;
 };
 
@@ -32,7 +34,9 @@ export default function FabrikaJobIndicator({ bright = false }: { bright?: boole
       if (active) setJobs(data.jobs || []);
     }
     void load();
-    const timer = window.setInterval(() => void load(), 15_000);
+    // İş devam ederken kullanıcıya gerçek ilerlemeyi göstermek için kısa
+    // aralıklarla yenile. Tamamlanan işler API tarafından listeden çıkarılır.
+    const timer = window.setInterval(() => void load(), 3_000);
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -89,7 +93,11 @@ export default function FabrikaJobIndicator({ bright = false }: { bright?: boole
                   <span className="truncate font-medium text-slate-200">
                     {job.title}
                   </span>
-                  <span className="text-emerald-300">%{job.progress}</span>
+                  <span className="text-emerald-300">
+                    {typeof job.completed === 'number' && typeof job.total === 'number'
+                      ? `${job.completed}/${job.total}`
+                      : `%${job.progress}`}
+                  </span>
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
                   <div
@@ -98,7 +106,8 @@ export default function FabrikaJobIndicator({ bright = false }: { bright?: boole
                   />
                 </div>
                 <p className="mt-2 text-[10px] text-slate-500">
-                  {JOB_KIND_LABELS[job.kind]} · {job.status}
+                  {JOB_KIND_LABELS[job.kind]} ·{' '}
+                  {job.status === 'PROCESSING' ? 'İşleniyor' : job.status === 'PENDING' ? 'Sırada' : job.status}
                 </p>
               </Link>
             ))}

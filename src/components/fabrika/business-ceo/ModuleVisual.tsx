@@ -12,6 +12,7 @@ import {
   Sparkles,
   Video,
 } from 'lucide-react';
+import Image from 'next/image';
 
 import type { BusinessCeoModuleKey } from '@/lib/business-ceo-dashboard';
 
@@ -36,6 +37,11 @@ const orbitIcons: Partial<Record<BusinessCeoModuleKey, typeof Code2[]>> = {
   'authorized-pool': [Building2, ShieldCheck, Network],
 };
 
+const workflowImages: Partial<Record<BusinessCeoModuleKey, string>> = {
+  'advertising-design': '/business-ceo/modules/ai-advertising-page-v3.png',
+  'marketing-specialist': '/business-ceo/modules/ai-marketing-page-v3.png',
+};
+
 export function ModuleVisual({
   moduleKey,
   compact = false,
@@ -45,6 +51,7 @@ export function ModuleVisual({
 }) {
   const Icon = iconMap[moduleKey];
   const satellites = orbitIcons[moduleKey] || [Sparkles, Building2, Network];
+  const workflowImage = !compact ? workflowImages[moduleKey] : undefined;
 
   return (
     <span
@@ -52,6 +59,15 @@ export function ModuleVisual({
       className={compact ? styles.moduleVisualCompact : styles.moduleVisual}
       data-module={moduleKey}
     >
+      {workflowImage ? (
+        <Image
+          alt=""
+          className={styles.moduleVisualImage}
+          fill
+          sizes="(min-width: 1120px) 22vw, 100vw"
+          src={workflowImage}
+        />
+      ) : null}
       <span className={styles.moduleGrid} />
       <span className={styles.moduleGlow} />
       <span className={styles.moduleCore}>

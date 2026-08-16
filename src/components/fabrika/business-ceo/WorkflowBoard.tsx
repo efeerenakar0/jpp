@@ -1,6 +1,7 @@
 'use client';
 
 import { WandSparkles } from 'lucide-react';
+import Link from 'next/link';
 
 import {
   BUSINESS_CEO_MODULES,
@@ -13,28 +14,25 @@ import styles from './BusinessCeoDashboard.module.css';
 
 function WorkflowCard({
   module,
-  onSelect,
 }: {
   module: BusinessCeoModuleDefinition;
-  onSelect: (module: BusinessCeoModuleDefinition) => void;
 }) {
   return (
     <article className={styles.workflowCard} data-accent={module.accent}>
       <span className={styles.stepBadge} aria-hidden="true">
         {String(module.step).padStart(2, '0')}
       </span>
-      <button
-        aria-haspopup="dialog"
+      <Link
+        aria-label={`${module.title} sayfasını aç`}
         className={styles.workflowButton}
-        onClick={() => onSelect(module)}
-        type="button"
+        href={module.href}
       >
         <ModuleVisual moduleKey={module.key} />
         <span className={styles.workflowCopy}>
           <strong>{module.title}</strong>
           <small>{module.description}</small>
         </span>
-      </button>
+      </Link>
     </article>
   );
 }
@@ -60,11 +58,9 @@ function MobileConnector() {
 }
 
 export function WorkflowBoard({
-  onSelect,
   onQuickWorkflow,
   workflowStatus,
 }: {
-  onSelect: (module: BusinessCeoModuleDefinition) => void;
   onQuickWorkflow: () => void;
   workflowStatus: PortfolioWorkflowStatus | null;
 }) {
@@ -113,19 +109,19 @@ export function WorkflowBoard({
       <div className={styles.workflowBody}>
         <div className={styles.workflowDesktop}>
           <div className={styles.sourceStack}>
-            <WorkflowCard module={portfolio} onSelect={onSelect} />
-            <WorkflowCard module={studio} onSelect={onSelect} />
+            <WorkflowCard module={portfolio} />
+            <WorkflowCard module={studio} />
           </div>
           <Connector merge />
-          <WorkflowCard module={advertising} onSelect={onSelect} />
+          <WorkflowCard module={advertising} />
           <Connector />
-          <WorkflowCard module={marketing} onSelect={onSelect} />
+          <WorkflowCard module={marketing} />
         </div>
 
         <div className={styles.workflowMobile}>
           {BUSINESS_CEO_MODULES.workflow.map((module, index) => (
             <div key={module.key}>
-              <WorkflowCard module={module} onSelect={onSelect} />
+              <WorkflowCard module={module} />
               {index < BUSINESS_CEO_MODULES.workflow.length - 1 ? (
                 <MobileConnector />
               ) : null}

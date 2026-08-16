@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   itemFindFirst: vi.fn(),
   itemFindMany: vi.fn(),
   itemUpdateMany: vi.fn(),
+  itemCount: vi.fn(),
   batchFindUnique: vi.fn(),
   batchUpdate: vi.fn(),
   operationEventUpsert: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: mocks.itemFindFirst,
       findMany: mocks.itemFindMany,
       updateMany: mocks.itemUpdateMany,
+      count: mocks.itemCount,
     },
     studioBatch: {
       findUnique: mocks.batchFindUnique,
@@ -39,12 +41,34 @@ vi.mock('@/lib/property-media', () => ({
 }));
 
 vi.mock('@/lib/studio-image-engine', () => ({
+  LOCAL_STUDIO_IMAGE_MODEL: 'studio-adaptive-photography-v2',
   StudioImageError: class StudioImageError extends Error {},
   enhanceStudioImage: vi.fn(),
   resolveStudioImageEngine: vi.fn(() => 'REALISTIC'),
+  resolveStudioImageModelTier: vi.fn(() => 'STANDARD'),
 }));
 
-import { processNextStudioBatchItem } from './studio-batches';
+import {
+  isLegacyStudioSafetyFailure,
+  processNextStudioBatchItem,
+} from './studio-batches';
+
+describe('legacy Studio safety retry detection', () => {
+  it.each([
+    'Yapay zeka fotografin kadrajini degistirdi. Guvenlik icin bu sonuc kaydedilmedi; tekrar deneyin.',
+    'Yapay zeka fotografi gereğinden fazla aydinlatti. Guvenlik icin bu sonuc kaydedilmedi; tekrar deneyin.',
+    'Güvenlik kontrolünde reddedildi.',
+    'Yapay zeka gecersiz bir gorsel dondurdu. Bu fotografi tekrar deneyin.',
+  ])('routes a former safety failure to the free local retry path: %s', (message) => {
+    expect(isLegacyStudioSafetyFailure(message)).toBe(true);
+  });
+
+  it('does not hide a real provider outage behind the local retry path', () => {
+    expect(
+      isLegacyStudioSafetyFailure('OpenRouter gorsel servisine ulasilamadi.')
+    ).toBe(false);
+  });
+});
 
 describe('processNextStudioBatchItem lease and retry', () => {
   const now = new Date('2026-08-04T12:00:00.000Z');
@@ -64,6 +88,7 @@ describe('processNextStudioBatchItem lease and retry', () => {
       },
     });
     mocks.itemUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.itemCount.mockResolvedValue(0);
     mocks.batchFindUnique.mockResolvedValue({
       companyAccountId: 'company-a',
       propertyId: 'property-a',
@@ -141,6 +166,21 @@ describe('processNextStudioBatchItem lease and retry', () => {
     });
 
     expect(result).toBeNull();
+    expect(processItem).not.toHaveBeenCalled();
+  });
+
+  it('does not start a sixth image in the same batch', async () => {
+    mocks.itemCount.mockResolvedValue(5);
+    const processItem = vi.fn();
+
+    const result = await processNextStudioBatchItem({
+      now,
+      workerId: 'worker-sixth',
+      processItem,
+    });
+
+    expect(result).toBeNull();
+    expect(mocks.itemUpdateMany).not.toHaveBeenCalled();
     expect(processItem).not.toHaveBeenCalled();
   });
 });

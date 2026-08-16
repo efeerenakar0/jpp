@@ -1,4 +1,3 @@
-import { Actor } from 'apify';
 import { runNextHuntJob } from '../../src/lib/hunting-v2/worker';
 import {
   runHuntWorker,
@@ -38,12 +37,6 @@ async function main() {
   process.stdout.write('Business AI Portföy Uzmanı worker güvenli biçimde durdu.\n');
 }
 
-if (process.env.ACTOR_RUN_ID) {
-  Actor.main(main).catch(() => {
-    process.exitCode = 1;
-  });
-} else {
-  main().catch(() => {
-    process.exitCode = 1;
-  });
-}
+main().catch(() => {
+  process.exitCode = 1;
+});

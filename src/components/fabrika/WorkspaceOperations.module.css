@@ -126,13 +126,16 @@
 .teamTable td:nth-child(3) span { background: rgba(49, 158, 84, .14); border: 1px solid rgba(71, 179, 105, .35); border-radius: 3px; color: #67cf84; padding: 4px 6px; }
 .teamTable td:nth-child(8) b { background: rgba(50, 157, 85, .14); border: 1px solid rgba(70, 180, 106, .34); border-radius: 3px; color: #68d185; font-size: 7px; padding: 4px 6px; }
 .teamTable td:nth-child(8) b[data-active='false'] { background: rgba(184, 68, 68, .13); color: #ef8989; }
-.companyCards { display: grid; gap: 10px; grid-template-columns: .8fr .9fr 1.3fr; }
+.companyCards { display: grid; gap: 10px; grid-template-columns: .8fr .9fr 1.3fr; margin-bottom: 12px; }
 .companyCards > section { min-height: 170px; padding: 12px; }
 .companyCards h3 { font-family: Georgia, 'Times New Roman', serif; font-size: 11px; font-weight: 500; margin: 0 0 10px; }
 .companyMark { align-items: center; border: 1px solid var(--op-border); border-radius: 5px; color: #e3b04b; display: inline-flex; float: left; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; height: 46px; justify-content: center; margin: 0 9px 9px 0; width: 46px; }
 .companyCards > section > strong { color: #eef2f4; display: block; font-size: 11px; margin-top: 4px; }
 .companyCards > section > p { color: #8296a7; font-size: 8px; }
 .companyCards > section > button { background: transparent; border: 1px solid var(--op-border); border-radius: 4px; color: #dba943; cursor: pointer; font-size: 8px; min-height: 28px; margin-top: 12px; width: 100%; }
+.companyCards > section > a { align-items: center; border: 1px solid var(--op-border); border-radius: 5px; color: #e5b85c; display: inline-flex; font-size: 9px; gap: 6px; justify-content: center; margin-top: 13px; min-height: 31px; padding: 0 10px; text-decoration: none; width: 100%; }
+.companyCards > section > a:hover { background: rgba(213, 165, 73, .1); }
+.companyCards > section > a svg { height: 12px; width: 12px; }
 .companyCards article { align-items: center; border-bottom: 1px solid var(--op-line); display: flex; gap: 8px; min-height: 35px; }
 .companyCards article > svg { color: #dcaa42; height: 16px; width: 16px; }
 .companyCards article > span { background: #5bd183; border-radius: 50%; flex: 0 0 auto; height: 7px; width: 7px; }
@@ -178,6 +181,44 @@
 .monthlyPerformancePanel dd { color: #f4f7f8; font-size: 13px; font-weight: 700; margin: 3px 0 0; }
 .monthlyPerformancePanel article > b { color: #68d287; font-size: 14px; text-align: center; }
 .monthlyPerformancePanel article > button { background: transparent; border: 1px solid rgba(119, 151, 173, .34); border-radius: 5px; color: #c8d3da; cursor: pointer; font-size: 9px; min-height: 30px; padding: 0 10px; }
+
+/* Şirket sayfası: eski sıkışık tablo görünümünü daha okunur bir yönetim
+   merkezine dönüştürür; diğer CRM/portföy ekranlarını etkilemez. */
+.workspace[data-page='company'] {
+  --op-border: rgba(67, 154, 205, .35);
+  max-width: 1580px;
+}
+.workspace[data-page='company'] .pageHeader { margin-bottom: 18px; }
+.workspace[data-page='company'] .pageHeader h1 { font-family: inherit; font-size: clamp(30px, 2.3vw, 42px); font-weight: 720; }
+.workspace[data-page='company'] .pageHeader p:not(.eyebrow) { font-size: 13px; line-height: 1.6; }
+.workspace[data-page='company'] .primaryButton { border-radius: 10px; min-height: 42px; padding-inline: 18px; }
+.workspace[data-page='company'] .portfolioMetrics { border-radius: 14px; overflow: hidden; }
+.workspace[data-page='company'] .portfolioMetrics > article { min-height: 82px; }
+.workspace[data-page='company'] .portfolioMetrics span { font-size: 10px; }
+.workspace[data-page='company'] .portfolioMetrics strong { font-family: inherit; font-size: 24px; font-weight: 700; }
+.workspace[data-page='company'] .companyCards > section,
+.workspace[data-page='company'] .teamPanel,
+.workspace[data-page='company'] .monthlyPerformancePanel { border-radius: 14px; box-shadow: 0 18px 45px rgba(0, 0, 0, .16); }
+.workspace[data-page='company'] .companyCards > section { min-height: 190px; padding: 17px; }
+.workspace[data-page='company'] .companyCards h3 { font-family: inherit; font-size: 13px; font-weight: 700; }
+.workspace[data-page='company'] .companyCards > section > strong { font-size: 14px; }
+.workspace[data-page='company'] .companyCards > section > p { font-size: 10px; line-height: 1.6; }
+.workspace[data-page='company'] .companyCards article { min-height: 40px; }
+.workspace[data-page='company'] .companyCards article strong { font-size: 10px; }
+.workspace[data-page='company'] .companyCards article span,
+.workspace[data-page='company'] .companyCards article small { font-size: 9px; }
+.workspace[data-page='company'] .teamPanel > header { min-height: 62px; padding: 11px 15px; }
+.workspace[data-page='company'] .teamPanel > header h2 { font-family: inherit; font-size: 16px; font-weight: 700; }
+.workspace[data-page='company'] .teamPanel > header input,
+.workspace[data-page='company'] .teamPanel > header > span { font-size: 10px; }
+.workspace[data-page='company'] .teamTable { font-size: 10px; }
+.workspace[data-page='company'] .teamTable th { font-size: 8.5px; height: 38px; }
+.workspace[data-page='company'] .teamTable td { height: 58px; }
+.workspace[data-page='company'] .teamTable td:first-child > strong { font-size: 10px; }
+.workspace[data-page='company'] .memberAvatar { height: 32px; width: 32px; }
+.workspace[data-page='company'] .monthlyPerformancePanel > header { padding: 17px 18px; }
+.workspace[data-page='company'] .monthlyPerformancePanel > header h2 { font-family: inherit; font-size: 18px; font-weight: 700; }
+.workspace[data-page='company'] .monthlyPerformancePanel article { padding: 15px 18px; }
 
 @media (max-width: 1279px) {
   .portfolioSplit, .companySplit { grid-template-columns: minmax(0, 1fr); }

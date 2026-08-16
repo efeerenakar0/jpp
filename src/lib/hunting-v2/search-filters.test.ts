@@ -4,71 +4,83 @@ import {
   sahibindenSearchFiltersSchema,
 } from './search-filters';
 
-describe('Business AI Portföy Uzmanı filtre bağlantısı', () => {
-  it('il, ilçe ve mahalleden yalnız sahibinden emlak ilanlarını hedefleyen URL üretir', () => {
+describe('Business AI Portfoy Uzmani filtre baglantisi', () => {
+  it('il ve ilceden yalniz sahibinden emlak ilanlarini hedefler', () => {
     expect(
       buildSahibindenSearchUrl({
-        province: 'İstanbul',
-        district: 'Kadıköy',
-        neighborhood: 'Caddebostan',
+        province: 'Istanbul',
+        district: 'Kadikoy',
         propertyType: 'KONUT',
       })
     ).toBe(
-      'https://www.sahibinden.com/emlak-konut/istanbul-kadikoy-caddebostan?a27=38460&sorting=date_desc'
+      'https://www.sahibinden.com/emlak-konut/istanbul-kadikoy/sahibinden?a27=38460&sorting=date_desc'
     );
   });
 
-  it('Türkçe konum adlarını güvenli URL parçalarına dönüştürür', () => {
+  it('Turkce konum adlarini guvenli URL parcalarina donusturur', () => {
     expect(
       buildSahibindenSearchUrl({
-        province: 'Muğla',
+        province: 'Mugla',
         district: 'Bodrum',
-        neighborhood: 'Gümüşlük',
         propertyType: 'TURISTIK_TESIS',
       })
     ).toContain(
-      '/emlak-turistik-tesis/mugla-bodrum-gumusluk?a27=38460&'
+      '/emlak-turistik-tesis/mugla-bodrum/sahibinden?a27=38460&'
     );
   });
 
-  it('konut projelerini proje kaynağına yönlendirir', () => {
+  it('desteklenen sıralamaları aynı owner-only URL üzerinde güvenli uygular', () => {
+    const filters = {
+      province: 'Antalya',
+      district: 'Alanya',
+      propertyType: 'KONUT' as const,
+    };
     expect(
+      buildSahibindenSearchUrl(filters, { id: 'OLDEST', sorting: 'date_asc' })
+    ).toContain('sorting=date_asc');
+    expect(
+      buildSahibindenSearchUrl(filters, {
+        id: 'PRICE_ASC',
+        sorting: 'price_asc',
+      })
+    ).toContain('sorting=price_asc');
+    expect(
+      buildSahibindenSearchUrl(filters, { id: 'RECOMMENDED', sorting: null })
+    ).not.toContain('sorting=');
+  });
+
+  it('owner-only kaniti olmayan konut projelerinde fail-closed davranir', () => {
+    expect(() =>
       buildSahibindenSearchUrl({
-        province: 'İstanbul',
-        district: 'Kadıköy',
-        neighborhood: 'Caddebostan',
+        province: 'Istanbul',
+        district: 'Kadikoy',
         propertyType: 'KONUT_PROJELERI',
       })
-    ).toBe(
-      'https://www.sahibinden.com/emlak-projeler/istanbul-kadikoy-caddebostan?sorting=date_desc'
-    );
+    ).toThrow('bireysel sahibinden ilani dogrulanamadigi');
   });
 
-  it('site kategori yollarını güncel Sahibinden yollarıyla eşler', () => {
+  it('site kategori yollarini guncel Sahibinden yollarina esler', () => {
     expect(
       buildSahibindenSearchUrl({
         province: 'Antalya',
         district: 'Alanya',
-        neighborhood: 'Oba',
         propertyType: 'DEVREN_MULK',
       })
-    ).toContain('/devre-mulk/antalya-alanya-oba?');
+    ).toContain('/devre-mulk/antalya-alanya/sahibinden?');
   });
 
-  it('serbest URL ve eksik mahalle kabul etmez', () => {
+  it('serbest URL ve eksik ilce kabul etmez', () => {
     expect(() =>
       sahibindenSearchFiltersSchema.parse({
         province: 'https://evil.example',
-        district: 'Kadıköy',
-        neighborhood: 'Caddebostan',
+        district: 'Kadikoy',
         propertyType: 'KONUT',
       })
     ).toThrow();
-
     expect(() =>
       sahibindenSearchFiltersSchema.parse({
-        province: 'İstanbul',
-        district: 'Kadıköy',
+        province: 'Istanbul',
+        district: 'Kadikoy',
       })
     ).toThrow();
   });

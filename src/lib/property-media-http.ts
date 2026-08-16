@@ -5,6 +5,7 @@ import {
 } from '@/lib/fabrika-session';
 import { MediaValidationError } from '@/lib/media-storage';
 import { PropertyMediaError } from '@/lib/property-media';
+import { OpenRouterStudioImageError } from '@/lib/openrouter-studio-image';
 import { StabilityUltraError } from '@/lib/stability-ultra';
 
 export function propertyMediaHttpError(error: unknown) {
@@ -30,6 +31,12 @@ export function propertyMediaHttpError(error: unknown) {
     );
   }
   if (error instanceof StabilityUltraError) {
+    return NextResponse.json(
+      { success: false, code: error.code, error: error.message },
+      { status: error.status }
+    );
+  }
+  if (error instanceof OpenRouterStudioImageError) {
     return NextResponse.json(
       { success: false, code: error.code, error: error.message },
       { status: error.status }

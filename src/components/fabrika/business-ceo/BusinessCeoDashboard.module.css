@@ -352,6 +352,7 @@
   border: 0;
   color: inherit;
   text-align: left;
+  text-decoration: none;
   background: transparent;
 }
 
@@ -786,7 +787,7 @@
 .conversationRow {
   display: grid;
   min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
   align-items: center;
   gap: 10px;
   min-height: 74px;
@@ -1488,9 +1489,14 @@
     justify-self: start;
   }
 
+  .aiModeButton {
+    grid-column: 2;
+    justify-self: start;
+  }
+
   .conversationActions {
     grid-column: 3;
-    grid-row: 1 / span 2;
+    grid-row: 1 / span 3;
   }
 
   .workflowMetricList {
@@ -1509,6 +1515,100 @@
     padding-top: 0;
     border-top: 0;
   }
+}
+
+/* Dashboard header controls and per-conversation AI handoff state. */
+.salesHeaderActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.chatsButton {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid rgba(79, 145, 205, 0.45);
+  border-radius: 9px;
+  color: #a9d8ff;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-decoration: none;
+  background: rgba(28, 95, 155, 0.12);
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.chatsButton:hover {
+  border-color: rgba(105, 187, 255, 0.8);
+  background: rgba(28, 95, 155, 0.24);
+}
+
+.chatsButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.whatsappButtonCopy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.whatsappButtonCopy small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #8fa7b6;
+  font-size: 0.55rem;
+  font-weight: 500;
+}
+
+.whatsappButtonCopy small i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #ef6b7e;
+  box-shadow: 0 0 7px rgba(239, 107, 126, 0.6);
+}
+
+.whatsappButtonCopy small i[data-connected='true'] {
+  background: #47dd93;
+  box-shadow: 0 0 7px rgba(71, 221, 147, 0.7);
+}
+
+.aiModeButton {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid rgba(68, 209, 153, 0.38);
+  border-radius: 6px;
+  color: #7ee8b5;
+  font-size: 0.58rem;
+  font-weight: 650;
+  white-space: nowrap;
+  background: rgba(40, 150, 100, 0.12);
+}
+
+.aiModeButton[aria-pressed='false'] {
+  border-color: rgba(150, 168, 184, 0.35);
+  color: #aab8c4;
+  background: rgba(103, 120, 137, 0.12);
+}
+
+.aiModeButton:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.aiModeButton svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* /fabrika ana sayfa — ultra AI referansındaki koyu komuta merkezi. */
@@ -1694,6 +1794,21 @@
 
 .moduleVisual > * {
   opacity: 0;
+}
+
+.moduleVisual > .moduleVisualImage {
+  z-index: 1;
+  opacity: 1;
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.94) contrast(1.03) brightness(0.82);
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+.workflowButton:hover .moduleVisualImage,
+.workflowButton:focus-visible .moduleVisualImage {
+  filter: saturate(1.02) contrast(1.05) brightness(0.9);
+  transform: scale(1.015);
 }
 
 .moduleVisual[data-module='portfolio-specialist'] {

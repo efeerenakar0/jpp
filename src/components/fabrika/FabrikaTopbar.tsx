@@ -70,6 +70,7 @@ const pageNames: Record<string, string> = {
   '/fabrika/avci': 'AI Portföy Uzmanı',
   '/fabrika/pazarlamaci': 'AI Pazarlama Uzmanı',
   '/fabrika/studyo': 'AI Stüdyo',
+  '/fabrika/reklam-tasarimi': 'AI Reklam Tasarımı',
   '/fabrika/belgeler': 'AI Tapu Takip',
   '/fabrika/yazilimci': 'AI Yazılımcı',
   '/fabrika/partnerler': 'AI Partner Bulucu',
@@ -92,7 +93,7 @@ function BusinessCeoWordmark({ dashboardHome = false }: { dashboardHome?: boolea
     return (
       <Link
         href="/fabrika"
-        className="group flex min-h-11 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        className="group flex min-h-11 flex-col items-start justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
         aria-label="Business CEO AI ana ekran"
       >
         <span
@@ -108,6 +109,12 @@ function BusinessCeoWordmark({ dashboardHome = false }: { dashboardHome?: boolea
             width={1672}
           />
         </span>
+        <span
+          aria-hidden="true"
+          className="mt-0.5 pl-0.5 text-[7px] font-semibold leading-none tracking-[0.44em] text-slate-400 sm:text-[8px]"
+        >
+          REAL ESTATE
+        </span>
       </Link>
     );
   }
@@ -115,7 +122,7 @@ function BusinessCeoWordmark({ dashboardHome = false }: { dashboardHome?: boolea
   return (
     <Link
       href="/fabrika"
-      className="group flex min-h-11 items-center rounded-lg pr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+      className="group flex min-h-11 flex-col items-start justify-center rounded-lg pr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       aria-label="Business CEO AI ana ekran"
     >
       <BusinessCeoLogo
@@ -124,6 +131,12 @@ function BusinessCeoWordmark({ dashboardHome = false }: { dashboardHome?: boolea
         priority
         tone="dark"
       />
+      <span
+        aria-hidden="true"
+        className="mt-0.5 pl-0.5 text-[7px] font-semibold leading-none tracking-[0.44em] text-slate-400 sm:text-[8px]"
+      >
+        REAL ESTATE
+      </span>
     </Link>
   );
 }

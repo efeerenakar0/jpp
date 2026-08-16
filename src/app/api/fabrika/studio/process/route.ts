@@ -8,9 +8,9 @@ import {
   DEFAULT_STUDIO_ENHANCEMENT_PROMPT,
 } from '@/lib/studio-enhancement';
 import {
-  StabilityUltraError,
-  enhanceWithStableImageUltra,
-} from '@/lib/stability-ultra';
+  OpenRouterStudioImageError,
+  enhanceWithOpenRouterFluxKlein,
+} from '@/lib/openrouter-studio-image';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const processed = await enhanceWithStableImageUltra({
+    const processed = await enhanceWithOpenRouterFluxKlein({
       image: Buffer.from(await photo.arrayBuffer()),
       mimeType: photo.type || imageMimeType(photo.name),
       prompt,
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (error instanceof StabilityUltraError) {
+    if (error instanceof OpenRouterStudioImageError) {
       return NextResponse.json(
         {
           success: false,

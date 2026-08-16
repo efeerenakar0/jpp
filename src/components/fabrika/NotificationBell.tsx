@@ -10,6 +10,7 @@ import {
   Megaphone,
   MessageCircle,
   ShieldAlert,
+  Sparkles,
   X,
 } from 'lucide-react';
 import {
@@ -37,6 +38,7 @@ const typeIcons: Record<string, typeof Bell> = {
   GREEN_LISTING: Crosshair,
   WEBSITE_GENERATED: Code2,
   AD_COPY_READY: Megaphone,
+  STUDIO_READY: Sparkles,
   SYSTEM: AlertCircle,
 };
 
@@ -50,6 +52,7 @@ const typeColors: Record<string, string> = {
   WEBSITE_GENERATED: 'border-slate-600 bg-slate-800 text-slate-300',
   AD_COPY_READY:
     'border-slate-600 bg-slate-800 text-slate-300',
+  STUDIO_READY: 'border-cyan-500/25 bg-cyan-500/10 text-cyan-300',
   SYSTEM: 'border-rose-500/20 bg-rose-500/10 text-rose-300',
 };
 

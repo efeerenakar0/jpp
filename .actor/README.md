@@ -1,24 +1,24 @@
-# Business AI Portfoy Uzmani Worker
+# Business AI Portföy Uzmanı Worker
 
-Bu Actor, uygulamanin kendisine verdigi kisa omurlu ve tek ise bagli capability
-ile bir Avci isini calistirir, sonucu Vercel'deki korumali internal API'ye yazar
-ve kapanir. Bos kuyruk taramaz; her run yalniz imzali `jobId` icin calisir.
+Bu Actor, uygulamada açık ve aktif kaynak yetkisiyle oluşturulan tek bir Avcı
+işini kuyruktan alır, işler ve ardından kapanır. Sürekli çalışan sunucu değildir;
+boş kuyrukta da hemen çıkar. Böylece ücretsiz deneme kredisi yalnızca gerçek bir
+iş başlatıldığında kullanılır.
 
-Actor'a asagidaki hassas degerler **verilmez**:
+Actor çalışma ortamında aşağıdaki gizli değişkenler Apify Console üzerinden
+tanımlanmalıdır:
 
 - `DATABASE_URL`
 - `HUNTING_CONTACT_ENCRYPTION_KEY`
 - `HUNTING_CONTACT_HMAC_KEY`
-- `BLOB_READ_WRITE_TOKEN`
+- `AVCI_LIVE_PROVIDER_ENABLED=true`
+- `AVCI_RUN_ONCE=true`
 
-Veritabani yazimi, telefon sifreleme/HMAC ve tenant dogrulamasi yalniz Vercel
-tarafinda yapilir. Actor input'u sadece `version`, `jobId` ve 20 dakika gecen
-kisa omurlu capability tasir. Kalici imzalama anahtari Actor'a aktarilmaz.
+Actor tanımı canlı taramada `RESIDENTIAL` proxy grubunu, `TR` ülke çıkışını,
+tek oturumu, istekler arasında en az 13 saniyeyi ve iş başına en fazla 11
+ilanı zorunlu tutar. Proxy erişimi yoksa worker doğrudan bağlantıya düşmez;
+işi hata ile durdurur. `robots.txt` kontrolü de aynı Türkiye proxy oturumu
+üzerinden yapılır.
 
-Actor tanimi canli taramada `RESIDENTIAL` proxy grubunu, `TR` ulke cikisini,
-tek oturumu, kaynak istekleri arasinda en az 13 saniyeyi ve is basina en fazla
-11 ilani zorunlu tutar. Proxy erisimi yoksa dogrudan baglantiya dusmez. Robots
-kontrolu de ayni Turkiye proxy oturumu uzerinden yapilir.
-
-Worker kaynak dogrulamasi veya erisim kisitlamasi gordugunde durur. CAPTCHA ya
-da site guvenlik kontrollerini asmaya calismaz.
+Worker, kaynak doğrulaması veya erişim kısıtlaması gördüğünde durur. CAPTCHA ya
+da site güvenlik kontrollerini aşmaya çalışmaz.

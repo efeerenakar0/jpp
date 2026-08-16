@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/authorized-pool-expiry",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/hunting-sync",
+      "schedule": "* * * * *"
     }
   ]
 }

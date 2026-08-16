@@ -1,45 +1,30 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
-import { huntingApiError, principalActor } from '@/lib/hunting-v2/api';
-import { enforceHuntingRateLimit } from '@/lib/hunting-v2/rate-limit';
-import { dispatchQueuedHuntWorker } from '@/lib/hunting-v2/worker-dispatch';
+import { huntingApiError } from '@/lib/hunting-v2/api';
 
 export const runtime = 'nodejs';
 
+/**
+ * ClearPath runs are immutable/billable attempts. Retrying a failed run by
+ * flipping its status would bypass quota reservation and job-scoped dispatch.
+ * The client must start a new guarded job instead.
+ */
 export async function POST(
-  _request: Request,
+  request: Request,
   context: RouteContext<'/api/fabrika/hunting/jobs/[id]/resume'>
 ) {
   try {
+    void request;
+    void context;
     const principal = await requireFabrikaPrincipal();
-    const { id } = await context.params;
-    enforceHuntingRateLimit(
-      `job-control:${principal.account.id}:${principalActor(principal).key}`,
-      { limit: 20, windowMs: 60_000 }
-    );
-    const result = await prisma.huntJob.updateMany({
-      where: {
-        id,
-        companyAccountId: principal.account.id,
-        status: { in: ['PAUSED', 'PARTIAL', 'FAILED', 'SOURCE_CHALLENGE'] },
-      },
-      data: {
-        status: 'QUEUED',
-        pausedAt: null,
-        completedAt: null,
-        errorSummary: null,
-      },
-    });
-    if (!result.count) throw new Error('Devam ettirilebilir av işi bulunamadı.');
-    const dispatch = await dispatchQueuedHuntWorker(id);
-    return NextResponse.json(
+    if (principal.type !== 'OWNER') {
+      throw new Error('Avcı taramasını yalnız patron yeniden başlatabilir.');
+    }
+    return Response.json(
       {
-        jobId: id,
-        status: 'QUEUED',
-        workerRunId: dispatch.status === 'started' ? dispatch.runId : null,
+        error:
+          'ClearPath taraması devam ettirilemez. Aynı filtrelerle yeni ve kota kontrollü bir tarama başlatın.',
       },
-      { status: 202 }
+      { status: 409 }
     );
   } catch (error) {
     return huntingApiError(error);

@@ -41,8 +41,14 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('aria-labelledby="business-ceo-sales-title"');
     expect(html).not.toContain('aria-label="Business CEO AI sistem durumu"');
     expect(html).not.toContain('aria-label="Örnek iş ortakları"');
-    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-developer.png');
-    expect(html).toContain('alt="AI Yazılımcı modül görseli"');
+    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-developer-page-v3.png');
+    expect(html).toContain('alt="AI Yazılımcı sayfa içi önizlemesi"');
+    expect(html).toContain(
+      'url=%2Fbusiness-ceo%2Fmodules%2Fai-advertising-page-v3.png',
+    );
+    expect(html).toContain(
+      'url=%2Fbusiness-ceo%2Fmodules%2Fai-marketing-page-v3.png',
+    );
     expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-partner-finder.png');
     expect(html).toContain('alt="AI Partner Bulucu modül görseli"');
     expect(html).toContain(
@@ -56,10 +62,17 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('<dl class=');
     for (const definition of BUSINESS_CEO_MODULES.secondary) {
       expect(html).toContain(
-        `aria-label="${definition.title} ayrıntılarını aç"`
+        `aria-label="${definition.title} sayfasını aç"`
       );
-      expect(html).not.toContain(`href="${definition.href}"`);
+      expect(html).toContain(`href="${definition.href.replace('&', '&amp;')}"`);
     }
+    for (const definition of BUSINESS_CEO_MODULES.workflow) {
+      expect(html).toContain(
+        `aria-label="${definition.title} sayfasını aç"`
+      );
+      expect(html).toContain(`href="${definition.href.replace('&', '&amp;')}"`);
+    }
+    expect(html).not.toContain('Bu modül mevcut şirket kayıtlarınızı kullanır.');
   });
 
   it('renders real conversation content and owner WhatsApp action', () => {
@@ -123,6 +136,9 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('Gerçek Müşteri');
     expect(html).toContain('Portföyü bugün görebilir miyim?');
     expect(html).toContain('WhatsApp Bağlı');
+    expect(html).toContain('WhatsApp bağlı');
+    expect(html).toContain('href="/fabrika/asistan"');
+    expect(html).toContain('AI Aktif');
     expect(html).toContain('data-brand-icon="whatsapp"');
     expect(html).toContain(
       'src="/api/fabrika/assistant/conversations/conversation-1/avatar"'

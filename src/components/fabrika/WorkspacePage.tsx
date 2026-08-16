@@ -38,6 +38,7 @@ import {
   Search,
   SlidersHorizontal,
   Settings2,
+  ShieldCheck,
   Share2,
   Target,
   Trophy,
@@ -3043,7 +3044,7 @@ function CompanyExactWorkspace({
     : 0;
 
   return (
-    <div className={operationsStyles.workspace}>
+    <div className={operationsStyles.workspace} data-page="company">
       <header className={operationsStyles.pageHeader}>
         <div><p className={operationsStyles.eyebrow}>Şirket ve yetki yönetimi</p><h1>Şirket &amp; Ekip</h1><p>Ekip üyelerini, hesap durumlarını ve bu ayın gerçek iş sonuçlarını yönetin.</p></div>
         <div className={operationsStyles.headerActions}><button className={operationsStyles.primaryButton} disabled={!workspace.permissions.canManageTeam} onClick={onAdd} type="button"><UserPlus /> Ekip üyesi ekle</button></div>
@@ -3056,6 +3057,28 @@ function CompanyExactWorkspace({
           { label: 'Bu ay kazanılan', value: monthlyWonDeals, icon: Trophy, tone: 'gold' },
           { label: 'Bu ay performans', value: `%${performance}`, icon: Gauge, tone: 'green' },
         ].map((metric) => <article data-tone={metric.tone} key={metric.label}><metric.icon /><div><span>{metric.label}</span><strong>{metric.value}</strong></div></article>)}
+      </section>
+
+      <section className={operationsStyles.companyCards} aria-label="Şirket özeti">
+        <section>
+          <span className={operationsStyles.companyMark}>{workspace.account.companyName.slice(0, 1).toUpperCase()}</span>
+          <h3>Şirket profili</h3>
+          <strong>{workspace.account.companyName}</strong>
+          <p>{workspace.account.ownerName || 'Şirket sahibi'} · {workspace.account.ownerEmail || 'E-posta eklenmemiş'}</p>
+          <Link href="/fabrika/ayarlar">Şirket ayarlarını aç <ArrowRight /></Link>
+        </section>
+        <section>
+          <h3>Çalışma alanı durumu</h3>
+          <article><CheckCircle2 /><div><strong>{workspace.account.workspaceEnabled ? 'Çalışma alanı açık' : 'Çalışma alanı kapalı'}</strong><small>Patron ve ekip erişimi</small></div></article>
+          <article><ShieldCheck /><div><strong>{workspace.account.subscriptionStatus || 'Deneme'}</strong><small>{workspace.account.subscriptionPlan || 'Business CEO AI planı'}</small></div></article>
+          <article><Users /><div><strong>{activeMembers} aktif kullanıcı</strong><small>{workspace.members.length - activeMembers} kapalı hesap</small></div></article>
+        </section>
+        <section>
+          <h3>Bugün neye odaklanmalı?</h3>
+          <article><Clock3 /><div><strong>{openTasks} açık görev</strong><small>Çalışanlara verilen işler</small></div></article>
+          <article><Building2 /><div><strong>{workspace.metrics.activeProperties} aktif portföy</strong><small>Yayındaki gayrimenkuller</small></div></article>
+          <article><MessageSquareText /><div><strong>{workspace.metrics.contacts} müşteri kaydı</strong><small>CRM’de takip edilen kişiler</small></div></article>
+        </section>
       </section>
 
       <div className={operationsStyles.companyLeft}>

@@ -3,6 +3,7 @@ import {
   HUNT_PROPERTY_TYPE_PATHS,
   HUNT_PROPERTY_TYPE_VALUES,
 } from './property-types';
+import type { ClearpathSearchRotation } from './clearpath-contract';
 
 const locationNameSchema = z
   .string()
@@ -15,7 +16,6 @@ export const sahibindenSearchFiltersSchema = z
   .object({
     province: locationNameSchema,
     district: locationNameSchema,
-    neighborhood: locationNameSchema,
     propertyType: z.enum(HUNT_PROPERTY_TYPE_VALUES),
   })
   .strict();
@@ -43,22 +43,35 @@ export function sahibindenLocationSlug(value: string) {
     .replace(/^-+|-+$/g, '');
 }
 
-export function buildSahibindenSearchUrl(input: SahibindenSearchFilters) {
+export function buildSahibindenSearchUrl(
+  input: SahibindenSearchFilters,
+  rotation: ClearpathSearchRotation = { id: 'NEWEST', sorting: 'date_desc' }
+) {
   const filters = sahibindenSearchFiltersSchema.parse(input);
-  const location = [filters.province, filters.district, filters.neighborhood]
+  if (filters.propertyType === 'KONUT_PROJELERI') {
+    throw new Error(
+      'Konut Projeleri kaynaginda bireysel sahibinden ilani dogrulanamadigi icin canli Avci taramasi kapali.'
+    );
+  }
+  // Sahibinden inserts site-specific area segments (for example "beldeler")
+  // before some neighbourhoods. A generic neighbourhood name cannot produce
+  // that canonical path reliably. Search at the verified province + district
+  // level and keep the returned listing's real neighbourhood for filtering.
+  const location = [filters.province, filters.district]
     .map(sahibindenLocationSlug)
     .join('-');
   const categoryPath = HUNT_PROPERTY_TYPE_PATHS[filters.propertyType];
   const url = new URL(
-    `https://www.sahibinden.com/${categoryPath}/${location}`
+    `https://www.sahibinden.com/${categoryPath}/${location}/sahibinden`
   );
 
-  if (filters.propertyType !== 'KONUT_PROJELERI') {
-    url.searchParams.set(
-      SAHIBINDEN_OWNER_FILTER_KEY,
-      SAHIBINDEN_OWNER_FILTER_VALUE
-    );
-  }
-  url.searchParams.set('sorting', 'date_desc');
+  // The explicit owner tab is the primary ClearPath input boundary. Keep the
+  // native owner attribute too as defense in depth; dataset rows are filtered
+  // again after ingestion and business/store rows are always rejected.
+  url.searchParams.set(
+    SAHIBINDEN_OWNER_FILTER_KEY,
+    SAHIBINDEN_OWNER_FILTER_VALUE
+  );
+  if (rotation.sorting) url.searchParams.set('sorting', rotation.sorting);
   return url.toString();
 }

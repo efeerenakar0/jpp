@@ -9,11 +9,12 @@ import {
 describe('studio enhancement prompts', () => {
   it('uses the professional real-estate instruction as the default prompt', () => {
     expect(DEFAULT_STUDIO_ENHANCEMENT_PROMPT).toContain(
-      'profesyonel, tam kare bir kamerayla'
+      'gece fotoğrafı gece'
     );
     expect(DEFAULT_STUDIO_ENHANCEMENT_PROMPT).toContain(
-      'yapısını değiştirme'
+      'mevcut lamba, aplik, tavan, pencere, havuz ve bahçe ışıklarını'
     );
+    expect(DEFAULT_STUDIO_ENHANCEMENT_PROMPT).toContain('Olmayan yeni bir lamba');
   });
 
   it('offers every requested Turkish preset with editable prompt text', () => {

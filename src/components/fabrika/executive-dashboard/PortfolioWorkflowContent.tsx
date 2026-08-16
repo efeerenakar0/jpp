@@ -607,10 +607,10 @@ function AdvertisingStep({ draft, onAction }: Pick<PortfolioWorkflowContentProps
         </WorkflowDescription>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <a href="/fabrika/studyo" className="rounded-2xl border border-blue-400/25 bg-blue-400/[0.07] p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+        <a href="/fabrika/reklam-tasarimi" className="rounded-2xl border border-blue-400/25 bg-blue-400/[0.07] p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
           <ImagePlus className="h-6 w-6 text-blue-300" />
           <strong className="mt-4 block text-sm text-white">Poster hazırla</strong>
-          <span className="mt-1 block text-xs leading-5 text-slate-400">Stüdyo reklam tasarımı alanını aç.</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-400">Reklam tasarımı çalışma alanını aç.</span>
         </a>
         <button type="button" onClick={() => onAction({ type: 'skip-advertising' })} className={`rounded-2xl border p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${draft.advertising.skipped ? 'border-cyan-300/50 bg-cyan-300/[0.08]' : 'border-slate-700 bg-slate-900/70'}`}>
           <ArrowRight className="h-6 w-6 text-cyan-300" />

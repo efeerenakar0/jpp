@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import HuntJobPanel from './HuntJobPanel';
+import HuntJobPanel, { isActiveHuntJob } from './HuntJobPanel';
 
 describe('HuntJobPanel', () => {
   it('yalnızca bölge filtreleriyle portföy kaynağını seçtirir', () => {
@@ -14,16 +14,31 @@ describe('HuntJobPanel', () => {
     );
     expect(markup).toContain('İl seçin');
     expect(markup).toContain('İlçe seçin');
-    expect(markup).toContain('Mahalle seçin');
-    expect(markup).toContain('Gayrimenkul türü');
+    expect(markup).toContain(
+      'Mahalle gelen ilanların kendi adresinde gösterilir.'
+    );
+    expect(markup).not.toContain('Mahalle seçin');
+    expect(markup).toContain('2. Ne tür gayrimenkul arıyorsunuz?');
     expect(markup).toContain('Konut Projeleri');
     expect(markup).toContain('Devren Mülk');
     expect(markup).toContain('Turistik Tesis');
     expect(markup.match(/name="propertyType"/g)).toHaveLength(7);
     expect(markup).toContain(
-      'AI Portföy Uzmanı, seçtiğiniz kriterlere uygun potansiyel gayrimenkulleri'
+      'AI portföy uzmanı yeni portföy fırsatlarını keşfeder ve Sizin'
     );
     expect(markup).not.toContain('Bağlantı yapıştır');
     expect(markup).not.toContain('type="url"');
+    expect(markup).not.toContain('Her taramada');
+    expect(markup).not.toContain('Bu ay');
+    expect(markup).not.toContain('Her taramada aynı sıraya takılmaz');
+  });
+
+  it('devam eden veya duraklatılmış iş varken ikinci işi aktif sayar', () => {
+    expect(isActiveHuntJob('QUEUED')).toBe(true);
+    expect(isActiveHuntJob('RUNNING')).toBe(true);
+    expect(isActiveHuntJob('PAUSED')).toBe(true);
+    expect(isActiveHuntJob('SOURCE_CHALLENGE')).toBe(false);
+    expect(isActiveHuntJob('COMPLETED')).toBe(false);
+    expect(isActiveHuntJob('FAILED')).toBe(false);
   });
 });

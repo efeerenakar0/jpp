@@ -1,4 +1,8 @@
 .agents/**/__pycache__/
+.agents/
+artifacts/
 design-system/
 output/
+storage/
 .env.local
+src/app/yerel-onizleme/**

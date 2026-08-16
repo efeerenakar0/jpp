@@ -320,7 +320,9 @@ export default function PropertyMediaLibrary({
       mediaIds: selectedIds.join(','),
     });
     onOpenChange(false);
-    router.push(`/fabrika/studyo?${params.toString()}`);
+    const pathname =
+      area === 'poster' ? '/fabrika/reklam-tasarimi' : '/fabrika/studyo';
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   return (

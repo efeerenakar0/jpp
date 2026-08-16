@@ -1,13 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Building2,
   CheckCircle2,
   CirclePause,
-  CirclePlay,
-  House,
   LoaderCircle,
   MapPin,
   Radar,
@@ -20,9 +18,19 @@ import {
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import {
-  HUNT_PROPERTY_TYPE_OPTIONS,
   type HuntPropertyType,
 } from '@/lib/hunting-v2/property-types';
+import {
+  getHuntPropertyLabel,
+  getHuntRule,
+  HuntCategoryPicker,
+  mergeHuntQuota,
+  normalizeHuntPropertyType,
+  normalizeHuntQuotaResponse,
+  normalizeHuntQuotaSnapshot,
+  type HuntQuotaView,
+  type HuntScanContext,
+} from './HuntQuotaGuide';
 import type { HuntJobStatus, HuntJobSummary } from './types';
 
 const STORAGE_KEY = 'jasmine-avci-v2-current-job';
@@ -33,6 +41,16 @@ const TERMINAL_STATUSES: HuntJobStatus[] = [
   'CANCELLED',
   'SOURCE_CHALLENGE',
 ];
+
+const ACTIVE_JOB_STATUSES: HuntJobStatus[] = [
+  'QUEUED',
+  'RUNNING',
+  'PAUSED',
+];
+
+export function isActiveHuntJob(status: HuntJobStatus | null | undefined) {
+  return Boolean(status && ACTIVE_JOB_STATUSES.includes(status));
+}
 
 const STATUS_LABELS: Record<HuntJobStatus, string> = {
   QUEUED: 'Kuyrukta',
@@ -59,6 +77,21 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 type HuntJobPanelProps = {
   onJobChange: (jobId: string | null) => void;
   onJobFinished: () => void;
+  onScanContextChange?: (context: HuntScanContext | null) => void;
+};
+
+type HuntJobApiSummary = HuntJobSummary & {
+  propertyType?: unknown;
+  requestedResults?: unknown;
+  quota?: unknown;
+};
+
+type HuntJobStartResponse = {
+  jobId: string;
+  status: HuntJobStatus;
+  propertyType?: unknown;
+  requestedResults?: unknown;
+  quota?: unknown;
 };
 
 type LocationOption = {
@@ -69,18 +102,58 @@ type LocationOption = {
 export default function HuntJobPanel({
   onJobChange,
   onJobFinished,
+  onScanContextChange,
 }: HuntJobPanelProps) {
   const [provinces, setProvinces] = useState<LocationOption[]>([]);
   const [districts, setDistricts] = useState<LocationOption[]>([]);
-  const [neighborhoods, setNeighborhoods] = useState<LocationOption[]>([]);
   const [provinceId, setProvinceId] = useState('');
   const [districtId, setDistrictId] = useState('');
-  const [neighborhoodId, setNeighborhoodId] = useState('');
   const [propertyType, setPropertyType] = useState<HuntPropertyType | ''>('');
   const [locationsLoading, setLocationsLoading] = useState(true);
-  const [job, setJob] = useState<HuntJobSummary | null>(null);
+  const [job, setJob] = useState<HuntJobApiSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [controlling, setControlling] = useState(false);
+  const [quotas, setQuotas] = useState<HuntQuotaView[]>(() =>
+    normalizeHuntQuotaResponse(null)
+  );
+  const [quotasLoading, setQuotasLoading] = useState(true);
+  const startLockRef = useRef(false);
+
+  const loadQuotas = useCallback(
+    async (options?: { quiet?: boolean; signal?: AbortSignal }) => {
+      if (!options?.quiet) setQuotasLoading(true);
+      try {
+        const payload = await apiJson<unknown>(
+          '/api/fabrika/hunting/quotas',
+          options?.signal ? { signal: options.signal } : undefined
+        );
+        if (options?.signal?.aborted) return;
+        setQuotas(normalizeHuntQuotaResponse(payload));
+      } catch (error) {
+        if (
+          options?.signal?.aborted ||
+          (error instanceof DOMException && error.name === 'AbortError')
+        ) {
+          return;
+        }
+        if (!options?.quiet) setQuotas(normalizeHuntQuotaResponse(null));
+      } finally {
+        if (!options?.signal?.aborted) setQuotasLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void loadQuotas({ signal: controller.signal });
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [loadQuotas]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -113,28 +186,34 @@ export default function HuntJobPanel({
     return () => controller.abort();
   }, [provinceId]);
 
-  useEffect(() => {
-    if (!districtId) return;
-    const controller = new AbortController();
-    void apiJson<{ items: LocationOption[] }>(
-      `/api/fabrika/hunting/locations?districtId=${encodeURIComponent(districtId)}`,
-      { signal: controller.signal }
-    )
-      .then(({ items }) => setNeighborhoods(items))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        toast.error('Mahalle seçenekleri yüklenemedi.');
-      })
-      .finally(() => setLocationsLoading(false));
-    return () => controller.abort();
-  }, [districtId]);
-
   const loadJob = useCallback(
     async (jobId: string, quiet = false) => {
       try {
-        const nextJob = await apiJson<HuntJobSummary>(
+        const nextJob = await apiJson<HuntJobApiSummary>(
           `/api/fabrika/hunting/jobs/${jobId}`
         );
+        const nextPropertyType = normalizeHuntPropertyType(
+          nextJob.propertyType
+        );
+        const nextQuota = normalizeHuntQuotaSnapshot(
+          nextJob,
+          nextPropertyType
+        );
+        if (nextPropertyType) setPropertyType(nextPropertyType);
+        if (nextQuota) {
+          setQuotas((current) => mergeHuntQuota(current, nextQuota));
+        }
+        if (nextJob.status === 'SOURCE_CHALLENGE') {
+          // SOURCE_CHALLENGE yalnız artık kullanılmayan eski tarayıcıdan kalan
+          // terminal bir durumdur. ClearPath/Apify akışında üretilmez; eski iş
+          // yeni tarama formunu kilitlememeli veya kullanıcıya bayat bir hata
+          // göstermemelidir.
+          window.localStorage.removeItem(STORAGE_KEY);
+          setJob(null);
+          onJobChange(null);
+          onJobFinished();
+          return nextJob;
+        }
         setJob(nextJob);
         onJobChange(nextJob.id);
         if (TERMINAL_STATUSES.includes(nextJob.status)) {
@@ -197,29 +276,79 @@ export default function HuntJobPanel({
     return AlertTriangle;
   }, [job]);
   const StatusIcon = statusIcon;
+  const hasActiveJob = isActiveHuntJob(job?.status);
+  const selectedQuota = propertyType
+    ? quotas.find((quota) => quota.propertyType === propertyType) || null
+    : null;
+  const selectedRule = propertyType ? getHuntRule(propertyType) : null;
+  const quotaExhausted = Boolean(
+    selectedQuota &&
+      selectedQuota.remaining !== null &&
+      selectedQuota.remaining < selectedQuota.perRunLimit
+  );
+  const jobPropertyType = normalizeHuntPropertyType(job?.propertyType);
+  const contextPropertyType = jobPropertyType || propertyType || null;
+  const contextQuota = contextPropertyType
+    ? quotas.find((quota) => quota.propertyType === contextPropertyType) || null
+    : null;
+  const requestedResultsValue =
+    typeof job?.requestedResults === 'number'
+      ? job.requestedResults
+      : typeof job?.requestedResults === 'string'
+        ? Number(job.requestedResults)
+        : null;
+  const contextRequestedResults =
+    requestedResultsValue !== null &&
+    Number.isFinite(requestedResultsValue) &&
+    requestedResultsValue > 0
+      ? Math.floor(requestedResultsValue)
+      : contextQuota?.perRunLimit || 0;
+
+  useEffect(() => {
+    if (!onScanContextChange || !contextPropertyType || !contextQuota) {
+      onScanContextChange?.(null);
+      return;
+    }
+    onScanContextChange({
+      ...contextQuota,
+      propertyType: contextPropertyType,
+      label: getHuntPropertyLabel(contextPropertyType),
+      jobId: job?.id || null,
+      requestedResults: contextRequestedResults,
+    });
+  }, [
+    contextPropertyType,
+    contextQuota,
+    contextRequestedResults,
+    job?.id,
+    onScanContextChange,
+  ]);
 
   async function startJob(event: React.FormEvent) {
     event.preventDefault();
+    if (startLockRef.current || loading || hasActiveJob) return;
     const province = provinces.find(
       (option) => option.id === Number(provinceId)
     );
     const district = districts.find(
       (option) => option.id === Number(districtId)
     );
-    const neighborhood = neighborhoods.find(
-      (option) => option.id === Number(neighborhoodId)
-    );
-    if (!province || !district || !neighborhood) {
-      toast.error('İl, ilçe ve mahalle seçimini tamamlayın.');
+    if (!province || !district) {
+      toast.error('İl ve ilçe seçimini tamamlayın.');
       return;
     }
     if (!propertyType) {
       toast.error('Bir gayrimenkul türü seçin.');
       return;
     }
+    if (quotaExhausted) {
+      toast.error('Bu kategori için aylık tarama hakkınız kalmadı.');
+      return;
+    }
+    startLockRef.current = true;
     setLoading(true);
     try {
-      const created = await apiJson<{ jobId: string; status: HuntJobStatus }>(
+      const created = await apiJson<HuntJobStartResponse>(
         '/api/fabrika/hunting/jobs',
         {
           method: 'POST',
@@ -229,26 +358,30 @@ export default function HuntJobPanel({
             filters: {
               province: province.name,
               district: district.name,
-              neighborhood: neighborhood.name,
               propertyType,
             },
-            idempotencyKey: crypto.randomUUID(),
           }),
         }
       );
+      const createdQuota = normalizeHuntQuotaSnapshot(created, propertyType);
+      if (createdQuota) {
+        setQuotas((current) => mergeHuntQuota(current, createdQuota));
+      }
       window.localStorage.setItem(STORAGE_KEY, created.jobId);
       await loadJob(created.jobId);
+      void loadQuotas({ quiet: true });
       toast.success('Portföy içe aktarma işi kuyruğa alındı.');
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Av işi başlatılamadı.'
       );
     } finally {
+      startLockRef.current = false;
       setLoading(false);
     }
   }
 
-  async function controlJob(action: 'cancel' | 'resume') {
+  async function controlJob(action: 'cancel') {
     if (!job) return;
     setControlling(true);
     try {
@@ -257,7 +390,7 @@ export default function HuntJobPanel({
       });
       await loadJob(job.id);
       toast.success(
-        action === 'cancel' ? 'Av işi durduruldu.' : 'Av işi yeniden kuyruğa alındı.'
+        'Av işi durduruldu.'
       );
     } catch (error) {
       toast.error(
@@ -280,29 +413,29 @@ export default function HuntJobPanel({
               Satış yetkisini almak istediğiniz portföyleri belirleyin
             </h2>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">
-              İl, ilçe ve gayrimenkul türünü seçerek arama kriterlerinizi
-              belirleyin. AI Portföy Uzmanı, seçtiğiniz kriterlere uygun
-              potansiyel gayrimenkulleri farklı kaynaklardan keşfederek satış
-              yetkisi sürecini başlatsın.
+              AI portföy uzmanı yeni portföy fırsatlarını keşfeder ve Sizin
+              yerinize malikler ile konuşarak satış yetkisi almaya çalışır.
             </p>
           </div>
         </div>
 
         <form className="mt-5 space-y-4" onSubmit={startJob}>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-semibold text-slate-100">
+              1. Nerede arıyorsunuz?
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5">
               <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                 <MapPin className="h-3.5 w-3.5" /> İl
               </span>
               <select
                 className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={locationsLoading && !provinces.length}
+                disabled={hasActiveJob || (locationsLoading && !provinces.length)}
                 onChange={(event) => {
                   setProvinceId(event.target.value);
                   setDistrictId('');
-                  setNeighborhoodId('');
                   setDistricts([]);
-                  setNeighborhoods([]);
                   setLocationsLoading(Boolean(event.target.value));
                 }}
                 required
@@ -320,13 +453,8 @@ export default function HuntJobPanel({
               </span>
               <select
                 className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={!provinceId || locationsLoading}
-                onChange={(event) => {
-                  setDistrictId(event.target.value);
-                  setNeighborhoodId('');
-                  setNeighborhoods([]);
-                  setLocationsLoading(Boolean(event.target.value));
-                }}
+                disabled={hasActiveJob || !provinceId || locationsLoading}
+                onChange={(event) => setDistrictId(event.target.value)}
                 required
                 value={districtId}
               >
@@ -336,68 +464,35 @@ export default function HuntJobPanel({
                 ))}
               </select>
             </label>
-            <label className="space-y-1.5">
-              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
-                <House className="h-3.5 w-3.5" /> Mahalle
-              </span>
-              <select
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                disabled={!districtId || locationsLoading}
-                onChange={(event) => setNeighborhoodId(event.target.value)}
-                required
-                value={neighborhoodId}
-              >
-                <option value="">Mahalle seçin</option>
-                {neighborhoods.map((option) => (
-                  <option key={option.id} value={option.id}>{option.name}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <fieldset className="space-y-2.5">
-            <legend className="text-xs font-semibold text-slate-300">
-              Gayrimenkul türü
-            </legend>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
-              {HUNT_PROPERTY_TYPE_OPTIONS.map((option) => {
-                const selected = propertyType === option.value;
-                return (
-                  <label
-                    className={`flex min-h-12 cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition focus-within:ring-2 focus-within:ring-emerald-400/60 ${
-                      selected
-                        ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100 shadow-[0_0_0_1px_rgba(52,211,153,0.12)]'
-                        : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-slate-600 hover:bg-slate-800/70'
-                    }`}
-                    key={option.value}
-                  >
-                    <input
-                      checked={selected}
-                      className="sr-only"
-                      name="propertyType"
-                      onChange={() => setPropertyType(option.value)}
-                      required
-                      type="radio"
-                      value={option.value}
-                    />
-                    <span>{option.label}</span>
-                    {selected ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
-                    ) : (
-                      <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-slate-600" />
-                    )}
-                  </label>
-                );
-              })}
             </div>
+            <p className="text-xs leading-5 text-slate-400">
+              Mahalle gelen ilanların kendi adresinde gösterilir.
+            </p>
           </fieldset>
+          <HuntCategoryPicker
+            disabled={hasActiveJob}
+            loading={quotasLoading}
+            onSelect={setPropertyType}
+            quotas={quotas}
+            selected={propertyType}
+          />
           <div className="flex flex-col gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
-              <UserRoundCheck className="h-4 w-4" /> Kimden: Sahibinden Satıcılar
+            <span className="grid gap-1 text-xs text-emerald-100">
+              <span className="flex items-center gap-2 font-semibold">
+                <UserRoundCheck className="h-4 w-4" /> Kimden: Sahibinden
+                Satıcılar
+              </span>
             </span>
             <Button
-              className="h-10 bg-emerald-500 font-semibold text-emerald-950 hover:bg-emerald-400"
+              aria-describedby={hasActiveJob ? 'active-hunt-explanation' : undefined}
+              className="min-h-11 bg-emerald-500 px-5 font-semibold text-emerald-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               disabled={
-                loading || locationsLoading || !neighborhoodId || !propertyType
+                loading ||
+                hasActiveJob ||
+                quotaExhausted ||
+                locationsLoading ||
+                !districtId ||
+                !propertyType
               }
               type="submit"
             >
@@ -406,9 +501,26 @@ export default function HuntJobPanel({
               ) : (
                 <SlidersHorizontal className="mr-2 h-4 w-4" />
               )}
-              Portföyü oluşturmaya başla
+              {hasActiveJob
+                ? 'Tarama devam ediyor'
+                : quotaExhausted
+                  ? 'Bu ayki hakkınız bitti'
+                  : selectedRule
+                    ? `${selectedRule.perRunLimit} ilanı taramaya başla`
+                    : 'Taramayı başlat'}
             </Button>
           </div>
+          {hasActiveJob && (
+            <p
+              className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5 text-xs leading-5 text-amber-100"
+              id="active-hunt-explanation"
+              role="status"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              Bu tarama bitmeden yeni bir tarama başlatılamaz. Böylece aynı işlem
+              yanlışlıkla iki kez çalışmaz.
+            </p>
+          )}
         </form>
       </div>
 
@@ -444,22 +556,7 @@ export default function HuntJobPanel({
                 </div>
               </div>
               <div className="flex gap-2">
-                {['PAUSED', 'PARTIAL', 'FAILED', 'SOURCE_CHALLENGE'].includes(
-                  job.status
-                ) && (
-                  <Button
-                    className="h-8 border-slate-700 bg-slate-950 text-xs text-slate-200 hover:bg-slate-800"
-                    disabled={controlling}
-                    onClick={() => void controlJob('resume')}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <CirclePlay className="mr-1.5 h-3.5 w-3.5" />
-                    Devam
-                  </Button>
-                )}
-                {['QUEUED', 'RUNNING', 'PAUSED', 'SOURCE_CHALLENGE'].includes(
+                {['QUEUED', 'RUNNING', 'PAUSED'].includes(
                   job.status
                 ) && (
                   <Button
@@ -497,8 +594,9 @@ export default function HuntJobPanel({
               </div>
             </div>
 
-            <dl className="grid grid-cols-4 gap-2">
+            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               {[
+                ['Tarama hedefi', contextRequestedResults],
                 ['Bulunan', job.totalDiscovered],
                 ['Tamamlanan', job.totalCompleted],
                 ['Kısmi', job.totalPartial],
@@ -516,7 +614,8 @@ export default function HuntJobPanel({
               ))}
             </dl>
 
-            {job.errorSummary && (
+            {job.errorSummary &&
+              !['CANCELLED', 'SOURCE_CHALLENGE'].includes(job.status) && (
               <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-5 text-amber-200">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{job.errorSummary}</span>

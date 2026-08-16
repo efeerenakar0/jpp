@@ -51,8 +51,8 @@ describe('Avcı işi JSON dışa aktarımı', () => {
       },
       createdAt: new Date('2026-08-03T12:00:00.000Z'),
       completedAt: new Date('2026-08-03T12:05:00.000Z'),
-      listings: [
-        {
+      listingLinks: [
+        { listing: {
           sourceListingId: '123',
           sourceUrl: 'https://www.sahibinden.com/ilan/123/detay',
           title: 'Deniz manzaralı daire',
@@ -67,7 +67,7 @@ describe('Avcı işi JSON dışa aktarımı', () => {
               sourceType: 'AUTHORIZED_SOURCE',
             },
           ],
-        },
+        } },
       ],
     });
   });
@@ -118,8 +118,8 @@ describe('Avcı işi JSON dışa aktarımı', () => {
         startsAt: new Date('2026-01-01T00:00:00.000Z'),
         expiresAt: null,
       },
-      listings: [
-        {
+      listingLinks: [
+        { listing: {
           sourceListingId: '123',
           ownerName: 'İlan Sahibi',
           contacts: [
@@ -130,7 +130,7 @@ describe('Avcı işi JSON dışa aktarımı', () => {
             },
           ],
           images: [],
-        },
+        } },
       ],
     });
 
@@ -146,7 +146,7 @@ describe('Avcı işi JSON dışa aktarımı', () => {
 
   it('kaynak yetkisiyle başka bir iletişim kanalının şifresini çözmez', async () => {
     const job = await mocks.findJob();
-    job.listings[0].contacts = [
+    job.listingLinks[0].listing.contacts = [
       {
         maskedPhone: '+90******9999',
         phoneCiphertext: 'crm-encrypted-phone',
