@@ -25,7 +25,7 @@ export const navigationContent = {
   ],
   signIn: { label: "Giriş Yap", href: "/realestate/login", kind: "secondary" },
   startTrial: {
-    label: "Ücretsiz Denemeyi Başlat",
+    label: "Ücretsiz Deneme Talep Et",
     href: "/tr/contact?sector=real-estate&intent=trial",
     kind: "primary",
   },

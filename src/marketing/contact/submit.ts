@@ -1,11 +1,8 @@
 import "server-only";
 
-import {
-  unavailableContactProvider,
-  type ContactInput,
-  type ContactResult,
-} from "@/marketing/integrations";
+import type { ContactInput, ContactResult } from "@/marketing/integrations";
 
+import { databaseContactProvider } from "./database-contact-provider.server";
 import { toProviderContactIntent } from "./intent";
 import {
   assessContactSubmissionSignals,
@@ -69,7 +66,7 @@ export async function submitContactRequest({
     return { status: "spam_suspected" };
   }
 
-  return unavailableContactProvider.submit(
+  return databaseContactProvider.submit(
     toContactProviderInput(validated.data, intent, locale),
   );
 }

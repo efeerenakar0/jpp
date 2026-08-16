@@ -44,7 +44,7 @@ export const industriesContent = {
           analyticsEvent: "realestate_explored",
         },
         {
-          label: "Start Free Trial",
+          label: "Request Free Trial",
           href: "/contact?sector=real-estate&intent=trial",
           kind: "secondary",
           analyticsEvent: "trial_started",

@@ -287,7 +287,7 @@
 }
 
 .bceo-contact-provider > span {
-  color: #ffcb76;
+  color: #72d8ff;
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.64rem;
   letter-spacing: 0.08em;
@@ -295,8 +295,22 @@
 }
 
 .bceo-contact-provider strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.9rem;
   font-weight: 620;
+}
+
+.bceo-contact-provider[data-tone="ready"] {
+  border-color: rgba(114, 216, 255, 0.24);
+  background:
+    linear-gradient(110deg, rgba(49, 85, 255, 0.16), transparent 42%),
+    #07111f;
+}
+
+.bceo-contact-provider[data-tone="ready"] strong svg {
+  color: #72d8ff;
 }
 
 .bceo-contact-provider p {

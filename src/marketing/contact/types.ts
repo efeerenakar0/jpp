@@ -62,8 +62,8 @@ export interface ContactContent {
   }[];
   readonly provider: {
     readonly statusLabel: string;
-    readonly unavailableTitle: string;
-    readonly unavailableDescription: string;
+    readonly readyTitle: string;
+    readonly readyDescription: string;
     readonly submittedUnavailableTitle: string;
     readonly submittedUnavailableDescription: string;
     readonly genericErrorTitle: string;

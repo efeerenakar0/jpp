@@ -10,7 +10,34 @@ const securityHeaders = [
   },
 ];
 
+const legacyPublicRedirects = [
+  { source: '/hakkimizda', destination: '/tr#about' },
+  { source: '/hizmetler', destination: '/tr#platform' },
+  { source: '/iletisim', destination: '/tr/contact' },
+  { source: '/projeler/:path*', destination: '/tr/realestate' },
+  { source: '/blog/:path*', destination: '/tr' },
+  { source: '/neden-alanya', destination: '/tr/realestate' },
+  { source: '/hesaplama-araclari', destination: '/tr/realestate' },
+  { source: '/favorilerim', destination: '/tr/realestate' },
+  { source: '/karsilastir', destination: '/tr/realestate' },
+  {
+    source: '/is-ortakligi',
+    destination: '/tr/contact?sector=real-estate&intent=founding-partner',
+  },
+  { source: '/sss', destination: '/tr#faq' },
+  { source: '/gizlilik-politikasi', destination: '/tr/legal/privacy' },
+  { source: '/kullanim-kosullari', destination: '/tr/legal/terms' },
+  { source: '/cerez-politikasi', destination: '/tr/legal/cookies' },
+  { source: '/kvkk-aydinlatma-metni', destination: '/tr/legal/kvkk' },
+] as const;
+
 const nextConfig: NextConfig = {
+  async redirects() {
+    return legacyPublicRedirects.map((redirect) => ({
+      ...redirect,
+      permanent: true,
+    }));
+  },
   async headers() {
     return [
       {

@@ -143,7 +143,7 @@ export const homeContent = {
         analyticsEvent: "realestate_explored",
       },
       {
-        label: "14 Günlük Ücretsiz Denemeyi Başlatın",
+        label: "14 Günlük Ücretsiz Deneme Talep Edin",
         href: "/tr/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",
@@ -240,22 +240,16 @@ export const homeContent = {
     },
   },
   trust: {
-    eyebrow: "Saha kanıtı",
-    title: "Gerçek emlak operasyonlarında sınanan çalışma modeli.",
+    eyebrow: "Operasyon kanıtı",
+    title: "Gerçek iş akışları için tasarlanan çalışma modeli.",
     selectedVariant: "anonymous",
     variants: [
       {
         id: "anonymous",
         isDefault: true,
-        statement: "Seçili uluslararası emlak işletmeleriyle test edilmiştir.",
-        organizations: [],
-      },
-      {
-        id: "named",
-        isDefault: false,
         statement:
-          "Jasmine Group, akaRE Real Estate ve AKR Group emlak operasyonlarında saha testleri gerçekleştirilmiştir.",
-        organizations: ["Jasmine Group", "akaRE Real Estate", "AKR Group"],
+          "İnsan onayını koruyan, ölçülebilir ve izlenebilir operasyon döngüleri üzerine kurulmuştur.",
+        organizations: [],
       },
     ],
   },
@@ -263,10 +257,10 @@ export const homeContent = {
     eyebrow: "Emlak ile başlayın",
     title: "Operasyonunuza bir sonraki aksiyonu ilerleten bir beyin kazandırın.",
     description:
-      "Amiral ürünü keşfedin veya kredi kartı gerektirmeyen 14 günlük Office denemesini başlatın.",
+      "Amiral ürünü keşfedin veya kredi kartı gerektirmeyen 14 günlük Office denemesi için talep gönderin.",
     actions: [
       {
-        label: "Ücretsiz Denemeyi Başlatın",
+        label: "Ücretsiz Deneme Talep Edin",
         href: "/tr/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",

@@ -25,7 +25,7 @@ export const navigationContent = {
   ],
   signIn: { label: "Sign In", href: "/realestate/login", kind: "secondary" },
   startTrial: {
-    label: "Start Free Trial",
+    label: "Request Free Trial",
     href: "/contact?sector=real-estate&intent=trial",
     kind: "primary",
   },

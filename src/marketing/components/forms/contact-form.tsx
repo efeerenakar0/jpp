@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, CircleCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   type FieldErrors,
@@ -168,11 +168,14 @@ export function ContactForm({ content, context }: ContactFormProps) {
         <p>{content.form.description}</p>
       </div>
 
-      <div className="bceo-contact-provider" role="status">
+      <div className="bceo-contact-provider" data-tone="ready" role="status">
         <span>{content.provider.statusLabel}</span>
         <div>
-          <strong>{content.provider.unavailableTitle}</strong>
-          <p>{content.provider.unavailableDescription}</p>
+          <strong>
+            <CircleCheck aria-hidden="true" size={17} strokeWidth={1.8} />
+            {content.provider.readyTitle}
+          </strong>
+          <p>{content.provider.readyDescription}</p>
         </div>
         <a href={`mailto:${CONTACT_EMAIL}`}>
           {content.form.directEmailLabel}

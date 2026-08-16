@@ -53,7 +53,7 @@ export const pricingContent = {
       ],
       supportResponse: "İlk yanıt bir iş günü içinde",
       action: {
-        label: "Ücretsiz Denemeyi Başlatın",
+        label: "Ücretsiz Deneme Talep Edin",
         href: "/tr/contact?sector=real-estate&intent=trial&plan=office",
         kind: "primary",
         analyticsEvent: "pricing_plan_selected",

@@ -143,7 +143,7 @@ export const homeContent = {
         analyticsEvent: "realestate_explored",
       },
       {
-        label: "Start Your 14-Day Free Trial",
+        label: "Request Your 14-Day Free Trial",
         href: "/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",
@@ -240,22 +240,16 @@ export const homeContent = {
     },
   },
   trust: {
-    eyebrow: "Field evidence",
-    title: "A working model tested in real operating conditions.",
+    eyebrow: "Operating evidence",
+    title: "A working model designed for real business workflows.",
     selectedVariant: "anonymous",
     variants: [
       {
         id: "anonymous",
         isDefault: true,
-        statement: "Tested with selected international real estate businesses.",
-        organizations: [],
-      },
-      {
-        id: "named",
-        isDefault: false,
         statement:
-          "Field-tested in real estate operations across Jasmine Group, akaRE Real Estate and AKR Group.",
-        organizations: ["Jasmine Group", "akaRE Real Estate", "AKR Group"],
+          "Built around measurable, traceable operating loops that keep human approval in control.",
+        organizations: [],
       },
     ],
   },
@@ -263,10 +257,10 @@ export const homeContent = {
     eyebrow: "Start with Real Estate",
     title: "Give your operation a brain that keeps the next action moving.",
     description:
-      "Explore the flagship product or begin a 14-day Office trial with no credit card required.",
+      "Explore the flagship product or request a 14-day Office trial with no credit card required.",
     actions: [
       {
-        label: "Start Free Trial",
+        label: "Request Free Trial",
         href: "/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",

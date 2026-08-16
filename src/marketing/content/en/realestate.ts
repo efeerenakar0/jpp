@@ -27,7 +27,7 @@ export const realEstateContent = {
       "Bring customer conversations, appointments, sales portfolio opportunities and team knowledge into one coordinated operating layer—without removing people from the moments that need them.",
     actions: [
       {
-        label: "Start Your 14-Day Free Trial",
+        label: "Request Your 14-Day Free Trial",
         href: "/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",
@@ -297,7 +297,7 @@ export const realEstateContent = {
       "Try the Office experience for 14 days. No credit card is required, and a team member can take over AI-assisted conversations at any time.",
     actions: [
       {
-        label: "Start Your 14-Day Free Trial",
+        label: "Request Your 14-Day Free Trial",
         href: "/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",

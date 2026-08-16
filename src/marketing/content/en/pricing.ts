@@ -53,7 +53,7 @@ export const pricingContent = {
       ],
       supportResponse: "Initial response within one business day",
       action: {
-        label: "Start Free Trial",
+        label: "Request Free Trial",
         href: "/contact?sector=real-estate&intent=trial&plan=office",
         kind: "primary",
         analyticsEvent: "pricing_plan_selected",

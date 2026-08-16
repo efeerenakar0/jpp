@@ -27,7 +27,7 @@ export const realEstateContent = {
       "Müşteri görüşmelerini, randevuları, satılık portföy fırsatlarını ve ekip bilgisini tek bir koordineli operasyon katmanında birleştirin; insana ihtiyaç duyulan anlarda ekibinizi sürecin dışında bırakmayın.",
     actions: [
       {
-        label: "14 Günlük Ücretsiz Denemeyi Başlatın",
+        label: "14 Günlük Ücretsiz Deneme Talep Edin",
         href: "/tr/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",
@@ -296,7 +296,7 @@ export const realEstateContent = {
       "Office deneyimini 14 gün boyunca deneyin. Kredi kartı gerekmez ve yapay zekâ destekli görüşmeleri bir ekip üyesi istediğiniz zaman devralabilir.",
     actions: [
       {
-        label: "14 Günlük Ücretsiz Denemeyi Başlatın",
+        label: "14 Günlük Ücretsiz Deneme Talep Edin",
         href: "/tr/contact?sector=real-estate&intent=trial",
         kind: "primary",
         analyticsEvent: "trial_started",

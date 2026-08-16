@@ -40,7 +40,7 @@ export const contactContent = {
     description:
       "Kısa bir ön bilgi, görüşmeden önce uyumu anlamamıza yardımcı olur. Parola, ödeme bilgisi, özel WhatsApp konuşması veya başka hassas bilgiler paylaşmayın.",
     responseNote:
-      "Bağımsız formun teslimat servisi henüz bağlı değil. Bugün için çalışan iletişim yolu e-postadır.",
+      "Form, ön bilginizi doğrudan insan değerlendirmesine iletir. E-posta bağlantısını alternatif iletişim yolu olarak da kullanabilirsiniz.",
     emailLabel: "Ekibe e-posta gönderin",
   },
   process: [
@@ -59,12 +59,12 @@ export const contactContent = {
   ],
   provider: {
     statusLabel: "Teslimat durumu",
-    unavailableTitle: "Form teslimatı bağlı değil",
-    unavailableDescription:
-      "Bu bağımsız forma girilen hiçbir bilgi gönderilmez veya saklanmaz. Canlı bir talep için doğrudan e-posta bağlantısını kullanın.",
-    submittedUnavailableTitle: "Ön bilginiz kontrol edildi ancak gönderilmedi",
+    readyTitle: "Güvenli teslimat aktif",
+    readyDescription:
+      "Gönderdiğiniz ön bilgi Business CEO AI ekibinin değerlendirme kuyruğuna kaydedilir ve yalnızca talebinize yanıt vermek için kullanılır.",
+    submittedUnavailableTitle: "Talebiniz henüz teslim edilemedi",
     submittedUnavailableDescription:
-      "Alanlar geçerli fakat iletişim backend’i bağlı değil. Herhangi bir başvuru oluşturulmadı. Lütfen info@businessceo.ai adresine e-posta gönderin.",
+      "Teslimat servisi şu anda isteği onaylamadı ve herhangi bir başvuru oluşturulmadı. Lütfen tekrar deneyin veya info@businessceo.ai adresine e-posta gönderin.",
     genericErrorTitle: "Talep işlenemedi",
     genericErrorDescription:
       "Herhangi bir başvuru oluşturulmadı. Formu gözden geçirin veya aşağıdaki doğrudan e-posta yolunu kullanın.",
@@ -98,17 +98,17 @@ export const contactContent = {
     consentGroupLabel: "Gizlilik ve iletişim tercihleri",
     marketingConsentLabel: "Bana zaman zaman ürün ve lansman güncellemeleri gönderin. İsteğe bağlıdır.",
     submitLabels: {
-      real_estate: "Deneme talebini hazırlayın",
-      enterprise_sales: "Satış ön bilgisini hazırlayın",
-      book_demo: "Demo talebini hazırlayın",
-      founding_partner: "İş ortaklığı ön bilgisini hazırlayın",
+      real_estate: "Deneme talebini gönderin",
+      enterprise_sales: "Satış ön bilgisini gönderin",
+      book_demo: "Demo talebini gönderin",
+      founding_partner: "İş ortaklığı talebini gönderin",
     },
-    submittingLabel: "Ön bilgi kontrol ediliyor…",
+    submittingLabel: "Talep güvenle gönderiliyor…",
     summaryTitle: "İşaretlenen alanları gözden geçirin",
     summaryDescription: "Talep gönderilmedi. Aşağıdaki alanları düzeltin:",
     directEmailLabel: "Bunun yerine info@businessceo.ai adresine yazın",
     noAccountNotice:
-      "Bu talebi hazırlamak hesap oluşturmaz, deneme başlatmaz veya bilgilerinizi saklamaz.",
+      "Bu talep otomatik olarak hesap oluşturmaz veya deneme başlatmaz; sonraki adımı gerçek bir ekip üyesi yönetir.",
     characterLimitLabel: "2.000 karakter sınırı",
   },
   sectors: [

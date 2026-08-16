@@ -1,52 +1,77 @@
-import { MetadataRoute } from 'next';
-import { PrismaClient } from '@prisma/client';
+import type { MetadataRoute } from 'next';
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jasmineprojepazarlama.com';
+import { industriesContent as englishIndustries } from '@/marketing/content/en/industries';
+import { industriesContent as turkishIndustries } from '@/marketing/content/tr/industries';
+import { LEGAL_SLUGS } from '@/marketing/content/legal';
+import { absoluteSiteUrl } from '@/marketing/seo/site';
 
-  let projectUrls: any[] = [];
-  let postUrls: any[] = [];
+type LocalizedRoutePair = {
+  readonly en: string;
+  readonly tr: string;
+  readonly priority: number;
+  readonly changeFrequency: 'weekly' | 'monthly' | 'yearly';
+};
 
-  try {
-    if (process.env.DATABASE_URL) {
-      const prisma = new PrismaClient();
-      const projects = await prisma.project.findMany({ where: { published: true } });
-      const posts = await prisma.blogPost.findMany({ where: { published: true } });
+const coreRoutes: readonly LocalizedRoutePair[] = [
+  { en: '/', tr: '/tr', priority: 1, changeFrequency: 'weekly' },
+  { en: '/realestate', tr: '/tr/realestate', priority: 0.9, changeFrequency: 'weekly' },
+  { en: '/contact', tr: '/tr/contact', priority: 0.8, changeFrequency: 'monthly' },
+];
 
-      projectUrls = projects.map((p) => ({
-        url: `${baseUrl}/projeler/${p.slug}`,
-        lastModified: p.updatedAt,
-        changeFrequency: 'weekly' as any,
-        priority: 0.8,
-      }));
+const industryRoutes: readonly LocalizedRoutePair[] = englishIndustries.sectors
+  .filter((sector) => sector.status !== 'flagship')
+  .map((sector) => {
+    const localizedSector = turkishIndustries.sectors.find(
+      (candidate) => candidate.id === sector.id,
+    );
 
-      postUrls = posts.map((p) => ({
-        url: `${baseUrl}/blog/${p.slug}`,
-        lastModified: p.updatedAt,
-        changeFrequency: 'monthly' as any,
-        priority: 0.6,
-      }));
+    if (!localizedSector) {
+      throw new Error(`Missing Turkish industry route for ${sector.id}.`);
     }
-  } catch (error) {
-    console.warn('Sitemap DB Query Warning:', error);
-  }
 
-  const staticUrls = [
-    '',
-    '/hakkimizda',
-    '/projeler',
-    '/hizmetler',
-    '/is-ortakligi',
-    '/neden-alanya',
-    '/iletisim',
-    '/sss',
-    '/blog',
-  ].map((route) => ({
-    url: `${baseUrl}${route}`,
-    lastModified: new Date(),
-    changeFrequency: 'daily' as any,
-    priority: route === '' ? 1.0 : 0.8,
-  }));
+    return {
+      en: sector.route,
+      tr: localizedSector.route,
+      priority: 0.65,
+      changeFrequency: 'monthly' as const,
+    };
+  });
 
-  return [...staticUrls, ...projectUrls, ...postUrls];
+const legalRoutes: readonly LocalizedRoutePair[] = LEGAL_SLUGS.map((slug) => ({
+  en: `/legal/${slug}`,
+  tr: `/tr/legal/${slug}`,
+  priority: 0.35,
+  changeFrequency: 'yearly' as const,
+}));
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  const lastModified = new Date();
+
+  return [...coreRoutes, ...industryRoutes, ...legalRoutes].flatMap((route) => {
+    const englishUrl = absoluteSiteUrl(route.en);
+    const turkishUrl = absoluteSiteUrl(route.tr);
+    const alternates = {
+      languages: {
+        en: englishUrl,
+        tr: turkishUrl,
+      },
+    };
+
+    return [
+      {
+        url: englishUrl,
+        lastModified,
+        changeFrequency: route.changeFrequency,
+        priority: route.priority,
+        alternates,
+      },
+      {
+        url: turkishUrl,
+        lastModified,
+        changeFrequency: route.changeFrequency,
+        priority: route.priority,
+        alternates,
+      },
+    ];
+  });
 }

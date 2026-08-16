@@ -40,7 +40,7 @@ export const contactContent = {
     description:
       "A concise brief helps the team understand fit before a call. Do not include passwords, payment details, private WhatsApp conversations or other sensitive information.",
     responseNote:
-      "The standalone form delivery service is not connected yet. Email is the live contact path today.",
+      "The form sends your brief directly into human review. You can also use the email link as an alternative contact path.",
     emailLabel: "Email the team",
   },
   process: [
@@ -59,12 +59,12 @@ export const contactContent = {
   ],
   provider: {
     statusLabel: "Delivery status",
-    unavailableTitle: "Form delivery is not connected",
-    unavailableDescription:
-      "Nothing entered in this standalone form is sent or stored. Use the direct email link for a live request.",
-    submittedUnavailableTitle: "Your brief was checked, but not sent",
+    readyTitle: "Secure delivery is active",
+    readyDescription:
+      "Your brief is saved to the Business CEO AI review queue and used only to respond to your request.",
+    submittedUnavailableTitle: "Your request has not been delivered yet",
     submittedUnavailableDescription:
-      "The fields are valid, but the contact backend is not connected. No submission was created. Please email info@businessceo.ai.",
+      "The delivery service did not confirm the request and no submission was created. Please try again or email info@businessceo.ai.",
     genericErrorTitle: "The request could not be processed",
     genericErrorDescription:
       "No submission was created. Review the form or use the direct email path below.",
@@ -93,22 +93,22 @@ export const contactContent = {
       "What is the operating problem, who is involved and what would a useful next conversation cover?",
     privacyPrefix: "I acknowledge the",
     privacyLinkLabel: "Privacy Notice",
-    privacySuffix: "and how my information would be handled when delivery is connected.",
+    privacySuffix: "and how my information is handled when I send this request.",
     privacyHref: "/legal/privacy",
     consentGroupLabel: "Privacy and communication choices",
     marketingConsentLabel: "Send me occasional product and launch updates. Optional.",
     submitLabels: {
-      real_estate: "Prepare trial request",
-      enterprise_sales: "Prepare sales brief",
-      book_demo: "Prepare demo request",
-      founding_partner: "Prepare partner brief",
+      real_estate: "Send trial request",
+      enterprise_sales: "Send sales brief",
+      book_demo: "Send demo request",
+      founding_partner: "Send partner request",
     },
-    submittingLabel: "Checking brief…",
+    submittingLabel: "Sending request securely…",
     summaryTitle: "Review the highlighted fields",
     summaryDescription: "The request has not been sent. Correct the following items:",
     directEmailLabel: "Email info@businessceo.ai instead",
     noAccountNotice:
-      "Preparing this request does not create an account, activate a trial or store your details.",
+      "This request does not automatically create an account or activate a trial; a real team member owns the next step.",
     characterLimitLabel: "2,000 character limit",
   },
   sectors: [

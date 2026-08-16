@@ -87,14 +87,33 @@ export function SpatialHomePage({ content = defaultContent }: SpatialHomePagePro
   const developingIndustries = industriesContent.sectors.filter(
     (sector) => sector.status === "in-active-development",
   );
-  const orderedIndustries = [...industriesContent.sectors].sort(
-    (first, second) => first.roadmapPriority - second.roadmapPriority,
-  );
   const selectedTrust = homeContent.trust.variants.find(
     (variant) => variant.id === homeContent.trust.selectedVariant,
   );
   const signalLabels = homeContent.operationalLoop.steps.map((step) => step.label);
-  const industriesNavItem = navigationContent.items.find((item) => item.id === "industries");
+  const primaryMetric = homeContent.proof.metrics[0];
+  const commandRail = [
+    {
+      label: homeContent.presentation.productStatusLabel,
+      value: homeContent.industriesPreview.flagshipLabel,
+      detail: homeContent.flagship.title,
+    },
+    {
+      label: homeContent.proof.eyebrow,
+      value: primaryMetric.value,
+      detail: primaryMetric.statement,
+    },
+    {
+      label: homeContent.presentation.humanInLoopLabel,
+      value: homeContent.workforce.roles[2].label,
+      detail: homeContent.workforce.description,
+    },
+    {
+      label: homeContent.presentation.systemModelLabel,
+      value: homeContent.presentation.coreStatus,
+      detail: homeContent.brand.category,
+    },
+  ] as const;
 
   return (
     <AnimeMarketingMotionShell
@@ -108,41 +127,15 @@ export function SpatialHomePage({ content = defaultContent }: SpatialHomePagePro
       </a>
       <MarketingHeader content={navigationContent} />
 
-      <nav
-        aria-labelledby="industry-rail-title"
-        className="bceo-industry-rail bceo-spatial-industry-rail"
-        data-industry-rail
-      >
-        <div className="bceo-container bceo-spatial-industry-rail__inner">
-          <div className="bceo-spatial-industry-rail__intro">
-            <span id="industry-rail-title">
-              {industriesNavItem?.label ?? industriesContent.hero.eyebrow}
-            </span>
-            <small>{homeContent.industriesPreview.flagshipLabel}</small>
-          </div>
-          <ul>
-            {orderedIndustries.map((sector, index) => (
-              <li key={sector.id}>
-                <a
-                  data-industry-card={sector.id}
-                  data-industry-status={sector.status}
-                  href={sector.route}
-                >
-                  <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                  <strong>{sector.name}</strong>
-                  <small>{sector.statusLabel}</small>
-                  <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.6} />
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </nav>
-
       <main id="main-content" tabIndex={-1}>
         <section className="bceo-spatial-hero" aria-labelledby="home-hero-title" data-hero>
           <div className="bceo-container bceo-spatial-hero__grid">
             <div className="bceo-spatial-hero__copy" data-hero-copy>
+              <div className="bceo-spatial-hero__status">
+                <span aria-hidden="true" />
+                <strong>{homeContent.industriesPreview.flagshipLabel}</strong>
+                <small>{homeContent.flagship.title}</small>
+              </div>
               <p className="bceo-spatial-kicker">{homeContent.presentation.heroIndexLabel}</p>
               <h1 id="home-hero-title">{homeContent.hero.title}</h1>
               <p className="bceo-spatial-hero__lead">{homeContent.hero.supportingCopy}</p>
@@ -163,11 +156,26 @@ export function SpatialHomePage({ content = defaultContent }: SpatialHomePagePro
             </div>
 
             <figure className="bceo-spatial-hero__stage" data-hero-core>
+              <div className="bceo-spatial-hero__stage-status">
+                <span>{homeContent.presentation.productStatusLabel}</span>
+                <strong>
+                  <i aria-hidden="true" />
+                  {homeContent.industriesPreview.flagshipLabel}
+                </strong>
+              </div>
               <div data-hero-parallax>
                 <SpatialOperatingCore
                   ariaLabel={homeContent.presentation.systemFigureLabel}
                   signalLabels={signalLabels}
                 />
+              </div>
+              <div className="bceo-spatial-hero__readout" aria-hidden="true">
+                {homeContent.presentation.readout.map((item, index) => (
+                  <span key={item}>
+                    <small>{String(index + 1).padStart(2, "0")}</small>
+                    {item}
+                  </span>
+                ))}
               </div>
               <figcaption>
                 <span>{homeContent.presentation.systemModelLabel}</span>
@@ -182,6 +190,22 @@ export function SpatialHomePage({ content = defaultContent }: SpatialHomePagePro
                 ? "Mekânsal operasyon alanı · 01"
                 : "Spatial operating field · 01"}
             </span>
+          </div>
+        </section>
+
+        <section
+          aria-label={homeContent.presentation.systemModelLabel}
+          className="bceo-spatial-command-rail"
+        >
+          <div className="bceo-container">
+            {commandRail.map((item, index) => (
+              <article key={item.label}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <small>{item.label}</small>
+                <strong>{item.value}</strong>
+                <p>{item.detail}</p>
+              </article>
+            ))}
           </div>
         </section>
 
