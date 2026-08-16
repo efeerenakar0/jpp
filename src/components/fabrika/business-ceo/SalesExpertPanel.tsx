@@ -562,6 +562,9 @@ export function SalesExpertPanel({
                 {statusLabels[row.status]}
               </span>
               <button
+                aria-label={`${row.customerName} için AI yanıtlarını ${
+                  isAiEnabled(row) ? 'kapat' : 'aç'
+                }`}
                 aria-pressed={isAiEnabled(row)}
                 className={styles.aiModeButton}
                 disabled={aiSavingId === row.id}
@@ -575,7 +578,14 @@ export function SalesExpertPanel({
                 type="button"
               >
                 {isAiEnabled(row) ? <Bot aria-hidden="true" /> : <UserRound aria-hidden="true" />}
-                {isAiEnabled(row) ? 'AI Aktif' : 'AI Kapalı'}
+                <span>{isAiEnabled(row) ? 'AI Aktif' : 'AI Kapalı'}</span>
+                <span
+                  aria-hidden="true"
+                  className={styles.aiModeSwitch}
+                  data-ai-mode-switch="true"
+                >
+                  <i />
+                </span>
               </button>
               <span className={styles.conversationActions}>
                 {isOwner ? (

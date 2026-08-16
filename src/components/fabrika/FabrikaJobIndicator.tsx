@@ -15,11 +15,28 @@ type Job = {
   href: string;
 };
 
+const JOB_POLL_INTERVAL_MS = 3_000;
+const JOB_REQUEST_TIMEOUT_MS = 8_000;
+
 const JOB_KIND_LABELS: Record<Job["kind"], string> = {
   STUDIO: "Stüdyo",
   STUDIO_VIDEO: "AI Video",
   HUNT: "Avcı",
 };
+
+export async function fetchFabrikaJobs(signal?: AbortSignal): Promise<Job[]> {
+  try {
+    const response = await fetch("/api/fabrika/jobs", {
+      cache: "no-store",
+      signal,
+    });
+    if (!response.ok) return [];
+    const data = (await response.json()) as { jobs?: Job[] };
+    return Array.isArray(data.jobs) ? data.jobs : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function FabrikaJobIndicator({ bright = false }: { bright?: boolean }) {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -27,19 +44,29 @@ export default function FabrikaJobIndicator({ bright = false }: { bright?: boole
 
   useEffect(() => {
     let active = true;
+    let pollTimer: number | undefined;
+    let requestController: AbortController | null = null;
+
     async function load() {
-      const response = await fetch("/api/fabrika/jobs", { cache: "no-store" });
-      if (!response.ok) return;
-      const data = (await response.json()) as { jobs?: Job[] };
-      if (active) setJobs(data.jobs || []);
+      requestController = new AbortController();
+      const requestTimeout = window.setTimeout(
+        () => requestController?.abort(),
+        JOB_REQUEST_TIMEOUT_MS,
+      );
+      const nextJobs = await fetchFabrikaJobs(requestController.signal);
+      window.clearTimeout(requestTimeout);
+      requestController = null;
+      if (!active) return;
+      setJobs(nextJobs);
+      if (nextJobs.length === 0) setOpen(false);
+      pollTimer = window.setTimeout(() => void load(), JOB_POLL_INTERVAL_MS);
     }
+
     void load();
-    // İş devam ederken kullanıcıya gerçek ilerlemeyi göstermek için kısa
-    // aralıklarla yenile. Tamamlanan işler API tarafından listeden çıkarılır.
-    const timer = window.setInterval(() => void load(), 3_000);
     return () => {
       active = false;
-      window.clearInterval(timer);
+      requestController?.abort();
+      if (pollTimer) window.clearTimeout(pollTimer);
     };
   }, []);
 

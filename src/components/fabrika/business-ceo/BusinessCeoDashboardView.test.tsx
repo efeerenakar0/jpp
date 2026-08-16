@@ -139,6 +139,12 @@ describe('BusinessCeoDashboardView', () => {
     expect(html).toContain('WhatsApp bağlı');
     expect(html).toContain('href="/fabrika/asistan"');
     expect(html).toContain('AI Aktif');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain(
+      'aria-label="Gerçek Müşteri için AI yanıtlarını kapat"'
+    );
+    expect(html).toContain('data-ai-mode-switch="true"');
+    expect(html).toContain('data-status="NEW">Yeni</span>');
     expect(html).toContain('data-brand-icon="whatsapp"');
     expect(html).toContain(
       'src="/api/fabrika/assistant/conversations/conversation-1/avatar"'
