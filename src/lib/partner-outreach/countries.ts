@@ -7,8 +7,8 @@ export type TurkeyBuyerMarket = {
 };
 
 /**
- * TÜİK'in yayımladığı yabancılara konut satışı verilerindeki ilk 20 uyruk
- * grubu ve 2025 yıl sonu / 2026 ilk yarı eğilimi esas alınarak hazırlanmış
+ * TÜİK'in yayımladığı yabancılara konut satışı verilerindeki öne çıkan uyruk
+ * grupları ve 2025 yıl sonu / 2026 ilk yarı eğilimi esas alınarak hazırlanmış
  * odak pazar kataloğu. Sıra, ürün içindeki çalışma önceliğini belirtir.
  */
 export const TURKEY_PROPERTY_BUYER_MARKETS: TurkeyBuyerMarket[] = [
@@ -32,6 +32,11 @@ export const TURKEY_PROPERTY_BUYER_MARKETS: TurkeyBuyerMarket[] = [
   { code: 'CA', name: 'Kanada', language: 'en', priority: 18, demandSignal: 'İlk 20 yabancı alıcı pazarı' },
   { code: 'LB', name: 'Lübnan', language: 'ar', priority: 19, demandSignal: 'Orta Doğu odak pazarı' },
   { code: 'YE', name: 'Yemen', language: 'ar', priority: 20, demandSignal: 'İlk 20 yabancı alıcı pazarı' },
+  { code: 'PS', name: 'Filistin', language: 'ar', priority: 21, demandSignal: 'Türkiye için tarihsel alıcı pazarı' },
+  { code: 'LY', name: 'Libya', language: 'ar', priority: 22, demandSignal: 'Kuzey Afrika odak pazarı' },
+  { code: 'NL', name: 'Hollanda', language: 'nl', priority: 23, demandSignal: 'Avrupa ve diaspora odak pazarı' },
+  { code: 'QA', name: 'Katar', language: 'ar', priority: 24, demandSignal: 'Körfez yatırım pazarı' },
+  { code: 'FR', name: 'Fransa', language: 'fr', priority: 25, demandSignal: 'Avrupa ve diaspora odak pazarı' },
 ];
 
 export type PartnerCountry = readonly [code: string, name: string, language: string];

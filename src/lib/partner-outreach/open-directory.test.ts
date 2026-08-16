@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('./website-profile', () => ({
+  enrichPartnerWebsiteProfile: vi.fn(async (candidate) => candidate),
+}));
 
 import { discoverOpenDirectoryPartners } from './open-directory';
 
@@ -26,7 +29,12 @@ describe('open partner directory discovery', () => {
                 email: 'hello@example.com',
                 phone: '+90 555 000 00 00',
                 brand: 'Kaynaklı',
+                logo: 'https://example.com/logo.png',
+                description: 'Uluslararası yatırım konutlarında uzman emlak ofisi.',
+                'addr:street': 'Tverskaya Street',
+                'addr:housenumber': '12',
                 'addr:city': 'İstanbul',
+                'addr:postcode': '125009',
                 office: 'estate_agent',
               },
             },
@@ -43,6 +51,9 @@ describe('open partner directory discovery', () => {
       displayName: 'Kaynaklı Emlak',
       countryCode: 'RU',
       corporateEmail: 'hello@example.com',
+      logoUrl: 'https://example.com/logo.png',
+      about: 'Uluslararası yatırım konutlarında uzman emlak ofisi.',
+      address: 'Tverskaya Street, 12, İstanbul, 125009',
       sourceUrl: 'https://www.openstreetmap.org/way/2',
     });
   });

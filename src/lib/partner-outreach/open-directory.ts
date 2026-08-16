@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { partnerCountry } from './countries';
 import type { ProviderOrganization } from './provider';
+import { enrichPartnerWebsiteProfile } from './website-profile';
 
 const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
@@ -46,6 +47,16 @@ function corporateEmail(value?: string) {
   return z.string().email().safeParse(email).success ? email : undefined;
 }
 
+function compactAddress(tags: Record<string, string>) {
+  const parts = [
+    tags['addr:street'],
+    tags['addr:housenumber'],
+    firstTag(tags, ['addr:city', 'addr:town', 'addr:municipality']),
+    tags['addr:postcode'],
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : undefined;
+}
+
 function completenessScore(tags: Record<string, string>) {
   const signals = [
     tags.name,
@@ -84,6 +95,9 @@ function toCandidate(
     legalName: name,
     displayName: name,
     websiteUrl,
+    logoUrl: httpUrl(firstTag(tags, ['logo', 'brand:logo', 'image'])),
+    about: firstTag(tags, ['description:tr', 'description:en', 'description'])?.slice(0, 1_200),
+    address: compactAddress(tags),
     countryCode: country.code,
     countryName: country.name,
     city: firstTag(tags, ['addr:city', 'addr:town', 'addr:municipality']),
@@ -139,7 +153,7 @@ out tags center 250;`;
     throw new Error('Açık işletme dizini şu anda yoğun. Birkaç dakika sonra tekrar deneyin.');
   }
 
-  return payload.elements
+  const candidates = payload.elements
     .filter((element) => element.tags?.name || element.tags?.brand)
     .sort((left, right) =>
       completenessScore(right.tags || {}) - completenessScore(left.tags || {}),
@@ -150,4 +164,15 @@ out tags center 250;`;
       all.findIndex((other) => other.displayName.toLocaleLowerCase('tr-TR') === candidate.displayName.toLocaleLowerCase('tr-TR')) === index,
     )
     .slice(0, safeLimit);
+
+  const enriched: ProviderOrganization[] = [];
+  const batchSize = 6;
+  for (let index = 0; index < candidates.length; index += batchSize) {
+    const batch = candidates.slice(index, index + batchSize);
+    enriched.push(...await Promise.all(
+      batch.map((candidate) => enrichPartnerWebsiteProfile(candidate)),
+    ));
+  }
+
+  return enriched;
 }

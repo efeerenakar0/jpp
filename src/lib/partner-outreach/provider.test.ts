@@ -9,11 +9,18 @@ import { DisabledPartnerProvider, parsePartnerCsv, verifyPartnerFeed } from './p
 describe('partner CSV and provider safety', () => {
   it('parses sourced records and rejects rows without a source URL', () => {
     const csv = [
-      'name,countryCode,countryName,city,websiteUrl,corporateEmail,sourceUrl,observedAt,languages,specialties',
-      'Atlas Realty,DE,Almanya,Berlin,https://atlas.example,partner@atlas.example,https://registry.example/atlas,2026-08-03,de|en,luxury|investment',
+      'name,countryCode,countryName,city,address,about,logoUrl,websiteUrl,corporateEmail,sourceUrl,observedAt,languages,specialties',
+      'Atlas Realty,DE,Almanya,Berlin,Friedrichstraße 10,Yatırım konutlarında uzman,https://atlas.example/logo.png,https://atlas.example,partner@atlas.example,https://registry.example/atlas,2026-08-03,de|en,luxury|investment',
     ].join('\n');
     const [partner] = parsePartnerCsv(csv);
-    expect(partner).toMatchObject({ displayName: 'Atlas Realty', countryCode: 'DE', domain: 'atlas.example' });
+    expect(partner).toMatchObject({
+      displayName: 'Atlas Realty',
+      countryCode: 'DE',
+      domain: 'atlas.example',
+      address: 'Friedrichstraße 10',
+      about: 'Yatırım konutlarında uzman',
+      logoUrl: 'https://atlas.example/logo.png',
+    });
     expect(() => parsePartnerCsv(csv.replace('https://registry.example/atlas', ''))).toThrow(/satır geçersiz/i);
   });
 

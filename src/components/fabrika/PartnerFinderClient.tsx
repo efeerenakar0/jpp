@@ -7,19 +7,20 @@ import {
   Building2,
   Check,
   CheckCircle2,
-  ChevronRight,
+  ChevronDown,
   CircleAlert,
   CircleCheck,
   CircleDashed,
   ExternalLink,
   Globe2,
   Handshake,
-  Inbox,
   Languages,
+  LayoutDashboard,
   Loader2,
   Mail,
   MapPin,
   Network,
+  Plus,
   RefreshCw,
   Search,
   Send,
@@ -56,6 +57,12 @@ type Partner = {
   city: string | null;
   websiteUrl: string | null;
   logoUrl: string | null;
+  about?: string | null;
+  address?: string | null;
+  registrationNumber?: string | null;
+  licenseNumber?: string | null;
+  reviewAverage?: number | null;
+  reviewCount?: number | null;
   languages: string[];
   specialties: string[];
   fitScore: number;
@@ -123,7 +130,7 @@ type MailboxState = {
 };
 
 type Notice = { tone: 'success' | 'error' | 'info'; text: string };
-type View = 'discover' | 'pipeline' | 'mailbox';
+type View = 'pipeline' | 'mailbox';
 
 const stages = [
   'DISCOVERED',
@@ -140,15 +147,12 @@ const stages = [
   'ARCHIVED',
 ];
 
-const pipelineStages = [
-  'DISCOVERED',
-  'QUALIFIED',
-  'CONTACTED',
-  'ENGAGED',
-  'MEETING',
-  'AGREEMENT',
-  'ACTIVE',
-];
+const workflowColumns = [
+  { key: 'new', title: 'Yeni Bulunanlar', stages: ['DISCOVERED'] },
+  { key: 'review', title: 'İnceleniyor', stages: ['QUALIFIED', 'REVIEW'] },
+  { key: 'contact', title: 'İletişimde', stages: ['CONTACTED', 'ENGAGED', 'MEETING', 'AGREEMENT'] },
+  { key: 'active', title: 'Aktif Partner', stages: ['ACTIVE'] },
+] as const;
 
 const draftStatus: Record<string, string> = {
   DRAFT: 'Taslak',
@@ -190,6 +194,18 @@ function mergePartners(current: Partner[], incoming: Partner[]) {
   return [...byId.values()];
 }
 
+function countryFlag(code: string) {
+  return code
+    .toUpperCase()
+    .replace(/[A-Z]/g, (letter) => String.fromCodePoint(127397 + letter.charCodeAt(0)));
+}
+
+function partnerAbout(partner: Partner) {
+  if (partner.about?.trim()) return partner.about.trim();
+  const specialty = partner.specialties.slice(0, 2).join(' ve ').toLocaleLowerCase('tr-TR');
+  return `${partner.displayName}, ${partner.city || partner.countryName} merkezli${specialty ? `; ${specialty} alanlarında çalışan` : ''} bir gayrimenkul kuruluşudur. Bu özet, doğrulanabilir açık kaynak profil bilgileriyle sınırlıdır.`;
+}
+
 export default function PartnerFinderClient({
   initialPartners,
   owner,
@@ -205,8 +221,9 @@ export default function PartnerFinderClient({
   const [countries, setCountries] = useState<Country[]>([]);
   const [countryCode, setCountryCode] = useState('RU');
   const [countryQuery, setCountryQuery] = useState('');
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [partnerQuery, setPartnerQuery] = useState('');
-  const [view, setView] = useState<View>('discover');
+  const [view, setView] = useState<View>('pipeline');
   const [selected, setSelected] = useState<PartnerDetail | null>(null);
   const [mailbox, setMailbox] = useState<MailboxState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -226,13 +243,17 @@ export default function PartnerFinderClient({
           `${country.name} ${country.code}`.toLocaleLowerCase('tr-TR').includes(query),
         )
       : countries;
-    return list.slice(0, 20);
+    return list.slice(0, 25);
   }, [countries, countryQuery]);
+
+  const selectedCountryPartners = useMemo(
+    () => partners.filter((partner) => partner.countryCode === countryCode),
+    [partners, countryCode],
+  );
 
   const countryPartners = useMemo(() => {
     const query = partnerQuery.trim().toLocaleLowerCase('tr-TR');
-    return partners
-      .filter((partner) => partner.countryCode === countryCode)
+    return selectedCountryPartners
       .filter((partner) =>
         query
           ? `${partner.displayName} ${partner.city || ''} ${partner.specialties.join(' ')}`
@@ -246,9 +267,12 @@ export default function PartnerFinderClient({
           right.confidenceScore - left.confidenceScore,
       )
       .slice(0, 30);
-  }, [partners, countryCode, partnerQuery]);
+  }, [selectedCountryPartners, partnerQuery]);
 
-  const metrics = useMemo(() => getPartnerQueueMetrics(partners), [partners]);
+  const metrics = useMemo(
+    () => getPartnerQueueMetrics(selectedCountryPartners),
+    [selectedCountryPartners],
+  );
 
   const loadCountries = useCallback(async () => {
     try {
@@ -500,47 +524,37 @@ export default function PartnerFinderClient({
 
   return (
     <div className={styles.page}>
-      <section className={styles.hero}>
-        <div className={styles.heroGrid} aria-hidden="true" />
-        <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}>
-            <Network size={16} /> Türkiye Alıcı Pazarları
+      <header className={styles.workspaceHeader}>
+        <div>
+          <span className={styles.workspaceEyebrow}>
+            <Network /> Partner Bulucu
           </span>
-          <h1>Türkiye’ye alıcı gönderen pazarlarda doğru emlak partnerini bulun.</h1>
-          <p>
-            Türkiye’de konut alan yabancıların öne çıktığı 20 pazardan birini seçin.
-            AI o ülkedeki 30 emlak ofisini bulsun, sıralasın ve firmaya özel e-postayı hazırlasın.
-          </p>
-          <div className={styles.heroActions}>
-            <button
-              className={styles.primaryButton}
-              onClick={() => {
-                setView('discover');
-                document.getElementById('partner-discovery')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              type="button"
-            >
-              <Globe2 /> Partner bulmaya başla <ArrowRight />
-            </button>
-            <button
-              className={styles.secondaryButton}
-              onClick={() => setView('mailbox')}
-              type="button"
-            >
-              <Mail /> E-posta hesabım
-            </button>
-          </div>
+          <h1>Keşiften anlaşmaya, tek akış.</h1>
+          <p>Türkiye’ye yatırımcı gönderen 25 pazardaki doğru emlak ofislerini bulun, doğrulayın ve ilişkiyi yönetin.</p>
         </div>
-        <div className={styles.orbitCard} aria-label="Türkiye odaklı alıcı pazarı özeti">
-          <span className={styles.orbit} />
-          <Globe2 className={styles.globeIcon} />
-          <div className={styles.nodeOne} />
-          <div className={styles.nodeTwo} />
-          <div className={styles.nodeThree} />
-          <strong>{countries.length || 20}</strong>
-          <span>Türkiye odaklı alıcı pazarı</span>
+        <div className={styles.workspaceActions}>
+          <button
+            className={styles.secondaryButton}
+            onClick={() => setView((current) => current === 'mailbox' ? 'pipeline' : 'mailbox')}
+            type="button"
+          >
+            {view === 'mailbox' ? <LayoutDashboard /> : <Mail />}
+            {view === 'mailbox' ? 'Partner akışına dön' : 'E-posta bağlantısı'}
+          </button>
+          <button
+            className={styles.primaryButton}
+            disabled={!owner || busy === 'discover' || !selectedCountry}
+            onClick={() => {
+              setView('pipeline');
+              void discoverPartners();
+            }}
+            type="button"
+          >
+            {busy === 'discover' ? <Loader2 className={styles.spin} /> : <Plus />}
+            {busy === 'discover' ? 'Partnerler aranıyor' : 'Yeni tarama'}
+          </button>
         </div>
-      </section>
+      </header>
 
       {notice && (
         <div className={styles.notice} data-tone={notice.tone} role="status">
@@ -552,227 +566,174 @@ export default function PartnerFinderClient({
         </div>
       )}
 
-      <section className={styles.flow} aria-label="Partner bulma adımları">
-        {[
-          ['01', 'Alıcı pazarını seçin', 'Türkiye’de konut talebi yüksek 20 ülkeden birini seçin.'],
-          ['02', '30 ofisi inceleyin', 'Firma, şehir, uzmanlık, iletişim ve uygunluk bilgilerini görün.'],
-          ['03', 'AI e-postasını gönderin', 'Metni kontrol edin, onaylayın ve gönderin.'],
-        ].map(([number, title, description], index) => (
-          <article key={number}>
-            <span>{number}</span>
-            <div>
-              <h2>{title}</h2>
-              <p>{description}</p>
-            </div>
-            {index < 2 && <ChevronRight aria-hidden="true" />}
-          </article>
-        ))}
-      </section>
-
-      <nav className={styles.viewSwitch} aria-label="Partner Bulucu bölümleri">
-        <button data-active={view === 'discover'} onClick={() => setView('discover')} type="button">
-          <Search /> Partner Keşfi
-        </button>
-        <button data-active={view === 'pipeline'} onClick={() => setView('pipeline')} type="button">
-          <Handshake /> Partner Sürecim
-          <span>{metrics.pipeline + metrics.active}</span>
-        </button>
-        <button data-active={view === 'mailbox'} onClick={() => setView('mailbox')} type="button">
-          <Inbox /> E-posta Bağlantısı
-          <i data-connected={mailbox?.mailbox?.status === 'CONNECTED'} />
-        </button>
-      </nav>
-
-      {view === 'discover' && (
-        <div className={styles.discoveryLayout} id="partner-discovery">
-          <aside className={styles.countryPanel}>
-            <div className={styles.sectionHeading}>
-              <span>1</span>
-              <div>
-                <h2>Hangi alıcı pazarında partner arıyorsunuz?</h2>
-                <p>Türkiye’ye gayrimenkul talebi güçlü 20 pazardan birini seçin.</p>
-              </div>
-            </div>
-            <label className={styles.searchField}>
-              <Search />
-              <span className="sr-only">Ülke ara</span>
-              <input
-                onChange={(event) => setCountryQuery(event.target.value)}
-                placeholder="Örn. Rusya, İran, Almanya..."
-                value={countryQuery}
-              />
-            </label>
-            <div className={styles.countryList}>
-              {visibleCountries.map((country) => (
-                <button
-                  data-selected={country.code === countryCode}
-                  key={country.code}
-                  onClick={() => {
-                    setCountryCode(country.code);
-                    setCountryQuery('');
-                    setPartnerQuery('');
-                  }}
-                  type="button"
-                >
-                  <span>{String(country.priority).padStart(2, '0')}</span>
-                  <div>
-                    <strong>{country.name}</strong>
-                    <small>{country.demandSignal}</small>
-                  </div>
-                  {country.code === countryCode ? <Check /> : <ChevronRight />}
-                </button>
-              ))}
-            </div>
-            <p className={styles.countryCount}>
-              <Globe2 /> TÜİK eğilimine göre {countries.length || 20} odak pazar
-            </p>
-          </aside>
-
-          <main className={styles.resultsPanel}>
-            <header className={styles.resultsHeader}>
-              <div>
-                <span className={styles.resultsKicker}>2 · AI ÖNERİLERİ</span>
-                <h2>{selectedCountry?.name || 'Bu pazar'} için en güçlü 30 emlak ofisi</h2>
-                <p>
-                  Halka açık işletme kaynakları; web sitesi, iletişim bilgisi, veri
-                  bütünlüğü ve Türkiye portföylerine uygunluk sinyallerine göre sıralanır.
-                </p>
-              </div>
-              <button
-                className={styles.discoverButton}
-                disabled={!owner || busy === 'discover' || !selectedCountry}
-                onClick={discoverPartners}
-                type="button"
-              >
-                {busy === 'discover' ? <Loader2 className={styles.spin} /> : <Sparkles />}
-                {busy === 'discover' ? '30 ofis aranıyor...' : '30 emlak ofisini bul'}
-              </button>
-            </header>
-
-            {selectedCountry && (
-              <div className={styles.marketContext}>
-                <BadgeCheck />
-                <div>
-                  <strong>{selectedCountry.demandSignal}</strong>
-                  <span>TÜİK 2025 yıl sonu ve 2026 ilk yarı yabancı konut alımı eğilimi</span>
-                </div>
-                <b>Öncelik {String(selectedCountry.priority).padStart(2, '0')}</b>
-              </div>
-            )}
-
-            <div className={styles.resultTools}>
-              <label className={styles.searchField}>
-                <Search />
-                <span className="sr-only">Partner ara</span>
-                <input
-                  onChange={(event) => setPartnerQuery(event.target.value)}
-                  placeholder="Firma veya şehir ara"
-                  value={partnerQuery}
-                />
-              </label>
-              <span>{countryPartners.length} aday gösteriliyor</span>
-            </div>
-
-            {countryPartners.length ? (
-              <div className={styles.partnerGrid}>
-                {countryPartners.map((partner, index) => (
-                  <button
-                    className={styles.partnerCard}
-                    key={partner.id}
-                    onClick={() => void openPartner(partner.id)}
-                    type="button"
-                  >
-                    <div className={styles.rank}>#{String(index + 1).padStart(2, '0')}</div>
-                    <div className={styles.companyMark}>
-                      {partner.displayName.slice(0, 2).toLocaleUpperCase('tr-TR')}
-                    </div>
-                    <div className={styles.partnerBody}>
-                      <div className={styles.partnerTitle}>
-                        <h3>{partner.displayName}</h3>
-                        {partner.contacts.some((contact) => contact.emailMasked) && (
-                          <span><Mail /> E-posta var</span>
-                        )}
-                      </div>
-                      <p><MapPin /> {partner.city || partner.countryName}</p>
-                      <div className={styles.tags}>
-                        {(partner.specialties.length ? partner.specialties : ['Gayrimenkul']).slice(0, 2).map((item) => (
-                          <span key={item}>{item}</span>
-                        ))}
-                        {partner.languages[0] && <span><Languages /> {partner.languages[0].toUpperCase()}</span>}
-                      </div>
-                      <div className={styles.cardFooter}>
-                        <div>
-                          <span>AI uygunluk</span>
-                          <strong>%{Math.round(partner.fitScore)}</strong>
-                        </div>
-                        <div className={styles.scoreTrack}>
-                          <i style={{ width: `${Math.max(4, partner.fitScore)}%` }} />
-                        </div>
-                        <span className={styles.inspect}>İncele <ArrowRight /></span>
-                      </div>
-                    </div>
-                    {busy === `partner:${partner.id}` && <Loader2 className={`${styles.cardLoader} ${styles.spin}`} />}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className={styles.emptyState}>
-                <div><UsersRound /></div>
-                <h3>{selectedCountry?.name || 'Bu pazar'} için henüz ofis listesi yok</h3>
-                <p>Tek tuşla açık işletme verilerinden iletişim ve uygunluk bilgileri bulunan 30 eşleşmeyi hazırlayın.</p>
-                <button disabled={!owner || busy === 'discover'} onClick={discoverPartners} type="button">
-                  <Sparkles /> İlk partnerleri bul
-                </button>
-              </div>
-            )}
-
-            <footer className={styles.attribution}>
-              Kaynaklardan biri: © OpenStreetMap katkıda bulunanları. “Top 30”, resmî bir başarı listesi değil; kaynak kalitesi ve uygunluk sıralamasıdır.
-            </footer>
-          </main>
-        </div>
+      {view !== 'mailbox' && (
+        <ol className={styles.workspaceSteps} aria-label="Partner iş akışı">
+          {[
+            { number: '1', label: 'Pazar Seç', icon: Globe2 },
+            { number: '2', label: 'Partnerleri Bul', icon: Search },
+            { number: '3', label: 'E-postayı Hazırla', icon: Mail },
+            { number: '4', label: 'Anlaşmayı Takip Et', icon: Handshake },
+          ].map(({ number, label, icon: StepIcon }, index) => {
+            return (
+              <li data-active={index === 0} key={label}>
+                <span>{number}</span>
+                <StepIcon />
+                <strong>{label}</strong>
+              </li>
+            );
+          })}
+        </ol>
       )}
 
+
       {view === 'pipeline' && (
-        <section className={styles.pipelineView}>
-          <header className={styles.simpleHeader}>
-            <div>
-              <span>PARTNER SÜRECİM</span>
-              <h2>Her görüşmenin nerede olduğunu tek bakışta görün.</h2>
-            </div>
-            <button onClick={() => setView('discover')} type="button"><Search /> Yeni partner bul</button>
-          </header>
-          <div className={styles.metricGrid}>
-            {[
-              ['Yeni aday', metrics.candidates, Building2],
-              ['Kontrol bekliyor', metrics.approval, ShieldCheck],
-              ['İletişim sürecinde', metrics.pipeline, Mail],
-              ['Aktif partner', metrics.active, Handshake],
-            ].map(([label, value, Icon]) => {
-              const MetricIcon = Icon as typeof Building2;
-              return <article key={String(label)}><MetricIcon /><span>{String(label)}</span><strong>{String(value)}</strong></article>;
-            })}
-          </div>
-          <div className={styles.pipelineColumns}>
-            {pipelineStages.map((stage) => {
-              const items = partners.filter((partner) => partner.stage === stage);
-              return (
-                <section key={stage}>
-                  <header><span>{getPartnerStageLabel(stage)}</span><strong>{items.length}</strong></header>
+        <section className={styles.pipelineWorkspace} id="partner-discovery">
+          <div className={styles.marketToolbar}>
+            <div className={styles.countryPicker}>
+              <button
+                aria-controls="partner-country-menu"
+                aria-expanded={countryPickerOpen}
+                className={styles.countryPickerButton}
+                onClick={() => setCountryPickerOpen((current) => !current)}
+                type="button"
+              >
+                <span className={styles.flag} aria-hidden="true">{countryFlag(countryCode)}</span>
+                <span>
+                  <small>Alıcı pazarı</small>
+                  <strong>{selectedCountry?.name || 'Ülke seçin'}</strong>
+                </span>
+                <ChevronDown />
+              </button>
+              {countryPickerOpen && (
+                <div className={styles.countryMenu} id="partner-country-menu">
+                  <label className={styles.countrySearch}>
+                    <Search />
+                    <span className="sr-only">Ülke ara</span>
+                    <input
+                      autoFocus
+                      onChange={(event) => setCountryQuery(event.target.value)}
+                      placeholder="25 pazar içinde ara"
+                      value={countryQuery}
+                    />
+                  </label>
                   <div>
-                    {items.slice(0, 8).map((partner) => (
-                      <button key={partner.id} onClick={() => void openPartner(partner.id)} type="button">
-                        <span>{partner.countryCode}</span>
-                        <div><strong>{partner.displayName}</strong><small>{partner.city || partner.countryName}</small></div>
-                        <ChevronRight />
+                    {visibleCountries.map((country) => (
+                      <button
+                        data-selected={country.code === countryCode}
+                        key={country.code}
+                        onClick={() => {
+                          setCountryCode(country.code);
+                          setCountryQuery('');
+                          setPartnerQuery('');
+                          setCountryPickerOpen(false);
+                        }}
+                        type="button"
+                      >
+                        <span className={styles.flag} aria-hidden="true">{countryFlag(country.code)}</span>
+                        <span><strong>{country.name}</strong><small>{country.demandSignal}</small></span>
+                        {country.code === countryCode ? <Check /> : <b>{String(country.priority).padStart(2, '0')}</b>}
                       </button>
                     ))}
-                    {!items.length && <p>Bu aşamada partner yok.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <label className={styles.partnerSearch}>
+              <Search />
+              <span className="sr-only">Partner ara</span>
+              <input
+                onChange={(event) => setPartnerQuery(event.target.value)}
+                placeholder="Firma, şehir veya uzmanlık ara"
+                value={partnerQuery}
+              />
+            </label>
+
+            <div className={styles.marketSignal}>
+              <BadgeCheck />
+              <span><small>Pazar sinyali</small><strong>{selectedCountry?.demandSignal || 'Veri yükleniyor'}</strong></span>
+            </div>
+          </div>
+
+          <div className={styles.pipelineSummary} aria-label="Seçili pazar partner özeti">
+            <span><UsersRound /> <strong>{selectedCountryPartners.length}</strong> aday</span>
+            <i />
+            <span><Search /> <strong>{metrics.approval}</strong> inceleniyor</span>
+            <i />
+            <span><Mail /> <strong>{metrics.pipeline}</strong> iletişimde</span>
+            <i />
+            <span data-tone="success"><Handshake /> <strong>{metrics.active}</strong> aktif</span>
+            <button
+              disabled={!owner || busy === 'discover' || !selectedCountry}
+              onClick={() => void discoverPartners()}
+              type="button"
+            >
+              {busy === 'discover' ? <Loader2 className={styles.spin} /> : <Sparkles />}
+              {countryPartners.length ? 'Listeyi güncelle' : '30 partneri bul'}
+            </button>
+          </div>
+
+          <div className={styles.pipelineBoard}>
+            {workflowColumns.map((column) => {
+              const items = countryPartners.filter((partner) =>
+                (column.stages as readonly string[]).includes(partner.stage),
+              );
+              return (
+                <section className={styles.pipelineColumn} data-column={column.key} key={column.key}>
+                  <header>
+                    <span>{column.title}</span>
+                    <strong>{items.length}</strong>
+                  </header>
+                  <div className={styles.pipelineCards}>
+                    {items.map((partner) => (
+                      <button
+                        className={styles.pipelineCard}
+                        data-selected={selected?.id === partner.id}
+                        key={partner.id}
+                        onClick={() => void openPartner(partner.id)}
+                        type="button"
+                      >
+                        <div className={styles.pipelineCardTop}>
+                          <PartnerLogo partner={partner} />
+                          <div>
+                            <strong>{partner.displayName}</strong>
+                            <span><span className={styles.miniFlag} aria-hidden="true">{countryFlag(partner.countryCode)}</span>{partner.countryCode} · {partner.city || partner.countryName}</span>
+                          </div>
+                          <b>%{Math.round(partner.fitScore)}</b>
+                        </div>
+                        <div className={styles.verifiedRow} data-verified={partner.contacts.some((contact) => contact.emailMasked)}>
+                          <ShieldCheck />
+                          {partner.contacts.some((contact) => contact.emailMasked) ? 'Kurumsal iletişim bulundu' : 'İletişim doğrulaması bekliyor'}
+                        </div>
+                        <p>{partnerAbout(partner)}</p>
+                        <div className={styles.pipelineTags}>
+                          {(partner.specialties.length ? partner.specialties : ['Gayrimenkul danışmanlığı']).slice(0, 2).map((specialty) => (
+                            <span key={specialty}>{specialty}</span>
+                          ))}
+                        </div>
+                        <footer>
+                          <span>Son kaynak: {relativeDate(partner.lastVerifiedAt)}</span>
+                          <span>Profili aç <ArrowRight /></span>
+                        </footer>
+                        {busy === `partner:${partner.id}` && <Loader2 className={`${styles.cardLoader} ${styles.spin}`} />}
+                      </button>
+                    ))}
+                    {!items.length && (
+                      <div className={styles.columnEmpty}>
+                        <Building2 />
+                        <span>Bu aşamada partner yok.</span>
+                      </div>
+                    )}
                   </div>
                 </section>
               );
             })}
           </div>
+
+          <footer className={styles.attribution}>
+            <span>Her pazarda en fazla 30 kaynaklı eşleşme gösterilir. “En iyi”, resmî başarı sırası değil; kaynak kalitesi ve iş ortaklığı uygunluk puanıdır.</span>
+            <a href="https://www.openstreetmap.org/copyright" rel="noreferrer" target="_blank">© OpenStreetMap katkıda bulunanları · ODbL <ExternalLink /></a>
+          </footer>
         </section>
       )}
 
@@ -832,6 +793,36 @@ export default function PartnerFinderClient({
   );
 }
 
+function PartnerLogo({ partner, large = false }: { partner: Partner; large?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  const initials = partner.displayName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toLocaleUpperCase('tr-TR');
+
+  return (
+    <span className={styles.partnerLogo} data-large={large}>
+      {partner.logoUrl && !failed ? (
+        // Remote organization marks come from the cited source URL and keep fixed dimensions to avoid CLS.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          alt={`${partner.displayName} logosu`}
+          height={large ? 64 : 42}
+          loading="lazy"
+          onError={() => setFailed(true)}
+          referrerPolicy="no-referrer"
+          src={partner.logoUrl}
+          width={large ? 64 : 42}
+        />
+      ) : (
+        <b aria-label={`${partner.displayName} logo yer tutucusu`}>{initials || 'PB'}</b>
+      )}
+    </span>
+  );
+}
+
 function PartnerDrawer({
   partner,
   owner,
@@ -866,7 +857,7 @@ function PartnerDrawer({
     <div className={styles.drawerBackdrop} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <aside className={styles.drawer} aria-label={`${partner.displayName} partner detayları`}>
         <header className={styles.drawerHeader}>
-          <div className={styles.companyMark}>{partner.displayName.slice(0, 2).toLocaleUpperCase('tr-TR')}</div>
+          <PartnerLogo large partner={partner} />
           <div>
             <span>{partner.countryCode} · {partner.countryName}</span>
             <h2>{partner.displayName}</h2>
@@ -905,7 +896,28 @@ function PartnerDrawer({
               <div><span>Kaynak kontrolü</span><strong>{relativeDate(partner.lastVerifiedAt)}</strong></div>
               <div><span>Kaynak güveni</span><strong>%{Math.round(partner.confidenceScore)}</strong></div>
             </div>
+            <div className={styles.aboutSection}>
+              <span>HAKKINDA</span>
+              <p>{partnerAbout(partner)}</p>
+              {partner.address && <small><MapPin /> {partner.address}</small>}
+            </div>
+            {(partner.registrationNumber || partner.licenseNumber || partner.reviewAverage) && (
+              <div className={styles.profileFacts}>
+                {partner.registrationNumber && <span><small>Kayıt no</small><strong>{partner.registrationNumber}</strong></span>}
+                {partner.licenseNumber && <span><small>Lisans no</small><strong>{partner.licenseNumber}</strong></span>}
+                {partner.reviewAverage && <span><small>Kaynak puanı</small><strong>{partner.reviewAverage.toFixed(1)} / 5 {partner.reviewCount ? `(${partner.reviewCount})` : ''}</strong></span>}
+              </div>
+            )}
             {partner.websiteUrl && <a href={partner.websiteUrl} rel="noreferrer" target="_blank">Kurumsal web sitesini aç <ExternalLink /></a>}
+            {partner.sources.length > 0 && (
+              <div className={styles.sourceLinks}>
+                {partner.sources.slice(0, 3).map((source) => source.sourceUrl && (
+                  <a href={source.sourceUrl} key={source.id} rel="noreferrer" target="_blank">
+                    {source.title || 'Profil kaynağı'} <ExternalLink />
+                  </a>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className={styles.contactSection}>

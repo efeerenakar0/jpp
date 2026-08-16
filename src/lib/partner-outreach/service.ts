@@ -44,9 +44,20 @@ function evidenceHash(value: unknown) {
 
 function publicPartnerDto<T extends {
   contacts?: Array<{ emailMasked: string | null; verificationStatus: PartnerContactVerificationStatus; active: boolean }>;
-  sources?: Array<{ id: string; type: PartnerSourceType; sourceUrl: string | null; title: string | null; observedAt: Date; trusted: boolean }>;
+  sources?: Array<{ id: string; type: PartnerSourceType; sourceUrl: string | null; title: string | null; evidence?: unknown; observedAt: Date; trusted: boolean }>;
 }>(partner: T) {
-  return partner;
+  const about = partner.sources
+    ?.map((source) => source.evidence)
+    .find((evidence) => Boolean(
+      evidence && typeof evidence === 'object' && !Array.isArray(evidence) && typeof (evidence as Record<string, unknown>).about === 'string',
+    ));
+  const sourcedAbout = about && typeof about === 'object' && !Array.isArray(about)
+    ? (about as Record<string, unknown>).about
+    : null;
+  return {
+    ...partner,
+    about: typeof sourcedAbout === 'string' ? sourcedAbout.slice(0, 1_200) : null,
+  };
 }
 
 export async function listPartners(companyAccountId: string, filters: { countryCode?: string; stage?: PartnerPipelineStage; search?: string }) {
@@ -64,10 +75,11 @@ export async function listPartners(companyAccountId: string, filters: { countryC
         : {}),
     },
     orderBy: [{ fitScore: 'desc' }, { confidenceScore: 'desc' }, { createdAt: 'desc' }],
-    take: 100,
+    // 25 country workspaces can each retain and render their 30 best sourced matches.
+    take: filters.countryCode ? 30 : 750,
     include: {
       contacts: { where: { active: true }, select: { emailMasked: true, verificationStatus: true, active: true } },
-      sources: { orderBy: { observedAt: 'desc' }, take: 3, select: { id: true, type: true, sourceUrl: true, title: true, observedAt: true, trusted: true } },
+      sources: { orderBy: { observedAt: 'desc' }, take: 3, select: { id: true, type: true, sourceUrl: true, title: true, evidence: true, observedAt: true, trusted: true } },
       _count: { select: { messages: true, activities: true } },
     },
   });
@@ -168,7 +180,8 @@ export async function importPartnerOrganizations(input: {
       const organization = match
         ? await tx.partnerOrganization.update({ where: { id: match.id }, data: {
             legalName: candidate.legalName, displayName: candidate.displayName,
-            websiteUrl: candidate.websiteUrl, logoUrl: candidate.logoUrl, domain: candidate.domain,
+            websiteUrl: candidate.websiteUrl, logoUrl: candidate.logoUrl,
+            address: candidate.address, domain: candidate.domain,
             languages: candidate.languages, specialties: candidate.specialties,
             internationalExperience: candidate.internationalExperience, reviewAverage: candidate.reviewAverage,
             reviewCount: candidate.reviewCount, fitScore: score.total, confidenceScore: score.confidence,
@@ -179,6 +192,7 @@ export async function importPartnerOrganizations(input: {
             legalName: candidate.legalName, displayName: candidate.displayName,
             normalizedName: candidate.displayName.toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}]+/gu, ''),
             domain: candidate.domain, websiteUrl: candidate.websiteUrl, logoUrl: candidate.logoUrl,
+            address: candidate.address,
             countryCode: candidate.countryCode, countryName: candidate.countryName, city: candidate.city,
             registrationNumber: candidate.registrationNumber, licenseNumber: candidate.licenseNumber,
             languages: candidate.languages, specialties: candidate.specialties,

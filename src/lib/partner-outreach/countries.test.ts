@@ -7,12 +7,12 @@ import {
 } from './countries';
 
 describe('partner country catalog', () => {
-  it('contains exactly the 20 Turkey-focused foreign buyer markets', () => {
-    expect(PARTNER_COUNTRIES).toHaveLength(20);
+  it('contains exactly the 25 Turkey-focused foreign buyer markets', () => {
+    expect(PARTNER_COUNTRIES).toHaveLength(25);
     expect(TURKEY_PROPERTY_BUYER_MARKETS.map((market) => market.priority)).toEqual(
-      Array.from({ length: 20 }, (_, index) => index + 1),
+      Array.from({ length: 25 }, (_, index) => index + 1),
     );
-    expect(new Set(PARTNER_COUNTRIES.map(([code]) => code)).size).toBe(20);
+    expect(new Set(PARTNER_COUNTRIES.map(([code]) => code)).size).toBe(25);
     expect(partnerCountry('ru')).toMatchObject({
       code: 'RU',
       name: 'Rusya Federasyonu',
