@@ -31,6 +31,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import type { DeveloperContentSection } from "@/lib/developer-content-ai";
+import {
+  DEVELOPER_THEMES,
+  getDeveloperTheme,
+  type DeveloperSiteContent,
+  type DeveloperThemeId,
+} from "@/lib/developer-site";
 import type {
   SocialAccountNote,
   SocialPlatformId,
@@ -64,6 +71,8 @@ type WebsiteState = {
   lastDomainCheckAt: string | null;
   publishedAt: string | null;
   activePortfolioCount: number;
+  selectedTheme: DeveloperThemeId;
+  siteContent: DeveloperSiteContent;
 };
 
 type HubData = {
@@ -104,7 +113,28 @@ function sslLabel(status: string) {
 }
 
 function baseDomainFromHostname(hostname: string) {
-  return hostname.replace(/^portfoy\./, "");
+  return hostname.replace(/^portfoy(?:ler)?\./, "");
+}
+
+const CONTENT_SECTIONS: Array<{
+  id: DeveloperContentSection;
+  label: string;
+  description: string;
+}> = [
+  { id: "hero", label: "Ana sayfa", description: "İlk başlık ve karşılama" },
+  { id: "about", label: "Hakkımızda", description: "Markanızı anlatın" },
+  { id: "services", label: "Hizmetler", description: "Sunduğunuz çözümler" },
+  { id: "blog", label: "Blog", description: "Rehber yazıları" },
+  { id: "faq", label: "Sık sorulanlar", description: "Müşteri soruları" },
+  { id: "contact", label: "İletişim", description: "Son çağrı alanı" },
+];
+
+type ToggleableContentSection = "about" | "services" | "blog" | "faq";
+
+function isToggleableContentSection(
+  section: DeveloperContentSection,
+): section is ToggleableContentSection {
+  return section === "about" || section === "services" || section === "blog" || section === "faq";
 }
 
 export default function YazilimciPage() {
@@ -116,6 +146,11 @@ export default function YazilimciPage() {
   const [loadError, setLoadError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isCheckingDomain, setIsCheckingDomain] = useState(false);
+  const [editorSection, setEditorSection] =
+    useState<DeveloperContentSection>("hero");
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
+  const [themeSearch, setThemeSearch] = useState("");
   const [socialSearch, setSocialSearch] = useState("");
   const [selectedPlatform, setSelectedPlatform] =
     useState<SocialPlatformId>("instagram");
@@ -162,6 +197,16 @@ export default function YazilimciPage() {
   }, [socialSearch]);
 
   const selectedGuide = getSocialMediaGuide(selectedPlatform);
+  const selectedTheme = getDeveloperTheme(data?.website.selectedTheme);
+  const filteredThemes = useMemo(() => {
+    const query = themeSearch.trim().toLocaleLowerCase("tr-TR");
+    if (!query) return DEVELOPER_THEMES;
+    return DEVELOPER_THEMES.filter((theme) =>
+      `${theme.name} ${theme.mood} ${theme.description}`
+        .toLocaleLowerCase("tr-TR")
+        .includes(query),
+    );
+  }, [themeSearch]);
   const savedSocialCount = data?.socialAccounts.filter(
     (account) => account.username || account.profileUrl,
   ).length ?? 0;
@@ -187,6 +232,32 @@ export default function YazilimciPage() {
         ? { ...current, website: { ...current.website, [field]: value } }
         : current,
     );
+  }
+
+  function updateSiteContent<K extends keyof DeveloperSiteContent>(
+    section: K,
+    value: DeveloperSiteContent[K],
+  ) {
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            website: {
+              ...current.website,
+              siteContent: { ...current.website.siteContent, [section]: value },
+            },
+          }
+        : current,
+    );
+  }
+
+  function toggleSectionVisibility(section: ToggleableContentSection) {
+    if (!data) return;
+    const currentSection = data.website.siteContent[section];
+    updateSiteContent(section, {
+      ...currentSection,
+      enabled: !currentSection.enabled,
+    });
   }
 
   async function handleLogo(file: File | undefined) {
@@ -219,7 +290,9 @@ export default function YazilimciPage() {
         contactPhone: data.website.contactPhone,
         whatsappPhone: data.website.whatsappPhone,
         address: data.website.address,
-        baseDomain: mode === "EXISTING" ? baseDomain : "",
+        baseDomain,
+        selectedTheme: data.website.selectedTheme,
+        siteContent: data.website.siteContent,
       });
       const published = await patchWorkspace({ action: "publish-site" });
       setBaseDomain(baseDomainFromHostname(published.website.customHostname));
@@ -232,6 +305,71 @@ export default function YazilimciPage() {
       toast.error(error instanceof Error ? error.message : "Site kaydedilemedi.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function saveSiteContent() {
+    if (!data) return;
+    setIsSaving(true);
+    try {
+      await patchWorkspace({
+        action: "save-site-content",
+        selectedTheme: data.website.selectedTheme,
+        siteContent: data.website.siteContent,
+      });
+      toast.success("Değişiklikler sitenizde yayınlandı.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Site güncellenemedi.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function generateSectionCopy() {
+    if (!data || aiInstruction.trim().length < 3) {
+      toast.info("Yapay zekâya ne istediğinizi birkaç kelimeyle anlatın.");
+      return;
+    }
+    setIsGeneratingCopy(true);
+    try {
+      const response = await fetch("/api/fabrika/yazilimci/content-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: editorSection, instruction: aiInstruction }),
+      });
+      const body = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        content?: DeveloperSiteContent[DeveloperContentSection];
+        remaining?: number;
+      };
+      if (!response.ok || !body.content) {
+        throw new Error(body.error || "Yapay zekâ metni hazırlayamadı.");
+      }
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              website: {
+                ...current.website,
+                siteContent: {
+                  ...current.website.siteContent,
+                  [editorSection]: body.content,
+                },
+              },
+            }
+          : current,
+      );
+      setAiInstruction("");
+      toast.success(
+        typeof body.remaining === "number"
+          ? `Metin hazır. Bugün ${body.remaining} AI hakkınız kaldı.`
+          : "Metin hazır; beğenirseniz yayınlayın.",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Metin oluşturulamadı.");
+    } finally {
+      setIsGeneratingCopy(false);
     }
   }
 
@@ -369,7 +507,7 @@ export default function YazilimciPage() {
                   <span className={styles.choiceCopy}>
                     <small>ALAN ADIM VAR</small>
                     <strong>Web sitem var</strong>
-                    <span><b>portfoy.</b>alanadiniz.com adresini kolayca bağlayın.</span>
+                    <span><b>portfoyler.</b>alanadiniz.com adresini kolayca bağlayın.</span>
                     <em><Check /> Tek CNAME kaydı</em>
                     <em><Check /> SSL otomatik hazırlanır</em>
                   </span>
@@ -382,6 +520,48 @@ export default function YazilimciPage() {
                   <span className={styles.modePill}>{mode === "NEW" ? "Web sitem yok" : "Web sitem var"}</span>
                   <button onClick={() => setMode(null)} type="button">Seçimi değiştir</button>
                 </div>
+                <section className={styles.themePicker} aria-labelledby="theme-picker-title">
+                  <div className={styles.themePickerHead}>
+                    <div>
+                      <span className={styles.sectionNumber}>02</span>
+                      <span>
+                        <strong id="theme-picker-title">Sitenizin görünümünü seçin</strong>
+                        <small>25 tasarımdan birini seçin; içerikleriniz tema değişse de korunur.</small>
+                      </span>
+                    </div>
+                    <label>
+                      <Search />
+                      <input value={themeSearch} onChange={(event) => setThemeSearch(event.target.value)} placeholder="Tema ara" />
+                    </label>
+                  </div>
+                  <div className={styles.themeGrid}>
+                    {filteredThemes.map((theme, index) => (
+                      <button
+                        aria-pressed={website.selectedTheme === theme.id}
+                        className={website.selectedTheme === theme.id ? styles.selectedTheme : ""}
+                        key={theme.id}
+                        onClick={() => updateWebsite("selectedTheme", theme.id)}
+                        style={{
+                          "--theme-bg": theme.colors.background,
+                          "--theme-surface": theme.colors.surface,
+                          "--theme-ink": theme.colors.ink,
+                          "--theme-accent": theme.colors.accent,
+                        } as React.CSSProperties}
+                        type="button"
+                      >
+                        <span className={styles.themeVisual}>
+                          <i /><i /><i /><b>{String(index + 1).padStart(2, "0")}</b>
+                        </span>
+                        <span className={styles.themeCopy}>
+                          <small>{theme.mood}</small>
+                          <strong>{theme.name}</strong>
+                          <em>{theme.description}</em>
+                        </span>
+                        {website.selectedTheme === theme.id && <CheckCircle2 />}
+                      </button>
+                    ))}
+                  </div>
+                </section>
                 <div className={styles.brandGrid}>
                   <div className={styles.logoField}>
                     <span>Logo</span>
@@ -426,11 +606,11 @@ export default function YazilimciPage() {
                   </div>
                 </div>
 
-                {mode === "EXISTING" && (
+                {mode && (
                   <label className={styles.domainField}>
-                    <span>Mevcut alan adınız</span>
-                    <div><b>portfoy.</b><input value={baseDomain} onChange={(event) => setBaseDomain(event.target.value)} placeholder="alanadiniz.com" /></div>
-                    <small>Başına www veya https yazmanıza gerek yok.</small>
+                    <span>{mode === "NEW" ? "Kendi alan adınız (isteğe bağlı)" : "Mevcut alan adınız"}</span>
+                    <div>{mode === "EXISTING" && <b>portfoyler.</b>}<input value={baseDomain} onChange={(event) => setBaseDomain(event.target.value)} placeholder="alanadiniz.com" /></div>
+                    <small>{mode === "NEW" ? "Boş bırakırsanız ücretsiz geçici adresinizle hemen başlayabilirsiniz." : "Başına www veya https yazmanıza gerek yok."}</small>
                   </label>
                 )}
 
@@ -443,7 +623,13 @@ export default function YazilimciPage() {
             )}
           </section>
 
-          <aside className={styles.previewPanel} style={{ "--preview-primary": website.primaryColor, "--preview-accent": website.accentColor } as React.CSSProperties}>
+          <aside className={styles.previewPanel} style={{
+            "--preview-primary": selectedTheme.colors.background,
+            "--preview-surface": selectedTheme.colors.surface,
+            "--preview-ink": selectedTheme.colors.ink,
+            "--preview-muted": selectedTheme.colors.muted,
+            "--preview-accent": selectedTheme.colors.accent,
+          } as React.CSSProperties}>
             <div className={styles.previewBrowser}>
               <div className={styles.browserBar}><i /><i /><i /><span>{website.customHostname || website.temporaryUrl.replace(/^https?:\/\//, "")}</span></div>
               <div className={styles.previewHeader}>
@@ -452,12 +638,12 @@ export default function YazilimciPage() {
                   <img src={website.logoData} alt="" />
                 ) : <span>{website.brandName.slice(0, 1) || "M"}</span>}
                 <b>{website.brandName || "Markanız"}</b>
-                <small>Portföyler &nbsp; İletişim</small>
+                <small>Hakkımızda &nbsp; Portföyler &nbsp; Blog</small>
               </div>
               <div className={styles.previewHero}>
-                <span>GÜNCEL PORTFÖYLER</span>
-                <strong>Doğru gayrimenkulü güvenle bulun.</strong>
-                <button type="button">Portföyleri keşfedin</button>
+                <span>{website.siteContent.hero.eyebrow}</span>
+                <strong>{website.siteContent.hero.title}</strong>
+                <button type="button">{website.siteContent.hero.buttonLabel}</button>
               </div>
               <div className={styles.previewCards}><i /><i /><i /></div>
             </div>
@@ -466,6 +652,167 @@ export default function YazilimciPage() {
               <div><span>Güncelleme</span><strong>Otomatik</strong></div>
             </div>
           </aside>
+
+          {website.status === "PUBLISHED" && mode === "NEW" && (
+            <section className={styles.contentStudio}>
+              <header className={styles.sectionHeader}>
+                <div>
+                  <span className={styles.sectionNumber}>03</span>
+                  <div>
+                    <h2>Sitenizin bütün bölümlerini yönetin</h2>
+                    <p>Bir bölümü seçin, metinleri değiştirin veya yapay zekâya yazdırın.</p>
+                  </div>
+                </div>
+                <span className={styles.liveBadge}><i /> CANLI EDİTÖR</span>
+              </header>
+
+              <div className={styles.editorShell}>
+                <nav className={styles.editorRail} aria-label="Site bölümleri">
+                  {CONTENT_SECTIONS.map((section, index) => (
+                    <button
+                      className={editorSection === section.id ? styles.activeEditorSection : ""}
+                      key={section.id}
+                      onClick={() => {
+                        setEditorSection(section.id);
+                        setAiInstruction("");
+                      }}
+                      type="button"
+                    >
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                      <span><strong>{section.label}</strong><small>{section.description}</small></span>
+                      <ChevronRight />
+                    </button>
+                  ))}
+                  <div className={styles.portfolioSourceNote}>
+                    <RefreshCw />
+                    <span>
+                      <strong>Portföyler otomatik</strong>
+                      <small>Portföy Uzmanı’ndaki değişiklikler buraya anında gelir.</small>
+                    </span>
+                  </div>
+                </nav>
+
+                <div className={styles.editorCanvas}>
+                  <div className={styles.editorTitle}>
+                    <div>
+                      <span>DÜZENLENEN BÖLÜM</span>
+                      <h3>{CONTENT_SECTIONS.find((section) => section.id === editorSection)?.label}</h3>
+                    </div>
+                    {isToggleableContentSection(editorSection) && (
+                      <button
+                        aria-pressed={website.siteContent[editorSection].enabled}
+                        className={styles.visibilityToggle}
+                        data-active={website.siteContent[editorSection].enabled}
+                        onClick={() => toggleSectionVisibility(editorSection)}
+                        type="button"
+                      >
+                        {website.siteContent[editorSection].enabled ? <Check /> : <Circle />}
+                        {website.siteContent[editorSection].enabled ? "Sitede görünüyor" : "Sitede gizli"}
+                      </button>
+                    )}
+                  </div>
+
+                  {editorSection === "hero" && (
+                    <div className={styles.editorFields}>
+                      <label><span>Üst etiket</span><input value={website.siteContent.hero.eyebrow} onChange={(event) => updateSiteContent("hero", { ...website.siteContent.hero, eyebrow: event.target.value })} /></label>
+                      <label><span>Ana başlık</span><textarea rows={3} value={website.siteContent.hero.title} onChange={(event) => updateSiteContent("hero", { ...website.siteContent.hero, title: event.target.value })} /></label>
+                      <label><span>Açıklama</span><textarea rows={4} value={website.siteContent.hero.description} onChange={(event) => updateSiteContent("hero", { ...website.siteContent.hero, description: event.target.value })} /></label>
+                      <label><span>Buton yazısı</span><input value={website.siteContent.hero.buttonLabel} onChange={(event) => updateSiteContent("hero", { ...website.siteContent.hero, buttonLabel: event.target.value })} /></label>
+                    </div>
+                  )}
+
+                  {editorSection === "about" && (
+                    <div className={styles.editorFields}>
+                      <label><span>Başlık</span><input value={website.siteContent.about.title} onChange={(event) => updateSiteContent("about", { ...website.siteContent.about, title: event.target.value })} /></label>
+                      <label><span>Hakkımızda metni</span><textarea rows={9} value={website.siteContent.about.body} onChange={(event) => updateSiteContent("about", { ...website.siteContent.about, body: event.target.value })} /></label>
+                    </div>
+                  )}
+
+                  {editorSection === "services" && (
+                    <div className={styles.editorFields}>
+                      <label><span>Bölüm başlığı</span><input value={website.siteContent.services.title} onChange={(event) => updateSiteContent("services", { ...website.siteContent.services, title: event.target.value })} /></label>
+                      <label><span>Kısa açıklama</span><textarea rows={3} value={website.siteContent.services.intro} onChange={(event) => updateSiteContent("services", { ...website.siteContent.services, intro: event.target.value })} /></label>
+                      <div className={styles.repeaterGrid}>
+                        {website.siteContent.services.items.map((item, index) => (
+                          <fieldset key={`${index}-${item.title}`}>
+                            <legend>Hizmet {index + 1}</legend>
+                            <label><span>Hizmet adı</span><input value={item.title} onChange={(event) => updateSiteContent("services", { ...website.siteContent.services, items: website.siteContent.services.items.map((current, itemIndex) => itemIndex === index ? { ...current, title: event.target.value } : current) })} /></label>
+                            <label><span>Açıklama</span><textarea rows={3} value={item.description} onChange={(event) => updateSiteContent("services", { ...website.siteContent.services, items: website.siteContent.services.items.map((current, itemIndex) => itemIndex === index ? { ...current, description: event.target.value } : current) })} /></label>
+                          </fieldset>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {editorSection === "blog" && (
+                    <div className={styles.editorFields}>
+                      <label><span>Bölüm başlığı</span><input value={website.siteContent.blog.title} onChange={(event) => updateSiteContent("blog", { ...website.siteContent.blog, title: event.target.value })} /></label>
+                      <label><span>Kısa açıklama</span><textarea rows={3} value={website.siteContent.blog.intro} onChange={(event) => updateSiteContent("blog", { ...website.siteContent.blog, intro: event.target.value })} /></label>
+                      <div className={styles.repeaterGrid}>
+                        {website.siteContent.blog.posts.map((post, index) => (
+                          <fieldset key={post.id}>
+                            <legend>Blog yazısı {index + 1}</legend>
+                            <label><span>Yazı başlığı</span><input value={post.title} onChange={(event) => updateSiteContent("blog", { ...website.siteContent.blog, posts: website.siteContent.blog.posts.map((current, postIndex) => postIndex === index ? { ...current, title: event.target.value } : current) })} /></label>
+                            <label><span>Özet</span><textarea rows={4} value={post.excerpt} onChange={(event) => updateSiteContent("blog", { ...website.siteContent.blog, posts: website.siteContent.blog.posts.map((current, postIndex) => postIndex === index ? { ...current, excerpt: event.target.value } : current) })} /></label>
+                          </fieldset>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {editorSection === "faq" && (
+                    <div className={styles.editorFields}>
+                      <label><span>Bölüm başlığı</span><input value={website.siteContent.faq.title} onChange={(event) => updateSiteContent("faq", { ...website.siteContent.faq, title: event.target.value })} /></label>
+                      <div className={styles.repeaterGrid}>
+                        {website.siteContent.faq.items.map((item, index) => (
+                          <fieldset key={`${index}-${item.question}`}>
+                            <legend>Soru {index + 1}</legend>
+                            <label><span>Soru</span><input value={item.question} onChange={(event) => updateSiteContent("faq", { ...website.siteContent.faq, items: website.siteContent.faq.items.map((current, itemIndex) => itemIndex === index ? { ...current, question: event.target.value } : current) })} /></label>
+                            <label><span>Cevap</span><textarea rows={4} value={item.answer} onChange={(event) => updateSiteContent("faq", { ...website.siteContent.faq, items: website.siteContent.faq.items.map((current, itemIndex) => itemIndex === index ? { ...current, answer: event.target.value } : current) })} /></label>
+                          </fieldset>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {editorSection === "contact" && (
+                    <div className={styles.editorFields}>
+                      <label><span>Başlık</span><input value={website.siteContent.contact.title} onChange={(event) => updateSiteContent("contact", { ...website.siteContent.contact, title: event.target.value })} /></label>
+                      <label><span>Açıklama</span><textarea rows={6} value={website.siteContent.contact.description} onChange={(event) => updateSiteContent("contact", { ...website.siteContent.contact, description: event.target.value })} /></label>
+                    </div>
+                  )}
+
+                  <div className={styles.aiWriter}>
+                    <div className={styles.aiWriterIcon}><Sparkles /></div>
+                    <div className={styles.aiWriterCopy}>
+                      <span>BUSINESS CEO AI YAZAR</span>
+                      <strong>Ne istediğinizi anlatın, yapay zekâ tamamlasın.</strong>
+                      <small>Örn. “Daha samimi, kısa ve Alanya’da uzman olduğumuzu anlatan bir metin yaz.”</small>
+                    </div>
+                    <textarea
+                      aria-label="Yapay zekâya içerik talimatı"
+                      value={aiInstruction}
+                      onChange={(event) => setAiInstruction(event.target.value)}
+                      placeholder="Nasıl bir metin istediğinizi yazın…"
+                      rows={3}
+                    />
+                    <button disabled={isGeneratingCopy} onClick={generateSectionCopy} type="button">
+                      {isGeneratingCopy ? <Loader2 className={styles.spin} /> : <Sparkles />}
+                      Yapay zekâyla hazırla
+                    </button>
+                  </div>
+
+                  <div className={styles.editorSaveRow}>
+                    <p><Info /> Kaydettiğiniz içerik birkaç saniye içinde sitenizde görünür.</p>
+                    <button disabled={isSaving} onClick={saveSiteContent} type="button">
+                      {isSaving ? <Loader2 className={styles.spin} /> : <Save />}
+                      Kaydet ve sitede yayınla
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {website.status === "PUBLISHED" && (
             <section className={styles.publishPanel}>
@@ -482,16 +829,16 @@ export default function YazilimciPage() {
             </section>
           )}
 
-          {mode === "EXISTING" && website.status === "PUBLISHED" && website.customHostname && (
+          {mode && website.status === "PUBLISHED" && website.customHostname && (
             <section className={styles.domainPanel}>
               <header className={styles.sectionHeader}>
                 <div><span className={styles.sectionNumber}>03</span><div><h2>Kendi alan adınızı bağlayın</h2><p>Aşağıdaki tek satırı alan adı firmanızın DNS ekranına ekleyin.</p></div></div>
                 <span className={styles.domainBadge} data-ready={website.domainStatus === "VERIFIED"}><Wifi /> {domainLabel(website.domainStatus)}</span>
               </header>
               <div className={styles.dnsTable}>
-                <div><small>Tür</small><strong>CNAME</strong></div>
-                <div><small>Ad / Host</small><strong>portfoy</strong><button onClick={() => void copyText("portfoy", "Host")} type="button"><Copy /></button></div>
-                <div><small>Hedef / Değer</small><strong>{website.cnameTarget}</strong><button onClick={() => void copyText(website.cnameTarget, "CNAME hedefi")} type="button"><Copy /></button></div>
+                <div><small>Tür</small><strong>{mode === "NEW" ? "A" : "CNAME"}</strong></div>
+                <div><small>Ad / Host</small><strong>{mode === "NEW" ? "@" : "portfoyler"}</strong><button onClick={() => void copyText(mode === "NEW" ? "@" : "portfoyler", "Host")} type="button"><Copy /></button></div>
+                <div><small>Hedef / Değer</small><strong>{mode === "NEW" ? "76.76.21.21" : website.cnameTarget}</strong><button onClick={() => void copyText(mode === "NEW" ? "76.76.21.21" : website.cnameTarget, "DNS hedefi")} type="button"><Copy /></button></div>
               </div>
               <div className={styles.domainSteps}>
                 <span data-done><CheckCircle2 /><b>Site hazır</b><small>{website.temporaryUrl.replace(/^https?:\/\//, "")}</small></span>

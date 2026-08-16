@@ -2384,11 +2384,15 @@ model DeveloperWorkspace {
   logoData          String?        @db.Text
   primaryColor      String         @default("#0f766e")
   accentColor       String         @default("#14b8a6")
+  selectedTheme     String         @default("midnight-estate")
+  siteContent       Json           @default("{}")
   contactEmail      String?
   contactPhone      String?
   whatsappPhone     String?
   address           String?        @db.Text
   socialAccounts    Json           @default("[]")
+  aiUsageDay        DateTime?
+  aiUsageCount      Int            @default(0)
   lastDomainCheckAt DateTime?
   publishedAt       DateTime?
   createdAt         DateTime       @default(now())

@@ -12,17 +12,27 @@ CREATE TABLE IF NOT EXISTS "DeveloperWorkspace" (
   "logoData" TEXT,
   "primaryColor" TEXT NOT NULL DEFAULT '#0f766e',
   "accentColor" TEXT NOT NULL DEFAULT '#14b8a6',
+  "selectedTheme" TEXT NOT NULL DEFAULT 'midnight-estate',
+  "siteContent" JSONB NOT NULL DEFAULT '{}'::jsonb,
   "contactEmail" TEXT,
   "contactPhone" TEXT,
   "whatsappPhone" TEXT,
   "address" TEXT,
   "socialAccounts" JSONB NOT NULL DEFAULT '[]'::jsonb,
+  "aiUsageDay" TIMESTAMP(3),
+  "aiUsageCount" INTEGER NOT NULL DEFAULT 0,
   "lastDomainCheckAt" TIMESTAMP(3),
   "publishedAt" TIMESTAMP(3),
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "DeveloperWorkspace_pkey" PRIMARY KEY ("id")
 );
+
+ALTER TABLE "DeveloperWorkspace"
+  ADD COLUMN IF NOT EXISTS "selectedTheme" TEXT NOT NULL DEFAULT 'midnight-estate',
+  ADD COLUMN IF NOT EXISTS "siteContent" JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS "aiUsageDay" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "aiUsageCount" INTEGER NOT NULL DEFAULT 0;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "DeveloperWorkspace_companyAccountId_key"
 ON "DeveloperWorkspace"("companyAccountId");

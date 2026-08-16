@@ -1,4 +1,4 @@
-import { resolveCname } from 'node:dns/promises';
+import { resolve4, resolveCname } from 'node:dns/promises';
 import { NextResponse } from 'next/server';
 import type { DeveloperWorkspace, Prisma } from '@prisma/client';
 
@@ -7,9 +7,20 @@ import {
   DEFAULT_CNAME_TARGET,
   developerWorkspaceRequestSchema,
   parseSocialAccounts,
+  normalizeBaseDomain,
   safeSiteSlug,
   upsertSocialAccount,
 } from '@/lib/developer-workspace';
+import {
+  DEFAULT_DEVELOPER_THEME_ID,
+  getDeveloperTheme,
+  parseDeveloperSiteContent,
+} from '@/lib/developer-site';
+import {
+  readDeveloperSiteSettings,
+  saveDeveloperSiteSettings,
+  type DeveloperSiteSettingsRecord,
+} from '@/lib/developer-site-storage';
 import {
   FabrikaForbiddenError,
   FabrikaSessionError,
@@ -24,6 +35,7 @@ export const runtime = 'nodejs';
 const cnameTarget =
   process.env.VERCEL_PROJECT_CNAME_TARGET?.trim().replace(/\.$/, '') ||
   DEFAULT_CNAME_TARGET;
+const apexTarget = '76.76.21.21';
 
 function appOrigin(request: Request) {
   const configured =
@@ -55,6 +67,7 @@ function workspaceResponse(
       contactPhone: string | null;
     } | null;
     activePortfolioCount: number;
+    siteSettings: DeveloperSiteSettingsRecord | null;
   },
 ) {
   const workspace = input.workspace;
@@ -72,6 +85,11 @@ function workspaceResponse(
       logoData: workspace?.logoData || input.account.brandLogoData || '',
       primaryColor: workspace?.primaryColor || '#0f766e',
       accentColor: workspace?.accentColor || '#14b8a6',
+      selectedTheme: getDeveloperTheme(input.siteSettings?.selectedTheme).id,
+      siteContent: parseDeveloperSiteContent(
+        input.siteSettings?.siteContent,
+        workspace?.brandName || input.account.companyName,
+      ),
       contactEmail:
         workspace?.contactEmail || input.settings?.contactEmail || input.account.ownerEmail || '',
       contactPhone:
@@ -93,7 +111,7 @@ function workspaceResponse(
 }
 
 async function readWorkspaceData(companyAccountId: string) {
-  const [account, settings, workspace, activePortfolioCount] = await Promise.all([
+  const [account, settings, workspace, activePortfolioCount, siteSettings] = await Promise.all([
     prisma.companyAccount.findUniqueOrThrow({
       where: { id: companyAccountId },
       select: {
@@ -118,8 +136,9 @@ async function readWorkspaceData(companyAccountId: string) {
     prisma.crmProperty.count({
       where: publicationEligibilityWhere(companyAccountId, new Date()),
     }),
+    readDeveloperSiteSettings(companyAccountId),
   ]);
-  return { account, settings, workspace, activePortfolioCount };
+  return { account, settings, workspace, activePortfolioCount, siteSettings };
 }
 
 function vercelApiConfig() {
@@ -178,12 +197,13 @@ async function checkDomain(workspace: DeveloperWorkspace) {
   }
 
   await addDomainToVercel(workspace.customHostname).catch(() => null);
-  const [vercel, cnameRecords] = await Promise.all([
+  const [vercel, cnameRecords, addressRecords] = await Promise.all([
     inspectDomainOnVercel(workspace.customHostname).catch(() => ({
       available: false,
       verified: false,
     })),
     resolveCname(workspace.customHostname).catch(() => [] as string[]),
+    resolve4(workspace.customHostname).catch(() => [] as string[]),
   ]);
 
   const normalizedRecords = cnameRecords.map((record) =>
@@ -195,9 +215,13 @@ async function checkDomain(workspace: DeveloperWorkspace) {
       record.endsWith('.vercel-dns.com') ||
       /\.vercel-dns-\d+\.com$/.test(record),
   );
+  const dnsVerified =
+    workspace.websiteMode === 'NEW'
+      ? addressRecords.includes(apexTarget)
+      : cnameVerified;
 
   let sslActive = false;
-  if (cnameVerified || vercel.verified) {
+  if (dnsVerified || vercel.verified) {
     sslActive = await fetch(`https://${workspace.customHostname}`, {
       method: 'HEAD',
       redirect: 'manual',
@@ -209,12 +233,12 @@ async function checkDomain(workspace: DeveloperWorkspace) {
   }
 
   const domainStatus =
-    vercel.verified || (cnameVerified && sslActive)
+    vercel.verified || (dnsVerified && sslActive)
       ? 'VERIFIED'
-      : cnameVerified
+      : dnsVerified
         ? 'DNS_VERIFIED'
         : 'WAITING_DNS';
-  const sslStatus = sslActive ? 'ACTIVE' : cnameVerified ? 'PROVISIONING' : 'WAITING_DNS';
+  const sslStatus = sslActive ? 'ACTIVE' : dnsVerified ? 'PROVISIONING' : 'WAITING_DNS';
   return { domainStatus, sslStatus };
 }
 
@@ -257,8 +281,11 @@ export async function PATCH(request: Request) {
     const accountId = principal.account.id;
     const input = parsed.data;
     if (input.action === 'save-website') {
-      const customHostname =
-        input.mode === 'EXISTING' ? buildPortfolioHostname(input.baseDomain) : null;
+      const customHostname = input.baseDomain
+        ? input.mode === 'EXISTING'
+          ? buildPortfolioHostname(input.baseDomain)
+          : normalizeBaseDomain(input.baseDomain)
+        : null;
       const current = await prisma.developerWorkspace.findUnique({
         where: { companyAccountId: accountId },
         select: { customHostname: true },
@@ -300,6 +327,24 @@ export async function PATCH(request: Request) {
       if (customHostname) {
         await addDomainToVercel(customHostname).catch(() => null);
       }
+      await saveDeveloperSiteSettings({
+        companyAccountId: accountId,
+        selectedTheme: input.selectedTheme || DEFAULT_DEVELOPER_THEME_ID,
+        siteContent: input.siteContent,
+      });
+    }
+
+    if (input.action === 'save-site-content') {
+      const workspace = await prisma.developerWorkspace.findUnique({
+        where: { companyAccountId: accountId },
+        select: { id: true },
+      });
+      if (!workspace) throw new Error('Önce site kurulumunu tamamlayın.');
+      await saveDeveloperSiteSettings({
+        companyAccountId: accountId,
+        selectedTheme: input.selectedTheme,
+        siteContent: input.siteContent,
+      });
     }
 
     if (input.action === 'publish-site') {

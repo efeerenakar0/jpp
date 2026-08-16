@@ -3,6 +3,11 @@ import { ArrowRight, Building2, MapPin, MessageCircle, Phone } from 'lucide-reac
 import { notFound } from 'next/navigation';
 
 import prisma from '@/lib/prisma';
+import {
+  getDeveloperTheme,
+  parseDeveloperSiteContent,
+} from '@/lib/developer-site';
+import { readDeveloperSiteSettings } from '@/lib/developer-site-storage';
 import { publicationEligibilityWhere } from '@/lib/property-publication';
 import styles from './PublicPortfolioSite.module.css';
 
@@ -26,10 +31,13 @@ function whatsappUrl(phone: string | null, brandName: string) {
 
 export default async function PublicPortfolioSite({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { slug } = await params;
+  const { view } = await searchParams;
   const workspace = await prisma.developerWorkspace.findUnique({
     where: { temporarySlug: slug },
     include: {
@@ -76,10 +84,27 @@ export default async function PublicPortfolioSite({
     take: 60,
   });
 
+  const siteSettings = await readDeveloperSiteSettings(workspace.companyAccount.id);
   const whatsapp = whatsappUrl(workspace.whatsappPhone, workspace.brandName);
+  const selectedTheme = getDeveloperTheme(siteSettings?.selectedTheme);
+  const content = parseDeveloperSiteContent(
+    siteSettings?.siteContent,
+    workspace.brandName,
+  );
+  const isFullWebsite = workspace.websiteMode === 'NEW';
+  const portfolioOnly = view === 'portfoyler';
+  const portfolioHref = workspace.customHostname
+    ? '/portfoyler'
+    : `/site/${slug}?view=portfoyler`;
   const theme = {
     '--site-primary': workspace.primaryColor,
     '--site-accent': workspace.accentColor,
+    '--site-bg': selectedTheme.colors.background,
+    '--site-surface': selectedTheme.colors.surface,
+    '--site-ink': selectedTheme.colors.ink,
+    '--site-muted': selectedTheme.colors.muted,
+    '--site-theme-accent': selectedTheme.colors.accent,
+    '--site-accent-soft': selectedTheme.colors.accentSoft,
   } as CSSProperties;
   const socialLinks = [
     ['Instagram', workspace.companyAccount.settings?.instagramUrl],
@@ -90,9 +115,17 @@ export default async function PublicPortfolioSite({
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
 
   return (
-    <main className={styles.page} style={theme}>
+    <main
+      className={styles.page}
+      data-layout={selectedTheme.layout}
+      data-theme={selectedTheme.id}
+      style={theme}
+    >
       <header className={styles.header}>
-        <a className={styles.brand} href="#anasayfa">
+        <a
+          className={styles.brand}
+          href={portfolioOnly ? (workspace.customHostname ? '/' : `/site/${slug}`) : '#anasayfa'}
+        >
           {workspace.logoData ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={workspace.logoData} alt={`${workspace.brandName} logosu`} />
@@ -102,21 +135,21 @@ export default async function PublicPortfolioSite({
           <strong>{workspace.brandName}</strong>
         </a>
         <nav aria-label="Ana menü">
-          <a href="#portfoyler">Portföyler</a>
+          {!portfolioOnly && isFullWebsite && content.about.enabled && <a href="#hakkimizda">Hakkımızda</a>}
+          {!portfolioOnly && isFullWebsite && content.services.enabled && <a href="#hizmetler">Hizmetler</a>}
+          <a href={portfolioHref}>Portföyler</a>
+          {!portfolioOnly && isFullWebsite && content.blog.enabled && <a href="#blog">Blog</a>}
           <a href="#iletisim">İletişim</a>
         </nav>
       </header>
 
-      <section className={styles.hero} id="anasayfa">
+      {!portfolioOnly && <section className={styles.hero} id="anasayfa">
         <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}>GÜNCEL GAYRİMENKUL PORTFÖYLERİ</span>
-          <h1>Yeni yaşam alanınız burada başlıyor.</h1>
-          <p>
-            Yetkisi doğrulanmış güncel portföyleri inceleyin, ayrıntılar için
-            doğrudan bizimle iletişime geçin.
-          </p>
-          <a className={styles.heroButton} href="#portfoyler">
-            Portföyleri keşfedin <ArrowRight />
+          <span className={styles.eyebrow}>{content.hero.eyebrow}</span>
+          <h1>{content.hero.title}</h1>
+          <p>{content.hero.description}</p>
+          <a className={styles.heroButton} href={portfolioHref}>
+            {content.hero.buttonLabel} <ArrowRight />
           </a>
         </div>
         <div className={styles.heroStat}>
@@ -124,7 +157,39 @@ export default async function PublicPortfolioSite({
           <span>yayındaki portföy</span>
           <small>Business CEO AI ile otomatik güncellenir</small>
         </div>
-      </section>
+      </section>}
+
+      {!portfolioOnly && isFullWebsite && content.about.enabled && (
+        <section className={styles.aboutSection} id="hakkimizda">
+          <div className={styles.sectionIndex}>01 / HAKKIMIZDA</div>
+          <div>
+            <span className={styles.eyebrow}>BİZİ TANIYIN</span>
+            <h2>{content.about.title}</h2>
+          </div>
+          <p>{content.about.body}</p>
+        </section>
+      )}
+
+      {!portfolioOnly && isFullWebsite && content.services.enabled && (
+        <section className={styles.servicesSection} id="hizmetler">
+          <div className={styles.sectionHead}>
+            <div>
+              <span className={styles.eyebrow}>HİZMETLER</span>
+              <h2>{content.services.title}</h2>
+            </div>
+            <p>{content.services.intro}</p>
+          </div>
+          <div className={styles.serviceGrid}>
+            {content.services.items.map((item, index) => (
+              <article key={`${index}-${item.title}`}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className={styles.portfolioSection} id="portfoyler">
         <div className={styles.sectionHead}>
@@ -178,10 +243,49 @@ export default async function PublicPortfolioSite({
         )}
       </section>
 
+      {!portfolioOnly && isFullWebsite && content.blog.enabled && (
+        <section className={styles.blogSection} id="blog">
+          <div className={styles.sectionHead}>
+            <div>
+              <span className={styles.eyebrow}>BLOG</span>
+              <h2>{content.blog.title}</h2>
+            </div>
+            <p>{content.blog.intro}</p>
+          </div>
+          <div className={styles.blogGrid}>
+            {content.blog.posts.map((post, index) => (
+              <article key={post.id}>
+                <span>{String(index + 1).padStart(2, '0')} · REHBER</span>
+                <h3>{post.title}</h3>
+                <p>{post.excerpt}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!portfolioOnly && isFullWebsite && content.faq.enabled && (
+        <section className={styles.faqSection} id="sik-sorulanlar">
+          <div>
+            <span className={styles.eyebrow}>SIK SORULANLAR</span>
+            <h2>{content.faq.title}</h2>
+          </div>
+          <div className={styles.faqList}>
+            {content.faq.items.map((item, index) => (
+              <details key={`${index}-${item.question}`}>
+                <summary>{item.question}</summary>
+                <p>{item.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
+
       <footer className={styles.footer} id="iletisim">
         <div>
           <span className={styles.eyebrow}>İLETİŞİM</span>
-          <h2>{workspace.brandName}</h2>
+          <h2>{content.contact.title}</h2>
+          <p>{content.contact.description}</p>
           {workspace.address && <p><MapPin /> {workspace.address}</p>}
         </div>
         <div className={styles.contactLinks}>

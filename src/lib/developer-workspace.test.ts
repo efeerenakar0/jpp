@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { defaultDeveloperSiteContent } from './developer-site';
 import {
   buildPortfolioHostname,
   developerWorkspaceRequestSchema,
@@ -11,10 +12,10 @@ import {
 describe('developer workspace helpers', () => {
   it('turns a customer domain into the portfolio subdomain', () => {
     expect(buildPortfolioHostname('https://www.OrnekEmlak.com/ilanlar')).toBe(
-      'portfoy.ornekemlak.com',
+      'portfoyler.ornekemlak.com',
     );
-    expect(buildPortfolioHostname('portfoy.ornekemlak.com')).toBe(
-      'portfoy.ornekemlak.com',
+    expect(buildPortfolioHostname('portfoyler.ornekemlak.com')).toBe(
+      'portfoyler.ornekemlak.com',
     );
   });
 
@@ -72,6 +73,46 @@ describe('developer workspace helpers', () => {
         password: 'plain-text-password',
       },
     });
+    expect(result.success).toBe(false);
+  });
+
+  it('allows a new hosted site without a custom domain', () => {
+    const result = developerWorkspaceRequestSchema.safeParse({
+      action: 'save-website',
+      mode: 'NEW',
+      brandName: 'Jasmine Emlak',
+      logoData: '',
+      primaryColor: '#0f172a',
+      accentColor: '#d4a451',
+      contactEmail: '',
+      contactPhone: '',
+      whatsappPhone: '',
+      address: '',
+      baseDomain: '',
+      selectedTheme: 'midnight-estate',
+      siteContent: defaultDeveloperSiteContent('Jasmine Emlak'),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('requires a valid domain when connecting an existing website', () => {
+    const result = developerWorkspaceRequestSchema.safeParse({
+      action: 'save-website',
+      mode: 'EXISTING',
+      brandName: 'Jasmine Emlak',
+      logoData: '',
+      primaryColor: '#0f172a',
+      accentColor: '#d4a451',
+      contactEmail: '',
+      contactPhone: '',
+      whatsappPhone: '',
+      address: '',
+      baseDomain: '',
+      selectedTheme: 'midnight-estate',
+      siteContent: defaultDeveloperSiteContent('Jasmine Emlak'),
+    });
+
     expect(result.success).toBe(false);
   });
 });

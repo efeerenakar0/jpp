@@ -51,7 +51,7 @@ export default async function proxy(request: NextRequest) {
     .toLocaleLowerCase('en-US');
 
   if (
-    pathname === '/' &&
+    (pathname === '/' || pathname === '/portfoyler') &&
     hostname &&
     hostname !== 'localhost' &&
     !hostname.endsWith('.localhost') &&
@@ -67,6 +67,9 @@ export default async function proxy(request: NextRequest) {
     ) {
       const publicUrl = request.nextUrl.clone();
       publicUrl.pathname = `/site/${publicWorkspace.temporarySlug}`;
+      if (pathname === '/portfoyler') {
+        publicUrl.searchParams.set('view', 'portfoyler');
+      }
       return NextResponse.rewrite(publicUrl);
     }
   }
@@ -229,6 +232,7 @@ export default async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     '/',
+    '/portfoyler',
     '/admin/:path*',
     '/emlakci-panel/:path*',
     '/fabrika/:path*',

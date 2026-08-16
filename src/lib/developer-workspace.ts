@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import {
+  developerSiteContentSchema,
+  developerThemeIdSchema,
+} from './developer-site';
+
 export const DEFAULT_CNAME_TARGET = 'cname.vercel-dns-0.com';
 
 const colorSchema = z
@@ -66,6 +71,8 @@ const websiteFields = {
   whatsappPhone: z.string().trim().max(40),
   address: z.string().trim().max(1_000),
   baseDomain: z.string().trim().max(253),
+  selectedTheme: developerThemeIdSchema,
+  siteContent: developerSiteContentSchema,
 };
 
 const saveWebsiteSchema = z
@@ -75,7 +82,7 @@ const saveWebsiteSchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.mode === 'EXISTING') {
+    if (value.mode === 'EXISTING' || value.baseDomain) {
       try {
         normalizeBaseDomain(value.baseDomain);
       } catch (error) {
@@ -90,6 +97,13 @@ const saveWebsiteSchema = z
 
 export const developerWorkspaceRequestSchema = z.discriminatedUnion('action', [
   saveWebsiteSchema,
+  z
+    .object({
+      action: z.literal('save-site-content'),
+      selectedTheme: developerThemeIdSchema,
+      siteContent: developerSiteContentSchema,
+    })
+    .strict(),
   z.object({ action: z.literal('publish-site') }).strict(),
   z.object({ action: z.literal('check-domain') }).strict(),
   z
@@ -111,7 +125,7 @@ export function normalizeBaseDomain(input: string) {
     .replace(/^https?:\/\//, '')
     .replace(/\/.*$/, '')
     .replace(/^www\./, '')
-    .replace(/^portfoy\./, '')
+    .replace(/^portfoy(?:ler)?\./, '')
     .replace(/\.$/, '');
 
   if (
@@ -130,7 +144,7 @@ export function normalizeBaseDomain(input: string) {
 }
 
 export function buildPortfolioHostname(baseDomain: string) {
-  return `portfoy.${normalizeBaseDomain(baseDomain)}`;
+  return `portfoyler.${normalizeBaseDomain(baseDomain)}`;
 }
 
 export function parseSocialAccounts(value: unknown): SocialAccountNote[] {
