@@ -1,4 +1,5 @@
 import type { DeedCase, DeedCaseStatus, DeedCaseType, DeedChecklistItem } from './types';
+import { normalizeDeedWorkflow } from '@/lib/deed-workflow';
 
 export const deedTypeLabels: Record<DeedCaseType, string> = {
   SALE: 'Satış',
@@ -40,6 +41,7 @@ export function deedChecklistSummary(checklist: DeedChecklistItem[]) {
 export function deedCaseDraft(deedCase: DeedCase) {
   return {
     checklist: deedCase.checklist.map((item) => ({ ...item })),
+    workflow: normalizeDeedWorkflow(deedCase.workflow),
     status: deedCase.status,
     assignedMemberId: deedCase.assignedMember?.id || '',
     appointmentAt: toDateTimeLocal(deedCase.appointmentAt),

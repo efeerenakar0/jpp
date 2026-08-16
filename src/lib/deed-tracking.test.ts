@@ -6,6 +6,7 @@ import {
   reconcileDeedChecklist,
   summarizeDeedChecklist,
 } from './deed-tracking';
+import { EMPTY_DEED_WORKFLOW } from './deed-workflow';
 
 describe('deed tracking rules', () => {
   it('creates transaction-specific checklists without claiming an official integration', () => {
@@ -36,6 +37,31 @@ describe('deed tracking rules', () => {
         checklist: completed,
       })
     ).toEqual({ allowed: true, reason: null });
+  });
+
+  it('creates a checklist from the selected detailed process guide', () => {
+    const checklist = buildDeedChecklist('OTHER', 'donation');
+
+    expect(checklist.map((item) => item.key)).toContain('guide_donation_1');
+    expect(checklist.map((item) => item.label)).toContain('Vergi/harç hazırlık notu');
+    expect(checklist.map((item) => item.key)).not.toContain('supporting_documents');
+  });
+
+  it('blocks appointment readiness until operational checks are complete', () => {
+    const checklist = buildDeedChecklist('SALE').map((item) => ({
+      ...item,
+      completed: true,
+    }));
+
+    expect(
+      canTransitionDeedCase({
+        from: 'PREPARING',
+        to: 'READY_FOR_APPOINTMENT',
+        checklist,
+        type: 'SALE',
+        workflow: EMPTY_DEED_WORKFLOW,
+      })
+    ).toEqual({ allowed: false, reason: 'REQUIRED_CONTROLS_MISSING' });
   });
 
   it('summarizes missing required documents deterministically', () => {

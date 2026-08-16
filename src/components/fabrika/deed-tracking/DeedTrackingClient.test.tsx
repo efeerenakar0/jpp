@@ -12,6 +12,8 @@ const deedCase: DeedCase = {
   type: 'SALE',
   status: 'DOCUMENTS_MISSING',
   version: 1,
+  guideId: null,
+  workflow: null,
   checklist: [
     { key: 'identity', label: 'Kimlik belgeleri', required: true, completed: false },
     { key: 'dask', label: 'DASK', required: true, completed: true },
@@ -44,7 +46,7 @@ describe('DeedTrackingView', () => {
     expect(html).toContain('Yetki dosyasını en az 5 yıl saklayın');
     expect(html).toContain('50 şablondan seçip PDF indirin');
     expect(html).toContain('P-104 satış tapu takibi');
-    expect(html).toContain('1 zorunlu evrak bekliyor');
+    expect(html).toContain('7 temel kontrol bekliyor');
   });
 
   it('locks refresh while loading and renders an actionable error state', () => {

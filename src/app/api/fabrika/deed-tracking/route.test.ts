@@ -22,6 +22,7 @@ vi.mock('@/lib/deed-tracking-service', async (importOriginal) => ({
 }));
 
 import { GET, PATCH, POST } from './route';
+import { EMPTY_DEED_WORKFLOW } from '@/lib/deed-workflow';
 
 describe('/api/fabrika/deed-tracking', () => {
   beforeEach(() => {
@@ -64,6 +65,7 @@ describe('/api/fabrika/deed-tracking', () => {
         body: JSON.stringify({
           title: 'P-104 satış tapu takibi',
           type: 'SALE',
+          guideId: 'standard-sale',
           assignedMemberId: 'member-other-company',
         }),
       })
@@ -72,7 +74,10 @@ describe('/api/fabrika/deed-tracking', () => {
     expect(mocks.createCase).toHaveBeenCalledWith(
       expect.objectContaining({
         companyAccountId: 'company-a',
-        data: expect.objectContaining({ assignedMemberId: 'member-a' }),
+        data: expect.objectContaining({
+          assignedMemberId: 'member-a',
+          guideId: 'standard-sale',
+        }),
       })
     );
   });
@@ -96,5 +101,35 @@ describe('/api/fabrika/deed-tracking', () => {
     );
     expect(response.status).toBe(403);
     expect(mocks.updateCase).not.toHaveBeenCalled();
+  });
+
+  it('accepts the complete operational workflow contract', async () => {
+    const response = await PATCH(
+      new Request('https://app.test/api/fabrika/deed-tracking', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'deed-a',
+          version: 1,
+          workflow: {
+            ...EMPTY_DEED_WORKFLOW,
+            identityVerified: true,
+            applicationNumber: '123456',
+          },
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          workflow: expect.objectContaining({
+            identityVerified: true,
+            applicationNumber: '123456',
+          }),
+        }),
+      })
+    );
   });
 });

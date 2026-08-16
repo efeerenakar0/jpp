@@ -1463,7 +1463,9 @@ model DeedTrackingCase {
   type                   DeedCaseType
   status                 DeedCaseStatus @default(DRAFT)
   title                  String
+  guideId                String?
   checklist              Json
+  workflow               Json?
   appointmentAt          DateTime?
   dueAt                  DateTime?
   officialReference      String?
@@ -1482,6 +1484,7 @@ model DeedTrackingCase {
 
   @@index([companyAccountId, status, dueAt], map: "DeedTrackingCase_company_status_due_idx")
   @@index([companyAccountId, propertyId], map: "DeedTrackingCase_company_property_idx")
+  @@index([companyAccountId, guideId], map: "DeedTrackingCase_company_guide_idx")
   @@index([assignedMemberId, status], map: "DeedTrackingCase_member_status_idx")
 }
 

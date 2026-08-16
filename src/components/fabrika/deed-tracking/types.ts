@@ -1,3 +1,5 @@
+import type { DeedWorkflow } from '@/lib/deed-workflow';
+
 export type DeedCaseType =
   | 'SALE'
   | 'PURCHASE'
@@ -36,6 +38,8 @@ export type DeedCase = {
   status: DeedCaseStatus;
   version: number;
   checklist: DeedChecklistItem[];
+  guideId: string | null;
+  workflow: DeedWorkflow | null;
   appointmentAt: string | null;
   dueAt: string | null;
   notes: string | null;
@@ -59,6 +63,7 @@ export type DeedWorkspace = {
 
 export type DeedCaseDraft = {
   checklist: DeedChecklistItem[];
+  workflow: DeedWorkflow;
   status: DeedCaseStatus;
   assignedMemberId: string;
   appointmentAt: string;

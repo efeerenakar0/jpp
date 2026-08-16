@@ -4,6 +4,13 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/lib/prisma';
+import { getDeedProcessGuide } from '@/components/fabrika/deed-tracking/process-catalog';
+import {
+  DEED_APPLICATION_STATUSES,
+  DEED_PAYMENT_STATUSES,
+  EMPTY_DEED_WORKFLOW,
+  normalizeDeedWorkflow,
+} from '@/lib/deed-workflow';
 
 import {
   buildDeedChecklist,
@@ -54,12 +61,44 @@ export const createDeedCaseSchema = z
       'CORRECTION',
       'OTHER',
     ]),
+    guideId: z.string().trim().min(1).max(80).nullable().optional(),
     propertyId: z.string().min(1).nullable().optional(),
     contactId: z.string().min(1).nullable().optional(),
     assignedMemberId: z.string().min(1).nullable().optional(),
     appointmentAt: optionalDate,
     dueAt: optionalDate,
     notes: z.string().trim().max(5000).nullable().optional(),
+  })
+  .strict();
+
+export const deedWorkflowSchema = z
+  .object({
+    identityVerified: z.boolean(),
+    authorityVerified: z.boolean(),
+    titleRecordVerified: z.boolean(),
+    encumbranceVerified: z.boolean(),
+    daskVerified: z.boolean(),
+    municipalValueVerified: z.boolean(),
+    paymentPlanVerified: z.boolean(),
+    applicationNumber: z.string().trim().max(80),
+    applicationStatus: z.enum(DEED_APPLICATION_STATUSES),
+    eCollectionNumber: z.string().trim().max(32),
+    deedFeeStatus: z.enum(DEED_PAYMENT_STATUSES),
+    revolvingFundStatus: z.enum(DEED_PAYMENT_STATUSES),
+    declaredValue: z.string().trim().max(40),
+    municipalValue: z.string().trim().max(40),
+    daskPolicyNumber: z.string().trim().max(80),
+    daskExpiresAt: z.string().trim().max(16),
+    paymentOwner: z.string().trim().max(160),
+    securePaymentReference: z.string().trim().max(80),
+    securePaymentStatus: z.enum(DEED_PAYMENT_STATUSES),
+    appointmentConfirmed: z.boolean(),
+    signaturesCompleted: z.boolean(),
+    registrationVerified: z.boolean(),
+    deedDocumentReceived: z.boolean(),
+    keyDelivered: z.boolean(),
+    clientInformed: z.boolean(),
+    originalsReturned: z.boolean(),
   })
   .strict();
 
@@ -79,6 +118,7 @@ export const updateDeedCaseSchema = z
       ])
       .optional(),
     checklist: z.array(deedChecklistItemSchema).min(1).max(40).optional(),
+    workflow: deedWorkflowSchema.optional(),
     assignedMemberId: z.string().min(1).nullable().optional(),
     appointmentAt: optionalDate,
     dueAt: optionalDate,
@@ -165,7 +205,16 @@ export async function createDeedTrackingCase(input: {
 }) {
   return prisma.$transaction(async (tx) => {
     await validateTenantReferences(tx, input.companyAccountId, input.data);
-    const checklist = buildDeedChecklist(input.data.type);
+    const guide = input.data.guideId
+      ? getDeedProcessGuide(input.data.guideId)
+      : null;
+    if (input.data.guideId && (!guide || guide.caseType !== input.data.type)) {
+      throw new DeedTrackingError(
+        'Seçilen işlem rehberi bu tapu dosyasıyla eşleşmiyor.',
+        'INVALID_STATE'
+      );
+    }
+    const checklist = buildDeedChecklist(input.data.type, input.data.guideId);
     const deedCase = await tx.deedTrackingCase.create({
       data: {
         companyAccountId: input.companyAccountId,
@@ -174,7 +223,9 @@ export async function createDeedTrackingCase(input: {
         assignedMemberId: input.data.assignedMemberId || null,
         type: input.data.type,
         title: input.data.title,
+        guideId: input.data.guideId || null,
         checklist: checklist as unknown as Prisma.InputJsonValue,
+        workflow: EMPTY_DEED_WORKFLOW as unknown as Prisma.InputJsonValue,
         appointmentAt: dateValue(input.data.appointmentAt),
         dueAt: dateValue(input.data.dueAt),
         notes: input.data.notes || null,
@@ -182,7 +233,7 @@ export async function createDeedTrackingCase(input: {
         humanApprovalRequired: true,
         createdByPrincipalType: input.principal.type,
         createdByPrincipalId: input.principal.id,
-      },
+      } as never,
     });
     await tx.deedTrackingEvent.create({
       data: {
@@ -218,6 +269,10 @@ export async function updateDeedTrackingCase(input: {
       },
     });
     if (!existing) throw new DeedTrackingError('Tapu takip dosyası bulunamadı.', 'NOT_FOUND');
+    const persisted = existing as typeof existing & {
+      guideId: string | null;
+      workflow: unknown;
+    };
     if (existing.version !== input.data.version) {
       throw new DeedTrackingError(
         'Kayıt başka bir kullanıcı tarafından güncellendi. Lütfen yenileyin.',
@@ -231,7 +286,11 @@ export async function updateDeedTrackingCase(input: {
 
     const previousChecklist = storedChecklistSchema.parse(existing.checklist);
     const checklist = input.data.checklist
-      ? reconcileDeedChecklist(existing.type, input.data.checklist)
+      ? reconcileDeedChecklist(
+          existing.type,
+          input.data.checklist,
+          persisted.guideId
+        )
       : previousChecklist;
     if (!checklist) {
       throw new DeedTrackingError(
@@ -239,18 +298,27 @@ export async function updateDeedTrackingCase(input: {
         'INVALID_STATE'
       );
     }
+    const workflow = input.data.workflow
+      ? deedWorkflowSchema.parse(input.data.workflow)
+      : normalizeDeedWorkflow(persisted.workflow);
     const nextStatus = (input.data.status || existing.status) as DeedCaseStatus;
     if (nextStatus !== existing.status) {
       const transition = canTransitionDeedCase({
         from: existing.status as DeedCaseStatus,
         to: nextStatus,
         checklist,
+        type: existing.type,
+        workflow,
       });
       if (!transition.allowed) {
         throw new DeedTrackingError(
           transition.reason === 'REQUIRED_DOCUMENTS_MISSING'
             ? 'Zorunlu belgeler tamamlanmadan bu aşamaya geçilemez.'
-            : 'Bu durum geçişine izin verilmiyor.',
+            : transition.reason === 'REQUIRED_CONTROLS_MISSING'
+              ? 'Kimlik, yetki, tapu ve işleme özel kontroller tamamlanmadan bu aşamaya geçilemez.'
+              : transition.reason === 'CLOSING_CHECKS_MISSING'
+                ? 'Tescil, belge teslimi ve müşteri bilgilendirmesi tamamlanmadan dosya kapatılamaz.'
+                : 'Bu durum geçişine izin verilmiyor.',
           'INVALID_STATE'
         );
       }
@@ -267,6 +335,12 @@ export async function updateDeedTrackingCase(input: {
         ...(input.data.checklist
           ? { checklist: checklist as unknown as Prisma.InputJsonValue }
           : {}),
+        ...(input.data.workflow
+          ? {
+              workflow: workflow as unknown as Prisma.InputJsonValue,
+              officialReference: workflow.applicationNumber || null,
+            }
+          : {}),
         ...(input.data.assignedMemberId !== undefined
           ? { assignedMemberId: input.data.assignedMemberId }
           : {}),
@@ -280,7 +354,7 @@ export async function updateDeedTrackingCase(input: {
         completedAt: nextStatus === 'COMPLETED' ? input.now : existing.completedAt,
         cancelledAt: nextStatus === 'CANCELLED' ? input.now : existing.cancelledAt,
         version: { increment: 1 },
-      },
+      } as never,
     });
     if (updateResult.count !== 1) {
       throw new DeedTrackingError(

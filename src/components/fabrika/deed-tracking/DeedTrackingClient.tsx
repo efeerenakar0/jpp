@@ -16,13 +16,11 @@ import {
   FileSearch,
   Files,
   FolderKanban,
-  History,
   KeyRound,
   Landmark,
   ListChecks,
   RefreshCcw,
   RotateCcw,
-  Save,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -35,6 +33,7 @@ import { toast } from 'sonner';
 
 import DocumentCenter from '@/components/fabrika/documents/DocumentCenter';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
+import { deedOperationalSummary } from '@/lib/deed-workflow';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -53,7 +52,6 @@ import {
   deedStatusLabels,
   deedTypeLabels,
   formatDeedDate,
-  nextDeedStatuses,
   toIsoOrNull,
 } from './format';
 import {
@@ -66,6 +64,7 @@ import {
   type DeedProcessCategory,
 } from './process-catalog';
 import styles from './DeedTrackingClient.module.css';
+import DeedCaseOperationsDialog from './DeedCaseOperationsDialog';
 import type {
   DeedCase,
   DeedCaseDraft,
@@ -101,16 +100,6 @@ const EMPTY_CREATE_FORM: CreateForm = {
   appointmentAt: '',
   dueAt: '',
   notes: '',
-};
-
-const statusStageIndex: Record<DeedCaseStatus, number> = {
-  DRAFT: 0,
-  PREPARING: 2,
-  DOCUMENTS_MISSING: 2,
-  READY_FOR_APPOINTMENT: 4,
-  APPOINTMENT_SCHEDULED: 5,
-  COMPLETED: 6,
-  CANCELLED: 0,
 };
 
 function statusTone(status: DeedCaseStatus) {
@@ -299,7 +288,17 @@ export function DeedTrackingView({
 
     openCases.forEach((item) => {
       const summary = deedChecklistSummary(item.checklist);
-      if (summary.missingRequired > 0) {
+      const operational = deedOperationalSummary(item.type, item.workflow);
+      if (operational.missing.length > 0) {
+        items.push({
+          id: `controls-${item.id}`,
+          title: `${operational.missing.length} temel kontrol bekliyor`,
+          detail: item.title,
+          tone: 'amber',
+          icon: ShieldCheck,
+          deedCase: item,
+        });
+      } else if (summary.missingRequired > 0) {
         items.push({
           id: `missing-${item.id}`,
           title: `${summary.missingRequired} zorunlu evrak bekliyor`,
@@ -373,7 +372,7 @@ export function DeedTrackingView({
     },
     {
       title: 'İnsan onayı',
-      description: 'AI yalnız eksik ve çelişkiyi işaretler; hukuk, mali ve resmî kararları yetkili kişi verir.',
+      description: 'Panel eksik kontrol ve evrakı işaretler; hukuk, mali ve resmî kararları yetkili kişi verir.',
       icon: ShieldCheck,
     },
   ];
@@ -570,7 +569,7 @@ export function DeedTrackingView({
                 <div className={styles.sectionHeading}>
                   <div>
                     <h2 id="control-title">Hiç atlanmaması gereken kontroller</h2>
-                    <p>AI eksik veya çelişkili alanı işaretler; son kararı yetkili kişi verir.</p>
+                    <p>Panel eksik kontrol ve evrakı işaretler; son kararı yetkili kişi verir.</p>
                   </div>
                 </div>
                 <div className={styles.controlsGrid}>
@@ -763,153 +762,6 @@ export function DeedTrackingView({
         </div>
       </div>
     </div>
-  );
-}
-
-function CaseDetailDialog({
-  deedCase,
-  draft,
-  isOwner,
-  members,
-  saving,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  deedCase: DeedCase;
-  draft: DeedCaseDraft;
-  isOwner: boolean;
-  members: DeedWorkspace['members'];
-  saving: boolean;
-  onChange: (draft: DeedCaseDraft) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const summary = deedChecklistSummary(draft.checklist);
-  const allowedStatuses = [deedCase.status, ...nextDeedStatuses[deedCase.status]];
-  const currentStage = statusStageIndex[draft.status];
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[94vh] overflow-hidden border border-[#28475b] bg-[#081622] p-0 text-[#f4f8fa] sm:max-w-6xl">
-        <DialogHeader className="border-b border-[#28475b] px-5 py-4 pr-12">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100">{deedTypeLabels[deedCase.type]}</span>
-            <span className="text-xs text-[#8da5b4]">Sürüm {deedCase.version}</span>
-          </div>
-          <DialogTitle className="mt-2 text-xl">{deedCase.title}</DialogTitle>
-          <DialogDescription className="text-[#9bb0be]">
-            {deedCase.property?.referenceCode || 'Portföy bağlanmadı'} · {deedStatusLabels[draft.status]}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="border-b border-[#28475b] bg-[#06131f] px-5 py-4">
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6" aria-label="Tapu işlem aşamaları">
-            {DEED_OPERATION_STAGES.map((stage, index) => (
-              <div className={`rounded-lg border px-3 py-2 ${index < currentStage ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100' : index === currentStage ? 'border-cyan-300/35 bg-cyan-300/10 text-cyan-100' : 'border-[#1c3547] bg-[#081622] text-[#718797]'}`} key={stage.id}>
-                <span className="text-[10px] font-bold">{stage.number}</span>
-                <p className="mt-1 text-xs font-semibold">{stage.title}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-5 border-b border-[#28475b] p-5 lg:border-b-0 lg:border-r">
-            {summary.missingRequired > 0 ? (
-              <div role="alert" className="flex gap-2 rounded-xl border border-rose-300/25 bg-rose-300/10 p-3 text-sm text-rose-100">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                Zorunlu {summary.missingRequired} evrak tamamlanmadı. Randevuya hazır veya tamamlandı durumuna geçilemez.
-              </div>
-            ) : (
-              <div className="flex gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 p-3 text-sm text-emerald-100">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                Zorunlu evraklar işaretlendi. Resmî kaynak ve yetkili uzman doğrulamasını unutmayın.
-              </div>
-            )}
-
-            <section aria-labelledby="checklist-title">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 id="checklist-title" className="font-semibold">Evrak kontrol listesi</h3>
-                  <p className="mt-1 text-xs text-[#8da5b4]">Elinizde veya resmî kaynaktan doğrulanmış olanları işaretleyin.</p>
-                </div>
-                <span className="shrink-0 rounded-full border border-[#28475b] px-2.5 py-1 text-xs text-[#9bb0be]">{summary.completed}/{summary.total}</span>
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {draft.checklist.map((item, index) => (
-                  <label key={item.key} className="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-[#1c3547] bg-[#06131f] p-3 transition-colors hover:border-cyan-300/30">
-                    <input type="checkbox" className="mt-0.5 size-4 accent-cyan-300" checked={item.completed} onChange={(event) => onChange({ ...draft, checklist: draft.checklist.map((current, currentIndex) => currentIndex === index ? { ...current, completed: event.target.checked } : current) })} />
-                    <span className="text-sm leading-5 text-[#dce8ed]">{item.label}{item.required ? <span className="ml-1 text-rose-300" aria-label="zorunlu">*</span> : <small className="ml-1 text-[#718797]">(isteğe bağlı)</small>}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label>
-                <span className="mb-1.5 block text-sm font-medium text-[#dce8ed]">Süreç durumu</span>
-                <select className={`${inputClass} w-full rounded-lg px-3`} value={draft.status} disabled={allowedStatuses.length <= 1} onChange={(event) => onChange({ ...draft, status: event.target.value as DeedCaseStatus })}>
-                  {allowedStatuses.map((status) => <option key={status} value={status}>{deedStatusLabels[status]}</option>)}
-                </select>
-              </label>
-              {isOwner ? (
-                <label>
-                  <span className="mb-1.5 block text-sm font-medium text-[#dce8ed]">Sorumlu çalışan</span>
-                  <select className={`${inputClass} w-full rounded-lg px-3`} value={draft.assignedMemberId} onChange={(event) => onChange({ ...draft, assignedMemberId: event.target.value })}>
-                    <option value="">Atanmamış</option>
-                    {members.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-                  </select>
-                </label>
-              ) : null}
-              <label>
-                <span className="mb-1.5 block text-sm font-medium text-[#dce8ed]">Tapu randevusu</span>
-                <Input className={inputClass} type="datetime-local" value={draft.appointmentAt} onChange={(event) => onChange({ ...draft, appointmentAt: event.target.value })} />
-              </label>
-              <label>
-                <span className="mb-1.5 block text-sm font-medium text-[#dce8ed]">Son tarih</span>
-                <Input className={inputClass} type="datetime-local" value={draft.dueAt} onChange={(event) => onChange({ ...draft, dueAt: event.target.value })} />
-              </label>
-            </div>
-            <label>
-              <span className="mb-1.5 block text-sm font-medium text-[#dce8ed]">Ekip notu</span>
-              <Textarea className={`${inputClass} min-h-28`} maxLength={5000} value={draft.notes} onChange={(event) => onChange({ ...draft, notes: event.target.value })} placeholder="Eksik evrakı, aranan kişiyi veya sıradaki adımı kısa ve açık yazın." />
-            </label>
-          </div>
-
-          <aside className="space-y-5 bg-[#06131f] p-5" aria-labelledby="timeline-title">
-            <section>
-              <h3 className="font-semibold">Dosya özeti</h3>
-              <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-1">
-                <div className="rounded-lg border border-[#1c3547] bg-[#081622] p-3"><dt className="text-xs text-[#718797]">Müşteri</dt><dd className="mt-1 text-[#dce8ed]">{deedCase.contact?.name || 'Bağlanmadı'}</dd></div>
-                <div className="rounded-lg border border-[#1c3547] bg-[#081622] p-3"><dt className="text-xs text-[#718797]">Portföy</dt><dd className="mt-1 text-[#dce8ed]">{deedCase.property?.title || 'Bağlanmadı'}</dd></div>
-                <div className="rounded-lg border border-amber-300/20 bg-amber-300/5 p-3"><dt className="text-xs text-amber-200/70">Resmî entegrasyon</dt><dd className="mt-1 text-sm text-amber-100">Bağlı değil · manuel takip</dd></div>
-              </dl>
-            </section>
-            <section aria-labelledby="timeline-title">
-              <h3 id="timeline-title" className="flex items-center gap-2 font-semibold"><History className="size-4 text-cyan-200" aria-hidden="true" /> Süreç geçmişi</h3>
-              {deedCase.events.length ? (
-                <ol className="mt-4 space-y-4 border-l border-[#28475b] pl-4">
-                  {deedCase.events.map((event) => (
-                    <li className="relative" key={event.id}>
-                      <span className="absolute -left-[1.21rem] top-1.5 size-2 rounded-full bg-cyan-300" aria-hidden="true" />
-                      <p className="text-sm leading-5 text-[#dce8ed]">{event.message}</p>
-                      <time className="mt-1 block text-xs text-[#718797]">{formatDeedDate(event.createdAt)}</time>
-                    </li>
-                  ))}
-                </ol>
-              ) : <p className="mt-3 text-sm text-[#718797]">Henüz süreç kaydı yok.</p>}
-            </section>
-          </aside>
-        </div>
-        <DialogFooter className="border-[#28475b] bg-[#081622]">
-          <Button type="button" variant="ghost" className="text-[#9bb0be]" onClick={onClose}>Kapat</Button>
-          <Button type="button" className="bg-emerald-300 text-[#031510] hover:bg-emerald-200" disabled={saving} onClick={onSave}>
-            <Save aria-hidden="true" /> {saving ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1172,6 +1024,7 @@ export default function DeedTrackingClient() {
         body: JSON.stringify({
           title: createForm.title.trim(),
           type: createForm.type,
+          guideId: selectedGuideId,
           propertyId: createForm.propertyId || null,
           contactId: createForm.contactId || null,
           ...(isOwner ? { assignedMemberId: createForm.assignedMemberId || null } : {}),
@@ -1206,6 +1059,7 @@ export default function DeedTrackingClient() {
           version: selected.version,
           status: draft.status,
           checklist: draft.checklist,
+          workflow: draft.workflow,
           ...(isOwner ? { assignedMemberId: draft.assignedMemberId || null } : {}),
           appointmentAt: toIsoOrNull(draft.appointmentAt),
           dueAt: toIsoOrNull(draft.dueAt),
@@ -1252,7 +1106,7 @@ export default function DeedTrackingClient() {
       />
 
       {selected && draft ? (
-        <CaseDetailDialog
+        <DeedCaseOperationsDialog
           deedCase={selected}
           draft={draft}
           isOwner={isOwner}

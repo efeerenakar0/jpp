@@ -1,3 +1,10 @@
+import { getDeedProcessGuide } from '@/components/fabrika/deed-tracking/process-catalog';
+import {
+  deedClosingSummary,
+  deedOperationalSummary,
+  type DeedWorkflow,
+} from '@/lib/deed-workflow';
+
 export type DeedCaseType =
   | 'SALE'
   | 'PURCHASE'
@@ -58,8 +65,34 @@ const typeSpecificChecklist: Record<
   ],
 };
 
-export function buildDeedChecklist(type: DeedCaseType): DeedChecklistItem[] {
-  return [...commonChecklist, ...typeSpecificChecklist[type]].map((item) => ({
+function guideChecklist(
+  type: DeedCaseType,
+  guideId?: string | null
+): Omit<DeedChecklistItem, 'completed'>[] | null {
+  const guide = guideId ? getDeedProcessGuide(guideId) : null;
+  if (!guide || guide.caseType !== type) return null;
+
+  const baseline = [
+    { key: 'identity', label: 'Tarafların kimlik belgeleri', required: true },
+    { key: 'title_deed_copy', label: 'Güncel tapu kaydı ve taşınmaz bilgileri', required: true },
+    { key: 'power_of_attorney', label: 'Varsa temsil veya vekâlet belgesi', required: false },
+  ];
+  return [
+    ...baseline,
+    ...guide.documents.map((label, index) => ({
+      key: `guide_${guide.id}_${index + 1}`,
+      label,
+      required: true,
+    })),
+  ];
+}
+
+export function buildDeedChecklist(
+  type: DeedCaseType,
+  guideId?: string | null
+): DeedChecklistItem[] {
+  const specialized = guideChecklist(type, guideId);
+  return (specialized || [...commonChecklist, ...typeSpecificChecklist[type]]).map((item) => ({
     ...item,
     completed: false,
   }));
@@ -67,9 +100,10 @@ export function buildDeedChecklist(type: DeedCaseType): DeedChecklistItem[] {
 
 export function reconcileDeedChecklist(
   type: DeedCaseType,
-  submitted: DeedChecklistItem[]
+  submitted: DeedChecklistItem[],
+  guideId?: string | null
 ): DeedChecklistItem[] | null {
-  const canonical = buildDeedChecklist(type);
+  const canonical = buildDeedChecklist(type, guideId);
   const submittedByKey = new Map<string, DeedChecklistItem>();
 
   for (const item of submitted) {
@@ -112,6 +146,8 @@ export function canTransitionDeedCase(input: {
   from: DeedCaseStatus;
   to: DeedCaseStatus;
   checklist: DeedChecklistItem[];
+  type?: DeedCaseType;
+  workflow?: DeedWorkflow;
 }): { allowed: boolean; reason: string | null } {
   if (!allowedTransitions[input.from].includes(input.to)) {
     return { allowed: false, reason: 'INVALID_STATUS_TRANSITION' };
@@ -123,6 +159,23 @@ export function canTransitionDeedCase(input: {
     summarizeDeedChecklist(input.checklist).missingRequired > 0
   ) {
     return { allowed: false, reason: 'REQUIRED_DOCUMENTS_MISSING' };
+  }
+  if (
+    input.type &&
+    input.workflow &&
+    ['READY_FOR_APPOINTMENT', 'APPOINTMENT_SCHEDULED', 'COMPLETED'].includes(
+      input.to
+    ) &&
+    deedOperationalSummary(input.type, input.workflow).missing.length > 0
+  ) {
+    return { allowed: false, reason: 'REQUIRED_CONTROLS_MISSING' };
+  }
+  if (
+    input.workflow &&
+    input.to === 'COMPLETED' &&
+    deedClosingSummary(input.workflow, input.type).missing.length > 0
+  ) {
+    return { allowed: false, reason: 'CLOSING_CHECKS_MISSING' };
   }
   return { allowed: true, reason: null };
 }
