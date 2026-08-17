@@ -44,6 +44,15 @@ export type IncomingWhatsAppMessage = {
 
 const INBOUND_PROCESSING_STALE_MS = 2 * 60 * 1000;
 
+/** @internal Exported so the Prisma/PostgreSQL compatibility contract is testable. */
+export function buildActiveWhatsAppConversationLockQuery(lockKey: string) {
+  return Prisma.sql`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended(${lockKey}, 0)
+    )::text
+  `;
+}
+
 export async function processIncomingWhatsAppMessage(
   input: IncomingWhatsAppMessage
 ) {
@@ -282,14 +291,9 @@ export async function processIncomingWhatsAppMessage(
     try {
       const created = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw(
-          Prisma.sql`
-            SELECT pg_advisory_xact_lock(
-              hashtextextended(
-                ${`${input.companyAccountId}:${phone}:active-whatsapp-conversation`},
-                0
-              )
-            )
-          `
+          buildActiveWhatsAppConversationLockQuery(
+            `${input.companyAccountId}:${phone}:active-whatsapp-conversation`
+          )
         );
         let lockedConversation =
           await tx.customerConversation.findFirst({
