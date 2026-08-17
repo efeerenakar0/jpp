@@ -109,17 +109,24 @@ export default function BusinessCeoDashboard({
   );
 
   useEffect(() => {
-    const initialRequest = window.setTimeout(() => {
-      void loadDashboard(false);
-    }, 0);
+    const refreshVisibleDashboard = () => {
+      if (document.visibilityState === 'visible') {
+        void loadDashboard(false);
+      }
+    };
+    const initialRequest = window.setTimeout(refreshVisibleDashboard, 0);
     const interval = window.setInterval(() => {
-      void loadDashboard(false);
-    }, 20_000);
+      refreshVisibleDashboard();
+    }, 2_000);
+    window.addEventListener('focus', refreshVisibleDashboard);
+    document.addEventListener('visibilitychange', refreshVisibleDashboard);
 
     return () => {
       requestSequence.current += 1;
       window.clearTimeout(initialRequest);
       window.clearInterval(interval);
+      window.removeEventListener('focus', refreshVisibleDashboard);
+      document.removeEventListener('visibilitychange', refreshVisibleDashboard);
     };
   }, [loadDashboard]);
 

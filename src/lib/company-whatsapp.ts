@@ -924,6 +924,13 @@ export type CompanyWhatsAppQueueInput = {
   deferDispatch?: boolean;
 };
 
+/** @internal Keeps Prisma's default and idempotency validation in agreement. */
+export function normalizeWhatsAppRecipientType(
+  recipientType: CompanyWhatsAppQueueInput['recipientType']
+) {
+  return recipientType || ('UNKNOWN' as const);
+}
+
 export async function queueCompanyWhatsAppMessage(
   input: CompanyWhatsAppQueueInput
 ) {
@@ -983,6 +990,7 @@ export async function queueCompanyWhatsAppMessage(
     throw new Error('Geçerli, ülke kodlu bir telefon numarası girin.');
   }
   const idempotencyKey = input.idempotencyKey || randomUUID();
+  const recipientType = normalizeWhatsAppRecipientType(input.recipientType);
   const createOutbox = async (tx: Prisma.TransactionClient) => {
     const [
       conversation,
@@ -1117,7 +1125,7 @@ export async function queueCompanyWhatsAppMessage(
         contactId: input.contactId,
         huntedContactId: input.huntedContactId,
         propertyId: input.propertyId,
-        recipientType: input.recipientType,
+        recipientType,
         recipientId: input.recipientId,
         purpose: input.purpose,
         relatedTaskId: input.relatedTaskId,
@@ -1143,7 +1151,7 @@ export async function queueCompanyWhatsAppMessage(
       record.contactId !== (input.contactId || null) ||
       record.huntedContactId !== (input.huntedContactId || null) ||
       record.propertyId !== (input.propertyId || null) ||
-      record.recipientType !== (input.recipientType || null) ||
+      record.recipientType !== recipientType ||
       record.recipientId !== (input.recipientId || null) ||
       record.purpose !== (input.purpose || null) ||
       record.relatedTaskId !== (input.relatedTaskId || null) ||

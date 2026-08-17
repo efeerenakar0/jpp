@@ -6,11 +6,15 @@ import { callAI, sharedAssistantAIStatus } from './ai';
 
 describe('AI router', () => {
   const originalFetch = global.fetch;
+  const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
+  const originalOpenRouterModel = process.env.OPENROUTER_TEXT_MODEL;
   const originalGroqKey = process.env.GROQ_API_KEY;
   const originalCloudflareToken = process.env.CLOUDFLARE_API_TOKEN;
   const originalCloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 
   beforeEach(() => {
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_TEXT_MODEL;
     process.env.GROQ_API_KEY = 'gsk_test-key-with-enough-characters';
     process.env.CLOUDFLARE_API_TOKEN = 'cloudflare-test-token';
     process.env.CLOUDFLARE_ACCOUNT_ID = 'cloudflare-account-id';
@@ -18,6 +22,10 @@ describe('AI router', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    if (originalOpenRouterKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = originalOpenRouterKey;
+    if (originalOpenRouterModel === undefined) delete process.env.OPENROUTER_TEXT_MODEL;
+    else process.env.OPENROUTER_TEXT_MODEL = originalOpenRouterModel;
     if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY;
     else process.env.GROQ_API_KEY = originalGroqKey;
     if (originalCloudflareToken === undefined) {
@@ -31,6 +39,36 @@ describe('AI router', () => {
       process.env.CLOUDFLARE_ACCOUNT_ID = originalCloudflareAccountId;
     }
     vi.restoreAllMocks();
+  });
+
+  it('uses the shared OpenRouter gateway first when configured', async () => {
+    process.env.OPENROUTER_API_KEY = 'sk-or-v1-test-key';
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'OpenRouter satış yanıtı' } }],
+        }),
+        { status: 200 }
+      )
+    );
+    global.fetch = fetchMock;
+
+    const result = await callAI(
+      [{ role: 'user', content: 'Mahmutlar portföylerini göster' }],
+      'whatsapp-customer-assistant'
+    );
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      'https://openrouter.ai/api/v1/chat/completions'
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe(
+      'openai/gpt-oss-120b'
+    );
+    expect(result).toMatchObject({
+      provider: 'OPENROUTER',
+      model: 'openai/gpt-oss-120b',
+      content: 'OpenRouter satış yanıtı',
+    });
   });
 
   it('uses the multilingual Groq model first for marketing requests', async () => {
@@ -156,8 +194,9 @@ describe('AI router', () => {
     expect(sharedAssistantAIStatus()).toEqual({
       configured: true,
       provider: 'Business CEO AI Router',
-      model: 'GPT-OSS 120B · Qwen 3.6 · Cloudflare Qwen3',
+      model: 'OpenRouter GPT-OSS 120B · Groq · Cloudflare Qwen3',
       providers: {
+        openrouter: false,
         groq: true,
         cloudflare: true,
       },

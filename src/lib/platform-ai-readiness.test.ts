@@ -5,6 +5,12 @@ import {
 } from './platform-ai-readiness';
 
 describe('platform AI readiness', () => {
+  it('accepts a shared OpenRouter platform key', () => {
+    expect(
+      isPlatformTextAiReady({ OPENROUTER_API_KEY: 'sk-or-v1-platform-secret' })
+    ).toBe(true);
+  });
+
   it('metin servisini yalnız platform ortam anahtarlarıyla hazır sayar', () => {
     expect(isPlatformTextAiReady({ GROQ_API_KEY: 'gsk_platform-secret' })).toBe(true);
     expect(

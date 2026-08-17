@@ -1,7 +1,9 @@
+import 'server-only';
+
 /**
  * Business CEO AI Router
- * Groq is the low-latency primary provider. Cloudflare Workers AI is an
- * independent fallback so customer-facing automations do not depend on one API.
+ * OpenRouter is the shared primary gateway. Groq and Cloudflare Workers AI
+ * remain independent fallbacks while the production migration is observed.
  */
 
 export interface ChatMessage {
@@ -12,21 +14,22 @@ export interface ChatMessage {
 export interface AIResponse {
   content: string;
   isMock: boolean;
-  provider: 'GROQ' | 'CLOUDFLARE';
+  provider: 'OPENROUTER' | 'GROQ' | 'CLOUDFLARE';
   model: string;
 }
 
 export function sharedAssistantAIStatus() {
+  const openrouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
   const groq = Boolean(process.env.GROQ_API_KEY?.trim());
   const cloudflare = Boolean(
     process.env.CLOUDFLARE_API_TOKEN?.trim() &&
       process.env.CLOUDFLARE_ACCOUNT_ID?.trim()
   );
   return {
-    configured: groq || cloudflare,
+    configured: openrouter || groq || cloudflare,
     provider: 'Business CEO AI Router',
-    model: 'GPT-OSS 120B · Qwen 3.6 · Cloudflare Qwen3',
-    providers: { groq, cloudflare },
+    model: 'OpenRouter GPT-OSS 120B · Groq · Cloudflare Qwen3',
+    providers: { openrouter, groq, cloudflare },
   };
 }
 
@@ -124,6 +127,8 @@ Profesyonel ve sıcak bir teyit mesajı yaz. Max 200 karakter.
 
 const GROQ_DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const GROQ_MARKETING_MODEL = 'qwen/qwen3.6-27b';
+const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-oss-120b';
+const OPENROUTER_MARKETING_MODEL = 'qwen/qwen3.6-flash';
 const CLOUDFLARE_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
 const AI_TIMEOUT_MS = 30_000;
 
@@ -135,6 +140,18 @@ function modelOrder(requestType = '') {
   return contentFocused
     ? [GROQ_MARKETING_MODEL, GROQ_DEFAULT_MODEL]
     : [GROQ_DEFAULT_MODEL, GROQ_MARKETING_MODEL];
+}
+
+function openRouterModel(requestType = '') {
+  const configured = process.env.OPENROUTER_TEXT_MODEL?.trim();
+  if (configured) return configured;
+  const contentFocused =
+    requestType.includes('marketing') ||
+    requestType.includes('seo') ||
+    requestType.includes('website');
+  return contentFocused
+    ? OPENROUTER_MARKETING_MODEL
+    : OPENROUTER_DEFAULT_MODEL;
 }
 
 function formatMessages(
@@ -194,6 +211,43 @@ async function callGroqAPI(
   return null;
 }
 
+async function callOpenRouterAPI(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[]
+): Promise<string | null> {
+  try {
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer':
+            process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+            'https://jpp-ufeb.vercel.app',
+          'X-OpenRouter-Title': 'Business CEO AI',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: model === OPENROUTER_MARKETING_MODEL ? 0.65 : 0.35,
+          max_tokens: 2200,
+        }),
+        signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      }
+    );
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    return response.ok && content ? content : null;
+  } catch {
+    return null;
+  }
+}
+
 async function callCloudflareAPI(messages: ChatMessage[]) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
   const apiToken = process.env.CLOUDFLARE_API_TOKEN?.trim();
@@ -251,6 +305,18 @@ export async function callAI(
     systemInstruction,
     conversationMessages
   );
+  const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (openrouterKey) {
+    const model = openRouterModel(requestType);
+    const content = await callOpenRouterAPI(
+      openrouterKey,
+      model,
+      formattedMessages
+    );
+    if (content) {
+      return { content, isMock: false, provider: 'OPENROUTER', model };
+    }
+  }
   const keysToTry = Array.from(
     new Set([customApiKey?.trim(), process.env.GROQ_API_KEY?.trim()])
   ).filter(
@@ -278,7 +344,8 @@ export async function callAI(
   }
 
   throw new Error(
-    keysToTry.length === 0 &&
+    !openrouterKey &&
+      keysToTry.length === 0 &&
       !process.env.CLOUDFLARE_API_TOKEN &&
       !process.env.CLOUDFLARE_ACCOUNT_ID
       ? 'AI provider is not configured'
