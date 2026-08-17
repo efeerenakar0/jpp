@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import type { DeveloperContentSection } from "@/lib/developer-content-ai";
 import {
   DEVELOPER_THEMES,
+  FEATURED_DEVELOPER_THEME_IDS,
   getDeveloperTheme,
   getDeveloperThemeBlueprint,
   type DeveloperSiteContent,
@@ -54,6 +55,8 @@ import {
   getSocialMediaGuide,
   SOCIAL_MEDIA_GUIDES,
 } from "@/lib/social-media-guide";
+import { SocialPlatformLogo } from "./SocialPlatformLogo";
+import { ThemeSitePreview } from "./ThemeSitePreview";
 import styles from "./YazilimciPage.module.css";
 
 type HubTab = "website" | "social";
@@ -61,6 +64,17 @@ type WebsiteMode = "NEW" | "EXISTING";
 type WebsiteStudioView = "dashboard" | "builder";
 type WebsiteCardFilter = "all" | "published" | "templates";
 type WebsiteCardView = "grid" | "list";
+
+const FEATURED_DEVELOPER_THEMES = FEATURED_DEVELOPER_THEME_IDS.map((id) =>
+  getDeveloperTheme(id),
+);
+
+const DASHBOARD_SOCIAL_PLATFORMS: SocialPlatformId[] = [
+  "instagram",
+  "facebook",
+  "youtube",
+  "whatsapp-business",
+];
 
 type WebsiteState = {
   mode: "UNDECIDED" | WebsiteMode;
@@ -218,15 +232,15 @@ export default function YazilimciPage() {
   const selectedTheme = getDeveloperTheme(data?.website.selectedTheme);
   const filteredThemes = useMemo(() => {
     const query = themeSearch.trim().toLocaleLowerCase("tr-TR");
-    if (!query) return DEVELOPER_THEMES;
-    return DEVELOPER_THEMES.filter((theme) =>
+    if (!query) return FEATURED_DEVELOPER_THEMES;
+    return FEATURED_DEVELOPER_THEMES.filter((theme) =>
       `${theme.name} ${theme.mood} ${theme.description}`
         .toLocaleLowerCase("tr-TR")
         .includes(query),
     );
   }, [themeSearch]);
   const studioQuery = websiteCardSearch.trim().toLocaleLowerCase("tr-TR");
-  const featuredThemes = DEVELOPER_THEMES.slice(0, 15);
+  const featuredThemes = FEATURED_DEVELOPER_THEMES;
   const currentTheme = DEVELOPER_THEMES.find(
     (theme) => theme.id === data?.website.selectedTheme,
   );
@@ -320,6 +334,10 @@ export default function YazilimciPage() {
 
   async function saveAndPublishWebsite() {
     if (!data || !mode) return;
+    if (mode === "EXISTING" && !baseDomain.trim()) {
+      toast.info("Önce mevcut alan adınızı yazın. Örneğin: sirketiniz.com");
+      return;
+    }
     setIsSaving(true);
     try {
       await patchWorkspace({
@@ -460,6 +478,7 @@ export default function YazilimciPage() {
   function openWebsiteBuilder(nextMode?: WebsiteMode, themeId?: DeveloperThemeId) {
     if (nextMode) setMode(nextMode);
     if (themeId) updateWebsite("selectedTheme", themeId);
+    setThemeSearch("");
     setWebsiteStudioView("builder");
     setActiveTab("website");
   }
@@ -496,8 +515,14 @@ export default function YazilimciPage() {
   );
   const setupSteps = [
     { label: "Markanı seçtin", done: brandReady },
-    { label: "Tasarımını seçtin", done: Boolean(website.selectedTheme) },
-    { label: "İçeriklerini ekledin", done: website.status === "PUBLISHED" },
+    {
+      label: mode === "EXISTING" ? "Bağlantı türünü seçtin" : "Tasarımını seçtin",
+      done: mode === "EXISTING" || Boolean(website.selectedTheme),
+    },
+    {
+      label: mode === "EXISTING" ? "Portföy sayfan hazır" : "İçeriklerini ekledin",
+      done: website.status === "PUBLISHED",
+    },
     { label: "Alan adını bağla", done: website.domainStatus === "VERIFIED" },
   ];
   const setupCompleted = setupSteps.filter((step) => step.done).length;
@@ -579,7 +604,19 @@ export default function YazilimciPage() {
                     <strong>Sosyal Medya Hesaplarını Kur</strong>
                     <small>{savedSocialCount ? `${savedSocialCount} hesap kaydedildi` : "Hesaplarınızı adım adım hazırlayın"}</small>
                   </span>
-                  <span className={styles.socialDots} aria-hidden="true"><i /><i /><i /><i /></span>
+                  <span className={styles.socialBrandStrip} aria-hidden="true">
+                    {DASHBOARD_SOCIAL_PLATFORMS.map((platform) => {
+                      const guide = getSocialMediaGuide(platform);
+                      return (
+                        <i
+                          key={platform}
+                          style={{ "--platform-color": guide.color } as React.CSSProperties}
+                        >
+                          <SocialPlatformLogo platform={platform} />
+                        </i>
+                      );
+                    })}
+                  </span>
                   <ArrowRight />
                 </button>
               </aside>
@@ -616,7 +653,7 @@ export default function YazilimciPage() {
 
                 {studioThemes.length ? (
                   <div className={styles.websiteCards} data-view={websiteCardView}>
-                    {studioThemes.map((theme, index) => {
+                    {studioThemes.map((theme) => {
                       const isCurrent = theme.id === website.selectedTheme;
                       const isPublished = isCurrent && website.status === "PUBLISHED";
                       const blueprint = getDeveloperThemeBlueprint(theme.id);
@@ -638,18 +675,15 @@ export default function YazilimciPage() {
                         >
                           <button
                             aria-label={`${theme.name} tasarımını düzenle`}
-                            className={styles.websiteThumbnail}
-                            onClick={() => openWebsiteBuilder(mode ?? "NEW", theme.id)}
+                            className={styles.websitePreviewButton}
+                            onClick={() => openWebsiteBuilder(isCurrent ? mode ?? "NEW" : "NEW", theme.id)}
                             type="button"
                           >
-                            <span className={styles.miniNav}><b>{isCurrent ? website.brandName : theme.name}</b><i /><i /><i /><em>İletişim</em></span>
-                            <span className={styles.miniHero}>
-                              <small>{theme.mood}</small>
-                              <strong>{index % 3 === 0 ? "Doğru gayrimenkulü, doğru danışmanla bulun." : index % 3 === 1 ? "Yeni yaşamınız burada başlıyor." : "Değerli mülkler, doğru yatırımlar."}</strong>
-                              <i>{index % 2 === 0 ? "Portföyleri keşfet" : "Projeleri incele"}</i>
-                            </span>
-                            <span className={styles.miniProperties}><i /><i /><i /></span>
-                            {isCurrent && <span className={styles.currentRibbon}>Mevcut siteniz</span>}
+                            <ThemeSitePreview
+                              brandName={isCurrent ? website.brandName : theme.name}
+                              isCurrent={isCurrent}
+                              theme={theme}
+                            />
                           </button>
 
                           <div className={styles.websiteCardBody}>
@@ -662,11 +696,11 @@ export default function YazilimciPage() {
                           </div>
 
                           <footer className={styles.websiteCardFooter}>
-                            <button onClick={() => openWebsiteBuilder(mode ?? "NEW", theme.id)} type="button"><Brush /> {isCurrent ? "Düzenlemeye Devam Et" : "Bu Tasarımla Başla"}</button>
+                            <button onClick={() => openWebsiteBuilder(isCurrent ? mode ?? "NEW" : "NEW", theme.id)} type="button"><Brush /> {isCurrent ? "Düzenlemeye Devam Et" : "Bu Tasarımla Başla"}</button>
                             {isCurrent && website.status === "PUBLISHED" ? (
                               <a aria-label="Siteyi yeni sekmede aç" href={website.temporaryUrl} target="_blank" rel="noreferrer"><ExternalLink /></a>
                             ) : (
-                              <button aria-label={`${theme.name} ayrıntıları`} onClick={() => openWebsiteBuilder(mode ?? "NEW", theme.id)} type="button"><MoreVertical /></button>
+                              <button aria-label={`${theme.name} ayrıntıları`} onClick={() => openWebsiteBuilder(isCurrent ? mode ?? "NEW" : "NEW", theme.id)} type="button"><MoreVertical /></button>
                             )}
                           </footer>
                         </article>
@@ -690,7 +724,10 @@ export default function YazilimciPage() {
             <header className={styles.sectionHeader}>
               <div>
                 <span className={styles.sectionNumber}>01</span>
-                <div><h2>Önce sizi tanıyalım</h2><p>Bir kez doldurun; siteniz markanıza göre hazırlansın.</p></div>
+                <div>
+                  <h2>{mode === "EXISTING" ? "Mevcut sitenizi bağlayın" : mode === "NEW" ? "Yeni sitenizi hazırlayın" : "Önce doğru yolu seçin"}</h2>
+                  <p>{mode === "EXISTING" ? "Mevcut alan adınızın altında portföy sayfanızı açın; ana siteniz değişmeden kalır." : mode === "NEW" ? "Önce gerçek bir tasarım seçin, ardından marka bilgilerinizi tamamlayın." : "Yeni bir site oluşturun veya mevcut alan adınıza portföy vitrini ekleyin."}</p>
+                </div>
               </div>
               {brandReady && <span className={styles.readyBadge}><CheckCircle2 /> Hazır</span>}
             </header>
@@ -723,51 +760,82 @@ export default function YazilimciPage() {
             ) : (
               <div className={styles.brandForm}>
                 <div className={styles.formTopline}>
-                  <span className={styles.modePill}>{mode === "NEW" ? "Web sitem yok" : "Web sitem var"}</span>
+                  <span className={styles.modePill}>{mode === "NEW" ? "Yeni web sitesi" : "Mevcut site bağlantısı"}</span>
                   <button onClick={() => setMode(null)} type="button">Seçimi değiştir</button>
                 </div>
-                <section className={styles.themePicker} aria-labelledby="theme-picker-title">
-                  <div className={styles.themePickerHead}>
-                    <div>
-                      <span className={styles.sectionNumber}>02</span>
-                      <span>
-                        <strong id="theme-picker-title">Sitenizin görünümünü seçin</strong>
-                        <small>25 tasarımdan birini seçin; içerikleriniz tema değişse de korunur.</small>
-                      </span>
+                {mode === "NEW" ? (
+                  <section className={styles.themePicker} aria-labelledby="theme-picker-title">
+                    <div className={styles.themePickerHead}>
+                      <div>
+                        <span className={styles.sectionNumber}>02</span>
+                        <span>
+                          <strong id="theme-picker-title">Sitenizin görünümünü seçin</strong>
+                          <small>15 tasarımın sayfa yapısı, menüsü ve portföy sunumu birbirinden farklıdır.</small>
+                        </span>
+                      </div>
+                      <label>
+                        <Search />
+                        <input aria-label="Tema ara" value={themeSearch} onChange={(event) => setThemeSearch(event.target.value)} placeholder="Tasarım ara…" />
+                      </label>
                     </div>
-                    <label>
-                      <Search />
-                      <input value={themeSearch} onChange={(event) => setThemeSearch(event.target.value)} placeholder="Tema ara" />
-                    </label>
-                  </div>
-                  <div className={styles.themeGrid}>
-                    {filteredThemes.map((theme, index) => (
-                      <button
-                        aria-pressed={website.selectedTheme === theme.id}
-                        className={website.selectedTheme === theme.id ? styles.selectedTheme : ""}
-                        key={theme.id}
-                        onClick={() => updateWebsite("selectedTheme", theme.id)}
-                        style={{
-                          "--theme-bg": theme.colors.background,
-                          "--theme-surface": theme.colors.surface,
-                          "--theme-ink": theme.colors.ink,
-                          "--theme-accent": theme.colors.accent,
-                        } as React.CSSProperties}
-                        type="button"
-                      >
-                        <span className={styles.themeVisual}>
-                          <i /><i /><i /><b>{String(index + 1).padStart(2, "0")}</b>
-                        </span>
-                        <span className={styles.themeCopy}>
-                          <small>{theme.mood}</small>
-                          <strong>{theme.name}</strong>
-                          <em>{theme.description}</em>
-                        </span>
-                        {website.selectedTheme === theme.id && <CheckCircle2 />}
-                      </button>
-                    ))}
-                  </div>
-                </section>
+                    <div className={styles.themeGrid}>
+                      {filteredThemes.map((theme) => {
+                        const blueprint = getDeveloperThemeBlueprint(theme.id);
+                        const isSelected = website.selectedTheme === theme.id;
+                        return (
+                          <button
+                            aria-label={`${theme.name} tasarımını seç`}
+                            aria-pressed={isSelected}
+                            className={`${styles.websiteCard} ${styles.themeOption} ${isSelected ? styles.selectedTheme : ""}`}
+                            data-layout={theme.layout}
+                            data-theme={theme.id}
+                            key={theme.id}
+                            onClick={() => updateWebsite("selectedTheme", theme.id)}
+                            style={{
+                              "--card-bg": theme.colors.background,
+                              "--card-surface": theme.colors.surface,
+                              "--card-ink": theme.colors.ink,
+                              "--card-muted": theme.colors.muted,
+                              "--card-accent": theme.colors.accent,
+                              "--card-accent-soft": theme.colors.accentSoft,
+                            } as React.CSSProperties}
+                            type="button"
+                          >
+                            <ThemeSitePreview brandName={website.brandName || theme.name} theme={theme} />
+                            <span className={styles.themeOptionBody}>
+                              <span>
+                                <small>{theme.mood}</small>
+                                <strong>{theme.name}</strong>
+                                <em>{theme.description}</em>
+                              </span>
+                              <span className={styles.themeBlueprint}>
+                                <b>{blueprint.architecture}</b>
+                                <i>{blueprint.portfolioPresentation}</i>
+                              </span>
+                            </span>
+                            <span className={styles.themeSelectionState}>
+                              {isSelected ? <><CheckCircle2 /> Seçildi</> : <>Bu tasarımı seç <ArrowRight /></>}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ) : (
+                  <section className={styles.existingConnectionIntro} aria-labelledby="existing-connection-title">
+                    <span className={styles.connectionIcon}><Link2 /></span>
+                    <div>
+                      <small>ANA SİTENİZE DOKUNMADAN</small>
+                      <h3 id="existing-connection-title">Portföylerinizi kendi alan adınızda gösterin</h3>
+                      <p><b>portfoyler.alanadiniz.com</b> adresi Business CEO AI tarafından yönetilir; ana web siteniz olduğu gibi çalışmaya devam eder.</p>
+                    </div>
+                    <ul>
+                      <li><Check /> Tek bir CNAME kaydı yeterli</li>
+                      <li><Check /> SSL güvenliği otomatik hazırlanır</li>
+                      <li><Check /> Portföy değişiklikleri otomatik yayınlanır</li>
+                    </ul>
+                  </section>
+                )}
                 <div className={styles.brandGrid}>
                   <div className={styles.logoField}>
                     <span>Logo</span>
@@ -822,42 +890,67 @@ export default function YazilimciPage() {
 
                 <button className={styles.mainCta} disabled={isSaving} onClick={saveAndPublishWebsite} type="button">
                   {isSaving ? <Loader2 className={styles.spin} /> : <Sparkles />}
-                  {website.status === "PUBLISHED" ? "Değişiklikleri kaydet" : "Sitemi hazırla ve yayınla"}
+                  {mode === "EXISTING"
+                    ? website.domainStatus === "VERIFIED"
+                      ? "Bağlantı bilgilerini kaydet"
+                      : "Bağlantıyı hazırla ve DNS adımlarını göster"
+                    : website.status === "PUBLISHED"
+                      ? "Değişiklikleri kaydet"
+                      : "Sitemi hazırla ve yayınla"}
                   <ArrowRight />
                 </button>
               </div>
             )}
           </section>
 
-          <aside className={styles.previewPanel} style={{
-            "--preview-primary": selectedTheme.colors.background,
-            "--preview-surface": selectedTheme.colors.surface,
-            "--preview-ink": selectedTheme.colors.ink,
-            "--preview-muted": selectedTheme.colors.muted,
-            "--preview-accent": selectedTheme.colors.accent,
-          } as React.CSSProperties}>
-            <div className={styles.previewBrowser}>
-              <div className={styles.browserBar}><i /><i /><i /><span>{website.customHostname || website.temporaryUrl.replace(/^https?:\/\//, "")}</span></div>
-              <div className={styles.previewHeader}>
-                {website.logoData ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={website.logoData} alt="" />
-                ) : <span>{website.brandName.slice(0, 1) || "M"}</span>}
-                <b>{website.brandName || "Markanız"}</b>
-                <small>Hakkımızda &nbsp; Portföyler &nbsp; Blog</small>
+          {mode === "EXISTING" ? (
+            <aside className={`${styles.previewPanel} ${styles.connectionPreviewPanel}`}>
+              <div className={styles.connectionPreviewHead}>
+                <span><Link2 /></span>
+                <div><small>BAĞLANTI ÖNİZLEMESİ</small><strong>Ana siteniz + Business CEO AI</strong></div>
               </div>
-              <div className={styles.previewHero}>
-                <span>{website.siteContent.hero.eyebrow}</span>
-                <strong>{website.siteContent.hero.title}</strong>
-                <button type="button">{website.siteContent.hero.buttonLabel}</button>
+              <div className={styles.connectionDiagram}>
+                <div><Globe2 /><span><small>Mevcut web siteniz</small><strong>{baseDomain || "alanadiniz.com"}</strong></span></div>
+                <ArrowRight />
+                <div><Sparkles /><span><small>Otomatik portföy vitrini</small><strong>portfoyler.{baseDomain || "alanadiniz.com"}</strong></span></div>
               </div>
-              <div className={styles.previewCards}><i /><i /><i /></div>
-            </div>
-            <div className={styles.previewMeta}>
-              <div><span>Canlı portföy</span><strong>{website.activePortfolioCount}</strong></div>
-              <div><span>Güncelleme</span><strong>Otomatik</strong></div>
-            </div>
-          </aside>
+              <div className={styles.connectionChecklist}>
+                <span><CheckCircle2 /><b>Ana siteniz değişmez</b><small>Mevcut sayfalarınız ve tasarımınız çalışmaya devam eder.</small></span>
+                <span><RefreshCw /><b>Portföyler otomatik yenilenir</b><small>Aktif ilanlarınız tek tek yeniden girilmez.</small></span>
+                <span><ShieldCheck /><b>Güvenli bağlantı hazırlanır</b><small>DNS doğrulandıktan sonra SSL otomatik açılır.</small></span>
+              </div>
+            </aside>
+          ) : (
+            <aside className={styles.previewPanel} style={{
+              "--preview-primary": selectedTheme.colors.background,
+              "--preview-surface": selectedTheme.colors.surface,
+              "--preview-ink": selectedTheme.colors.ink,
+              "--preview-muted": selectedTheme.colors.muted,
+              "--preview-accent": selectedTheme.colors.accent,
+            } as React.CSSProperties}>
+              <div className={styles.previewBrowser}>
+                <div className={styles.browserBar}><i /><i /><i /><span>{website.customHostname || website.temporaryUrl.replace(/^https?:\/\//, "")}</span></div>
+                <div className={styles.previewHeader}>
+                  {website.logoData ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={website.logoData} alt="" />
+                  ) : <span>{website.brandName.slice(0, 1) || "M"}</span>}
+                  <b>{website.brandName || "Markanız"}</b>
+                  <small>Hakkımızda &nbsp; Portföyler &nbsp; Blog</small>
+                </div>
+                <div className={styles.previewHero}>
+                  <span>{website.siteContent.hero.eyebrow}</span>
+                  <strong>{website.siteContent.hero.title}</strong>
+                  <button type="button">{website.siteContent.hero.buttonLabel}</button>
+                </div>
+                <div className={styles.previewCards}><i /><i /><i /></div>
+              </div>
+              <div className={styles.previewMeta}>
+                <div><span>Canlı portföy</span><strong>{website.activePortfolioCount}</strong></div>
+                <div><span>Güncelleme</span><strong>Otomatik</strong></div>
+              </div>
+            </aside>
+          )}
 
           {website.status === "PUBLISHED" && mode === "NEW" && (
             <section className={styles.contentStudio}>
@@ -1023,11 +1116,11 @@ export default function YazilimciPage() {
           {website.status === "PUBLISHED" && (
             <section className={styles.publishPanel}>
               <header className={styles.sectionHeader}>
-                <div><span className={styles.sectionNumber}>02</span><div><h2>Siteniz hazır</h2><p>Bu adres şimdi çalışıyor ve portföylerinizle otomatik güncelleniyor.</p></div></div>
+                <div><span className={styles.sectionNumber}>02</span><div><h2>{mode === "EXISTING" ? "Portföy sayfanız hazır" : "Siteniz hazır"}</h2><p>{mode === "EXISTING" ? "DNS bağlantısı tamamlanana kadar portföy sayfanızı geçici adreste kontrol edebilirsiniz." : "Bu adres şimdi çalışıyor ve portföylerinizle otomatik güncelleniyor."}</p></div></div>
                 <span className={styles.liveBadge}><i /> YAYINDA</span>
               </header>
               <div className={styles.liveUrl}>
-                <div><Globe2 /><span><small>Geçici site adresiniz</small><strong>{website.temporaryUrl}</strong></span></div>
+                <div><Globe2 /><span><small>{mode === "EXISTING" ? "Kontrol adresiniz" : "Geçici site adresiniz"}</small><strong>{website.temporaryUrl}</strong></span></div>
                 <button onClick={() => void copyText(website.temporaryUrl, "Site adresi")} type="button"><Copy /> Kopyala</button>
                 <a href={website.temporaryUrl} target="_blank" rel="noreferrer">Siteyi aç <ExternalLink /></a>
               </div>
@@ -1076,7 +1169,9 @@ export default function YazilimciPage() {
                 const saved = data.socialAccounts.find((account) => account.platform === guide.id);
                 return (
                   <button className={selectedPlatform === guide.id ? styles.selectedPlatform : ""} onClick={() => openSocialGuide(guide.id)} key={guide.id} type="button">
-                    <span className={styles.platformMark} style={{ "--platform-color": guide.color } as React.CSSProperties}>{guide.shortName}</span>
+                    <span className={styles.platformMark} style={{ "--platform-color": guide.color } as React.CSSProperties}>
+                      <SocialPlatformLogo platform={guide.id} />
+                    </span>
                     <span><strong>{guide.name}</strong><small>{saved?.username ? `@${saved.username.replace(/^@/, "")}` : guide.purpose}</small></span>
                     {saved?.username || saved?.profileUrl ? <CheckCircle2 className={styles.savedIcon} /> : <ChevronRight />}
                   </button>
@@ -1087,7 +1182,9 @@ export default function YazilimciPage() {
 
           <main className={styles.guidePanel}>
             <header className={styles.guideHeader}>
-              <span className={styles.platformHeroMark} style={{ "--platform-color": selectedGuide.color } as React.CSSProperties}>{selectedGuide.shortName}</span>
+              <span className={styles.platformHeroMark} style={{ "--platform-color": selectedGuide.color } as React.CSSProperties}>
+                <SocialPlatformLogo platform={selectedGuide.id} />
+              </span>
               <div><span className={styles.eyebrow}>KURULUM REHBERİ</span><h2>{selectedGuide.name}</h2><p>{selectedGuide.purpose}</p></div>
               <a href={selectedGuide.startUrl} target="_blank" rel="noreferrer">Hesap oluştur <ExternalLink /></a>
             </header>

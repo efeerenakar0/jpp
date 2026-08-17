@@ -18,7 +18,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'IG',
     purpose: 'Portföy fotoğrafları, Reels ve bölge tanıtımları',
     startUrl: 'https://www.instagram.com/accounts/emailsignup/',
-    color: '#e879f9',
+    color: '#e4405f',
     steps: [
       'Marka adınıza yakın, kolay yazılan bir kullanıcı adı seçin.',
       'Hesabı profesyonel hesaba çevirip “Emlak” kategorisini seçin.',
@@ -33,7 +33,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'f',
     purpose: 'Kurumsal sayfa, yerel topluluklar ve reklamlar',
     startUrl: 'https://www.facebook.com/pages/create',
-    color: '#60a5fa',
+    color: '#1877f2',
     steps: [
       'Kişisel hesabınızdan işletmeniz için yeni bir Sayfa oluşturun.',
       'Kategoriye “Emlak Şirketi” veya “Gayrimenkul Danışmanı” yazın.',
@@ -48,7 +48,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'TT',
     purpose: 'Kısa portföy turları ve hızlı bölge içerikleri',
     startUrl: 'https://www.tiktok.com/signup',
-    color: '#67e8f9',
+    color: '#25f4ee',
     steps: [
       'İşletme e-postanızla hesap açın ve marka kullanıcı adını alın.',
       'Hesabı İşletme Hesabı olarak ayarlayın.',
@@ -63,7 +63,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'in',
     purpose: 'Kurumsal güven, ekip ve iş ortaklıkları',
     startUrl: 'https://www.linkedin.com/company/setup/new/',
-    color: '#38bdf8',
+    color: '#0a66c2',
     steps: [
       'Kişisel profilinizden şirket sayfası oluşturun.',
       'Sektör, şirket büyüklüğü, logo ve slogan bilgilerini tamamlayın.',
@@ -78,7 +78,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'YT',
     purpose: 'Uzun portföy turları ve bilgilendirici videolar',
     startUrl: 'https://www.youtube.com/create_channel',
-    color: '#fb7185',
+    color: '#ff0033',
     steps: [
       'İşletme Google hesabınızla bir marka kanalı oluşturun.',
       'Logo, kapak görseli, açıklama ve iletişim e-postasını ekleyin.',
@@ -93,7 +93,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'X',
     purpose: 'Hızlı duyurular, piyasa notları ve gündem',
     startUrl: 'https://x.com/i/flow/signup',
-    color: '#cbd5e1',
+    color: '#f4f7f9',
     steps: [
       'Marka adıyla hesap açıp işletme e-postasını doğrulayın.',
       'Logo, kısa açıklama, konum ve web adresini ekleyin.',
@@ -108,7 +108,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'P',
     purpose: 'Dekorasyon, mimari ve yaşam tarzı koleksiyonları',
     startUrl: 'https://www.pinterest.com/business/create/',
-    color: '#f87171',
+    color: '#bd081c',
     steps: [
       'Ücretsiz işletme hesabı oluşturun.',
       'Logo, açıklama ve web sitesi bilgilerini ekleyin.',
@@ -123,7 +123,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'G',
     purpose: 'Google Haritalar, yorumlar ve yerel aramalar',
     startUrl: 'https://business.google.com/create',
-    color: '#fbbf24',
+    color: '#4285f4',
     steps: [
       'Google hesabınızla işletme profilinizi oluşturun veya sahiplenin.',
       'Gerçek şirket adı, kategori, telefon ve hizmet bölgesini ekleyin.',
@@ -138,7 +138,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'WA',
     purpose: 'Hızlı müşteri iletişimi ve portföy kataloğu',
     startUrl: 'https://www.whatsapp.com/business/',
-    color: '#34d399',
+    color: '#25d366',
     steps: [
       'İşletmeye ait ve sürekli erişebildiğiniz telefon numarasını seçin.',
       'WhatsApp Business uygulamasını kurup numarayı doğrulayın.',
@@ -153,7 +153,7 @@ export const SOCIAL_MEDIA_GUIDES: SocialPlatformGuide[] = [
     shortName: 'TG',
     purpose: 'Portföy duyuru kanalı ve topluluk iletişimi',
     startUrl: 'https://telegram.org/',
-    color: '#7dd3fc',
+    color: '#26a5e4',
     steps: [
       'Telefon numaranızla hesabı açın ve iki adımlı doğrulamayı etkinleştirin.',
       'Şirketiniz için herkese açık bir duyuru kanalı oluşturun.',
