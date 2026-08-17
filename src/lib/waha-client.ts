@@ -366,7 +366,7 @@ export async function sendWahaText(input: {
   to: string;
   text: string;
 }) {
-  const phone = input.to.replace(/\D/g, '');
+  const chatId = normalizeWahaChatId(input.to);
   const raw = await wahaRequest<{
     id?: string;
     key?: { id?: string };
@@ -376,7 +376,7 @@ export async function sendWahaText(input: {
     timeoutMs: 30_000,
     body: {
       session: input.sessionName,
-      chatId: `${phone}@c.us`,
+      chatId,
       text: input.text,
       linkPreview: false,
     },
@@ -386,6 +386,17 @@ export async function sendWahaText(input: {
     throw new Error('WAHA API mesaj kimliği döndürmedi.');
   }
   return { providerMessageId, raw };
+}
+
+/** @internal Preserves WhatsApp's privacy-safe LID when replying to a chat. */
+export function normalizeWahaChatId(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) {
+    throw new Error('WAHA alıcı sohbet kimliği geçersiz.');
+  }
+  if (/@lid$/i.test(trimmed)) return `${digits}@lid`;
+  return `${digits}@c.us`;
 }
 
 export async function logoutWahaSession(sessionName: string) {

@@ -9,6 +9,7 @@ export function isPlatformTextAiReady(
 ) {
   return Boolean(
     hasValue(environment.OPENROUTER_API_KEY) ||
+      hasValue(environment.OPENROUTER_WHATSAPP_API_KEY) ||
       hasValue(environment.GROQ_API_KEY) ||
       (hasValue(environment.CLOUDFLARE_API_TOKEN) &&
         hasValue(environment.CLOUDFLARE_ACCOUNT_ID))

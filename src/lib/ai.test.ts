@@ -7,6 +7,8 @@ import { callAI, sharedAssistantAIStatus } from './ai';
 describe('AI router', () => {
   const originalFetch = global.fetch;
   const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
+  const originalWhatsAppOpenRouterKey =
+    process.env.OPENROUTER_WHATSAPP_API_KEY;
   const originalOpenRouterModel = process.env.OPENROUTER_TEXT_MODEL;
   const originalGroqKey = process.env.GROQ_API_KEY;
   const originalCloudflareToken = process.env.CLOUDFLARE_API_TOKEN;
@@ -14,6 +16,7 @@ describe('AI router', () => {
 
   beforeEach(() => {
     delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_WHATSAPP_API_KEY;
     delete process.env.OPENROUTER_TEXT_MODEL;
     process.env.GROQ_API_KEY = 'gsk_test-key-with-enough-characters';
     process.env.CLOUDFLARE_API_TOKEN = 'cloudflare-test-token';
@@ -24,6 +27,11 @@ describe('AI router', () => {
     global.fetch = originalFetch;
     if (originalOpenRouterKey === undefined) delete process.env.OPENROUTER_API_KEY;
     else process.env.OPENROUTER_API_KEY = originalOpenRouterKey;
+    if (originalWhatsAppOpenRouterKey === undefined) {
+      delete process.env.OPENROUTER_WHATSAPP_API_KEY;
+    } else {
+      process.env.OPENROUTER_WHATSAPP_API_KEY = originalWhatsAppOpenRouterKey;
+    }
     if (originalOpenRouterModel === undefined) delete process.env.OPENROUTER_TEXT_MODEL;
     else process.env.OPENROUTER_TEXT_MODEL = originalOpenRouterModel;
     if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY;
@@ -69,6 +77,29 @@ describe('AI router', () => {
       model: 'openai/gpt-oss-120b',
       content: 'OpenRouter satış yanıtı',
     });
+  });
+
+  it('prefers the dedicated WhatsApp OpenRouter key for customer replies', async () => {
+    process.env.OPENROUTER_API_KEY = 'sk-or-v1-general-test-key';
+    process.env.OPENROUTER_WHATSAPP_API_KEY = 'sk-or-v1-whatsapp-test-key';
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'WhatsApp yanıtı' } }],
+        }),
+        { status: 200 }
+      )
+    );
+    global.fetch = fetchMock;
+
+    await callAI(
+      [{ role: 'user', content: 'Bilgi alabilir miyim?' }],
+      'whatsapp-customer-assistant'
+    );
+
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe(
+      'Bearer sk-or-v1-whatsapp-test-key'
+    );
   });
 
   it('uses the multilingual Groq model first for marketing requests', async () => {

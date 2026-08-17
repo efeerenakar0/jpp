@@ -11,6 +11,14 @@ describe('platform AI readiness', () => {
     ).toBe(true);
   });
 
+  it('accepts a WhatsApp-only OpenRouter platform key', () => {
+    expect(
+      isPlatformTextAiReady({
+        OPENROUTER_WHATSAPP_API_KEY: 'sk-or-v1-whatsapp-secret',
+      })
+    ).toBe(true);
+  });
+
   it('metin servisini yalnız platform ortam anahtarlarıyla hazır sayar', () => {
     expect(isPlatformTextAiReady({ GROQ_API_KEY: 'gsk_platform-secret' })).toBe(true);
     expect(

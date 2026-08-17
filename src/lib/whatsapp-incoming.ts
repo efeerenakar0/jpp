@@ -664,7 +664,9 @@ export async function processIncomingWhatsAppMessage(
   }
   const delivery = await sendAssistantWhatsAppMessage({
     companyAccountId: input.companyAccountId,
-    to: phone,
+    to: /@lid$/i.test(input.fromPhone)
+      ? `${phone}@lid`
+      : phone,
     text: reply,
     lastCustomerMessageAt: receivedAt,
     conversationId: conversation.id,

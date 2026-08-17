@@ -19,7 +19,10 @@ export interface AIResponse {
 }
 
 export function sharedAssistantAIStatus() {
-  const openrouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
+  const openrouter = Boolean(
+    process.env.OPENROUTER_API_KEY?.trim() ||
+      process.env.OPENROUTER_WHATSAPP_API_KEY?.trim()
+  );
   const groq = Boolean(process.env.GROQ_API_KEY?.trim());
   const cloudflare = Boolean(
     process.env.CLOUDFLARE_API_TOKEN?.trim() &&
@@ -305,7 +308,10 @@ export async function callAI(
     systemInstruction,
     conversationMessages
   );
-  const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
+  const openrouterKey =
+    (requestType === 'whatsapp-customer-assistant'
+      ? process.env.OPENROUTER_WHATSAPP_API_KEY?.trim()
+      : undefined) || process.env.OPENROUTER_API_KEY?.trim();
   if (openrouterKey) {
     const model = openRouterModel(requestType);
     const content = await callOpenRouterAPI(

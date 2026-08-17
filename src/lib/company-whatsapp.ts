@@ -931,6 +931,16 @@ export function normalizeWhatsAppRecipientType(
   return recipientType || ('UNKNOWN' as const);
 }
 
+/** @internal Keeps a WAHA LID address intact while validating its digits. */
+export function normalizeWhatsAppRecipientAddress(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  return {
+    digits,
+    address: /@lid$/i.test(trimmed) ? `${digits}@lid` : digits,
+  };
+}
+
 export async function queueCompanyWhatsAppMessage(
   input: CompanyWhatsAppQueueInput
 ) {
@@ -957,7 +967,9 @@ export async function queueCompanyWhatsAppMessage(
       'Yeni numaralara ilk temas gönderimi şirket ayarlarında kapalı.'
     );
   }
-  let phone = input.to.replace(/\D/g, '');
+  const normalizedRecipient = normalizeWhatsAppRecipientAddress(input.to);
+  let phone = normalizedRecipient.digits;
+  let deliveryAddress = normalizedRecipient.address;
   if (
     input.huntedContactId ||
     input.purpose === 'SALES_AUTHORITY_DISCUSSION' ||
@@ -985,6 +997,7 @@ export async function queueCompanyWhatsAppMessage(
       throw new Error('Alıcı, onaylanmış Avcı iletişim kaydıyla eşleşmiyor.');
     }
     phone = policy.phone;
+    deliveryAddress = phone;
   }
   if (phone.length < 10 || phone.length > 15) {
     throw new Error('Geçerli, ülke kodlu bir telefon numarası girin.');
@@ -1134,7 +1147,7 @@ export async function queueCompanyWhatsAppMessage(
         correlationId: input.correlationId,
         replyToProviderMessageId: input.replyToProviderMessageId,
         metadata: input.metadata,
-        toPhone: phone,
+        toPhone: deliveryAddress,
         content: input.text,
         provider,
         idempotencyKey,
@@ -1143,7 +1156,7 @@ export async function queueCompanyWhatsAppMessage(
       },
     });
     if (
-      record.toPhone !== phone ||
+      record.toPhone !== deliveryAddress ||
       record.content !== input.text ||
       (input.conversationId &&
         record.conversationId !== input.conversationId) ||

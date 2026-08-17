@@ -9,6 +9,7 @@ import {
   getWahaQrCode,
   restartWahaSession,
   sendWahaText,
+  normalizeWahaChatId,
 } from './waha-client';
 
 describe('WAHA API client', () => {
@@ -29,6 +30,18 @@ describe('WAHA API client', () => {
     if (originalKey === undefined) delete process.env.WAHA_API_KEY;
     else process.env.WAHA_API_KEY = originalKey;
     vi.restoreAllMocks();
+  });
+
+  it('keeps an incoming LID as the reply chat address', () => {
+    expect(normalizeWahaChatId('69879839371315@lid')).toBe(
+      '69879839371315@lid'
+    );
+  });
+
+  it('normalizes a regular phone number to a WAHA chat address', () => {
+    expect(normalizeWahaChatId('+90 532 123 45 67')).toBe(
+      '905321234567@c.us'
+    );
   });
 
   it('creates an isolated session with only required webhook events', async () => {
