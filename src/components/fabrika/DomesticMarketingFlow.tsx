@@ -93,7 +93,7 @@ type DomesticMarketingFlowProps = {
   onOpenHistory?: () => void;
 };
 
-type FlowStep = 1 | 2 | 3;
+type FlowStep = 1 | 2 | 3 | 4;
 type CampaignType = "listing" | "brand" | "website";
 type GoalId = "LEADS" | "FAST" | "BRAND";
 
@@ -116,7 +116,8 @@ const GOALS: Array<{
   {
     id: "FAST",
     title: "Portföyü hızlı tanıt",
-    description: "İlan portalları ve hızlı sosyal paylaşımla görünürlük sağlar.",
+    description:
+      "İlan portalları ve hızlı sosyal paylaşımla görünürlük sağlar.",
     objective: "Portföyü kısa sürede doğru alıcılara tanıtma",
     icon: Rocket,
     channels: [
@@ -140,10 +141,30 @@ const GOALS: Array<{
 ];
 
 const FORMAT_OPTIONS = [
-  { id: "square", label: "Kare gönderi", ratio: "1:1", detail: "Instagram · Facebook" },
-  { id: "portrait", label: "Dikey gönderi", ratio: "4:5", detail: "Instagram akışı" },
-  { id: "story", label: "Hikâye / Reels", ratio: "9:16", detail: "Instagram · TikTok" },
-  { id: "landscape", label: "Yatay kapak", ratio: "16:9", detail: "YouTube · LinkedIn" },
+  {
+    id: "square",
+    label: "Kare gönderi",
+    ratio: "1:1",
+    detail: "Instagram · Facebook",
+  },
+  {
+    id: "portrait",
+    label: "Dikey gönderi",
+    ratio: "4:5",
+    detail: "Instagram akışı",
+  },
+  {
+    id: "story",
+    label: "Hikâye / Reels",
+    ratio: "9:16",
+    detail: "Instagram · TikTok",
+  },
+  {
+    id: "landscape",
+    label: "Yatay kapak",
+    ratio: "16:9",
+    detail: "YouTube · LinkedIn",
+  },
   { id: "pin", label: "Pinterest", ratio: "2:3", detail: "Pinterest akışı" },
 ] as const;
 
@@ -187,7 +208,9 @@ function readableAdCopy(copy: DomesticMarketingAdCopy) {
         hashtags?: string[];
       };
       const body = parsed.caption || copy.body;
-      const tags = Array.isArray(parsed.hashtags) ? parsed.hashtags.join(" ") : "";
+      const tags = Array.isArray(parsed.hashtags)
+        ? parsed.hashtags.join(" ")
+        : "";
       return {
         headline: copy.headline,
         sections: [{ label: "Gönderi metni", value: body }],
@@ -254,7 +277,9 @@ export default function DomesticMarketingFlow({
   const [selectedChannels, setSelectedChannels] = useState<AdPlatform[]>(
     GOALS[0].channels,
   );
-  const [audience, setAudience] = useState("Bölgedeki alıcılar ve yatırımcılar");
+  const [audience, setAudience] = useState(
+    "Bölgedeki alıcılar ve yatırımcılar",
+  );
   const [tone, setTone] = useState("professional");
   const [posterTemplate, setPosterTemplate] = useState("SIGNATURE");
   const [targetUrl, setTargetUrl] = useState("");
@@ -283,7 +308,10 @@ export default function DomesticMarketingFlow({
 
   const selectedGoal = GOALS.find((goal) => goal.id === goalId) || GOALS[0];
   const availableCreativeAssets = useMemo(
-    () => creativeAssets.filter((asset) => asset.propertyId === effectivePropertyId),
+    () =>
+      creativeAssets.filter(
+        (asset) => asset.propertyId === effectivePropertyId,
+      ),
     [creativeAssets, effectivePropertyId],
   );
   const selectedCreative = availableCreativeAssets.find(
@@ -303,6 +331,14 @@ export default function DomesticMarketingFlow({
   function chooseGoal(nextGoal: (typeof GOALS)[number]) {
     setGoalId(nextGoal.id);
     setSelectedChannels(nextGoal.channels);
+  }
+
+  function chooseCampaignType(nextType: CampaignType) {
+    setCampaignType(nextType);
+    setStep(1);
+    setResultCampaignId(null);
+    setResultSnapshot(null);
+    setGenerationError(null);
   }
 
   function toggleChannel(platform: AdPlatform) {
@@ -372,7 +408,7 @@ export default function DomesticMarketingFlow({
       toast.error("En az bir yayın kanalı seçin.");
       return;
     }
-    setStep(3);
+    setStep(4);
   }
 
   async function generateCampaign() {
@@ -408,7 +444,8 @@ export default function DomesticMarketingFlow({
       const body = (await response.json()) as DomesticMarketingCampaign & {
         error?: string;
       };
-      if (!response.ok) throw new Error(body.error || "Kampanya hazırlanamadı.");
+      if (!response.ok)
+        throw new Error(body.error || "Kampanya hazırlanamadı.");
       setResultSnapshot(body);
       setResultCampaignId(body.id);
       setActiveCopyId(body.adCopies[0]?.id || null);
@@ -436,11 +473,16 @@ export default function DomesticMarketingFlow({
         body: JSON.stringify({ adCopyId: copy.id, approved: !copy.approved }),
       });
       const body = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(body.error || "Onay durumu değiştirilemedi.");
+      if (!response.ok)
+        throw new Error(body.error || "Onay durumu değiştirilemedi.");
       await onRefresh();
-      toast.success(copy.approved ? "İçerik taslağa alındı." : "İçerik onaylandı.");
+      toast.success(
+        copy.approved ? "İçerik taslağa alındı." : "İçerik onaylandı.",
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "İşlem tamamlanamadı.");
+      toast.error(
+        error instanceof Error ? error.message : "İşlem tamamlanamadı.",
+      );
     }
   }
 
@@ -459,12 +501,15 @@ export default function DomesticMarketingFlow({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action,
-            ...(action === "CONFIRM" ? { externalUrl: publicationUrl.trim() } : {}),
+            ...(action === "CONFIRM"
+              ? { externalUrl: publicationUrl.trim() }
+              : {}),
           }),
         },
       );
       const body = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(body.error || "Yayın adımı tamamlanamadı.");
+      if (!response.ok)
+        throw new Error(body.error || "Yayın adımı tamamlanamadı.");
       await onRefresh();
       toast.success(
         action === "PREPARE"
@@ -474,7 +519,9 @@ export default function DomesticMarketingFlow({
             : "Dış platform yayını doğrulandı.",
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Yayın adımı tamamlanamadı.");
+      toast.error(
+        error instanceof Error ? error.message : "Yayın adımı tamamlanamadı.",
+      );
     } finally {
       setPublicationBusy(null);
     }
@@ -487,7 +534,9 @@ export default function DomesticMarketingFlow({
       await navigator.clipboard.writeText(content);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
-      toast.success(`${marketingChannelLabel(activeCopy.platform)} metni kopyalandı.`);
+      toast.success(
+        `${marketingChannelLabel(activeCopy.platform)} metni kopyalandı.`,
+      );
     } catch {
       toast.error("Metin kopyalanamadı.");
     }
@@ -495,635 +544,1027 @@ export default function DomesticMarketingFlow({
 
   const allApproved = Boolean(
     resultCampaign?.adCopies.length &&
-      resultCampaign.adCopies.every((copy) => copy.approved),
+    resultCampaign.adCopies.every((copy) => copy.approved),
   );
 
   return (
     <div className={styles.flow} aria-busy={generating}>
-      <nav className={styles.stepper} aria-label="Yurt içi kampanya adımları">
-        {[
-          { id: 1 as const, label: "Seç", detail: "Neyi tanıtıyoruz?" },
-          { id: 2 as const, label: "Hazırla", detail: "Amaç ve kanallar" },
-          { id: 3 as const, label: "Kontrol et", detail: "Üret ve yayınla" },
-        ].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => item.id < step && setStep(item.id)}
-            disabled={item.id > step}
-            data-active={item.id === step}
-            data-complete={item.id < step}
-            aria-current={item.id === step ? "step" : undefined}
-          >
-            <span>{item.id < step ? <Check /> : item.id}</span>
+      <div className={styles.studioShell}>
+        <aside className={styles.studioRail} aria-label="Kampanya kaynakları">
+          <div className={styles.railHeading}>
             <span>
-              <strong>{item.label}</strong>
-              <small>{item.detail}</small>
+              <Megaphone />
             </span>
-          </button>
-        ))}
-      </nav>
-
-      {step === 1 && (
-        <section className={styles.stage} aria-labelledby="domestic-step-one">
-          <div className={styles.stageHeading}>
-            <span>1</span>
             <div>
-              <p>İlk seçim</p>
-              <h2 id="domestic-step-one">Ne tanıtmak istiyorsunuz?</h2>
-              <p>Bir seçim yapın; gerisini sistem sizin için hazırlasın.</p>
+              <p>Yeni çalışma</p>
+              <h2>Neyi tanıtacağız?</h2>
             </div>
           </div>
-
-          <div className={styles.choiceGrid}>
-            <button
-              type="button"
-              className={styles.choiceCard}
-              data-selected={campaignType === "listing"}
-              onClick={() => setCampaignType("listing")}
-            >
-              <span className={styles.choiceIcon}><Building2 /></span>
-              <span>
-                <strong>Portföy tanıtımı</strong>
-                <small>Aktif bir gayrimenkul için hazır kampanya oluşturur.</small>
-              </span>
-              <span className={styles.selectionMark}>
-                {campaignType === "listing" ? <Check /> : <ArrowRight />}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={styles.choiceCard}
-              data-selected={campaignType === "brand"}
-              onClick={() => setCampaignType("brand")}
-            >
-              <span className={styles.choiceIcon}><Megaphone /></span>
-              <span>
-                <strong>Şirket tanıtımı</strong>
-                <small>{companyName} markasını ve hizmetlerini anlatır.</small>
-              </span>
-              <span className={styles.selectionMark}>
-                {campaignType === "brand" ? <Check /> : <ArrowRight />}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={styles.choiceCard}
-              data-selected={campaignType === "website"}
-              onClick={() => setCampaignType("website")}
-            >
-              <span className={styles.choiceIcon}><Globe2 /></span>
-              <span>
-                <strong>Web sitesi reklam planı</strong>
-                <small>Sitenizi inceler ve ilk yapılacakları sade bir plana döker.</small>
-              </span>
-              <span className={styles.selectionMark}>
-                {campaignType === "website" ? <Check /> : <ArrowRight />}
-              </span>
-            </button>
-          </div>
-
-          {campaignType === "listing" && (
-            <div className={styles.propertyPicker}>
-              <label htmlFor="marketing-property">Tanıtılacak portföy</label>
-              {loading ? (
-                <div className={styles.skeleton} />
-              ) : properties.length ? (
-                <>
-                  <select
-                    id="marketing-property"
-                    value={effectivePropertyId}
-                    onChange={(event) => {
-                      setPropertyId(event.target.value);
-                      setCreativeKey("");
-                    }}
-                  >
-                    {properties.map((property) => (
-                      <option key={property.id} value={property.id}>
-                        {property.referenceCode ? `${property.referenceCode} · ` : ""}
-                        {property.title}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedProperty && (
-                    <article className={styles.propertySummary}>
-                      <div
-                        className={styles.propertyImage}
-                        style={
-                          selectedProperty.imageUrl
-                            ? { backgroundImage: `url("${selectedProperty.imageUrl}")` }
-                            : undefined
-                        }
-                        role="img"
-                        aria-label={`${selectedProperty.title} portföy görseli`}
-                      >
-                        {!selectedProperty.imageUrl && <ImageIcon />}
-                      </div>
-                      <div>
-                        <span>{selectedProperty.referenceCode || "Aktif portföy"}</span>
-                        <h3>{selectedProperty.title}</h3>
-                        <p>{selectedProperty.location || "Konum bilgisi yok"}</p>
-                        <strong>{money(selectedProperty.price)}</strong>
-                      </div>
-                    </article>
-                  )}
-                </>
-              ) : (
-                <div className={styles.emptyNotice}>
-                  <Building2 />
-                  <div>
-                    <strong>Henüz tanıtabileceğiniz aktif portföy yok.</strong>
-                    <p>Portföy ekleyebilir veya şirket tanıtımıyla devam edebilirsiniz.</p>
-                  </div>
-                  <a href="/fabrika/portfoyler">Portföy ekle <ArrowRight /></a>
-                </div>
-              )}
-            </div>
-          )}
-
-          {campaignType === "brand" && (
-            <div className={styles.brandSummary}>
-              <span><Sparkles /></span>
-              <div>
-                <strong>{companyName}</strong>
-                <p>Portföy seçmeden marka güveni ve müşteri kazanımı odaklı içerik hazırlanır.</p>
-              </div>
-            </div>
-          )}
-
-          {campaignType === "website" && (
-            <div className={styles.websiteSummary}>
-              <span><Globe2 /></span>
-              <label htmlFor="marketing-website-url">
-                <strong>Web sitesi adresiniz</strong>
-                <small>Başına https:// yazmasanız da olur.</small>
-                <input
-                  id="marketing-website-url"
-                  type="url"
-                  inputMode="url"
-                  value={websiteUrl}
-                  onChange={(event) => setWebsiteUrl(event.target.value)}
-                  placeholder="orneksite.com"
-                  disabled={analyzingWebsite}
-                />
-              </label>
-            </div>
-          )}
-
-          <div className={styles.stageActions}>
-            <span />
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() =>
-                campaignType === "website"
-                  ? void analyzeWebsite()
-                  : goToPrepare()
-              }
-              disabled={
-                analyzingWebsite ||
-                !isOnline ||
-                (campaignType === "listing" && !effectivePropertyId) ||
-                (campaignType === "website" && !websiteUrl.trim())
-              }
-            >
-              {analyzingWebsite ? (
-                <><Loader2 className={styles.spin} /> Site inceleniyor…</>
-              ) : campaignType === "website" ? (
-                <>Site planını hazırla <ArrowRight /></>
-              ) : (
-                <>Devam et <ArrowRight /></>
-              )}
-            </button>
-          </div>
-        </section>
-      )}
-
-      {step === 2 && (
-        <section className={styles.stage} aria-labelledby="domestic-step-two">
-          <div className={styles.stageHeading}>
-            <span>2</span>
-            <div>
-              <p>Akıllı hazırlık</p>
-              <h2 id="domestic-step-two">Nasıl bir sonuç istiyorsunuz?</h2>
-              <p>Amacı seçtiğinizde uygun kanallar otomatik işaretlenir.</p>
-            </div>
-          </div>
-
-          <div className={styles.goalGrid}>
-            {GOALS.map((goal) => {
-              const Icon = goal.icon;
+          <div className={styles.sourceChoices}>
+            {[
+              {
+                id: "listing" as const,
+                title: "Portföy kampanyası",
+                detail: "Bir ilanı öne çıkar",
+                icon: Building2,
+              },
+              {
+                id: "brand" as const,
+                title: "Şirket tanıtımı",
+                detail: "Markanı ve hizmetlerini anlat",
+                icon: Megaphone,
+              },
+              {
+                id: "website" as const,
+                title: "Web sitesi planı",
+                detail: "Siten için reklam yolunu çıkar",
+                icon: Globe2,
+              },
+            ].map((source) => {
+              const Icon = source.icon;
               return (
                 <button
+                  key={source.id}
                   type="button"
-                  key={goal.id}
-                  className={styles.goalCard}
-                  data-selected={goal.id === goalId}
-                  onClick={() => chooseGoal(goal)}
+                  data-selected={campaignType === source.id}
+                  onClick={() => chooseCampaignType(source.id)}
                 >
-                  <span><Icon /></span>
-                  <strong>{goal.title}</strong>
-                  <small>{goal.description}</small>
-                  {goal.id === goalId && <b><Check /> Seçildi</b>}
+                  <span>
+                    <Icon />
+                  </span>
+                  <span>
+                    <strong>{source.title}</strong>
+                    <small>{source.detail}</small>
+                  </span>
+                  {campaignType === source.id ? <Check /> : <ArrowRight />}
                 </button>
               );
             })}
           </div>
-
-          <div className={styles.recommendedPack}>
+          <div className={styles.railProgress}>
+            <p>Kampanya durumu</p>
+            <strong>
+              {step === 4 && resultCampaign ? "Hazır" : `${step}. adımdayız`}
+            </strong>
             <div>
-              <span><PackageCheck /></span>
-              <div>
-                <strong>Önerilen kanal paketi</strong>
-                <p>{selectedChannels.length} kanal seçili. İsterseniz değiştirebilirsiniz.</p>
-              </div>
+              <span style={{ width: `${(step / 4) * 100}%` }} />
             </div>
-            <div className={styles.channelSummary}>
-              {selectedChannels.slice(0, 7).map((platform) => {
-                const Icon = channelIcon(platform);
-                return (
-                  <span key={platform}><Icon />{marketingChannelLabel(platform)}</span>
-                );
-              })}
-              {selectedChannels.length > 7 && <span>+{selectedChannels.length - 7}</span>}
-            </div>
+            <small>
+              {step === 4
+                ? "Son kontrol ve yayın"
+                : "Seçimleriniz otomatik kaydedilir."}
+            </small>
           </div>
+          <div className={styles.recentWorks}>
+            <div>
+              <strong>Son çalışmalar</strong>
+              {onOpenHistory && (
+                <button type="button" onClick={onOpenHistory}>
+                  Tümünü gör
+                </button>
+              )}
+            </div>
+            {campaigns.slice(0, 3).map((campaign) => (
+              <button
+                key={campaign.id}
+                type="button"
+                onClick={() => {
+                  setResultCampaignId(campaign.id);
+                  setActiveCopyId(campaign.adCopies[0]?.id || null);
+                  setStep(4);
+                }}
+              >
+                <span>
+                  {campaign.type === "listing" ? <Building2 /> : <Megaphone />}
+                </span>
+                <span>
+                  <strong>{campaign.name}</strong>
+                  <small>
+                    {new Date(campaign.createdAt).toLocaleDateString("tr-TR")}
+                  </small>
+                </span>
+                <ArrowRight />
+              </button>
+            ))}
+            {!campaigns.length && (
+              <p className={styles.noRecentWorks}>
+                İlk kampanyanız burada görünecek.
+              </p>
+            )}
+          </div>
+        </aside>
 
-          {campaignType === "listing" && (
-            <div className={styles.creativeSection}>
-              <div className={styles.sectionLabel}>
-                <Camera />
+        <div className={styles.studioCanvas}>
+          <nav
+            className={styles.stepper}
+            aria-label="Yurt içi kampanya adımları"
+          >
+            {[
+              { id: 1 as const, label: "Kaynak", detail: "Neyi tanıtıyoruz?" },
+              { id: 2 as const, label: "Hedef", detail: "Ne sonuç istiyoruz?" },
+              { id: 3 as const, label: "İçerikler", detail: "Kanal ve görsel" },
+              { id: 4 as const, label: "Kontrol", detail: "Üret ve yayınla" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => item.id < step && setStep(item.id)}
+                disabled={item.id > step}
+                data-active={item.id === step}
+                data-complete={item.id < step}
+                aria-current={item.id === step ? "step" : undefined}
+              >
+                <span>{item.id < step ? <Check /> : item.id}</span>
+                <span>
+                  <strong>{item.label}</strong>
+                  <small>{item.detail}</small>
+                </span>
+              </button>
+            ))}
+          </nav>
+
+          {step === 1 && (
+            <section
+              className={styles.stage}
+              aria-labelledby="domestic-step-one"
+            >
+              <div className={styles.stageHeading}>
+                <span>1</span>
                 <div>
-                  <strong>Hangi görsel kullanılsın?</strong>
-                  <small>Bir şey seçmezseniz portföy fotoğrafı kullanılır.</small>
+                  <p>İlk seçim</p>
+                  <h2 id="domestic-step-one">Ne tanıtmak istiyorsunuz?</h2>
+                  <p>Bir seçim yapın; gerisini sistem sizin için hazırlasın.</p>
                 </div>
               </div>
-              <div className={styles.creativeOptions}>
+
+              <div className={styles.sourceNotice}>
+                <span>
+                  {campaignType === "listing" ? (
+                    <Building2 />
+                  ) : campaignType === "brand" ? (
+                    <Megaphone />
+                  ) : (
+                    <Globe2 />
+                  )}
+                </span>
+                <div>
+                  <strong>
+                    {campaignType === "listing"
+                      ? "Portföy kampanyası"
+                      : campaignType === "brand"
+                        ? "Şirket tanıtımı"
+                        : "Web sitesi reklam planı"}
+                  </strong>
+                  <p>
+                    Kaynağı değiştirmek isterseniz soldaki seçenekleri
+                    kullanabilirsiniz.
+                  </p>
+                </div>
+                <Check />
+              </div>
+
+              {campaignType === "listing" && (
+                <div className={styles.propertyPicker}>
+                  <label htmlFor="marketing-property">
+                    Tanıtılacak portföy
+                  </label>
+                  {loading ? (
+                    <div className={styles.skeleton} />
+                  ) : properties.length ? (
+                    <>
+                      <select
+                        id="marketing-property"
+                        value={effectivePropertyId}
+                        onChange={(event) => {
+                          setPropertyId(event.target.value);
+                          setCreativeKey("");
+                        }}
+                      >
+                        {properties.map((property) => (
+                          <option key={property.id} value={property.id}>
+                            {property.referenceCode
+                              ? `${property.referenceCode} · `
+                              : ""}
+                            {property.title}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedProperty && (
+                        <article className={styles.propertySummary}>
+                          <div
+                            className={styles.propertyImage}
+                            style={
+                              selectedProperty.imageUrl
+                                ? {
+                                    backgroundImage: `url("${selectedProperty.imageUrl}")`,
+                                  }
+                                : undefined
+                            }
+                            role="img"
+                            aria-label={`${selectedProperty.title} portföy görseli`}
+                          >
+                            {!selectedProperty.imageUrl && <ImageIcon />}
+                          </div>
+                          <div>
+                            <span>
+                              {selectedProperty.referenceCode ||
+                                "Aktif portföy"}
+                            </span>
+                            <h3>{selectedProperty.title}</h3>
+                            <p>
+                              {selectedProperty.location || "Konum bilgisi yok"}
+                            </p>
+                            <strong>{money(selectedProperty.price)}</strong>
+                          </div>
+                        </article>
+                      )}
+                    </>
+                  ) : (
+                    <div className={styles.emptyNotice}>
+                      <Building2 />
+                      <div>
+                        <strong>
+                          Henüz tanıtabileceğiniz aktif portföy yok.
+                        </strong>
+                        <p>
+                          Portföy ekleyebilir veya şirket tanıtımıyla devam
+                          edebilirsiniz.
+                        </p>
+                      </div>
+                      <a href="/fabrika/portfoyler">
+                        Portföy ekle <ArrowRight />
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {campaignType === "brand" && (
+                <div className={styles.brandSummary}>
+                  <span>
+                    <Sparkles />
+                  </span>
+                  <div>
+                    <strong>{companyName}</strong>
+                    <p>
+                      Portföy seçmeden marka güveni ve müşteri kazanımı odaklı
+                      içerik hazırlanır.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {campaignType === "website" && (
+                <div className={styles.websiteSummary}>
+                  <span>
+                    <Globe2 />
+                  </span>
+                  <label htmlFor="marketing-website-url">
+                    <strong>Web sitesi adresiniz</strong>
+                    <small>Başına https:// yazmasanız da olur.</small>
+                    <input
+                      id="marketing-website-url"
+                      type="url"
+                      inputMode="url"
+                      value={websiteUrl}
+                      onChange={(event) => setWebsiteUrl(event.target.value)}
+                      placeholder="orneksite.com"
+                      disabled={analyzingWebsite}
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className={styles.stageActions}>
+                <span />
                 <button
                   type="button"
-                  data-selected={!creativeKey}
-                  onClick={() => setCreativeKey("")}
+                  className={styles.primaryButton}
+                  onClick={() =>
+                    campaignType === "website"
+                      ? void analyzeWebsite()
+                      : goToPrepare()
+                  }
+                  disabled={
+                    analyzingWebsite ||
+                    !isOnline ||
+                    (campaignType === "listing" && !effectivePropertyId) ||
+                    (campaignType === "website" && !websiteUrl.trim())
+                  }
                 >
-                  <ImageIcon />
-                  <span><strong>Portföy fotoğrafı</strong><small>En kolay seçim</small></span>
-                  {!creativeKey && <Check />}
+                  {analyzingWebsite ? (
+                    <>
+                      <Loader2 className={styles.spin} /> Site inceleniyor…
+                    </>
+                  ) : campaignType === "website" ? (
+                    <>
+                      Site planını hazırla <ArrowRight />
+                    </>
+                  ) : (
+                    <>
+                      Devam et <ArrowRight />
+                    </>
+                  )}
                 </button>
-                {availableCreativeAssets.map((asset) => {
-                  const key = `${asset.kind}:${asset.id}`;
+              </div>
+            </section>
+          )}
+
+          {step === 2 && (
+            <section
+              className={styles.stage}
+              aria-labelledby="domestic-step-two"
+            >
+              <div className={styles.stageHeading}>
+                <span>2</span>
+                <div>
+                  <p>Akıllı hazırlık</p>
+                  <h2 id="domestic-step-two">Nasıl bir sonuç istiyorsunuz?</h2>
+                  <p>Amacı seçtiğinizde uygun kanallar otomatik işaretlenir.</p>
+                </div>
+              </div>
+
+              <div className={styles.goalGrid}>
+                {GOALS.map((goal) => {
+                  const Icon = goal.icon;
                   return (
                     <button
-                      key={key}
                       type="button"
-                      data-selected={creativeKey === key}
-                      onClick={() => setCreativeKey(key)}
+                      key={goal.id}
+                      className={styles.goalCard}
+                      data-selected={goal.id === goalId}
+                      onClick={() => chooseGoal(goal)}
                     >
-                      {asset.kind === "VIDEO" ? <Video /> : <ImageIcon />}
-                      <span><strong>{asset.title}</strong><small>{asset.kind === "VIDEO" ? "Stüdyo videosu" : "Hazır poster"}</small></span>
-                      {creativeKey === key && <Check />}
+                      <span>
+                        <Icon />
+                      </span>
+                      <strong>{goal.title}</strong>
+                      <small>{goal.description}</small>
+                      {goal.id === goalId && (
+                        <b>
+                          <Check /> Seçildi
+                        </b>
+                      )}
                     </button>
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          <details className={styles.advanced}>
-            <summary><Settings2 /> Kanalları ve ayrıntıları değiştir <ChevronDown /></summary>
-            <div className={styles.advancedBody}>
-              <fieldset>
-                <legend>Yayın kanalları</legend>
-                <div className={styles.channelGrid}>
-                  {MARKETING_CHANNELS.map((channel) => {
-                    const Icon = channelIcon(channel.id);
-                    const checked = selectedChannels.includes(channel.id);
-                    return (
-                      <label key={channel.id} data-selected={checked}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleChannel(channel.id)}
-                        />
-                        <Icon />
-                        <span><strong>{channel.label}</strong><small>{channel.group}</small></span>
-                        <span className={styles.checkBox}>{checked && <Check />}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-              <div className={styles.formGrid}>
-                <label>
-                  <span>Hedef kitle</span>
-                  <input value={audience} onChange={(event) => setAudience(event.target.value)} maxLength={160} />
-                </label>
-                <label>
-                  <span>İletişim tonu</span>
-                  <select value={tone} onChange={(event) => setTone(event.target.value)}>
-                    <option value="professional">Profesyonel ve güven veren</option>
-                    <option value="warm">Sıcak ve samimi</option>
-                    <option value="premium">Seçkin ve premium</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Görsel stili</span>
-                  <select value={posterTemplate} onChange={(event) => setPosterTemplate(event.target.value)}>
-                    <option value="SIGNATURE">İmza — temiz ve kurumsal</option>
-                    <option value="EDITORIAL">Editoryal — sakin ve seçkin</option>
-                    <option value="BOLD">Güçlü — dikkat çekici</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Hedef bağlantı (isteğe bağlı)</span>
-                  <input
-                    type="url"
-                    value={targetUrl}
-                    onChange={(event) => setTargetUrl(event.target.value)}
-                    placeholder="https://..."
-                  />
-                </label>
-              </div>
-            </div>
-          </details>
-
-          <div className={styles.stageActions}>
-            <button type="button" className={styles.backButton} onClick={() => setStep(1)}>
-              <ArrowLeft /> Geri
-            </button>
-            <button type="button" className={styles.primaryButton} onClick={goToReview}>
-              Kontrol et <ArrowRight />
-            </button>
-          </div>
-        </section>
-      )}
-
-      {step === 3 && (
-        <section className={styles.stage} aria-labelledby="domestic-step-three">
-          <div className={styles.stageHeading}>
-            <span>3</span>
-            <div>
-              <p>Son kontrol</p>
-              <h2 id="domestic-step-three">
-                {resultCampaign ? "Kampanyanız hazır" : "Hazırlamadan önce kontrol edin"}
-              </h2>
-              <p>
-                {resultCampaign
-                  ? "Metinleri tek tek kontrol edin, kopyalayın ve yayın paketini indirin."
-                  : "Seçimleriniz doğruysa tek tuşla bütün kanal içeriklerini oluşturun."}
-              </p>
-            </div>
-          </div>
-
-          {!resultCampaign ? (
-            <div className={styles.reviewCard}>
-              <div className={styles.reviewPrimary}>
-                <span>{campaignType === "listing" ? <Building2 /> : <Megaphone />}</span>
-                <div>
-                  <small>Tanıtılacak çalışma</small>
-                  <strong>{campaignType === "listing" ? selectedProperty?.title : companyName}</strong>
-                  <p>{campaignType === "listing" ? selectedProperty?.location : "Şirket tanıtımı"}</p>
-                </div>
-              </div>
-              <dl>
-                <div><dt>Amaç</dt><dd>{selectedGoal.title}</dd></div>
-                <div><dt>Hedef kitle</dt><dd>{audience}</dd></div>
-                <div><dt>Kanallar</dt><dd>{selectedChannels.length} yayın kanalı</dd></div>
-                <div><dt>Görsel</dt><dd>{selectedCreative?.title || "Portföy fotoğrafı / marka şablonu"}</dd></div>
-              </dl>
-              <div className={styles.formatPreview}>
-                <strong>Sosyal medya görsel seti</strong>
-                <p>Kampanyadan sonra her platform için doğru ölçüyü ayrı indirebilirsiniz.</p>
-                <div>
-                  {FORMAT_OPTIONS.map((format) => (
-                    <span key={format.id}><b>{format.ratio}</b>{format.label}</span>
-                  ))}
-                </div>
-              </div>
-              {generationError && (
-                <div className={styles.errorBox} role="alert">
-                  <strong>Kampanya hazırlanamadı</strong>
-                  <p>{generationError}</p>
-                  <button type="button" onClick={() => void generateCampaign()}>Yeniden dene</button>
-                </div>
-              )}
-              <button
-                type="button"
-                className={styles.generateButton}
-                onClick={() => void generateCampaign()}
-                disabled={generating || !isOnline}
-              >
-                {generating ? <Loader2 className={styles.spin} /> : <Sparkles />}
-                <span>
-                  <strong>{generating ? "Kampanya hazırlanıyor…" : "Kampanyayı oluştur"}</strong>
-                  <small>{generating ? "Kanal metinleri ve görsel paket hazırlanıyor" : `${selectedChannels.length} kanala özel içerik üret`}</small>
-                </span>
-                {!generating && <ArrowRight />}
-              </button>
-              <p className={styles.liveStatus} aria-live="polite">
-                {generating ? "İçerikler hazırlanıyor. Lütfen bu pencereyi kapatmayın." : ""}
-              </p>
-            </div>
-          ) : (
-            <div className={styles.resultWorkspace}>
-              <div className={styles.resultHero}>
-                <div>
-                  <span className={styles.readyBadge}><CheckCircle2 /> Hazır</span>
-                  <h3>{resultCampaign.name}</h3>
-                  <p>{resultCampaign.description}</p>
-                </div>
-                <div className={styles.resultStatus}>
-                  <small>Yayın durumu</small>
-                  <strong>{PUBLICATION_LABELS[resultCampaign.publicationStatus]}</strong>
-                </div>
-              </div>
-
-              {resultCampaign.posterHeadline && (
-                <section className={styles.assetPack} aria-labelledby="asset-pack-title">
-                  <div className={styles.assetPreview}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/fabrika/marketing/poster/${resultCampaign.id}?format=portrait`}
-                      alt={`${resultCampaign.name} dikey reklam önizlemesi`}
-                    />
-                  </div>
-                  <div className={styles.assetFormats}>
-                    <p>Görsel paketi</p>
-                    <h3 id="asset-pack-title">Her platform için doğru ölçü</h3>
-                    <p>Tek görseli esnetmek yerine platforma uygun yerleşimi ayrı indirin.</p>
-                    <div>
-                      {FORMAT_OPTIONS.map((format) => (
-                        <a
-                          key={format.id}
-                          href={`/api/fabrika/marketing/poster/${resultCampaign.id}?format=${format.id}&download=1`}
-                        >
-                          <span><ImageIcon /><b>{format.ratio}</b></span>
-                          <span><strong>{format.label}</strong><small>{format.detail}</small></span>
-                          <Download />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              )}
-
-              <section className={styles.copyWorkspace} aria-labelledby="channel-copy-title">
-                <div className={styles.copyHeading}>
-                  <div>
-                    <p>Kanal içerikleri</p>
-                    <h3 id="channel-copy-title">Bir kanalı seçip kontrol edin</h3>
-                  </div>
-                  <span>{resultCampaign.adCopies.filter((copy) => copy.approved).length}/{resultCampaign.adCopies.length} onaylı</span>
-                </div>
-                <div className={styles.copyTabs} role="tablist" aria-label="Kanal içerikleri">
-                  {resultCampaign.adCopies.map((copy) => {
-                    const Icon = channelIcon(copy.platform);
-                    return (
-                      <button
-                        key={copy.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={activeCopy?.id === copy.id}
-                        onClick={() => setActiveCopyId(copy.id)}
-                        data-active={activeCopy?.id === copy.id}
-                      >
-                        <Icon />
-                        {marketingChannelLabel(copy.platform)}
-                        {copy.approved && <Check />}
-                      </button>
-                    );
-                  })}
-                </div>
-                {activeCopy && (() => {
-                  const readable = readableAdCopy(activeCopy);
-                  return (
-                    <article className={styles.copyPanel} role="tabpanel">
-                      <div className={styles.copyPanelHeader}>
-                        <div>
-                          <span>{marketingChannelLabel(activeCopy.platform)}</span>
-                          <h4>{readable.headline}</h4>
-                        </div>
-                        <div>
-                          <button type="button" onClick={() => void copyActiveContent()}>
-                            {copied ? <Check /> : <Copy />}{copied ? "Kopyalandı" : "Metni kopyala"}
-                          </button>
-                          <button
-                            type="button"
-                            data-approved={activeCopy.approved}
-                            onClick={() => void toggleApprove(activeCopy)}
-                          >
-                            <CheckCircle2 />{activeCopy.approved ? "Onaylandı" : "Onayla"}
-                          </button>
-                        </div>
-                      </div>
-                      <div className={styles.copySections}>
-                        {readable.sections.map((section, index) => (
-                          <div key={`${section.label}-${index}`}>
-                            <span>{section.label}</span>
-                            <p>{section.value}</p>
-                          </div>
-                        ))}
-                        {readable.tags && <p className={styles.tags}>{readable.tags}</p>}
-                        {activeCopy.callToAction && (
-                          <div><span>Harekete geçirici ifade</span><p>{activeCopy.callToAction}</p></div>
-                        )}
-                      </div>
-                      <p className={styles.channelGuide}>
-                        <MonitorPlay /> Bu metin {marketingChannelLabel(activeCopy.platform)} yayın ekranı için ayrı hazırlandı.
-                      </p>
-                    </article>
-                  );
-                })()}
-              </section>
-
-              <section className={styles.publication}>
-                <div>
-                  <p>Son adım</p>
-                  <h3>Yayın paketini hazırlayın</h3>
-                  <p>Sistem dış platformlarda kendiliğinden paylaşım yapmaz; paketi indirip yayını siz tamamlarsınız.</p>
-                </div>
-                {resultCampaign.publicationStatus === "DRAFT" && (
-                  <div className={styles.publicationAction}>
-                    <p>{allApproved ? "Tüm kanal içerikleri onaylandı." : "Önce bütün kanal içeriklerini kontrol edip onaylayın."}</p>
-                    <button
-                      type="button"
-                      disabled={!allApproved || Boolean(publicationBusy)}
-                      onClick={() => void updatePublication("PREPARE")}
-                    >
-                      {publicationBusy === "PREPARE" ? <Loader2 className={styles.spin} /> : <PackageCheck />}
-                      Yayın paketine hazırla
-                    </button>
-                  </div>
-                )}
-                {resultCampaign.publicationStatus === "READY_TO_PUBLISH" && (
-                  <div className={styles.publicationAction}>
-                    <p>Onaylı metinler tek bir yayın paketinde toplanacak.</p>
-                    <button type="button" disabled={Boolean(publicationBusy)} onClick={() => void updatePublication("EXPORT")}>
-                      {publicationBusy === "EXPORT" ? <Loader2 className={styles.spin} /> : <FileDown />}
-                      Paketi oluştur
-                    </button>
-                  </div>
-                )}
-                {resultCampaign.publicationStatus === "EXPORTED" && (
-                  <div className={styles.exportedActions}>
-                    <a href={`/api/fabrika/marketing/campaigns/${resultCampaign.id}/publication?download=1`}>
-                      <Download /> Yayın paketini indir
-                    </a>
-                    <label>
-                      <span>Dış platformda yayınladıysanız bağlantıyı ekleyin</span>
-                      <input
-                        type="url"
-                        value={publicationUrl}
-                        onChange={(event) => setPublicationUrl(event.target.value)}
-                        placeholder="https://..."
-                      />
-                    </label>
-                    <button type="button" disabled={Boolean(publicationBusy)} onClick={() => void updatePublication("CONFIRM")}>
-                      {publicationBusy === "CONFIRM" ? <Loader2 className={styles.spin} /> : <ExternalLink />}
-                      Yayını doğrula
-                    </button>
-                  </div>
-                )}
-                {resultCampaign.publicationStatus === "MANUALLY_CONFIRMED" && (
-                  <div className={styles.confirmedPublication}>
-                    <CheckCircle2 />
-                    <div><strong>Yayın bağlantısı kaydedildi</strong><p>Bu kampanya artık eski çalışmalarınızdan da açılabilir.</p></div>
-                    {resultCampaign.externalPublicationUrl && (
-                      <a href={resultCampaign.externalPublicationUrl} target="_blank" rel="noreferrer">Yayını aç <ExternalLink /></a>
-                    )}
-                  </div>
-                )}
-              </section>
 
               <div className={styles.stageActions}>
                 <button
                   type="button"
                   className={styles.backButton}
-                  onClick={() => {
-                    setResultCampaignId(null);
-                    setResultSnapshot(null);
-                    setStep(1);
-                  }}
+                  onClick={() => setStep(1)}
                 >
-                  <ArrowLeft /> Yeni çalışma
+                  <ArrowLeft /> Geri
                 </button>
-                {onOpenHistory && (
-                  <button type="button" className={styles.primaryButton} onClick={onOpenHistory}>
-                    Eski çalışmalara git <ArrowRight />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => setStep(3)}
+                >
+                  İçerikleri seç <ArrowRight />
+                </button>
               </div>
-            </div>
+            </section>
           )}
 
-          {!resultCampaign && (
-            <div className={styles.stageActions}>
-              <button type="button" className={styles.backButton} onClick={() => setStep(2)}>
-                <ArrowLeft /> Geri
-              </button>
-              <span />
-            </div>
+          {step === 3 && (
+            <section
+              className={styles.stage}
+              aria-labelledby="domestic-step-three"
+            >
+              <div className={styles.stageHeading}>
+                <span>3</span>
+                <div>
+                  <p>İçerik masası</p>
+                  <h2 id="domestic-step-three">
+                    Kanal ve görsel paketini seçin
+                  </h2>
+                  <p>
+                    Önerilen paket hazır. Dilerseniz kanalları, görseli ve tonu
+                    değiştirebilirsiniz.
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.recommendedPack}>
+                <div>
+                  <span>
+                    <PackageCheck />
+                  </span>
+                  <div>
+                    <strong>Önerilen kanal paketi</strong>
+                    <p>
+                      {selectedChannels.length} kanal seçili. İsterseniz
+                      değiştirebilirsiniz.
+                    </p>
+                  </div>
+                </div>
+                <div className={styles.channelSummary}>
+                  {selectedChannels.slice(0, 7).map((platform) => {
+                    const Icon = channelIcon(platform);
+                    return (
+                      <span key={platform}>
+                        <Icon />
+                        {marketingChannelLabel(platform)}
+                      </span>
+                    );
+                  })}
+                  {selectedChannels.length > 7 && (
+                    <span>+{selectedChannels.length - 7}</span>
+                  )}
+                </div>
+              </div>
+
+              {campaignType === "listing" && (
+                <div className={styles.creativeSection}>
+                  <div className={styles.sectionLabel}>
+                    <Camera />
+                    <div>
+                      <strong>Hangi görsel kullanılsın?</strong>
+                      <small>
+                        Bir şey seçmezseniz portföy fotoğrafı kullanılır.
+                      </small>
+                    </div>
+                  </div>
+                  <div className={styles.creativeOptions}>
+                    <button
+                      type="button"
+                      data-selected={!creativeKey}
+                      onClick={() => setCreativeKey("")}
+                    >
+                      <ImageIcon />
+                      <span>
+                        <strong>Portföy fotoğrafı</strong>
+                        <small>En kolay seçim</small>
+                      </span>
+                      {!creativeKey && <Check />}
+                    </button>
+                    {availableCreativeAssets.map((asset) => {
+                      const key = `${asset.kind}:${asset.id}`;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          data-selected={creativeKey === key}
+                          onClick={() => setCreativeKey(key)}
+                        >
+                          {asset.kind === "VIDEO" ? <Video /> : <ImageIcon />}
+                          <span>
+                            <strong>{asset.title}</strong>
+                            <small>
+                              {asset.kind === "VIDEO"
+                                ? "Stüdyo videosu"
+                                : "Hazır poster"}
+                            </small>
+                          </span>
+                          {creativeKey === key && <Check />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <details className={styles.advanced}>
+                <summary>
+                  <Settings2 /> Kanalları ve ayrıntıları değiştir{" "}
+                  <ChevronDown />
+                </summary>
+                <div className={styles.advancedBody}>
+                  <fieldset>
+                    <legend>Yayın kanalları</legend>
+                    <div className={styles.channelGrid}>
+                      {MARKETING_CHANNELS.map((channel) => {
+                        const Icon = channelIcon(channel.id);
+                        const checked = selectedChannels.includes(channel.id);
+                        return (
+                          <label key={channel.id} data-selected={checked}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleChannel(channel.id)}
+                            />
+                            <Icon />
+                            <span>
+                              <strong>{channel.label}</strong>
+                              <small>{channel.group}</small>
+                            </span>
+                            <span className={styles.checkBox}>
+                              {checked && <Check />}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  <div className={styles.formGrid}>
+                    <label>
+                      <span>Hedef kitle</span>
+                      <input
+                        value={audience}
+                        onChange={(event) => setAudience(event.target.value)}
+                        maxLength={160}
+                      />
+                    </label>
+                    <label>
+                      <span>İletişim tonu</span>
+                      <select
+                        value={tone}
+                        onChange={(event) => setTone(event.target.value)}
+                      >
+                        <option value="professional">
+                          Profesyonel ve güven veren
+                        </option>
+                        <option value="warm">Sıcak ve samimi</option>
+                        <option value="premium">Seçkin ve premium</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Görsel stili</span>
+                      <select
+                        value={posterTemplate}
+                        onChange={(event) =>
+                          setPosterTemplate(event.target.value)
+                        }
+                      >
+                        <option value="SIGNATURE">
+                          İmza — temiz ve kurumsal
+                        </option>
+                        <option value="EDITORIAL">
+                          Editoryal — sakin ve seçkin
+                        </option>
+                        <option value="BOLD">Güçlü — dikkat çekici</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Hedef bağlantı (isteğe bağlı)</span>
+                      <input
+                        type="url"
+                        value={targetUrl}
+                        onChange={(event) => setTargetUrl(event.target.value)}
+                        placeholder="https://..."
+                      />
+                    </label>
+                  </div>
+                </div>
+              </details>
+
+              <div className={styles.stageActions}>
+                <button
+                  type="button"
+                  className={styles.backButton}
+                  onClick={() => setStep(2)}
+                >
+                  <ArrowLeft /> Geri
+                </button>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={goToReview}
+                >
+                  Kontrol et <ArrowRight />
+                </button>
+              </div>
+            </section>
           )}
-        </section>
-      )}
+
+          {step === 4 && (
+            <section
+              className={styles.stage}
+              aria-labelledby="domestic-step-four"
+            >
+              <div className={styles.stageHeading}>
+                <span>4</span>
+                <div>
+                  <p>Son kontrol</p>
+                  <h2 id="domestic-step-four">
+                    {resultCampaign
+                      ? "Kampanyanız hazır"
+                      : "Hazırlamadan önce kontrol edin"}
+                  </h2>
+                  <p>
+                    {resultCampaign
+                      ? "Metinleri tek tek kontrol edin, kopyalayın ve yayın paketini indirin."
+                      : "Seçimleriniz doğruysa tek tuşla bütün kanal içeriklerini oluşturun."}
+                  </p>
+                </div>
+              </div>
+
+              {!resultCampaign ? (
+                <div className={styles.reviewCard}>
+                  <div className={styles.reviewPrimary}>
+                    <span>
+                      {campaignType === "listing" ? (
+                        <Building2 />
+                      ) : (
+                        <Megaphone />
+                      )}
+                    </span>
+                    <div>
+                      <small>Tanıtılacak çalışma</small>
+                      <strong>
+                        {campaignType === "listing"
+                          ? selectedProperty?.title
+                          : companyName}
+                      </strong>
+                      <p>
+                        {campaignType === "listing"
+                          ? selectedProperty?.location
+                          : "Şirket tanıtımı"}
+                      </p>
+                    </div>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>Amaç</dt>
+                      <dd>{selectedGoal.title}</dd>
+                    </div>
+                    <div>
+                      <dt>Hedef kitle</dt>
+                      <dd>{audience}</dd>
+                    </div>
+                    <div>
+                      <dt>Kanallar</dt>
+                      <dd>{selectedChannels.length} yayın kanalı</dd>
+                    </div>
+                    <div>
+                      <dt>Görsel</dt>
+                      <dd>
+                        {selectedCreative?.title ||
+                          "Portföy fotoğrafı / marka şablonu"}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className={styles.formatPreview}>
+                    <strong>Sosyal medya görsel seti</strong>
+                    <p>
+                      Kampanyadan sonra her platform için doğru ölçüyü ayrı
+                      indirebilirsiniz.
+                    </p>
+                    <div>
+                      {FORMAT_OPTIONS.map((format) => (
+                        <span key={format.id}>
+                          <b>{format.ratio}</b>
+                          {format.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {generationError && (
+                    <div className={styles.errorBox} role="alert">
+                      <strong>Kampanya hazırlanamadı</strong>
+                      <p>{generationError}</p>
+                      <button
+                        type="button"
+                        onClick={() => void generateCampaign()}
+                      >
+                        Yeniden dene
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.generateButton}
+                    onClick={() => void generateCampaign()}
+                    disabled={generating || !isOnline}
+                  >
+                    {generating ? (
+                      <Loader2 className={styles.spin} />
+                    ) : (
+                      <Sparkles />
+                    )}
+                    <span>
+                      <strong>
+                        {generating
+                          ? "Kampanya hazırlanıyor…"
+                          : "Kampanyayı oluştur"}
+                      </strong>
+                      <small>
+                        {generating
+                          ? "Kanal metinleri ve görsel paket hazırlanıyor"
+                          : `${selectedChannels.length} kanala özel içerik üret`}
+                      </small>
+                    </span>
+                    {!generating && <ArrowRight />}
+                  </button>
+                  <p className={styles.liveStatus} aria-live="polite">
+                    {generating
+                      ? "İçerikler hazırlanıyor. Lütfen bu pencereyi kapatmayın."
+                      : ""}
+                  </p>
+                </div>
+              ) : (
+                <div className={styles.resultWorkspace}>
+                  <div className={styles.resultHero}>
+                    <div>
+                      <span className={styles.readyBadge}>
+                        <CheckCircle2 /> Hazır
+                      </span>
+                      <h3>{resultCampaign.name}</h3>
+                      <p>{resultCampaign.description}</p>
+                    </div>
+                    <div className={styles.resultStatus}>
+                      <small>Yayın durumu</small>
+                      <strong>
+                        {PUBLICATION_LABELS[resultCampaign.publicationStatus]}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {resultCampaign.posterHeadline && (
+                    <section
+                      className={styles.assetPack}
+                      aria-labelledby="asset-pack-title"
+                    >
+                      <div className={styles.assetPreview}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/api/fabrika/marketing/poster/${resultCampaign.id}?format=portrait`}
+                          alt={`${resultCampaign.name} dikey reklam önizlemesi`}
+                        />
+                      </div>
+                      <div className={styles.assetFormats}>
+                        <p>Görsel paketi</p>
+                        <h3 id="asset-pack-title">
+                          Her platform için doğru ölçü
+                        </h3>
+                        <p>
+                          Tek görseli esnetmek yerine platforma uygun yerleşimi
+                          ayrı indirin.
+                        </p>
+                        <div>
+                          {FORMAT_OPTIONS.map((format) => (
+                            <a
+                              key={format.id}
+                              href={`/api/fabrika/marketing/poster/${resultCampaign.id}?format=${format.id}&download=1`}
+                            >
+                              <span>
+                                <ImageIcon />
+                                <b>{format.ratio}</b>
+                              </span>
+                              <span>
+                                <strong>{format.label}</strong>
+                                <small>{format.detail}</small>
+                              </span>
+                              <Download />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
+                  <section
+                    className={styles.copyWorkspace}
+                    aria-labelledby="channel-copy-title"
+                  >
+                    <div className={styles.copyHeading}>
+                      <div>
+                        <p>Kanal içerikleri</p>
+                        <h3 id="channel-copy-title">
+                          Bir kanalı seçip kontrol edin
+                        </h3>
+                      </div>
+                      <span>
+                        {
+                          resultCampaign.adCopies.filter(
+                            (copy) => copy.approved,
+                          ).length
+                        }
+                        /{resultCampaign.adCopies.length} onaylı
+                      </span>
+                    </div>
+                    <div
+                      className={styles.copyTabs}
+                      role="tablist"
+                      aria-label="Kanal içerikleri"
+                    >
+                      {resultCampaign.adCopies.map((copy) => {
+                        const Icon = channelIcon(copy.platform);
+                        return (
+                          <button
+                            key={copy.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeCopy?.id === copy.id}
+                            onClick={() => setActiveCopyId(copy.id)}
+                            data-active={activeCopy?.id === copy.id}
+                          >
+                            <Icon />
+                            {marketingChannelLabel(copy.platform)}
+                            {copy.approved && <Check />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {activeCopy &&
+                      (() => {
+                        const readable = readableAdCopy(activeCopy);
+                        return (
+                          <article className={styles.copyPanel} role="tabpanel">
+                            <div className={styles.copyPanelHeader}>
+                              <div>
+                                <span>
+                                  {marketingChannelLabel(activeCopy.platform)}
+                                </span>
+                                <h4>{readable.headline}</h4>
+                              </div>
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyActiveContent()}
+                                >
+                                  {copied ? <Check /> : <Copy />}
+                                  {copied ? "Kopyalandı" : "Metni kopyala"}
+                                </button>
+                                <button
+                                  type="button"
+                                  data-approved={activeCopy.approved}
+                                  onClick={() => void toggleApprove(activeCopy)}
+                                >
+                                  <CheckCircle2 />
+                                  {activeCopy.approved ? "Onaylandı" : "Onayla"}
+                                </button>
+                              </div>
+                            </div>
+                            <div className={styles.copySections}>
+                              {readable.sections.map((section, index) => (
+                                <div key={`${section.label}-${index}`}>
+                                  <span>{section.label}</span>
+                                  <p>{section.value}</p>
+                                </div>
+                              ))}
+                              {readable.tags && (
+                                <p className={styles.tags}>{readable.tags}</p>
+                              )}
+                              {activeCopy.callToAction && (
+                                <div>
+                                  <span>Harekete geçirici ifade</span>
+                                  <p>{activeCopy.callToAction}</p>
+                                </div>
+                              )}
+                            </div>
+                            <p className={styles.channelGuide}>
+                              <MonitorPlay /> Bu metin{" "}
+                              {marketingChannelLabel(activeCopy.platform)} yayın
+                              ekranı için ayrı hazırlandı.
+                            </p>
+                          </article>
+                        );
+                      })()}
+                  </section>
+
+                  <section className={styles.publication}>
+                    <div>
+                      <p>Son adım</p>
+                      <h3>Yayın paketini hazırlayın</h3>
+                      <p>
+                        Sistem dış platformlarda kendiliğinden paylaşım yapmaz;
+                        paketi indirip yayını siz tamamlarsınız.
+                      </p>
+                    </div>
+                    {resultCampaign.publicationStatus === "DRAFT" && (
+                      <div className={styles.publicationAction}>
+                        <p>
+                          {allApproved
+                            ? "Tüm kanal içerikleri onaylandı."
+                            : "Önce bütün kanal içeriklerini kontrol edip onaylayın."}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={!allApproved || Boolean(publicationBusy)}
+                          onClick={() => void updatePublication("PREPARE")}
+                        >
+                          {publicationBusy === "PREPARE" ? (
+                            <Loader2 className={styles.spin} />
+                          ) : (
+                            <PackageCheck />
+                          )}
+                          Yayın paketine hazırla
+                        </button>
+                      </div>
+                    )}
+                    {resultCampaign.publicationStatus ===
+                      "READY_TO_PUBLISH" && (
+                      <div className={styles.publicationAction}>
+                        <p>
+                          Onaylı metinler tek bir yayın paketinde toplanacak.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={Boolean(publicationBusy)}
+                          onClick={() => void updatePublication("EXPORT")}
+                        >
+                          {publicationBusy === "EXPORT" ? (
+                            <Loader2 className={styles.spin} />
+                          ) : (
+                            <FileDown />
+                          )}
+                          Paketi oluştur
+                        </button>
+                      </div>
+                    )}
+                    {resultCampaign.publicationStatus === "EXPORTED" && (
+                      <div className={styles.exportedActions}>
+                        <a
+                          href={`/api/fabrika/marketing/campaigns/${resultCampaign.id}/publication?download=1`}
+                        >
+                          <Download /> Yayın paketini indir
+                        </a>
+                        <label>
+                          <span>
+                            Dış platformda yayınladıysanız bağlantıyı ekleyin
+                          </span>
+                          <input
+                            type="url"
+                            value={publicationUrl}
+                            onChange={(event) =>
+                              setPublicationUrl(event.target.value)
+                            }
+                            placeholder="https://..."
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          disabled={Boolean(publicationBusy)}
+                          onClick={() => void updatePublication("CONFIRM")}
+                        >
+                          {publicationBusy === "CONFIRM" ? (
+                            <Loader2 className={styles.spin} />
+                          ) : (
+                            <ExternalLink />
+                          )}
+                          Yayını doğrula
+                        </button>
+                      </div>
+                    )}
+                    {resultCampaign.publicationStatus ===
+                      "MANUALLY_CONFIRMED" && (
+                      <div className={styles.confirmedPublication}>
+                        <CheckCircle2 />
+                        <div>
+                          <strong>Yayın bağlantısı kaydedildi</strong>
+                          <p>
+                            Bu kampanya artık eski çalışmalarınızdan da
+                            açılabilir.
+                          </p>
+                        </div>
+                        {resultCampaign.externalPublicationUrl && (
+                          <a
+                            href={resultCampaign.externalPublicationUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Yayını aç <ExternalLink />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </section>
+
+                  <div className={styles.stageActions}>
+                    <button
+                      type="button"
+                      className={styles.backButton}
+                      onClick={() => {
+                        setResultCampaignId(null);
+                        setResultSnapshot(null);
+                        setStep(1);
+                      }}
+                    >
+                      <ArrowLeft /> Yeni çalışma
+                    </button>
+                    {onOpenHistory && (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={onOpenHistory}
+                      >
+                        Eski çalışmalara git <ArrowRight />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!resultCampaign && (
+                <div className={styles.stageActions}>
+                  <button
+                    type="button"
+                    className={styles.backButton}
+                    onClick={() => setStep(3)}
+                  >
+                    <ArrowLeft /> Geri
+                  </button>
+                  <span />
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

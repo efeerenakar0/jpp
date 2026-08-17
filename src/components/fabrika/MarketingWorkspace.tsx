@@ -7,6 +7,7 @@ import {
   History,
   Loader2,
   Megaphone,
+  Plus,
   RefreshCw,
   Sparkles,
   WifiOff,
@@ -81,7 +82,8 @@ const AREAS: Array<{
 ];
 
 function areaFromQuery(value: string | null): AreaId {
-  if (value === "yurt-disi" || value === "international") return "international";
+  if (value === "yurt-disi" || value === "international")
+    return "international";
   if (value === "calismalar" || value === "history") return "history";
   return "domestic";
 }
@@ -107,13 +109,12 @@ export function MarketingWorkspace({
   const [isOnline, setIsOnline] = useState(true);
   const [activeArea, setActiveArea] = useState<AreaId>("domestic");
   const [initialPropertyId, setInitialPropertyId] = useState("");
+  const [domesticSession, setDomesticSession] = useState(0);
 
   useEffect(() => {
     const syncAreaFromHistory = () => {
       const query = new URLSearchParams(window.location.search);
-      setActiveArea(
-        areaFromQuery(query.get("alan")),
-      );
+      setActiveArea(areaFromQuery(query.get("alan")));
       setInitialPropertyId(query.get("propertyId") || "");
     };
     syncAreaFromHistory();
@@ -127,7 +128,9 @@ export function MarketingWorkspace({
       const response = await fetch("/api/fabrika/marketing/campaigns", {
         cache: "no-store",
       });
-      const body = (await response.json()) as MarketingData & { error?: string };
+      const body = (await response.json()) as MarketingData & {
+        error?: string;
+      };
       if (!response.ok) {
         throw new Error(body.error || "Pazarlama çalışmaları alınamadı.");
       }
@@ -162,11 +165,15 @@ export function MarketingWorkspace({
   }, []);
 
   const domesticCampaigns = useMemo(
-    () => data?.campaigns.filter((campaign) => campaign.type !== "international") || [],
+    () =>
+      data?.campaigns.filter((campaign) => campaign.type !== "international") ||
+      [],
     [data?.campaigns],
   );
   const internationalCampaigns = useMemo(
-    () => data?.campaigns.filter((campaign) => campaign.type === "international") || [],
+    () =>
+      data?.campaigns.filter((campaign) => campaign.type === "international") ||
+      [],
     [data?.campaigns],
   );
 
@@ -176,7 +183,9 @@ export function MarketingWorkspace({
     url.searchParams.set("alan", queryValueForArea(nextArea));
     window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
     window.requestAnimationFrame(() => {
-      document.getElementById("marketing-workspace")?.focus({ preventScroll: true });
+      document
+        .getElementById("marketing-workspace")
+        ?.focus({ preventScroll: true });
     });
   }
 
@@ -207,23 +216,50 @@ export function MarketingWorkspace({
     (data?.creativeAssets.length || 0) +
     (data?.websiteAnalyses.length || 0);
 
+  function startNewCampaign() {
+    setDomesticSession((current) => current + 1);
+    changeArea("domestic");
+  }
+
   return (
     <main className={styles.page}>
-      <header className={styles.hero}>
-        <div className={styles.heroGlow} aria-hidden="true" />
-        <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}><Sparkles /> AI Pazarlama Uzmanı</span>
-          <h1>Pazarlama yapmak artık üç seçim kadar kolay.</h1>
-          <p>
-            Neyi tanıtacağınızı ve kime ulaşmak istediğinizi seçin. Sistem doğru
-            kanalı, metni ve yayın adımlarını sizin için hazırlasın.
-          </p>
+      <header className={styles.studioHeader}>
+        <div className={styles.studioIdentity}>
+          <span className={styles.studioIcon}>
+            <Sparkles />
+          </span>
+          <div>
+            <span className={styles.eyebrow}>AI Pazarlama Uzmanı</span>
+            <h1>Pazarlama Stüdyosu</h1>
+            <p>
+              Portföyünüzden yayına hazır kampanyaya, tek bir çalışma alanında
+              ilerleyin.
+            </p>
+          </div>
         </div>
-        <div className={styles.heroSteps} aria-label="Pazarlama akışı özeti">
-          <span><b>1</b> Portföyü seç</span>
-          <span><b>2</b> Hedefi seç</span>
-          <span><b>3</b> Hazır paketi al</span>
+        <div
+          className={styles.flowSummary}
+          aria-label="Kampanya oluşturma özeti"
+        >
+          {[
+            ["1", "Kaynak"],
+            ["2", "Hedef"],
+            ["3", "İçerikler"],
+            ["4", "Yayın"],
+          ].map(([number, label]) => (
+            <span key={number}>
+              <b>{number}</b>
+              {label}
+            </span>
+          ))}
         </div>
+        <button
+          type="button"
+          className={styles.newCampaignButton}
+          onClick={startNewCampaign}
+        >
+          <Plus /> Yeni kampanya
+        </button>
       </header>
 
       {!isOnline && (
@@ -231,13 +267,22 @@ export function MarketingWorkspace({
           <WifiOff />
           <div>
             <strong>İnternet bağlantısı yok</strong>
-            <p>Eski çalışmalarınızı inceleyebilirsiniz; yeni içerik üretimi bağlantı gelince açılır.</p>
+            <p>
+              Eski çalışmalarınızı inceleyebilirsiniz; yeni içerik üretimi
+              bağlantı gelince açılır.
+            </p>
           </div>
-          <button type="button" onClick={() => changeArea("history")}>Eski çalışmaları aç <ArrowRight /></button>
+          <button type="button" onClick={() => changeArea("history")}>
+            Eski çalışmaları aç <ArrowRight />
+          </button>
         </div>
       )}
 
-      <nav className={styles.areaNav} aria-label="Pazarlama çalışma alanları" role="tablist">
+      <nav
+        className={styles.areaNav}
+        aria-label="Pazarlama çalışma alanları"
+        role="tablist"
+      >
         {AREAS.map((area, areaIndex) => {
           const Icon = area.icon;
           const count =
@@ -259,12 +304,17 @@ export function MarketingWorkspace({
               onClick={() => changeArea(area.id)}
               onKeyDown={(event) => moveAreaFocus(event, areaIndex)}
             >
-              <span className={styles.areaIcon}><Icon /></span>
+              <span className={styles.areaIcon}>
+                <Icon />
+              </span>
               <span className={styles.areaCopy}>
                 <strong>{area.label}</strong>
                 <small>{area.description}</small>
               </span>
-              <span className={styles.areaCount} aria-label={`${count} çalışma`}>
+              <span
+                className={styles.areaCount}
+                aria-label={`${count} çalışma`}
+              >
                 {loading ? "—" : count}
               </span>
             </button>
@@ -279,7 +329,9 @@ export function MarketingWorkspace({
       >
         {loadError && !data ? (
           <div className={styles.loadError} role="alert">
-            <span><RefreshCw /></span>
+            <span>
+              <RefreshCw />
+            </span>
             <div>
               <h2>Pazarlama alanı açılamadı</h2>
               <p>{loadError}</p>
@@ -297,11 +349,15 @@ export function MarketingWorkspace({
         ) : loading && !data ? (
           <div className={styles.loadingState} role="status">
             <Loader2 />
-            <div><strong>Çalışma alanınız hazırlanıyor</strong><span>Portföyler ve eski çalışmalar yükleniyor…</span></div>
+            <div>
+              <strong>Çalışma alanınız hazırlanıyor</strong>
+              <span>Portföyler ve eski çalışmalar yükleniyor…</span>
+            </div>
           </div>
         ) : activeArea === "domestic" ? (
           <div id="marketing-panel-domestic" role="tabpanel">
             <DomesticMarketingFlow
+              key={`domestic-${domesticSession}`}
               companyName={data?.company.name || "Şirketiniz"}
               properties={data?.properties || []}
               campaigns={domesticCampaigns}
@@ -338,7 +394,10 @@ export function MarketingWorkspace({
       </section>
 
       <footer className={styles.pageFooter}>
-        <span>Business CEO AI içerikleri hazırlar; dış platform hesabı, ödeme ve son yayın onayı sizdedir.</span>
+        <span>
+          Business CEO AI içerikleri hazırlar; dış platform hesabı, ödeme ve son
+          yayın onayı sizdedir.
+        </span>
       </footer>
     </main>
   );

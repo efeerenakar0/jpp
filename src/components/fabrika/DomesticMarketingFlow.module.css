@@ -41,10 +41,273 @@
   box-shadow: 0 0 0 3px rgba(84, 217, 232, 0.28);
 }
 
+.studioShell {
+  display: grid;
+  grid-template-columns: 286px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.studioRail {
+  position: sticky;
+  top: 82px;
+  display: grid;
+  gap: 13px;
+  padding: 15px;
+  border: 1px solid var(--mk-line);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 0 0, rgba(84, 217, 232, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(9, 26, 39, 0.98), rgba(5, 16, 25, 0.98));
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.18);
+}
+
+.railHeading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--mk-line);
+}
+
+.railHeading > span {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(84, 217, 232, 0.25);
+  border-radius: 12px;
+  color: var(--mk-cyan);
+  background: rgba(84, 217, 232, 0.07);
+}
+
+.railHeading svg {
+  width: 18px;
+  height: 18px;
+}
+.railHeading p {
+  margin: 0 0 2px;
+  color: var(--mk-green);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.railHeading h2 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.sourceChoices,
+.recentWorks {
+  display: grid;
+  gap: 7px;
+}
+
+.sourceChoices > button,
+.recentWorks > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 64px;
+  padding: 9px;
+  border: 1px solid var(--mk-line);
+  border-radius: 12px;
+  color: var(--mk-text);
+  text-align: left;
+  background: rgba(3, 12, 19, 0.42);
+  cursor: pointer;
+  transition:
+    transform 170ms ease,
+    border-color 170ms ease,
+    background 170ms ease;
+}
+
+.sourceChoices > button:hover,
+.recentWorks > button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(84, 217, 232, 0.32);
+}
+.sourceChoices > button[data-selected="true"] {
+  border-color: rgba(85, 214, 173, 0.42);
+  background: linear-gradient(
+    135deg,
+    rgba(85, 214, 173, 0.14),
+    rgba(84, 217, 232, 0.05)
+  );
+}
+.sourceChoices > button > span:first-child,
+.recentWorks > button > span:first-child {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--mk-cyan);
+  background: rgba(84, 217, 232, 0.07);
+}
+.sourceChoices > button[data-selected="true"] > span:first-child {
+  color: var(--mk-green);
+  background: rgba(85, 214, 173, 0.1);
+}
+.sourceChoices svg,
+.recentWorks svg {
+  width: 15px;
+  height: 15px;
+}
+.sourceChoices > button > span:nth-child(2),
+.recentWorks > button > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.sourceChoices strong,
+.recentWorks strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sourceChoices small,
+.recentWorks small {
+  overflow: hidden;
+  color: var(--mk-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sourceChoices > button > svg,
+.recentWorks > button > svg {
+  color: var(--mk-muted);
+}
+
+.railProgress {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(85, 214, 173, 0.18);
+  border-radius: 12px;
+  background: rgba(85, 214, 173, 0.045);
+}
+
+.railProgress p {
+  margin: 0;
+  color: var(--mk-green);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.railProgress strong {
+  font-size: 13px;
+}
+.railProgress > div {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(125, 174, 193, 0.14);
+  overflow: hidden;
+}
+.railProgress > div span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--mk-green), var(--mk-cyan));
+  transition: width 220ms ease;
+}
+.railProgress small {
+  color: var(--mk-muted);
+  line-height: 1.4;
+}
+
+.recentWorks {
+  padding-top: 2px;
+  border-top: 1px solid rgba(125, 174, 193, 0.1);
+}
+.recentWorks > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 2px 1px;
+}
+.recentWorks > div strong {
+  font-size: 11px;
+}
+.recentWorks > div button {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  color: var(--mk-cyan);
+  font-size: 10px;
+  font-weight: 750;
+  background: transparent;
+  cursor: pointer;
+}
+.recentWorks > button {
+  min-height: 54px;
+  padding: 7px;
+}
+.recentWorks > button > span:first-child {
+  width: 30px;
+  height: 30px;
+}
+.noRecentWorks {
+  margin: 3px 2px 0;
+  color: var(--mk-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.studioCanvas {
+  min-width: 0;
+}
+
+.sourceNotice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 26px 0;
+  padding: 13px 15px;
+  border: 1px solid rgba(85, 214, 173, 0.23);
+  border-radius: 14px;
+  background: rgba(85, 214, 173, 0.055);
+}
+
+.sourceNotice > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--mk-green);
+  background: rgba(85, 214, 173, 0.1);
+}
+.sourceNotice svg {
+  width: 17px;
+  height: 17px;
+}
+.sourceNotice > div {
+  min-width: 0;
+}
+.sourceNotice strong {
+  font-size: 13px;
+}
+.sourceNotice p {
+  margin: 3px 0 0;
+  color: var(--mk-muted);
+  font-size: 11px;
+}
+.sourceNotice > svg {
+  color: var(--mk-green);
+}
+
 .stepper {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 14px;
   padding: 8px;
@@ -59,7 +322,12 @@
   right: 17%;
   left: 17%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(84, 217, 232, 0.22), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(84, 217, 232, 0.22),
+    transparent
+  );
   content: "";
 }
 
@@ -76,7 +344,10 @@
   color: var(--mk-muted);
   text-align: left;
   background: transparent;
-  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
 }
 
 .stepper button:not(:disabled) {
@@ -86,7 +357,11 @@
 .stepper button[data-active="true"] {
   border-color: rgba(85, 214, 173, 0.3);
   color: var(--mk-text);
-  background: linear-gradient(135deg, rgba(85, 214, 173, 0.13), rgba(84, 217, 232, 0.05));
+  background: linear-gradient(
+    135deg,
+    rgba(85, 214, 173, 0.13),
+    rgba(84, 217, 232, 0.05)
+  );
 }
 
 .stepper button[data-complete="true"] {
@@ -144,7 +419,11 @@
   border: 1px solid var(--mk-line);
   border-radius: 22px;
   background:
-    radial-gradient(circle at 100% 0%, rgba(84, 217, 232, 0.07), transparent 30%),
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(84, 217, 232, 0.07),
+      transparent 30%
+    ),
     linear-gradient(180deg, rgba(10, 28, 41, 0.98), rgba(6, 18, 28, 0.98));
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
   overflow: hidden;
@@ -228,7 +507,10 @@
   text-align: left;
   background: rgba(4, 14, 23, 0.64);
   cursor: pointer;
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
 }
 
 .choiceCard:hover {
@@ -238,7 +520,11 @@
 
 .choiceCard[data-selected="true"] {
   border-color: var(--mk-line-strong);
-  background: linear-gradient(135deg, rgba(85, 214, 173, 0.13), rgba(7, 27, 37, 0.82));
+  background: linear-gradient(
+    135deg,
+    rgba(85, 214, 173, 0.13),
+    rgba(7, 27, 37, 0.82)
+  );
   box-shadow: inset 0 0 0 1px rgba(85, 214, 173, 0.08);
 }
 
@@ -489,9 +775,17 @@
   background: rgba(84, 217, 232, 0.08);
 }
 
-.websiteSummary > span svg { width: 20px; height: 20px; }
-.websiteSummary label { display: grid; gap: 5px; }
-.websiteSummary small { color: var(--mk-muted); }
+.websiteSummary > span svg {
+  width: 20px;
+  height: 20px;
+}
+.websiteSummary label {
+  display: grid;
+  gap: 5px;
+}
+.websiteSummary small {
+  color: var(--mk-muted);
+}
 .websiteSummary input {
   width: 100%;
   min-height: 48px;
@@ -503,7 +797,10 @@
   background: #06111b;
 }
 
-.websiteSummary input:focus-visible { border-color: var(--mk-cyan); outline: none; }
+.websiteSummary input:focus-visible {
+  border-color: var(--mk-cyan);
+  outline: none;
+}
 
 .brandSummary > span {
   display: grid;
@@ -557,7 +854,10 @@
   font-size: 13px;
   font-weight: 850;
   cursor: pointer;
-  transition: transform 180ms ease, background 180ms ease, opacity 180ms ease;
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    opacity 180ms ease;
 }
 
 .primaryButton,
@@ -620,7 +920,10 @@
   text-align: left;
   background: rgba(4, 14, 23, 0.62);
   cursor: pointer;
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
 }
 
 .goalCard:hover {
@@ -630,7 +933,11 @@
 
 .goalCard[data-selected="true"] {
   border-color: var(--mk-line-strong);
-  background: linear-gradient(145deg, rgba(85, 214, 173, 0.14), rgba(8, 23, 35, 0.9));
+  background: linear-gradient(
+    145deg,
+    rgba(85, 214, 173, 0.14),
+    rgba(8, 23, 35, 0.9)
+  );
 }
 
 .goalCard > span {
@@ -1213,7 +1520,11 @@
   gap: 20px;
   padding: 18px;
   border-bottom: 1px solid var(--mk-line);
-  background: linear-gradient(120deg, rgba(85, 214, 173, 0.09), rgba(84, 217, 232, 0.035));
+  background: linear-gradient(
+    120deg,
+    rgba(85, 214, 173, 0.09),
+    rgba(84, 217, 232, 0.035)
+  );
 }
 
 .readyBadge {
@@ -1325,7 +1636,9 @@
   color: var(--mk-soft);
   text-decoration: none;
   background: rgba(7, 21, 32, 0.72);
-  transition: border-color 180ms ease, transform 180ms ease;
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease;
 }
 
 .assetFormats a:hover {
@@ -1664,14 +1977,56 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes shimmer {
-  to { background-position: -200% 0; }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 1120px) {
+  .studioShell {
+    grid-template-columns: 236px minmax(0, 1fr);
+  }
+  .studioRail {
+    padding: 12px;
+  }
+  .sourceChoices > button {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .sourceChoices > button > svg {
+    display: none;
+  }
+  .recentWorks {
+    display: none;
+  }
+  .stepper small {
+    display: none;
+  }
 }
 
 @media (max-width: 900px) {
+  .studioShell {
+    grid-template-columns: 1fr;
+  }
+  .studioRail {
+    position: static;
+  }
+  .sourceChoices {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .sourceChoices > button {
+    min-height: 74px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .railProgress {
+    display: none;
+  }
+
   .goalGrid,
   .channelGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1701,6 +2056,24 @@
 }
 
 @media (max-width: 680px) {
+  .studioRail {
+    padding: 11px;
+    border-radius: 16px;
+  }
+  .railHeading {
+    padding-bottom: 9px;
+  }
+  .sourceChoices {
+    grid-template-columns: 1fr;
+  }
+  .sourceChoices > button {
+    min-height: 58px;
+  }
+  .sourceNotice {
+    margin: 15px 16px 0;
+    padding: 11px;
+  }
+
   .stepper {
     gap: 4px;
     padding: 5px;
@@ -1723,8 +2096,12 @@
     height: 28px;
   }
 
-  .stepper button > span:last-child { display: grid; }
-  .stepper button small { display: none; }
+  .stepper button > span:last-child {
+    display: grid;
+  }
+  .stepper button small {
+    display: none;
+  }
 
   .stage {
     border-radius: 18px;
@@ -1883,22 +2260,32 @@
 .flow select,
 .flow button,
 .flow a,
-.flow summary { font-size: max(12px, 0.75rem); }
+.flow summary {
+  font-size: max(12px, 0.75rem);
+}
 .flow h3,
 .flow h4,
-.flow strong { font-size: max(13px, 0.8125rem); }
+.flow strong {
+  font-size: max(13px, 0.8125rem);
+}
 .flow button,
 .flow a,
-.flow summary { min-height: 44px; }
+.flow summary {
+  min-height: 44px;
+}
 
 @media (max-width: 680px) {
   .flow p,
   .flow li,
   .flow label,
   .flow input,
-  .flow select { font-size: max(16px, 1rem); }
+  .flow select {
+    font-size: max(16px, 1rem);
+  }
   .flow small,
   .flow button,
   .flow a,
-  .flow summary { font-size: max(14px, 0.875rem); }
+  .flow summary {
+    font-size: max(14px, 0.875rem);
+  }
 }

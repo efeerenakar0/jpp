@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,8 +22,9 @@ import {
   Share2,
   ShieldAlert,
   Sparkles,
-} from 'lucide-react';
-import { toast } from 'sonner';
+  Target,
+} from "lucide-react";
+import { toast } from "sonner";
 import {
   INTERNATIONAL_MARKETS,
   isVerifiedPortalLink,
@@ -31,9 +32,9 @@ import {
   type InternationalMarket,
   type InternationalMarketingPlan,
   type InternationalPortal,
-} from '@/lib/international-marketing';
-import { Button } from '@/components/ui/button';
-import styles from './InternationalMarketingPanel.module.css';
+} from "@/lib/international-marketing";
+import { Button } from "@/components/ui/button";
+import styles from "./InternationalMarketingPanel.module.css";
 
 type Property = {
   id: string;
@@ -50,7 +51,7 @@ type Campaign = {
   generatedBy: string | null;
   generatedModel: string | null;
   createdAt: string;
-  property: Omit<Property, 'id'> & { id: string } | null;
+  property: (Omit<Property, "id"> & { id: string }) | null;
   internationalPlan: InternationalMarketingPlan | null;
 };
 
@@ -83,15 +84,18 @@ type PortalWithOptionalMetadata = InternationalPortal & {
 };
 
 function portalEligibilityLabel(portal: InternationalPortal) {
-  if (portal.eligibility === 'direct') return 'Türkiye ilanına uygun';
-  if (portal.eligibility === 'membership') return 'Üyelik veya bağlantı gerekir';
-  if (portal.eligibility === 'campaign_only') return 'Yalnız kampanya hazırlanır';
-  if (portal.eligibility === 'unsupported') return 'Türkiye ilanına uygun değil';
-  return 'Uygunluk doğrulanmalı';
+  if (portal.eligibility === "direct") return "Türkiye ilanına uygun";
+  if (portal.eligibility === "membership")
+    return "Üyelik veya bağlantı gerekir";
+  if (portal.eligibility === "campaign_only")
+    return "Yalnız kampanya hazırlanır";
+  if (portal.eligibility === "unsupported")
+    return "Türkiye ilanına uygun değil";
+  return "Uygunluk doğrulanmalı";
 }
 
 function canOpenPublishing(portal: InternationalPortal) {
-  return portal.eligibility === 'direct' || portal.eligibility === 'membership';
+  return portal.eligibility === "direct" || portal.eligibility === "membership";
 }
 
 type GeneratedSnapshot = {
@@ -108,35 +112,35 @@ const FLOW_STEPS: Array<{
   title: string;
   shortDescription: string;
 }> = [
-  { id: 1, title: 'Portföy', shortDescription: 'Tanıtılacak kayıt' },
-  { id: 2, title: 'Ülke ve portal', shortDescription: 'Hedef pazar' },
-  { id: 3, title: 'Hazır plan', shortDescription: 'Kontrol ve yayın' },
+  { id: 1, title: "Portföy", shortDescription: "Tanıtılacak kayıt" },
+  { id: 2, title: "Ülke ve portal", shortDescription: "Hedef pazar" },
+  { id: 3, title: "Hazır plan", shortDescription: "Kontrol ve yayın" },
 ];
 
 export function providerLabel(provider: string | null) {
-  const normalized = (provider || '').trim().toUpperCase();
+  const normalized = (provider || "").trim().toUpperCase();
   if (
     !normalized ||
-    normalized === 'RULE_ENGINE' ||
-    normalized === 'DETERMINISTIC' ||
-    normalized === 'FALLBACK'
+    normalized === "RULE_ENGINE" ||
+    normalized === "DETERMINISTIC" ||
+    normalized === "FALLBACK"
   ) {
-    return 'Doğrulanmış kurallarla hazırlandı';
+    return "Doğrulanmış kurallarla hazırlandı";
   }
-  return 'AI destekli';
+  return "AI destekli";
 }
 
-function accountTypeLabel(accountType: InternationalPortal['accountType']) {
-  if (accountType === 'professional') return 'Profesyonel hesap gerekli';
-  if (accountType === 'individual') return 'Bireysel hesap';
-  return 'Bireysel veya profesyonel hesap';
+function accountTypeLabel(accountType: InternationalPortal["accountType"]) {
+  if (accountType === "professional") return "Profesyonel hesap gerekli";
+  if (accountType === "individual") return "Bireysel hesap";
+  return "Bireysel veya profesyonel hesap";
 }
 
 function money(value: number | null) {
-  if (!value) return 'Fiyat bilgisi yok';
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
+  if (!value) return "Fiyat bilgisi yok";
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
     maximumFractionDigits: 0,
   }).format(value);
 }
@@ -145,14 +149,14 @@ function formatDate(value: string | null | undefined) {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleDateString('tr-TR');
+  return parsed.toLocaleDateString("tr-TR");
 }
 
 function searchable(value: string) {
   return value
-    .toLocaleLowerCase('tr-TR')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 async function copyText(value: string, label: string) {
@@ -160,7 +164,7 @@ async function copyText(value: string, label: string) {
     await navigator.clipboard.writeText(value);
     toast.success(`${label} kopyalandı.`);
   } catch {
-    toast.error('Metin kopyalanamadı. Tarayıcı iznini kontrol edin.');
+    toast.error("Metin kopyalanamadı. Tarayıcı iznini kontrol edin.");
   }
 }
 
@@ -172,15 +176,15 @@ export default function InternationalMarketingPanel({
   onGenerated,
 }: Props) {
   const [step, setStep] = useState<FlowStep>(1);
-  const [propertyId, setPropertyId] = useState(properties[0]?.id || '');
-  const [countryCode, setCountryCode] = useState('DE');
+  const [propertyId, setPropertyId] = useState(properties[0]?.id || "");
+  const [countryCode, setCountryCode] = useState("DE");
   const [portalId, setPortalId] = useState(
     recommendInternationalPortal(
-      INTERNATIONAL_MARKETS.find((market) => market.code === 'DE') ||
+      INTERNATIONAL_MARKETS.find((market) => market.code === "DE") ||
         INTERNATIONAL_MARKETS[0],
-    )?.id || '',
+    )?.id || "",
   );
-  const [countryQuery, setCountryQuery] = useState('');
+  const [countryQuery, setCountryQuery] = useState("");
   const [showAllCountries, setShowAllCountries] = useState(false);
   const [showAlternatives, setShowAlternatives] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -189,21 +193,19 @@ export default function InternationalMarketingPanel({
   const [generatedSnapshot, setGeneratedSnapshot] =
     useState<GeneratedSnapshot | null>(null);
 
-  const effectivePropertyId = propertyId || properties[0]?.id || '';
+  const effectivePropertyId = propertyId || properties[0]?.id || "";
   const selectedProperty =
     properties.find((property) => property.id === effectivePropertyId) || null;
 
-  const selectedMarket = (
-    INTERNATIONAL_MARKETS.find((market) => market.code === countryCode) ||
-    INTERNATIONAL_MARKETS[0]
-  ) as MarketWithOptionalMetadata;
+  const selectedMarket = (INTERNATIONAL_MARKETS.find(
+    (market) => market.code === countryCode,
+  ) || INTERNATIONAL_MARKETS[0]) as MarketWithOptionalMetadata;
   const recommendedPortal = recommendInternationalPortal(selectedMarket) as
     | PortalWithOptionalMetadata
     | undefined;
-  const selectedPortal = (
-    selectedMarket.portals.find((portal) => portal.id === portalId) ||
-    recommendedPortal
-  ) as PortalWithOptionalMetadata | undefined;
+  const selectedPortal = (selectedMarket.portals.find(
+    (portal) => portal.id === portalId,
+  ) || recommendedPortal) as PortalWithOptionalMetadata | undefined;
   const alternativePortals = selectedMarket.portals.filter(
     (portal) => portal.id !== recommendedPortal?.id,
   ) as PortalWithOptionalMetadata[];
@@ -220,11 +222,12 @@ export default function InternationalMarketingPanel({
     );
 
   const previousPortalCampaign =
-    visibleCampaigns.find((campaign) =>
-      campaign.property?.id === selectedProperty?.id &&
-      campaign.internationalPlan?.portalCopies.some(
-        (copy) => copy.portalId === selectedPortal?.id,
-      ),
+    visibleCampaigns.find(
+      (campaign) =>
+        campaign.property?.id === selectedProperty?.id &&
+        campaign.internationalPlan?.portalCopies.some(
+          (copy) => copy.portalId === selectedPortal?.id,
+        ),
     ) || null;
 
   const storedResultCampaign = (() => {
@@ -258,14 +261,14 @@ export default function InternationalMarketingPanel({
     storedResultCampaign?.property?.title ||
     generatedSnapshot?.propertyTitle ||
     selectedProperty?.title ||
-    'Portföy';
+    "Portföy";
 
   const normalizedQuery = searchable(countryQuery.trim());
   const matchingMarkets = INTERNATIONAL_MARKETS.filter((market) => {
     if (!normalizedQuery) return true;
     return (
       searchable(market.country).includes(normalizedQuery) ||
-      market.code.toLocaleLowerCase('en-US').includes(normalizedQuery) ||
+      market.code.toLocaleLowerCase("en-US").includes(normalizedQuery) ||
       searchable(market.language).includes(normalizedQuery)
     );
   });
@@ -286,7 +289,7 @@ export default function InternationalMarketingPanel({
 
   function chooseMarket(market: InternationalMarket) {
     setCountryCode(market.code);
-    setPortalId(recommendInternationalPortal(market)?.id || '');
+    setPortalId(recommendInternationalPortal(market)?.id || "");
     setShowAlternatives(false);
     setGenerationError(null);
     setResultCampaignId(null);
@@ -310,17 +313,17 @@ export default function InternationalMarketingPanel({
   async function generatePlan() {
     if (!isOnline) {
       setGenerationError(
-        'İnternet bağlantısı yok. Bağlantı geldiğinde seçimleriniz kaybolmadan yeniden deneyebilirsiniz.',
+        "İnternet bağlantısı yok. Bağlantı geldiğinde seçimleriniz kaybolmadan yeniden deneyebilirsiniz.",
       );
       return;
     }
     if (!selectedProperty) {
-      setGenerationError('Devam etmek için önce aktif bir portföy seçin.');
+      setGenerationError("Devam etmek için önce aktif bir portföy seçin.");
       setStep(1);
       return;
     }
     if (!selectedPortal) {
-      setGenerationError('Bu ülke için kullanılabilir bir portal bulunamadı.');
+      setGenerationError("Bu ülke için kullanılabilir bir portal bulunamadı.");
       return;
     }
 
@@ -331,9 +334,9 @@ export default function InternationalMarketingPanel({
     setGenerating(true);
     setGenerationError(null);
     try {
-      const response = await fetch('/api/fabrika/marketing/international', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/fabrika/marketing/international", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           propertyId: requestProperty.id,
           countryCode: requestMarket.code,
@@ -349,17 +352,14 @@ export default function InternationalMarketingPanel({
         internationalPlan?: InternationalMarketingPlan | null;
       };
       if (!response.ok) {
-        throw new Error(
-          body.error || 'Yurt dışı ilan planı hazırlanamadı.',
-        );
+        throw new Error(body.error || "Yurt dışı ilan planı hazırlanamadı.");
       }
 
       if (body.internationalPlan) {
         setGeneratedSnapshot({
           id: body.id || null,
           name:
-            body.name ||
-            `${requestMarket.country} · ${requestProperty.title}`,
+            body.name || `${requestMarket.country} · ${requestProperty.title}`,
           generatedBy: body.generatedBy || null,
           createdAt: body.createdAt || new Date().toISOString(),
           propertyTitle: requestProperty.title,
@@ -373,14 +373,14 @@ export default function InternationalMarketingPanel({
       );
       void onGenerated().catch(() => {
         toast.warning(
-          'Plan hazır; eski çalışmalar listesi şu an yenilenemedi. Sonuç ekranda korunuyor.',
+          "Plan hazır; eski çalışmalar listesi şu an yenilenemedi. Sonuç ekranda korunuyor.",
         );
       });
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : 'Yurt dışı ilan planı hazırlanamadı.';
+          : "Yurt dışı ilan planı hazırlanamadı.";
       setGenerationError(message);
       toast.error(message);
     } finally {
@@ -404,7 +404,9 @@ export default function InternationalMarketingPanel({
         </div>
         <div className={styles.trustNote}>
           <ShieldAlert aria-hidden="true" />
-          <span>Hesap açma, ödeme ve son yayın kontrolü her zaman sizdedir.</span>
+          <span>
+            Hesap açma, ödeme ve son yayın kontrolü her zaman sizdedir.
+          </span>
         </div>
       </header>
 
@@ -426,7 +428,7 @@ export default function InternationalMarketingPanel({
                   type="button"
                   onClick={() => setStep(item.id)}
                   disabled={isDisabled || generating}
-                  aria-current={isActive ? 'step' : undefined}
+                  aria-current={isActive ? "step" : undefined}
                 >
                   <span className={styles.stepNumber} aria-hidden="true">
                     {isComplete ? <Check /> : item.id}
@@ -457,7 +459,11 @@ export default function InternationalMarketingPanel({
           </div>
 
           {loading ? (
-            <div className={styles.loadingState} role="status" aria-live="polite">
+            <div
+              className={styles.loadingState}
+              role="status"
+              aria-live="polite"
+            >
               <Loader2 aria-hidden="true" />
               <span>Aktif portföyler yükleniyor…</span>
             </div>
@@ -469,8 +475,8 @@ export default function InternationalMarketingPanel({
               <div>
                 <h4>Henüz aktif portföy yok</h4>
                 <p>
-                  İlk yurt dışı planını hazırlamak için Portföyler bölümünde
-                  bir kaydı aktif duruma getirin.
+                  İlk yurt dışı planını hazırlamak için Portföyler bölümünde bir
+                  kaydı aktif duruma getirin.
                 </p>
               </div>
               <a href="/fabrika/portfoyler">Portföylere git</a>
@@ -481,15 +487,15 @@ export default function InternationalMarketingPanel({
                 <label htmlFor="international-property">Aktif portföy</label>
                 <select
                   id="international-property"
-                    value={effectivePropertyId}
-                    onChange={(event) => changeProperty(event.target.value)}
-                    disabled={generating}
+                  value={effectivePropertyId}
+                  onChange={(event) => changeProperty(event.target.value)}
+                  disabled={generating}
                 >
                   {properties.map((property) => (
                     <option key={property.id} value={property.id}>
                       {property.referenceCode
                         ? `${property.referenceCode} · `
-                        : ''}
+                        : ""}
                       {property.title}
                     </option>
                   ))}
@@ -509,12 +515,14 @@ export default function InternationalMarketingPanel({
                     <h4>{selectedProperty.title}</h4>
                     <p>
                       <MapPin aria-hidden="true" />
-                      {selectedProperty.location || 'Konum bilgisi yok'}
+                      {selectedProperty.location || "Konum bilgisi yok"}
                     </p>
                   </div>
                   <div className={styles.propertyFacts}>
                     <b>{money(selectedProperty.price)}</b>
-                    <small>{selectedProperty.referenceCode || 'Referans kodu yok'}</small>
+                    <small>
+                      {selectedProperty.referenceCode || "Referans kodu yok"}
+                    </small>
                   </div>
                 </article>
               )}
@@ -554,7 +562,9 @@ export default function InternationalMarketingPanel({
           <div className={styles.marketLayout}>
             <div className={styles.countryColumn}>
               <div className={styles.fieldGroup}>
-                <label htmlFor="international-country-search">Hedef ülke ara</label>
+                <label htmlFor="international-country-search">
+                  Hedef ülke ara
+                </label>
                 <div className={styles.searchField}>
                   <Search aria-hidden="true" />
                   <input
@@ -617,10 +627,80 @@ export default function InternationalMarketingPanel({
                 >
                   {showAllCountries ? <ChevronUp /> : <ChevronDown />}
                   {showAllCountries
-                    ? 'Daha az ülke göster'
+                    ? "Daha az ülke göster"
                     : `Tüm ${matchingMarkets.length} ülkeyi göster`}
                 </button>
               )}
+            </div>
+
+            <div
+              className={styles.marketCanvas}
+              aria-label="Hedef pazar çalışma alanı"
+            >
+              <div className={styles.marketCanvasHeader}>
+                <span>
+                  <Globe2 />
+                </span>
+                <div>
+                  <p>Global pazar stüdyosu</p>
+                  <h4>{selectedMarket.country}</h4>
+                </div>
+                <b>{selectedMarket.code}</b>
+              </div>
+              <div className={styles.marketMap}>
+                <Globe2 aria-hidden="true" />
+                <div className={styles.mapOrbit} aria-hidden="true" />
+                <div className={styles.marketPins}>
+                  {INTERNATIONAL_MARKETS.slice(0, 8).map((market, index) => (
+                    <button
+                      key={market.code}
+                      type="button"
+                      onClick={() => chooseMarket(market)}
+                      data-active={selectedMarket.code === market.code}
+                      style={{
+                        left: `${14 + ((index * 29) % 70)}%`,
+                        top: `${18 + ((index * 23) % 62)}%`,
+                      }}
+                      aria-label={`${market.country} pazarını seç`}
+                      title={market.country}
+                      disabled={generating}
+                    >
+                      {market.code}
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.selectedMarketPulse}>
+                  <span>{selectedMarket.code}</span>
+                  <strong>{selectedMarket.country}</strong>
+                  <small>{selectedMarket.language}</small>
+                </div>
+              </div>
+              <div className={styles.buyerProfile}>
+                <span>
+                  <Target aria-hidden="true" />
+                </span>
+                <div>
+                  <strong>Bu pazarda öne çıkacak yaklaşım</strong>
+                  <p>
+                    {selectedMarket.buyerFocus ||
+                      `${selectedMarket.country} için yerel dilde güven, konum ve yatırım değeri odaklı anlatım.`}
+                  </p>
+                </div>
+              </div>
+              <div className={styles.marketQuickFacts}>
+                <div>
+                  <span>Dil</span>
+                  <strong>{selectedMarket.language}</strong>
+                </div>
+                <div>
+                  <span>Portal</span>
+                  <strong>{selectedMarket.portals.length} seçenek</strong>
+                </div>
+                <div>
+                  <span>Fiyat</span>
+                  <strong>TRY korunur</strong>
+                </div>
+              </div>
             </div>
 
             <div className={styles.portalColumn}>
@@ -630,7 +710,7 @@ export default function InternationalMarketingPanel({
                   <span>Seçilen pazar</span>
                   <h4>{selectedMarket.country}</h4>
                   <p>
-                    <Languages aria-hidden="true" /> İlan dili:{' '}
+                    <Languages aria-hidden="true" /> İlan dili:{" "}
                     {selectedMarket.language}
                   </p>
                 </div>
@@ -646,7 +726,7 @@ export default function InternationalMarketingPanel({
                     <div>
                       <dt>Para birimi</dt>
                       <dd>
-                        Kaynak fiyat TRY olarak korunur. Portal bağlamı:{' '}
+                        Kaynak fiyat TRY olarak korunur. Portal bağlamı:{" "}
                         {selectedMarket.currency}
                       </dd>
                     </div>
@@ -654,7 +734,9 @@ export default function InternationalMarketingPanel({
                   {(selectedMarket.timezone || selectedMarket.timeZone) && (
                     <div>
                       <dt>Saat dilimi</dt>
-                      <dd>{selectedMarket.timezone || selectedMarket.timeZone}</dd>
+                      <dd>
+                        {selectedMarket.timezone || selectedMarket.timeZone}
+                      </dd>
                     </div>
                   )}
                   {selectedMarket.measurementSystem && (
@@ -687,7 +769,7 @@ export default function InternationalMarketingPanel({
                     <span>
                       <b>{recommendedPortal.name}</b>
                       <small>
-                        {portalEligibilityLabel(recommendedPortal)} ·{' '}
+                        {portalEligibilityLabel(recommendedPortal)} ·{" "}
                         {accountTypeLabel(recommendedPortal.accountType)}
                       </small>
                     </span>
@@ -711,7 +793,7 @@ export default function InternationalMarketingPanel({
                       >
                         {showAlternatives ? <ChevronUp /> : <ChevronDown />}
                         {showAlternatives
-                          ? 'Alternatifleri gizle'
+                          ? "Alternatifleri gizle"
                           : `Alternatif portalları gör (${alternativePortals.length})`}
                       </button>
 
@@ -730,13 +812,16 @@ export default function InternationalMarketingPanel({
                               onClick={() => choosePortal(portal.id)}
                               disabled={generating}
                             >
-                              <span className={styles.portalMark} aria-hidden="true">
+                              <span
+                                className={styles.portalMark}
+                                aria-hidden="true"
+                              >
                                 <Globe2 />
                               </span>
                               <span>
                                 <b>{portal.name}</b>
                                 <small>
-                                  {portalEligibilityLabel(portal)} ·{' '}
+                                  {portalEligibilityLabel(portal)} ·{" "}
                                   {accountTypeLabel(portal.accountType)}
                                 </small>
                               </span>
@@ -753,14 +838,17 @@ export default function InternationalMarketingPanel({
                   {selectedPortal && (
                     <div className={styles.portalDetails}>
                       <div>
-                        <strong>{portalEligibilityLabel(selectedPortal)}</strong>
+                        <strong>
+                          {portalEligibilityLabel(selectedPortal)}
+                        </strong>
                         <p>
-                          {selectedPortal.eligibilityNote || selectedPortal.note}
+                          {selectedPortal.eligibilityNote ||
+                            selectedPortal.note}
                         </p>
                         <small>
                           Türkiye’de bulunan bir taşınmazın kabulünü ve hesap
-                          koşullarını yayınlamadan önce portalın resmî sayfasından
-                          doğrulayın.
+                          koşullarını yayınlamadan önce portalın resmî
+                          sayfasından doğrulayın.
                         </small>
                       </div>
                       <div>
@@ -775,7 +863,8 @@ export default function InternationalMarketingPanel({
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Güncel ücreti resmî siteden kontrol et <ExternalLink />
+                            Güncel ücreti resmî siteden kontrol et{" "}
+                            <ExternalLink />
                           </a>
                         ) : (
                           <small>Resmî fiyat bağlantısı doğrulanamadı.</small>
@@ -783,7 +872,7 @@ export default function InternationalMarketingPanel({
                       </div>
                       {formatDate(selectedPortal.lastVerifiedAt) && (
                         <small className={styles.verificationDate}>
-                          Katalog son kontrolü:{' '}
+                          Katalog son kontrolü:{" "}
                           {formatDate(selectedPortal.lastVerifiedAt)}
                         </small>
                       )}
@@ -803,7 +892,7 @@ export default function InternationalMarketingPanel({
                         <small>
                           {new Date(
                             previousPortalCampaign.createdAt,
-                          ).toLocaleDateString('tr-TR')}{' '}
+                          ).toLocaleDateString("tr-TR")}{" "}
                           tarihli planı aç
                         </small>
                       </span>
@@ -834,7 +923,11 @@ export default function InternationalMarketingPanel({
           )}
 
           {generating && (
-            <div className={styles.generationStatus} role="status" aria-live="polite">
+            <div
+              className={styles.generationStatus}
+              role="status"
+              aria-live="polite"
+            >
               <Loader2 aria-hidden="true" />
               <div>
                 <strong>Portal planı hazırlanıyor</strong>
@@ -866,8 +959,8 @@ export default function InternationalMarketingPanel({
             >
               {generating ? <Loader2 className={styles.spin} /> : <Sparkles />}
               {generating
-                ? 'Plan hazırlanıyor…'
-                : `${selectedPortal?.name || 'Portal'} planını hazırla`}
+                ? "Plan hazırlanıyor…"
+                : `${selectedPortal?.name || "Portal"} planını hazırla`}
             </Button>
           </div>
         </section>
@@ -883,7 +976,8 @@ export default function InternationalMarketingPanel({
             <div>
               <h3 id="international-step-result">Portal planın hazır</h3>
               <p>
-                Aşağıdaki içerik yalnız {selectedPortal?.name || 'seçilen portal'}
+                Aşağıdaki içerik yalnız{" "}
+                {selectedPortal?.name || "seçilen portal"}
                 için hazırlanmıştır.
               </p>
             </div>
@@ -918,9 +1012,7 @@ export default function InternationalMarketingPanel({
                     {selectedMarket.country} · {selectedPortal.name}
                   </span>
                   <h4>{resultName}</h4>
-                  <p>
-                    {resultPropertyTitle}
-                  </p>
+                  <p>{resultPropertyTitle}</p>
                 </div>
                 <div className={styles.resultBadges}>
                   <span>{providerLabel(resultProvider)}</span>
@@ -962,52 +1054,53 @@ export default function InternationalMarketingPanel({
                     <ChevronDown />
                   </summary>
                   <section className={styles.requirementCard}>
-                  <h5>Portal biçim bilgileri</h5>
-                  <dl>
-                    {selectedPortal.titleLimit && (
-                      <div>
-                        <dt>Başlık sınırı</dt>
-                        <dd>{selectedPortal.titleLimit} karakter</dd>
+                    <h5>Portal biçim bilgileri</h5>
+                    <dl>
+                      {selectedPortal.titleLimit && (
+                        <div>
+                          <dt>Başlık sınırı</dt>
+                          <dd>{selectedPortal.titleLimit} karakter</dd>
+                        </div>
+                      )}
+                      {selectedPortal.descriptionLimit && (
+                        <div>
+                          <dt>Açıklama sınırı</dt>
+                          <dd>{selectedPortal.descriptionLimit} karakter</dd>
+                        </div>
+                      )}
+                      {selectedPortal.imageGuidance && (
+                        <div>
+                          <dt>Görsel</dt>
+                          <dd>{selectedPortal.imageGuidance}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    {selectedPortal.listingOrder?.length ? (
+                      <div className={styles.portalOrder}>
+                        <strong>Bu sitedeki doğru bilgi sırası</strong>
+                        <ol>
+                          {selectedPortal.listingOrder.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ol>
                       </div>
-                    )}
-                    {selectedPortal.descriptionLimit && (
-                      <div>
-                        <dt>Açıklama sınırı</dt>
-                        <dd>{selectedPortal.descriptionLimit} karakter</dd>
+                    ) : null}
+                    {selectedPortal.requiredFields?.length ? (
+                      <p>
+                        Zorunlu bilgiler:{" "}
+                        {selectedPortal.requiredFields.join(", ")}
+                      </p>
+                    ) : null}
+                    {selectedPortal.mediaRules?.length ? (
+                      <div className={styles.mediaRules}>
+                        <strong>Görsel kuralları</strong>
+                        <ul>
+                          {selectedPortal.mediaRules.map((rule) => (
+                            <li key={rule}>{rule}</li>
+                          ))}
+                        </ul>
                       </div>
-                    )}
-                    {selectedPortal.imageGuidance && (
-                      <div>
-                        <dt>Görsel</dt>
-                        <dd>{selectedPortal.imageGuidance}</dd>
-                      </div>
-                    )}
-                  </dl>
-                  {selectedPortal.listingOrder?.length ? (
-                    <div className={styles.portalOrder}>
-                      <strong>Bu sitedeki doğru bilgi sırası</strong>
-                      <ol>
-                        {selectedPortal.listingOrder.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  ) : null}
-                  {selectedPortal.requiredFields?.length ? (
-                    <p>
-                      Zorunlu bilgiler: {selectedPortal.requiredFields.join(', ')}
-                    </p>
-                  ) : null}
-                  {selectedPortal.mediaRules?.length ? (
-                    <div className={styles.mediaRules}>
-                      <strong>Görsel kuralları</strong>
-                      <ul>
-                        {selectedPortal.mediaRules.map((rule) => (
-                          <li key={rule}>{rule}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                    ) : null}
                   </section>
                 </details>
               )}
@@ -1021,7 +1114,7 @@ export default function InternationalMarketingPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => void copyText(resultCopy.title, 'Başlık')}
+                      onClick={() => void copyText(resultCopy.title, "Başlık")}
                     >
                       <Copy /> Başlığı kopyala
                     </button>
@@ -1037,9 +1130,7 @@ export default function InternationalMarketingPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        void copyText(resultCopy.body, 'Açıklama')
-                      }
+                      onClick={() => void copyText(resultCopy.body, "Açıklama")}
                     >
                       <Copy /> Açıklamayı kopyala
                     </button>
@@ -1073,41 +1164,67 @@ export default function InternationalMarketingPanel({
               {resultPlan.socialPlan?.channels.length ? (
                 <details className={styles.resultDetails}>
                   <summary>
-                    <Share2 /> {selectedMarket.country} sosyal medya paketini gör
+                    <Share2 /> {selectedMarket.country} sosyal medya paketini
+                    gör
                     <ChevronDown />
                   </summary>
                   <section className={styles.socialPack}>
-                  <div className={styles.sectionTitle}>
-                    <span aria-hidden="true"><Share2 /></span>
-                    <div>
-                      <h5>{selectedMarket.country} sosyal medya paketi</h5>
-                      <p>Her kanal için metin açısı, ölçü ve yerel CTA ayrı seçildi.</p>
+                    <div className={styles.sectionTitle}>
+                      <span aria-hidden="true">
+                        <Share2 />
+                      </span>
+                      <div>
+                        <h5>{selectedMarket.country} sosyal medya paketi</h5>
+                        <p>
+                          Her kanal için metin açısı, ölçü ve yerel CTA ayrı
+                          seçildi.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className={styles.socialGrid}>
-                    {resultPlan.socialPlan.channels.map((channel) => (
-                      <article key={channel.channel}>
-                        <header><Megaphone /><strong>{channel.channel}</strong></header>
-                        <dl>
-                          <div><dt>Amaç</dt><dd>{channel.objective}</dd></div>
-                          <div><dt>Görsel biçimi</dt><dd>{channel.format}</dd></div>
-                          <div><dt>İçerik açısı</dt><dd>{channel.contentAngle}</dd></div>
-                          <div><dt>Yerel CTA</dt><dd>{channel.localCta}</dd></div>
-                          <div><dt><Clock3 /> Başlangıç testi</dt><dd>{channel.publishingWindow}</dd></div>
-                        </dl>
-                      </article>
-                    ))}
-                  </div>
-                  {resultPlan.socialPlan.complianceNotes.length ? (
-                    <div className={styles.socialSafety}>
-                      <ShieldAlert />
-                      <ul>
-                        {resultPlan.socialPlan.complianceNotes.map((note) => (
-                          <li key={note}>{note}</li>
-                        ))}
-                      </ul>
+                    <div className={styles.socialGrid}>
+                      {resultPlan.socialPlan.channels.map((channel) => (
+                        <article key={channel.channel}>
+                          <header>
+                            <Megaphone />
+                            <strong>{channel.channel}</strong>
+                          </header>
+                          <dl>
+                            <div>
+                              <dt>Amaç</dt>
+                              <dd>{channel.objective}</dd>
+                            </div>
+                            <div>
+                              <dt>Görsel biçimi</dt>
+                              <dd>{channel.format}</dd>
+                            </div>
+                            <div>
+                              <dt>İçerik açısı</dt>
+                              <dd>{channel.contentAngle}</dd>
+                            </div>
+                            <div>
+                              <dt>Yerel CTA</dt>
+                              <dd>{channel.localCta}</dd>
+                            </div>
+                            <div>
+                              <dt>
+                                <Clock3 /> Başlangıç testi
+                              </dt>
+                              <dd>{channel.publishingWindow}</dd>
+                            </div>
+                          </dl>
+                        </article>
+                      ))}
                     </div>
-                  ) : null}
+                    {resultPlan.socialPlan.complianceNotes.length ? (
+                      <div className={styles.socialSafety}>
+                        <ShieldAlert />
+                        <ul>
+                          {resultPlan.socialPlan.complianceNotes.map((note) => (
+                            <li key={note}>{note}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </section>
                 </details>
               ) : null}
@@ -1118,23 +1235,25 @@ export default function InternationalMarketingPanel({
                   <ChevronDown />
                 </summary>
                 <section className={styles.publishSteps}>
-                <div className={styles.sectionTitle}>
-                  <span aria-hidden="true">
-                    <ClipboardCheck />
-                  </span>
-                  <div>
-                    <h5>Yayın adımları</h5>
-                    <p>Son kontrol ve yayın işlemi sizin hesabınızdan yapılır.</p>
+                  <div className={styles.sectionTitle}>
+                    <span aria-hidden="true">
+                      <ClipboardCheck />
+                    </span>
+                    <div>
+                      <h5>Yayın adımları</h5>
+                      <p>
+                        Son kontrol ve yayın işlemi sizin hesabınızdan yapılır.
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <ol>
-                  {resultCopy.steps.map((publishStep, index) => (
-                    <li key={`${resultCopy.portalId}-${index}`}>
-                      <span>{index + 1}</span>
-                      <p>{publishStep}</p>
-                    </li>
-                  ))}
-                </ol>
+                  <ol>
+                    {resultCopy.steps.map((publishStep, index) => (
+                      <li key={`${resultCopy.portalId}-${index}`}>
+                        <span>{index + 1}</span>
+                        <p>{publishStep}</p>
+                      </li>
+                    ))}
+                  </ol>
                 </section>
               </details>
 
@@ -1163,7 +1282,10 @@ export default function InternationalMarketingPanel({
                     <span>Fiyat bağlantısı doğrulanamadı</span>
                   )}
                   {canOpenPublishing(selectedPortal) &&
-                  isVerifiedPortalLink(selectedPortal, resultCopy.publishUrl) ? (
+                  isVerifiedPortalLink(
+                    selectedPortal,
+                    resultCopy.publishUrl,
+                  ) ? (
                     <a
                       href={resultCopy.publishUrl}
                       target="_blank"
