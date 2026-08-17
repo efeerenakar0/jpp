@@ -29,15 +29,33 @@ function whatsappUrl(phone: string | null, brandName: string) {
   return `https://wa.me/${normalized}?text=${text}`;
 }
 
-export default async function PublicPortfolioSite({
-  params,
-  searchParams,
+type PublicSiteSection =
+  | 'hakkimizda'
+  | 'hizmetler'
+  | 'portfoyler'
+  | 'blog'
+  | 'sik-sorulanlar'
+  | 'iletisim';
+
+const PUBLIC_SITE_SECTIONS = new Set<PublicSiteSection>([
+  'hakkimizda',
+  'hizmetler',
+  'portfoyler',
+  'blog',
+  'sik-sorulanlar',
+  'iletisim',
+]);
+
+async function renderPublicPortfolioSite({
+  slug,
+  view,
+  section,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<{ view?: string }>;
+  slug: string;
+  view?: string;
+  section?: PublicSiteSection;
 }) {
-  const { slug } = await params;
-  const { view } = await searchParams;
+  const sectionVisible = (target: PublicSiteSection) => !section || section === target;
   const workspace = await prisma.developerWorkspace.findUnique({
     where: { temporarySlug: slug },
     include: {
@@ -59,6 +77,10 @@ export default async function PublicPortfolioSite({
   });
 
   if (!workspace || workspace.siteStatus !== 'PUBLISHED') notFound();
+  const siteHref = (target?: PublicSiteSection) => {
+    if (workspace.customHostname) return target ? `/${target}` : '/';
+    return target ? `/site/${slug}/${target}` : `/site/${slug}`;
+  };
 
   const properties = await prisma.crmProperty.findMany({
     where: publicationEligibilityWhere(workspace.companyAccount.id, new Date()),
@@ -92,10 +114,8 @@ export default async function PublicPortfolioSite({
     workspace.brandName,
   );
   const isFullWebsite = workspace.websiteMode === 'NEW';
-  const portfolioOnly = view === 'portfoyler';
-  const portfolioHref = workspace.customHostname
-    ? '/portfoyler'
-    : `/site/${slug}?view=portfoyler`;
+  const portfolioOnly = view === 'portfoyler' || section === 'portfoyler';
+  const portfolioHref = siteHref('portfoyler');
   const theme = {
     '--site-primary': workspace.primaryColor,
     '--site-accent': workspace.accentColor,
@@ -113,6 +133,7 @@ export default async function PublicPortfolioSite({
     ['X', workspace.companyAccount.settings?.xUrl],
     ['LinkedIn', workspace.companyAccount.settings?.linkedinUrl],
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+  const heroImageUrl = properties[0]?.media[0]?.url || properties[0]?.imageUrl;
 
   return (
     <main
@@ -124,7 +145,7 @@ export default async function PublicPortfolioSite({
       <header className={styles.header}>
         <a
           className={styles.brand}
-          href={portfolioOnly ? (workspace.customHostname ? '/' : `/site/${slug}`) : '#anasayfa'}
+          href={siteHref()}
         >
           {workspace.logoData ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -135,15 +156,15 @@ export default async function PublicPortfolioSite({
           <strong>{workspace.brandName}</strong>
         </a>
         <nav aria-label="Ana menü">
-          {!portfolioOnly && isFullWebsite && content.about.enabled && <a href="#hakkimizda">Hakkımızda</a>}
-          {!portfolioOnly && isFullWebsite && content.services.enabled && <a href="#hizmetler">Hizmetler</a>}
+          {isFullWebsite && content.about.enabled && <a href={siteHref('hakkimizda')}>Hakkımızda</a>}
+          {isFullWebsite && content.services.enabled && <a href={siteHref('hizmetler')}>Hizmetler</a>}
           <a href={portfolioHref}>Portföyler</a>
-          {!portfolioOnly && isFullWebsite && content.blog.enabled && <a href="#blog">Blog</a>}
-          <a href="#iletisim">İletişim</a>
+          {isFullWebsite && content.blog.enabled && <a href={siteHref('blog')}>Blog</a>}
+          <a href={siteHref('iletisim')}>İletişim</a>
         </nav>
       </header>
 
-      {!portfolioOnly && <section className={styles.hero} id="anasayfa">
+      {!portfolioOnly && !section && <section className={styles.hero} id="anasayfa">
         <div className={styles.heroCopy}>
           <span className={styles.eyebrow}>{content.hero.eyebrow}</span>
           <h1>{content.hero.title}</h1>
@@ -152,14 +173,22 @@ export default async function PublicPortfolioSite({
             {content.hero.buttonLabel} <ArrowRight />
           </a>
         </div>
-        <div className={styles.heroStat}>
-          <strong>{properties.length}</strong>
-          <span>yayındaki portföy</span>
-          <small>Business CEO AI ile otomatik güncellenir</small>
+        <div className={styles.heroVisual}>
+          {heroImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={heroImageUrl} alt={`${workspace.brandName} seçili portföyü`} />
+          ) : (
+            <div className={styles.heroPlaceholder}><Building2 /></div>
+          )}
+          <div className={styles.heroStat}>
+            <strong>{properties.length}</strong>
+            <span>yayındaki portföy</span>
+            <small>Business CEO AI ile otomatik güncellenir</small>
+          </div>
         </div>
       </section>}
 
-      {!portfolioOnly && isFullWebsite && content.about.enabled && (
+      {!portfolioOnly && sectionVisible('hakkimizda') && isFullWebsite && content.about.enabled && (
         <section className={styles.aboutSection} id="hakkimizda">
           <div className={styles.sectionIndex}>01 / HAKKIMIZDA</div>
           <div>
@@ -170,7 +199,7 @@ export default async function PublicPortfolioSite({
         </section>
       )}
 
-      {!portfolioOnly && isFullWebsite && content.services.enabled && (
+      {!portfolioOnly && sectionVisible('hizmetler') && isFullWebsite && content.services.enabled && (
         <section className={styles.servicesSection} id="hizmetler">
           <div className={styles.sectionHead}>
             <div>
@@ -191,7 +220,7 @@ export default async function PublicPortfolioSite({
         </section>
       )}
 
-      <section className={styles.portfolioSection} id="portfoyler">
+      {sectionVisible('portfoyler') && <section className={styles.portfolioSection} id="portfoyler">
         <div className={styles.sectionHead}>
           <div>
             <span className={styles.eyebrow}>PORTFÖYLER</span>
@@ -241,9 +270,9 @@ export default async function PublicPortfolioSite({
             <p>Aktif portföyler yayınlandığı anda bu sayfada otomatik görünecek.</p>
           </div>
         )}
-      </section>
+      </section>}
 
-      {!portfolioOnly && isFullWebsite && content.blog.enabled && (
+      {!portfolioOnly && sectionVisible('blog') && isFullWebsite && content.blog.enabled && (
         <section className={styles.blogSection} id="blog">
           <div className={styles.sectionHead}>
             <div>
@@ -264,7 +293,7 @@ export default async function PublicPortfolioSite({
         </section>
       )}
 
-      {!portfolioOnly && isFullWebsite && content.faq.enabled && (
+      {!portfolioOnly && sectionVisible('sik-sorulanlar') && isFullWebsite && content.faq.enabled && (
         <section className={styles.faqSection} id="sik-sorulanlar">
           <div>
             <span className={styles.eyebrow}>SIK SORULANLAR</span>
@@ -301,4 +330,19 @@ export default async function PublicPortfolioSite({
       </footer>
     </main>
   );
+}
+
+export default async function PublicPortfolioSite({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const { slug } = await params;
+  const { view } = await searchParams;
+  const section = PUBLIC_SITE_SECTIONS.has(view as PublicSiteSection)
+    ? view as PublicSiteSection
+    : undefined;
+  return renderPublicPortfolioSite({ slug, view, section });
 }

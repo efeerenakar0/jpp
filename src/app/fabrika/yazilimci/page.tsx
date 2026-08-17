@@ -3,28 +3,35 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
+  ArrowLeft,
   BookOpen,
+  Brush,
   Check,
   CheckCircle2,
   ChevronRight,
   Circle,
   Copy,
   ExternalLink,
+  Grid2X2,
   Globe2,
   ImagePlus,
   Info,
+  LayoutTemplate,
   Link2,
+  List,
   Loader2,
   LockKeyhole,
   MapPin,
   MessageCircle,
   MonitorSmartphone,
+  MoreVertical,
   Palette,
   Phone,
   RefreshCw,
   Save,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   UserRound,
   Wifi,
@@ -50,6 +57,9 @@ import styles from "./YazilimciPage.module.css";
 
 type HubTab = "website" | "social";
 type WebsiteMode = "NEW" | "EXISTING";
+type WebsiteStudioView = "dashboard" | "builder";
+type WebsiteCardFilter = "all" | "published" | "templates";
+type WebsiteCardView = "grid" | "list";
 
 type WebsiteState = {
   mode: "UNDECIDED" | WebsiteMode;
@@ -139,6 +149,13 @@ function isToggleableContentSection(
 
 export default function YazilimciPage() {
   const [activeTab, setActiveTab] = useState<HubTab>("website");
+  const [websiteStudioView, setWebsiteStudioView] =
+    useState<WebsiteStudioView>("dashboard");
+  const [websiteCardFilter, setWebsiteCardFilter] =
+    useState<WebsiteCardFilter>("all");
+  const [websiteCardView, setWebsiteCardView] =
+    useState<WebsiteCardView>("grid");
+  const [websiteCardSearch, setWebsiteCardSearch] = useState("");
   const [data, setData] = useState<HubData | null>(null);
   const [mode, setMode] = useState<WebsiteMode | null>(null);
   const [baseDomain, setBaseDomain] = useState("");
@@ -207,6 +224,31 @@ export default function YazilimciPage() {
         .includes(query),
     );
   }, [themeSearch]);
+  const studioQuery = websiteCardSearch.trim().toLocaleLowerCase("tr-TR");
+  const featuredThemes = DEVELOPER_THEMES.slice(0, 15);
+  const currentTheme = DEVELOPER_THEMES.find(
+    (theme) => theme.id === data?.website.selectedTheme,
+  );
+  const studioThemePool = currentTheme && !featuredThemes.some(
+    (theme) => theme.id === currentTheme.id,
+  )
+    ? [currentTheme, ...featuredThemes.slice(0, 14)]
+    : featuredThemes;
+  const studioThemes = studioThemePool.filter((theme) => {
+    if (websiteCardFilter === "published") {
+      return data?.website.status === "PUBLISHED" &&
+        theme.id === data.website.selectedTheme;
+    }
+    if (websiteCardFilter === "templates" && theme.id === data?.website.selectedTheme) {
+      return false;
+    }
+    return !studioQuery || `${theme.name} ${theme.mood} ${theme.description}`
+      .toLocaleLowerCase("tr-TR")
+      .includes(studioQuery);
+  }).sort((left, right) => {
+    const selectedId = data?.website.selectedTheme;
+    return Number(right.id === selectedId) - Number(left.id === selectedId);
+  });
   const savedSocialCount = data?.socialAccounts.filter(
     (account) => account.username || account.profileUrl,
   ).length ?? 0;
@@ -414,6 +456,17 @@ export default function YazilimciPage() {
     setSocialDraft(saved ? { ...saved } : emptyAccount(platform));
   }
 
+  function openWebsiteBuilder(nextMode?: WebsiteMode, themeId?: DeveloperThemeId) {
+    if (nextMode) setMode(nextMode);
+    if (themeId) updateWebsite("selectedTheme", themeId);
+    setWebsiteStudioView("builder");
+    setActiveTab("website");
+  }
+
+  function openSocialWorkspace() {
+    setActiveTab("social");
+  }
+
   if (isLoading) {
     return (
       <div className={styles.loadingState}>
@@ -440,45 +493,196 @@ export default function YazilimciPage() {
   const brandReady = Boolean(
     website.brandName && (website.contactPhone || website.contactEmail),
   );
+  const setupSteps = [
+    { label: "Markanı seçtin", done: brandReady },
+    { label: "Tasarımını seçtin", done: Boolean(website.selectedTheme) },
+    { label: "İçeriklerini ekledin", done: website.status === "PUBLISHED" },
+    { label: "Alan adını bağla", done: website.domainStatus === "VERIFIED" },
+  ];
+  const setupCompleted = setupSteps.filter((step) => step.done).length;
 
   return (
     <div className={styles.page}>
-      <header className={styles.hero}>
-        <div>
-          <span className={styles.eyebrow}>AI YAZILIMCI</span>
-          <h1>Dijital vitrininizi kolayca kurun.</h1>
-          <p>
-            Web sitenizi yayına alın, alan adınızı bağlayın ve sosyal medya
-            hesaplarınızı adım adım hazırlayın. Teknik bilgi gerekmez.
-          </p>
+      {(activeTab === "social" || websiteStudioView === "builder") && (
+        <div className={styles.workspaceToolbar}>
+          <button
+            onClick={() => {
+              setActiveTab("website");
+              setWebsiteStudioView("dashboard");
+            }}
+            type="button"
+          >
+            <ArrowLeft /> Dijital Vitrin Stüdyosu
+          </button>
+          <div>
+            <span><Globe2 /> {website.status === "PUBLISHED" ? "Site yayında" : "Site kurulumu bekliyor"}</span>
+            <span><MonitorSmartphone /> {website.activePortfolioCount} aktif portföy</span>
+            <span><BookOpen /> {savedSocialCount} sosyal hesap kaydı</span>
+          </div>
         </div>
-        <div className={styles.heroStatus}>
-          <span><Globe2 /> {website.status === "PUBLISHED" ? "Site yayında" : "Site kurulumu bekliyor"}</span>
-          <span><MonitorSmartphone /> {website.activePortfolioCount} aktif portföy</span>
-          <span><BookOpen /> {savedSocialCount} sosyal hesap kaydı</span>
-        </div>
-      </header>
-
-      <nav className={styles.tabs} aria-label="AI Yazılımcı bölümleri">
-        <button
-          className={activeTab === "website" ? styles.activeTab : ""}
-          onClick={() => setActiveTab("website")}
-          type="button"
-        >
-          <Globe2 />
-          <span><strong>Web Sitem</strong><small>Kur, bağla ve yayınla</small></span>
-        </button>
-        <button
-          className={activeTab === "social" ? styles.activeTab : ""}
-          onClick={() => setActiveTab("social")}
-          type="button"
-        >
-          <BookOpen />
-          <span><strong>Sosyal Medya Rehberi</strong><small>Hesaplarını adım adım hazırla</small></span>
-        </button>
-      </nav>
+      )}
 
       {activeTab === "website" ? (
+        websiteStudioView === "dashboard" ? (
+          <div className={styles.studioDashboard}>
+            <section className={styles.setupProgress} aria-label="Site kurulum ilerlemesi">
+              <strong><Sparkles /> Kurulum: {setupCompleted}/4 tamamlandı</strong>
+              <ol>
+                {setupSteps.map((step, index) => (
+                  <li data-done={step.done} key={step.label}>
+                    <span>{step.done ? <Check /> : index + 1}</span>
+                    {step.label}
+                  </li>
+                ))}
+              </ol>
+              <button onClick={() => openWebsiteBuilder(mode ?? "NEW")} type="button">
+                {website.status === "PUBLISHED" ? "Siteyi yönet" : "Kuruluma devam et"}
+                <ArrowRight />
+              </button>
+            </section>
+
+            <div className={styles.studioLayout}>
+              <aside className={styles.creationRail}>
+                <div className={styles.studioIntro}>
+                  <span><Sparkles /></span>
+                  <div>
+                    <h1>Dijital Vitrin Stüdyosu</h1>
+                    <p>Emlak markanız için profesyonel web siteleri oluşturun, yönetin ve yayınlayın.</p>
+                  </div>
+                </div>
+
+                <button className={styles.createWebsiteCard} onClick={() => openWebsiteBuilder("NEW")} type="button">
+                  <span className={styles.actionIcon}><Brush /></span>
+                  <span>
+                    <strong>Yeni Web Sitesi Oluştur</strong>
+                    <small>Sıfırdan başlayın veya hazır tasarımlardan ilham alın.</small>
+                  </span>
+                  <span className={styles.deviceArtwork} aria-hidden="true">
+                    <i /><i /><b>www.</b>
+                  </span>
+                  <ArrowRight />
+                </button>
+
+                <button className={styles.connectWebsiteCard} onClick={() => openWebsiteBuilder("EXISTING")} type="button">
+                  <span className={styles.actionIcon}><Link2 /></span>
+                  <span>
+                    <strong>Mevcut Sitemi Bağla</strong>
+                    <small>Alan adınızı ve portföy sayfanızı Business CEO AI ile yönetin.</small>
+                  </span>
+                  <ArrowRight />
+                </button>
+
+                <button className={styles.socialSetupCard} onClick={openSocialWorkspace} type="button">
+                  <span className={styles.actionIcon}><UserRound /></span>
+                  <span>
+                    <strong>Sosyal Medya Hesaplarını Kur</strong>
+                    <small>{savedSocialCount ? `${savedSocialCount} hesap kaydedildi` : "Hesaplarınızı adım adım hazırlayın"}</small>
+                  </span>
+                  <span className={styles.socialDots} aria-hidden="true"><i /><i /><i /><i /></span>
+                  <ArrowRight />
+                </button>
+              </aside>
+
+              <main className={styles.websiteGallery}>
+                <header className={styles.galleryHeader}>
+                  <div>
+                    <h2>Web Site Çalışmalarım</h2>
+                    <p>Mevcut sitenizi yönetin veya birbirinden farklı 15 profesyonel emlak tasarımından birini seçin.</p>
+                  </div>
+                  {website.status === "PUBLISHED" && (
+                    <a href={website.temporaryUrl} target="_blank" rel="noreferrer">
+                      Canlı siteyi aç <ExternalLink />
+                    </a>
+                  )}
+                </header>
+
+                <div className={styles.galleryControls}>
+                  <div className={styles.galleryTabs} role="group" aria-label="Web sitesi çalışmaları filtresi">
+                    <button aria-pressed={websiteCardFilter === "all"} onClick={() => setWebsiteCardFilter("all")} type="button"><Grid2X2 /> Tümü</button>
+                    <button aria-pressed={websiteCardFilter === "published"} onClick={() => setWebsiteCardFilter("published")} type="button"><CheckCircle2 /> Yayında <i /></button>
+                    <button aria-pressed={websiteCardFilter === "templates"} onClick={() => setWebsiteCardFilter("templates")} type="button"><LayoutTemplate /> Hazır Tasarımlar <i /></button>
+                  </div>
+                  <label className={styles.gallerySearch}>
+                    <Search />
+                    <input aria-label="Web sitelerinde ara" value={websiteCardSearch} onChange={(event) => setWebsiteCardSearch(event.target.value)} placeholder="Web sitelerinde ara…" />
+                  </label>
+                  <button className={styles.filterButton} onClick={() => setWebsiteCardFilter("templates")} type="button"><SlidersHorizontal /> Filtrele</button>
+                  <div className={styles.viewToggle} role="group" aria-label="Görünüm">
+                    <button aria-pressed={websiteCardView === "grid"} onClick={() => setWebsiteCardView("grid")} type="button"><Grid2X2 /></button>
+                    <button aria-pressed={websiteCardView === "list"} onClick={() => setWebsiteCardView("list")} type="button"><List /></button>
+                  </div>
+                </div>
+
+                {studioThemes.length ? (
+                  <div className={styles.websiteCards} data-view={websiteCardView}>
+                    {studioThemes.map((theme, index) => {
+                      const isCurrent = theme.id === website.selectedTheme;
+                      const isPublished = isCurrent && website.status === "PUBLISHED";
+                      return (
+                        <article
+                          className={styles.websiteCard}
+                          data-current={isCurrent}
+                          data-layout={theme.layout}
+                          data-theme={theme.id}
+                          key={theme.id}
+                          style={{
+                            "--card-bg": theme.colors.background,
+                            "--card-surface": theme.colors.surface,
+                            "--card-ink": theme.colors.ink,
+                            "--card-muted": theme.colors.muted,
+                            "--card-accent": theme.colors.accent,
+                            "--card-accent-soft": theme.colors.accentSoft,
+                          } as React.CSSProperties}
+                        >
+                          <button
+                            aria-label={`${theme.name} tasarımını düzenle`}
+                            className={styles.websiteThumbnail}
+                            onClick={() => openWebsiteBuilder(mode ?? "NEW", theme.id)}
+                            type="button"
+                          >
+                            <span className={styles.miniNav}><b>{isCurrent ? website.brandName : theme.name}</b><i /><i /><i /><em>İletişim</em></span>
+                            <span className={styles.miniHero}>
+                              <small>{theme.mood}</small>
+                              <strong>{index % 3 === 0 ? "Doğru gayrimenkulü, doğru danışmanla bulun." : index % 3 === 1 ? "Yeni yaşamınız burada başlıyor." : "Değerli mülkler, doğru yatırımlar."}</strong>
+                              <i>{index % 2 === 0 ? "Portföyleri keşfet" : "Projeleri incele"}</i>
+                            </span>
+                            <span className={styles.miniProperties}><i /><i /><i /></span>
+                            {isCurrent && <span className={styles.currentRibbon}>Mevcut siteniz</span>}
+                          </button>
+
+                          <div className={styles.websiteCardBody}>
+                            <div>
+                              <h3>{isCurrent ? website.brandName : theme.name}</h3>
+                              <p>{isCurrent ? (website.customHostname || website.temporaryUrl.replace(/^https?:\/\//, "")) : theme.description}</p>
+                              <small>{isCurrent && website.publishedAt ? `Güncellendi: ${new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(website.publishedAt))}` : `${theme.mood} · Çok sayfalı emlak sitesi`}</small>
+                            </div>
+                            <span className={isPublished ? styles.publishedBadge : styles.templateBadge}><i /> {isPublished ? "Yayında" : isCurrent ? "Taslak" : "Hazır tasarım"}</span>
+                          </div>
+
+                          <footer className={styles.websiteCardFooter}>
+                            <button onClick={() => openWebsiteBuilder(mode ?? "NEW", theme.id)} type="button"><Brush /> {isCurrent ? "Düzenlemeye Devam Et" : "Bu Tasarımla Başla"}</button>
+                            {isCurrent && website.status === "PUBLISHED" ? (
+                              <a aria-label="Siteyi yeni sekmede aç" href={website.temporaryUrl} target="_blank" rel="noreferrer"><ExternalLink /></a>
+                            ) : (
+                              <button aria-label={`${theme.name} ayrıntıları`} onClick={() => openWebsiteBuilder(mode ?? "NEW", theme.id)} type="button"><MoreVertical /></button>
+                            )}
+                          </footer>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={styles.emptyGallery}>
+                    <Search />
+                    <h3>Aramanızla eşleşen tasarım bulunamadı</h3>
+                    <p>Farklı bir kelime deneyin veya tüm tasarımları açın.</p>
+                    <button onClick={() => { setWebsiteCardSearch(""); setWebsiteCardFilter("all"); }} type="button">Tümünü göster</button>
+                  </div>
+                )}
+              </main>
+            </div>
+          </div>
+        ) : (
         <div className={styles.websiteWorkspace}>
           <section className={styles.flowPanel}>
             <header className={styles.sectionHeader}>
@@ -855,6 +1059,7 @@ export default function YazilimciPage() {
             </section>
           )}
         </div>
+        )
       ) : (
         <div className={styles.socialWorkspace}>
           <aside className={styles.platformRail}>

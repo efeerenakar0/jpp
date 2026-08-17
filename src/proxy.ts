@@ -17,6 +17,15 @@ const PUBLIC_WHATSAPP_WEBHOOKS = new Set([
 ]);
 const EVOLUTION_WEBHOOK_PREFIX = '/api/whatsapp/evolution/webhook/';
 const WAHA_WEBHOOK_PREFIX = '/api/whatsapp/waha/webhook/';
+const PUBLIC_SITE_PATHS = new Set([
+  '/',
+  '/hakkimizda',
+  '/hizmetler',
+  '/portfoyler',
+  '/blog',
+  '/sik-sorulanlar',
+  '/iletisim',
+]);
 
 function isPublicWhatsAppWebhook(pathname: string): boolean {
   return (
@@ -51,7 +60,7 @@ export default async function proxy(request: NextRequest) {
     .toLocaleLowerCase('en-US');
 
   if (
-    (pathname === '/' || pathname === '/portfoyler') &&
+    PUBLIC_SITE_PATHS.has(pathname) &&
     hostname &&
     hostname !== 'localhost' &&
     !hostname.endsWith('.localhost') &&
@@ -66,10 +75,9 @@ export default async function proxy(request: NextRequest) {
       publicWorkspace.domainStatus === 'VERIFIED'
     ) {
       const publicUrl = request.nextUrl.clone();
-      publicUrl.pathname = `/site/${publicWorkspace.temporarySlug}`;
-      if (pathname === '/portfoyler') {
-        publicUrl.searchParams.set('view', 'portfoyler');
-      }
+      publicUrl.pathname = pathname === '/'
+        ? `/site/${publicWorkspace.temporarySlug}`
+        : `/site/${publicWorkspace.temporarySlug}${pathname}`;
       return NextResponse.rewrite(publicUrl);
     }
   }
