@@ -42,6 +42,7 @@ import type { DeveloperContentSection } from "@/lib/developer-content-ai";
 import {
   DEVELOPER_THEMES,
   getDeveloperTheme,
+  getDeveloperThemeBlueprint,
   type DeveloperSiteContent,
   type DeveloperThemeId,
 } from "@/lib/developer-site";
@@ -618,6 +619,7 @@ export default function YazilimciPage() {
                     {studioThemes.map((theme, index) => {
                       const isCurrent = theme.id === website.selectedTheme;
                       const isPublished = isCurrent && website.status === "PUBLISHED";
+                      const blueprint = getDeveloperThemeBlueprint(theme.id);
                       return (
                         <article
                           className={styles.websiteCard}
@@ -654,7 +656,7 @@ export default function YazilimciPage() {
                             <div>
                               <h3>{isCurrent ? website.brandName : theme.name}</h3>
                               <p>{isCurrent ? (website.customHostname || website.temporaryUrl.replace(/^https?:\/\//, "")) : theme.description}</p>
-                              <small>{isCurrent && website.publishedAt ? `Güncellendi: ${new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(website.publishedAt))}` : `${theme.mood} · Çok sayfalı emlak sitesi`}</small>
+                              <small>{isCurrent && website.publishedAt ? `Güncellendi: ${new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(website.publishedAt))}` : `${blueprint.architecture} · ${blueprint.portfolioPresentation}`}</small>
                             </div>
                             <span className={isPublished ? styles.publishedBadge : styles.templateBadge}><i /> {isPublished ? "Yayında" : isCurrent ? "Taslak" : "Hazır tasarım"}</span>
                           </div>

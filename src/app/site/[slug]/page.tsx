@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import {
   getDeveloperTheme,
+  getDeveloperThemeBlueprint,
   parseDeveloperSiteContent,
 } from '@/lib/developer-site';
 import { readDeveloperSiteSettings } from '@/lib/developer-site-storage';
@@ -109,6 +110,7 @@ async function renderPublicPortfolioSite({
   const siteSettings = await readDeveloperSiteSettings(workspace.companyAccount.id);
   const whatsapp = whatsappUrl(workspace.whatsappPhone, workspace.brandName);
   const selectedTheme = getDeveloperTheme(siteSettings?.selectedTheme);
+  const blueprint = getDeveloperThemeBlueprint(selectedTheme.id);
   const content = parseDeveloperSiteContent(
     siteSettings?.siteContent,
     workspace.brandName,
@@ -160,6 +162,7 @@ async function renderPublicPortfolioSite({
           {isFullWebsite && content.services.enabled && <a href={siteHref('hizmetler')}>Hizmetler</a>}
           <a href={portfolioHref}>Portföyler</a>
           {isFullWebsite && content.blog.enabled && <a href={siteHref('blog')}>Blog</a>}
+          {isFullWebsite && content.faq.enabled && <a href={siteHref('sik-sorulanlar')}>Sık Sorulanlar</a>}
           <a href={siteHref('iletisim')}>İletişim</a>
         </nav>
       </header>
@@ -169,6 +172,13 @@ async function renderPublicPortfolioSite({
           <span className={styles.eyebrow}>{content.hero.eyebrow}</span>
           <h1>{content.hero.title}</h1>
           <p>{content.hero.description}</p>
+          <aside className={styles.themeSignature} aria-label={`${selectedTheme.name} tasarım özellikleri`}>
+            <span>{blueprint.architecture}</span>
+            <strong>{blueprint.signature}</strong>
+            <ul>
+              {blueprint.signatureItems.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </aside>
           <a className={styles.heroButton} href={portfolioHref}>
             {content.hero.buttonLabel} <ArrowRight />
           </a>
@@ -208,7 +218,7 @@ async function renderPublicPortfolioSite({
             </div>
             <p>{content.services.intro}</p>
           </div>
-          <div className={styles.serviceGrid}>
+          <div className={styles.serviceGrid} data-theme-architecture={selectedTheme.id}>
             {content.services.items.map((item, index) => (
               <article key={`${index}-${item.title}`}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
@@ -223,14 +233,14 @@ async function renderPublicPortfolioSite({
       {sectionVisible('portfoyler') && <section className={styles.portfolioSection} id="portfoyler">
         <div className={styles.sectionHead}>
           <div>
-            <span className={styles.eyebrow}>PORTFÖYLER</span>
+            <span className={styles.eyebrow}>{blueprint.portfolioPresentation}</span>
             <h2>Size uygun seçenekler</h2>
           </div>
           <p>Yalnızca aktif ve yayın yetkisi doğrulanmış kayıtlar gösterilir.</p>
         </div>
 
         {properties.length ? (
-          <div className={styles.grid}>
+          <div className={styles.grid} data-theme-presentation={selectedTheme.id}>
             {properties.map((property) => {
               const imageUrl = property.media[0]?.url || property.imageUrl;
               return (
@@ -327,6 +337,7 @@ async function renderPublicPortfolioSite({
             {socialLinks.map(([label, url]) => <a href={url} key={label} target="_blank" rel="noreferrer">{label}</a>)}
           </div>
         )}
+        <small className={styles.themeCredit}>{selectedTheme.name} · {blueprint.navigation}</small>
       </footer>
     </main>
   );

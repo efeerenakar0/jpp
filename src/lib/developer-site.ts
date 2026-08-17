@@ -77,12 +77,165 @@ export const DEVELOPER_THEMES: readonly DeveloperTheme[] = [
 
 export const DEFAULT_DEVELOPER_THEME_ID: DeveloperThemeId = 'midnight-estate';
 
+export const FEATURED_DEVELOPER_THEME_IDS = [
+  'midnight-estate',
+  'coastal-living',
+  'monaco-luxe',
+  'nordic-space',
+  'editorial-ink',
+  'terracotta-home',
+  'emerald-reserve',
+  'skyline-pro',
+  'gallery-white',
+  'desert-modern',
+  'cobalt-grid',
+  'rosewood-signature',
+  'brutalist-key',
+  'sage-habitat',
+  'golden-hour',
+] as const satisfies readonly DeveloperThemeId[];
+
+export type DeveloperThemeBlueprint = {
+  architecture: string;
+  navigation: string;
+  portfolioPresentation: string;
+  signature: string;
+  signatureItems: readonly [string, string, string];
+};
+
+export const DEVELOPER_THEME_BLUEPRINTS: Record<
+  (typeof FEATURED_DEVELOPER_THEME_IDS)[number],
+  DeveloperThemeBlueprint
+> = {
+  'midnight-estate': {
+    architecture: 'Sinematik vitrin',
+    navigation: 'İnce çerçeveli gece menüsü',
+    portfolioPresentation: 'Öne çıkan ilan + koyu koleksiyon',
+    signature: 'Gece seçkisi',
+    signatureItems: ['Tam ekran mimari', 'Altın detaylar', 'Özel portföy odağı'],
+  },
+  'coastal-living': {
+    architecture: 'Sahil yaşam rehberi',
+    navigation: 'Ferah merkez menü',
+    portfolioPresentation: 'Organik kıyı kartları',
+    signature: 'Denize yakın yaşam',
+    signatureItems: ['Kavisli galeri', 'Bölge odaklı arama', 'Tatil evi ritmi'],
+  },
+  'monaco-luxe': {
+    architecture: 'Özel koleksiyon salonu',
+    navigation: 'Simetrik concierge menüsü',
+    portfolioPresentation: 'Mücevher kutusu koleksiyonu',
+    signature: 'Private collection',
+    signatureItems: ['Seçkin mülkler', 'Concierge iletişim', 'Prestij sunumu'],
+  },
+  'nordic-space': {
+    architecture: 'İskandinav katalog',
+    navigation: 'Sessiz tipografik menü',
+    portfolioPresentation: 'Yatay mimari katalog',
+    signature: 'Az ama öz',
+    signatureItems: ['Geniş boşluk', 'İşlevsel filtre', 'Mimari ayrıntı'],
+  },
+  'editorial-ink': {
+    architecture: 'Gayrimenkul dergisi',
+    navigation: 'Gazete masthead menüsü',
+    portfolioPresentation: 'Editoryal hikâye akışı',
+    signature: 'Bu ayın dosyası',
+    signatureItems: ['Büyük manşet', 'Asimetrik sayfa', 'Haber dili'],
+  },
+  'terracotta-home': {
+    architecture: 'Yaşam hikâyesi',
+    navigation: 'Sıcak yuvarlak menü',
+    portfolioPresentation: 'Oda oda hikâye kartları',
+    signature: 'Bir evden fazlası',
+    signatureItems: ['Aile sıcaklığı', 'Doğal dokular', 'Mahalle hikâyeleri'],
+  },
+  'emerald-reserve': {
+    architecture: 'Yatırım kulübü',
+    navigation: 'Üyelik hissi veren menü',
+    portfolioPresentation: 'Rezerv koleksiyon listesi',
+    signature: 'Reserve access',
+    signatureItems: ['Yatırım seçkisi', 'Gizli fırsatlar', 'Danışman önceliği'],
+  },
+  'skyline-pro': {
+    architecture: 'Şehir yatırım terminali',
+    navigation: 'Kurumsal hızlı erişim',
+    portfolioPresentation: 'Veri odaklı şehir ızgarası',
+    signature: 'Şehri verilerle okuyun',
+    signatureItems: ['Getiri odağı', 'Yoğun portföy', 'Kurumsal görünüm'],
+  },
+  'gallery-white': {
+    architecture: 'Mimari sanat galerisi',
+    navigation: 'Küratör menüsü',
+    portfolioPresentation: 'Tam görsel galeri duvarı',
+    signature: 'Curated spaces',
+    signatureItems: ['Fotoğraf önceliği', 'Monokrom sahne', 'Sergi düzeni'],
+  },
+  'desert-modern': {
+    architecture: 'Mimari blok kompozisyonu',
+    navigation: 'Ofset stüdyo menüsü',
+    portfolioPresentation: 'Basamaklı proje blokları',
+    signature: 'Güneş ve gölge',
+    signatureItems: ['Keskin geometri', 'Kum paleti', 'Proje anlatısı'],
+  },
+  'cobalt-grid': {
+    architecture: 'Dijital portföy ağı',
+    navigation: 'Modüler teknoloji menüsü',
+    portfolioPresentation: 'Yoğun akıllı ilan matrisi',
+    signature: 'Property network',
+    signatureItems: ['Hızlı tarama', 'Net filtreler', 'Teknoloji hissi'],
+  },
+  'rosewood-signature': {
+    architecture: 'Danışman imza sitesi',
+    navigation: 'Kişisel marka menüsü',
+    portfolioPresentation: 'Danışman seçkisi',
+    signature: 'Kişisel danışmanınız',
+    signatureItems: ['İnsan odaklı', 'Butik hizmet', 'Güven ilişkisi'],
+  },
+  'brutalist-key': {
+    architecture: 'Cesur ilan manifestosu',
+    navigation: 'Blok komut menüsü',
+    portfolioPresentation: 'Poster biçimli ilan duvarı',
+    signature: 'Mülkü saklamayın',
+    signatureItems: ['Yüksek kontrast', 'Dev tipografi', 'Hızlı aksiyon'],
+  },
+  'sage-habitat': {
+    architecture: 'Sakin yaşam rotası',
+    navigation: 'Organik kapsül menü',
+    portfolioPresentation: 'Yumuşak yaşam koleksiyonu',
+    signature: 'Doğal yaşam seçkisi',
+    signatureItems: ['Huzurlu akış', 'Yeşil yaşam', 'Yumuşak formlar'],
+  },
+  'golden-hour': {
+    architecture: 'Tam ekran duygu vitrini',
+    navigation: 'Görsel üstü transparan menü',
+    portfolioPresentation: 'Film şeridi portföyü',
+    signature: 'Hayalinizdeki manzara',
+    signatureItems: ['Tam ekran görsel', 'Gün batımı tonu', 'Duygusal anlatı'],
+  },
+};
+
 export function getDeveloperTheme(id: unknown) {
   const parsed = developerThemeIdSchema.safeParse(id);
   return (
     DEVELOPER_THEMES.find((theme) => theme.id === parsed.data) ??
     DEVELOPER_THEMES[0]
   );
+}
+
+export function getDeveloperThemeBlueprint(id: unknown): DeveloperThemeBlueprint {
+  const theme = getDeveloperTheme(id);
+  if (theme.id in DEVELOPER_THEME_BLUEPRINTS) {
+    return DEVELOPER_THEME_BLUEPRINTS[
+      theme.id as keyof typeof DEVELOPER_THEME_BLUEPRINTS
+    ];
+  }
+  return {
+    architecture: `${theme.mood} emlak vitrini`,
+    navigation: 'Klasik çok sayfalı menü',
+    portfolioPresentation: 'Profesyonel portföy kataloğu',
+    signature: theme.name,
+    signatureItems: ['Çok sayfalı yapı', 'Mobil uyumlu', 'Kolay yönetim'],
+  };
 }
 
 const shortText = (max: number) => z.string().trim().max(max);

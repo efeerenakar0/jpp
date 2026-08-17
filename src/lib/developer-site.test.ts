@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_DEVELOPER_THEME_ID,
+  DEVELOPER_THEME_BLUEPRINTS,
   DEVELOPER_THEMES,
+  FEATURED_DEVELOPER_THEME_IDS,
   defaultDeveloperSiteContent,
   getDeveloperTheme,
   parseDeveloperSiteContent,
@@ -19,6 +21,17 @@ describe('developer website themes and content', () => {
     expect(getDeveloperTheme('unknown-theme').id).toBe(
       DEFAULT_DEVELOPER_THEME_ID,
     );
+  });
+
+  it('gives every featured website a unique architecture and portfolio presentation', () => {
+    const blueprints = FEATURED_DEVELOPER_THEME_IDS.map(
+      (id) => DEVELOPER_THEME_BLUEPRINTS[id],
+    );
+    expect(blueprints).toHaveLength(15);
+    expect(new Set(blueprints.map((item) => item.architecture)).size).toBe(15);
+    expect(new Set(blueprints.map((item) => item.navigation)).size).toBe(15);
+    expect(new Set(blueprints.map((item) => item.portfolioPresentation)).size).toBe(15);
+    expect(new Set(blueprints.map((item) => item.signature)).size).toBe(15);
   });
 
   it('creates complete editable website content for a company', () => {
