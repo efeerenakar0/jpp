@@ -300,6 +300,10 @@ describe("Studio AI video jobs", () => {
       provider,
     });
 
+    expect(mocks.jobFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ provider: { not: "BANNERBEAR" } }),
+    }));
+
     expect(mocks.jobUpdateMany).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({

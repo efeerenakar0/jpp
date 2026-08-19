@@ -24,94 +24,114 @@ export async function GET() {
     const principal = await requireFabrikaPrincipal();
     const [campaigns, properties, websiteAnalyses, posterAssets, videoAssets] =
       await Promise.all([
-      prisma.adCampaign.findMany({
-        where: { companyAccountId: principal.account.id },
-        include: {
-          property: {
-            select: {
-              id: true,
-              title: true,
-              location: true,
-              price: true,
-              imageUrl: true,
-              referenceCode: true,
+        prisma.adCampaign.findMany({
+          where: { companyAccountId: principal.account.id },
+          include: {
+            property: {
+              select: {
+                id: true,
+                title: true,
+                location: true,
+                price: true,
+                imageUrl: true,
+                referenceCode: true,
+              },
+            },
+            adCopies: { orderBy: { platform: 'asc' } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        }),
+        prisma.crmProperty.findMany({
+          where: {
+            companyAccountId: principal.account.id,
+            status: {
+              in: [CrmPropertyStatus.ACTIVE, CrmPropertyStatus.RESERVED],
             },
           },
-          adCopies: { orderBy: { platform: 'asc' } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      }),
-      prisma.crmProperty.findMany({
-        where: {
-          companyAccountId: principal.account.id,
-          status: { in: [CrmPropertyStatus.ACTIVE, CrmPropertyStatus.RESERVED] },
-        },
-        select: {
-          id: true,
-          title: true,
-          location: true,
-          price: true,
-          imageUrl: true,
-          referenceCode: true,
-          status: true,
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 100,
-      }),
-      prisma.marketingWebsiteAnalysis.findMany({
-        where: { companyAccountId: principal.account.id },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      }),
-      prisma.crmPropertyMedia.findMany({
-        where: {
-          companyAccountId: principal.account.id,
-          archivedAt: null,
-          mediaType: {
-            in: [PropertyMediaType.POSTER, PropertyMediaType.MARKETING_ASSET],
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            price: true,
+            imageUrl: true,
+            referenceCode: true,
+            status: true,
+            media: {
+              where: {
+                archivedAt: null,
+                mediaType: PropertyMediaType.PHOTO,
+              },
+              select: {
+                id: true,
+                url: true,
+                fileName: true,
+                isCover: true,
+              },
+              orderBy: [
+                { isCover: 'desc' },
+                { sortOrder: 'asc' },
+                { createdAt: 'desc' },
+              ],
+              take: 12,
+            },
           },
-        },
-        select: {
-          id: true,
-          propertyId: true,
-          url: true,
-          fileName: true,
-          width: true,
-          height: true,
-          prompt: true,
-          createdAt: true,
-          property: {
-            select: { id: true, title: true, referenceCode: true },
+          orderBy: { updatedAt: 'desc' },
+          take: 100,
+        }),
+        prisma.marketingWebsiteAnalysis.findMany({
+          where: { companyAccountId: principal.account.id },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }),
+        prisma.crmPropertyMedia.findMany({
+          where: {
+            companyAccountId: principal.account.id,
+            archivedAt: null,
+            mediaType: {
+              in: [PropertyMediaType.POSTER, PropertyMediaType.MARKETING_ASSET],
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      }),
-      prisma.studioVideoJob.findMany({
-        where: {
-          companyAccountId: principal.account.id,
-          status: StudioVideoJobStatus.COMPLETED,
-          outputStorageKey: { not: null },
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        },
-        select: {
-          id: true,
-          propertyId: true,
-          outputFileName: true,
-          userCommand: true,
-          prompt: true,
-          ratio: true,
-          durationSeconds: true,
-          createdAt: true,
-          property: {
-            select: { id: true, title: true, referenceCode: true },
+          select: {
+            id: true,
+            propertyId: true,
+            url: true,
+            fileName: true,
+            width: true,
+            height: true,
+            prompt: true,
+            createdAt: true,
+            property: {
+              select: { id: true, title: true, referenceCode: true },
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      }),
-    ]);
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        }),
+        prisma.studioVideoJob.findMany({
+          where: {
+            companyAccountId: principal.account.id,
+            status: StudioVideoJobStatus.COMPLETED,
+            outputStorageKey: { not: null },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          select: {
+            id: true,
+            propertyId: true,
+            outputFileName: true,
+            userCommand: true,
+            prompt: true,
+            ratio: true,
+            durationSeconds: true,
+            createdAt: true,
+            property: {
+              select: { id: true, title: true, referenceCode: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        }),
+      ]);
 
     const creativeAssets: MarketingCreativeAsset[] = [
       ...posterAssets.map((asset) => ({
@@ -162,7 +182,10 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
     console.error('[Marketing Campaigns GET]:', error);
-    return NextResponse.json({ error: 'Kampanyalar alınamadı.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Kampanyalar alınamadı.' },
+      { status: 500 },
+    );
   }
 }
 
@@ -171,7 +194,10 @@ export async function PATCH(request: Request) {
     const principal = await requireFabrikaPrincipal();
     const parsed = patchSchema.safeParse(await request.json());
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Onay bilgisi geçersiz.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Onay bilgisi geçersiz.' },
+        { status: 400 },
+      );
     }
     const existing = await prisma.adCopy.findFirst({
       where: {
@@ -185,7 +211,10 @@ export async function PATCH(request: Request) {
       },
     });
     if (!existing) {
-      return NextResponse.json({ error: 'Reklam metni bulunamadı.' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Reklam metni bulunamadı.' },
+        { status: 404 },
+      );
     }
     const copy = await prisma.$transaction(async (tx) => {
       const updatedCopy = await tx.adCopy.update({
@@ -224,6 +253,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
     console.error('[Marketing Campaigns PATCH]:', error);
-    return NextResponse.json({ error: 'Onay durumu güncellenemedi.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Onay durumu güncellenemedi.' },
+      { status: 500 },
+    );
   }
 }

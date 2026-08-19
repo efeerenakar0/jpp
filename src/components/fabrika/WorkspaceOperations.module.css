@@ -255,3 +255,117 @@
 @media (prefers-reduced-motion: reduce) {
   .workspace *, .workspace *::before, .workspace *::after { transition-duration: .01ms !important; }
 }
+
+/* Light dashboard presentation; operational markup and interactions are unchanged. */
+.workspace {
+  --op-panel: #ffffff;
+  --op-panel-2: #f7f9fc;
+  --op-border: rgba(30, 99, 235, 0.16);
+  --op-line: rgba(148, 163, 184, 0.24);
+  --op-text: #17263b;
+  --op-muted: #64748b;
+}
+
+.secondaryButton,
+.modeTabs,
+.portfolioFilters label,
+.portfolioFilters > button,
+.activeFilters b,
+.teamPanel > header label,
+.teamPanel > header > span,
+.propertyActions a,
+.propertyActions button,
+.dealColumn article button {
+  background: #ffffff;
+  border-color: #d7e0ec;
+  color: #334155;
+}
+
+.portfolioMetrics,
+.portfolioPanel,
+.propertyRail,
+.teamPanel,
+.memberRail,
+.companyCards > section,
+.reportGrid article,
+.monthlyPerformancePanel {
+  background: #ffffff;
+  border-color: #dce5f0;
+  box-shadow: 0 10px 30px rgba(31, 55, 87, 0.07);
+}
+
+.portfolioMetrics > article {
+  border-color: #e4eaf2;
+}
+
+.portfolioMetrics strong,
+.propertyRail > header h2,
+.propertyRail dd,
+.teamTable strong,
+.memberRail h2,
+.companyCards h2,
+.reportGrid strong {
+  color: #17263b;
+}
+
+.portfolioMetrics span,
+.propertyRail > header p,
+.propertyRail dt,
+.teamTable,
+.companyCards p,
+.reportGrid p {
+  color: #64748b;
+}
+
+.portfolioFilters input,
+.teamPanel > header input {
+  color: #17263b;
+}
+
+.portfolioTable thead,
+.teamTable thead {
+  background: #f3f6fa;
+  color: #64748b;
+}
+
+.portfolioTable tbody tr,
+.teamTable tbody tr {
+  border-color: #e7edf4;
+  color: #475569;
+}
+
+.portfolioTable tbody tr:hover,
+.teamTable tbody tr:hover {
+  background: #f2f7ff;
+}
+
+.portfolioTable tbody tr[data-selected='true'],
+.teamTable tbody tr[data-selected='true'] {
+  background: linear-gradient(90deg, #eaf8ef, #f7fcf9);
+  box-shadow: inset 0 0 0 1px #77c995;
+}
+
+.portfolioThumb,
+.heroImage {
+  background: #e8eef6;
+}
+
+.typePill,
+.statusPill,
+.propertyRail dl,
+.completeness,
+.workload,
+.permissions,
+.monthlyPerformancePanel article {
+  background: #f7f9fc;
+  border-color: #dfe7f1;
+  color: #475569;
+}
+
+.propertyActions [data-primary='true'] {
+  color: #ffffff;
+}
+
+.propertyActions a {
+  color: #a66b12;
+}

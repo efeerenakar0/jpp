@@ -1,14 +1,14 @@
 .root {
   --radius: 0.75rem;
-  --ceo-ink: #050d18;
+  --ceo-ink: #f6f8fc;
   --ceo-sidebar: #06111f;
-  --ceo-surface: #091727;
-  --ceo-surface-raised: #0d2034;
-  --ceo-surface-soft: #071421;
-  --ceo-border: #1d3850;
-  --ceo-border-soft: #142c41;
-  --ceo-pearl: #f3f8fc;
-  --ceo-muted: #8ea3b8;
+  --ceo-surface: #ffffff;
+  --ceo-surface-raised: #f8faff;
+  --ceo-surface-soft: #f1f5fb;
+  --ceo-border: #dbe5f1;
+  --ceo-border-soft: #e7edf5;
+  --ceo-pearl: #07132f;
+  --ceo-muted: #63718f;
   --ceo-gold: #d59a59;
   --ceo-gold-bright: #f0bd7b;
   --ceo-emerald: #22d3ee;
@@ -18,12 +18,172 @@
   --fabrika-surface-muted: var(--ceo-surface-raised);
   --fabrika-border: var(--ceo-border);
   --fabrika-primary: var(--ceo-emerald);
-  color-scheme: dark;
+  color-scheme: light;
   font-family: var(--font-sans);
   background:
     radial-gradient(circle at 78% 8%, rgb(53 201 139 / 0.055), transparent 24rem),
     radial-gradient(circle at 8% 90%, rgb(201 154 87 / 0.05), transparent 30rem),
-    var(--ceo-ink);
+    #f6f8fc;
+}
+
+/*
+ * Business CEO AI v2 — shared light workspace layer.
+ * Existing page components keep their DOM, state, handlers and API bindings. This
+ * layer changes only presentation, so legacy modules can move to the approved
+ * pearl/blue interface without losing working behaviour.
+ */
+.root :global(.business-ceo-shell),
+.root :global(.business-ceo-main),
+.root :global(.business-ceo-content),
+.root :global([data-dashboard-workspace='true']) {
+  color: #07132f !important;
+  background: #f6f8fc !important;
+}
+
+.root :global(.business-ceo-content),
+.root :global([data-dashboard-workspace='true']) {
+  --ceo-page-ink: #07132f;
+  --ceo-page-muted: #657493;
+  --ceo-page-line: #dbe5f1;
+  --ceo-page-soft: #f7f9fd;
+  --ceo-page-blue: #176ff2;
+  --ceo-page-green: #14ad68;
+}
+
+.root :global(.business-ceo-content) :global([class*='page']),
+.root :global([data-dashboard-workspace='true']) :global([class*='page']) {
+  color: var(--ceo-page-ink) !important;
+  background: transparent !important;
+}
+
+.root :global(.business-ceo-content) :global(h1),
+.root :global(.business-ceo-content) :global(h2),
+.root :global(.business-ceo-content) :global(h3),
+.root :global([data-dashboard-workspace='true']) :global(h1),
+.root :global([data-dashboard-workspace='true']) :global(h2),
+.root :global([data-dashboard-workspace='true']) :global(h3) {
+  color: var(--ceo-page-ink) !important;
+  font-family: Inter, "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif !important;
+  font-weight: 760;
+  letter-spacing: -0.025em;
+}
+
+.root :global(.business-ceo-content) :global(p),
+.root :global([data-dashboard-workspace='true']) :global(p) {
+  color: var(--ceo-page-muted);
+}
+
+.root :global(.business-ceo-content) :global(:is(section, article, aside, nav)[class*='Panel']),
+.root :global(.business-ceo-content) :global(:is(section, article, aside, nav)[class*='panel']),
+.root :global(.business-ceo-content) :global(:is(section, article, aside)[class*='Card']),
+.root :global(.business-ceo-content) :global(:is(section, article, aside)[class*='card']),
+.root :global([data-dashboard-workspace='true']) :global(:is(section, article, aside, nav)[class*='Panel']),
+.root :global([data-dashboard-workspace='true']) :global(:is(section, article, aside, nav)[class*='panel']),
+.root :global([data-dashboard-workspace='true']) :global(:is(section, article, aside)[class*='Card']),
+.root :global([data-dashboard-workspace='true']) :global(:is(section, article, aside)[class*='card']) {
+  border-color: var(--ceo-page-line) !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgb(30 62 116 / 0.065) !important;
+}
+
+.root :global(.business-ceo-content) :global(:is(div, section, header)[class*='hero']),
+.root :global([data-dashboard-workspace='true']) :global(:is(div, section, header)[class*='hero']) {
+  border-color: var(--ceo-page-line) !important;
+  background: #fff !important;
+  box-shadow: 0 10px 28px rgb(30 62 116 / 0.05) !important;
+}
+
+.root :global(.business-ceo-content) :global(:is(div, section, nav)[class*='toolbar']),
+.root :global(.business-ceo-content) :global(:is(div, section, nav)[class*='Toolbar']),
+.root :global([data-dashboard-workspace='true']) :global(:is(div, section, nav)[class*='toolbar']),
+.root :global([data-dashboard-workspace='true']) :global(:is(div, section, nav)[class*='Toolbar']) {
+  border-color: var(--ceo-page-line) !important;
+  background: #fff !important;
+}
+
+.root :global(.business-ceo-content) :global(input),
+.root :global(.business-ceo-content) :global(textarea),
+.root :global(.business-ceo-content) :global(select),
+.root :global(.business-ceo-content) :global([role='combobox']),
+.root :global([data-dashboard-workspace='true']) :global(input),
+.root :global([data-dashboard-workspace='true']) :global(textarea),
+.root :global([data-dashboard-workspace='true']) :global(select),
+.root :global([data-dashboard-workspace='true']) :global([role='combobox']) {
+  color: #0b1732 !important;
+  border-color: #d7e2ef !important;
+  background: #fff !important;
+  box-shadow: inset 0 1px 2px rgb(20 42 80 / 0.035) !important;
+}
+
+.root :global(.business-ceo-content) :global(input::placeholder),
+.root :global(.business-ceo-content) :global(textarea::placeholder),
+.root :global([data-dashboard-workspace='true']) :global(input::placeholder),
+.root :global([data-dashboard-workspace='true']) :global(textarea::placeholder) {
+  color: #8290aa !important;
+}
+
+.root :global(.business-ceo-content) :global(table),
+.root :global([data-dashboard-workspace='true']) :global(table) {
+  color: #16213a;
+  background: #fff;
+}
+
+.root :global(.business-ceo-content) :global(thead),
+.root :global([data-dashboard-workspace='true']) :global(thead) {
+  color: #52617d !important;
+  background: #f5f8fc !important;
+}
+
+.root :global(.business-ceo-content) :global(tbody tr:hover),
+.root :global([data-dashboard-workspace='true']) :global(tbody tr:hover) {
+  background: #f4f8ff !important;
+}
+
+.root :global(.business-ceo-content) :global(button[class*='primary']),
+.root :global(.business-ceo-content) :global(a[class*='primary']),
+.root :global(.business-ceo-content) :global(button[class*='Primary']),
+.root :global([data-dashboard-workspace='true']) :global(button[class*='primary']),
+.root :global([data-dashboard-workspace='true']) :global(a[class*='primary']),
+.root :global([data-dashboard-workspace='true']) :global(button[class*='Primary']) {
+  border-color: #176ff2 !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #237bf4, #075bdc) !important;
+  box-shadow: 0 10px 22px rgb(23 111 242 / 0.18) !important;
+}
+
+.root :global(.business-ceo-content) :global(button[class*='secondary']),
+.root :global(.business-ceo-content) :global(a[class*='secondary']),
+.root :global([data-dashboard-workspace='true']) :global(button[class*='secondary']),
+.root :global([data-dashboard-workspace='true']) :global(a[class*='secondary']) {
+  border-color: #d7e2ef !important;
+  color: #20304f !important;
+  background: #fff !important;
+}
+
+.root :global(.business-ceo-content) :global([role='tablist']),
+.root :global([data-dashboard-workspace='true']) :global([role='tablist']) {
+  border-color: #dbe5f1 !important;
+  background: #f7f9fd !important;
+}
+
+.root :global(.business-ceo-content) :global([role='tab']),
+.root :global([data-dashboard-workspace='true']) :global([role='tab']) {
+  color: #596986 !important;
+}
+
+.root :global(.business-ceo-content) :global([role='tab'][aria-selected='true']),
+.root :global(.business-ceo-content) :global([role='tab'][data-state='active']),
+.root :global([data-dashboard-workspace='true']) :global([role='tab'][aria-selected='true']),
+.root :global([data-dashboard-workspace='true']) :global([role='tab'][data-state='active']) {
+  border-color: #8db8ff !important;
+  color: #075bdc !important;
+  background: #fff !important;
+  box-shadow: 0 5px 14px rgb(30 96 210 / 0.08) !important;
+}
+
+.root :global(.business-ceo-content) :global([class*='eyebrow']),
+.root :global([data-dashboard-workspace='true']) :global([class*='eyebrow']) {
+  color: #176ff2 !important;
 }
 
 .root :global(h1),
@@ -249,6 +409,125 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Final cascade: replace the legacy dark compatibility rules above. */
+.root :global(.business-ceo-main) {
+  color: #07132f !important;
+  background:
+    radial-gradient(circle at 88% 0%, rgb(54 119 255 / 0.055), transparent 27rem),
+    linear-gradient(180deg, #fbfcff 0%, #f4f7fc 100%) !important;
+}
+
+.root :global(.business-ceo-main)::before {
+  background: linear-gradient(90deg, transparent, rgb(23 111 242 / 0.18), transparent) !important;
+}
+
+.root :global(.business-ceo-content)::before {
+  opacity: 0.65;
+  background-image:
+    linear-gradient(rgb(23 111 242 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(23 111 242 / 0.025) 1px, transparent 1px) !important;
+}
+
+.root :global(.business-ceo-content .glass-card),
+.root :global(.business-ceo-content .glass-card-glow),
+.root :global(.business-ceo-content .glass-card-gold),
+.root :global([data-dashboard-workspace='true'] .glass-card),
+.root :global([data-dashboard-workspace='true'] .glass-card-glow),
+.root :global([data-dashboard-workspace='true'] .glass-card-gold) {
+  border-color: #dbe5f1 !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgb(30 62 116 / 0.065) !important;
+}
+
+.root :global(.business-ceo-content .bg-slate-950),
+.root :global(.business-ceo-content .bg-slate-900),
+.root :global(.business-ceo-content .bg-slate-800),
+.root :global([data-dashboard-workspace='true'] .bg-slate-950),
+.root :global([data-dashboard-workspace='true'] .bg-slate-900),
+.root :global([data-dashboard-workspace='true'] .bg-slate-800) {
+  background-color: #fff !important;
+}
+
+.root :global(.business-ceo-content .text-white),
+.root :global(.business-ceo-content .text-slate-100),
+.root :global([data-dashboard-workspace='true'] .text-white),
+.root :global([data-dashboard-workspace='true'] .text-slate-100) {
+  color: #07132f !important;
+}
+
+.root :global(.business-ceo-content .border-slate-800),
+.root :global(.business-ceo-content .border-slate-700),
+.root :global([data-dashboard-workspace='true'] .border-slate-800),
+.root :global([data-dashboard-workspace='true'] .border-slate-700) {
+  border-color: #dbe5f1 !important;
+}
+
+.root :global(.business-ceo-content section.rounded-xl.border),
+.root :global(.business-ceo-content section.rounded-2xl.border),
+.root :global(.business-ceo-content article.rounded-xl.border),
+.root :global(.business-ceo-content article.rounded-2xl.border),
+.root :global(.business-ceo-content aside.rounded-xl.border),
+.root :global(.business-ceo-content aside.rounded-2xl.border),
+.root :global(.business-ceo-content div.rounded-xl.border),
+.root :global(.business-ceo-content div.rounded-2xl.border),
+.root :global([data-dashboard-workspace='true'] section.rounded-xl.border),
+.root :global([data-dashboard-workspace='true'] article.rounded-xl.border),
+.root :global([data-dashboard-workspace='true'] aside.rounded-xl.border) {
+  border-color: #dbe5f1 !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgb(30 62 116 / 0.065) !important;
+}
+
+.root :global(.business-ceo-content input),
+.root :global(.business-ceo-content textarea),
+.root :global(.business-ceo-content select),
+.root :global(.business-ceo-content [role='combobox']),
+.root :global([data-dashboard-workspace='true'] input),
+.root :global([data-dashboard-workspace='true'] textarea),
+.root :global([data-dashboard-workspace='true'] select),
+.root :global([data-dashboard-workspace='true'] [role='combobox']) {
+  color: #0b1732 !important;
+  border-color: #d7e2ef !important;
+  background: #fff !important;
+  box-shadow: inset 0 1px 2px rgb(20 42 80 / 0.035) !important;
+}
+
+.root :global(.ceo-stat-card),
+.root :global(.ceo-stat-card[data-status='success']),
+.root :global(.ceo-stat-card[data-status='warning']),
+.root :global(.ceo-filter-bar),
+.root :global(.ceo-data-table),
+.root :global(.ceo-notification-panel),
+.root :global(.ceo-empty-state),
+.root :global(.ceo-chat-interface),
+.root :global(.ceo-loading-state > div) {
+  color: #07132f !important;
+  border-color: #dbe5f1 !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgb(30 62 116 / 0.065) !important;
+}
+
+.root :global(.ceo-data-table thead),
+.root :global(.ceo-chat-header),
+.root :global(.ceo-notification-panel > div:first-child),
+.root :global(.ceo-chat-interface > div[aria-live='polite']) {
+  color: #07132f !important;
+  border-color: #e0e8f2 !important;
+  background: #f7f9fd !important;
+}
+
+.root :global(.ceo-notification-panel h2),
+.root :global(.business-ceo-content h2) {
+  color: #07132f !important;
+  font-family: Inter, "Segoe UI", Arial, sans-serif !important;
+}
+
+.root :global(.business-ceo-content ::-webkit-scrollbar-thumb),
+.root :global([data-dashboard-workspace='true'] ::-webkit-scrollbar-thumb) {
+  background: rgb(23 111 242 / 0.28) !important;
+  background-clip: padding-box !important;
 }
 
 .root :global(.business-ceo-content) {

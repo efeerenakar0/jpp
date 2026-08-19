@@ -1,0 +1,233 @@
+/*
+ * Business CEO AI v2 visual compatibility layer.
+ * It deliberately targets only the Fabrika content areas. Component markup,
+ * handlers, forms, state and API calls remain owned by the original modules.
+ */
+
+.business-ceo-shell,
+.business-ceo-main,
+.business-ceo-content,
+[data-dashboard-workspace='true'] {
+  color: #07132f !important;
+  background-color: #f6f8fc !important;
+}
+
+.business-ceo-main {
+  background-image:
+    radial-gradient(circle at 88% 0%, rgb(54 119 255 / 0.055), transparent 27rem),
+    linear-gradient(180deg, #fbfcff 0%, #f4f7fc 100%) !important;
+}
+
+.business-ceo-content,
+[data-dashboard-workspace='true'] {
+  --v2-ink: #07132f;
+  --v2-muted: #667592;
+  --v2-border: #dce6f2;
+  --v2-soft: #f6f9fd;
+  --v2-blue: #176ff2;
+  --v2-green: #14ad68;
+}
+
+.business-ceo-content [class*='page'],
+[data-dashboard-workspace='true'] [class*='page'] {
+  color: var(--v2-ink) !important;
+  background: transparent !important;
+}
+
+.business-ceo-content :is(h1, h2, h3),
+[data-dashboard-workspace='true'] :is(h1, h2, h3) {
+  color: var(--v2-ink) !important;
+  font-family: Inter, "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif !important;
+  font-weight: 760 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.business-ceo-content p,
+[data-dashboard-workspace='true'] p {
+  color: var(--v2-muted);
+}
+
+.business-ceo-content :is(section, article, aside, nav)[class*='Panel'],
+.business-ceo-content :is(section, article, aside, nav)[class*='panel'],
+.business-ceo-content :is(section, article, aside)[class*='Card'],
+.business-ceo-content :is(section, article, aside)[class*='card'],
+[data-dashboard-workspace='true'] :is(section, article, aside, nav)[class*='Panel'],
+[data-dashboard-workspace='true'] :is(section, article, aside, nav)[class*='panel'],
+[data-dashboard-workspace='true'] :is(section, article, aside)[class*='Card'],
+[data-dashboard-workspace='true'] :is(section, article, aside)[class*='card'] {
+  border-color: var(--v2-border) !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgb(30 62 116 / 0.065) !important;
+}
+
+.business-ceo-content :is(section, header, div)[class*='hero'],
+[data-dashboard-workspace='true'] :is(section, header, div)[class*='hero'] {
+  border-color: var(--v2-border) !important;
+  background: #fff !important;
+  box-shadow: 0 10px 28px rgb(30 62 116 / 0.05) !important;
+}
+
+.business-ceo-content :is(section, nav, div)[class*='Toolbar'],
+.business-ceo-content :is(section, nav, div)[class*='toolbar'],
+[data-dashboard-workspace='true'] :is(section, nav, div)[class*='Toolbar'],
+[data-dashboard-workspace='true'] :is(section, nav, div)[class*='toolbar'] {
+  border-color: var(--v2-border) !important;
+  background: #fff !important;
+}
+
+.business-ceo-content :is(input, textarea, select, [role='combobox']),
+[data-dashboard-workspace='true'] :is(input, textarea, select, [role='combobox']) {
+  color: #0b1732 !important;
+  border-color: #d7e2ef !important;
+  background: #fff !important;
+  box-shadow: inset 0 1px 2px rgb(20 42 80 / 0.035) !important;
+}
+
+.business-ceo-content :is(input, textarea)::placeholder,
+[data-dashboard-workspace='true'] :is(input, textarea)::placeholder {
+  color: #8290aa !important;
+}
+
+.business-ceo-content :is(table, tbody),
+[data-dashboard-workspace='true'] :is(table, tbody) {
+  color: #17223b !important;
+  background: #fff !important;
+}
+
+.business-ceo-content thead,
+[data-dashboard-workspace='true'] thead {
+  color: #53627d !important;
+  background: #f5f8fc !important;
+}
+
+.business-ceo-content tbody tr:hover,
+[data-dashboard-workspace='true'] tbody tr:hover {
+  background: #f4f8ff !important;
+}
+
+.business-ceo-content :is(button, a)[class*='primary'],
+.business-ceo-content :is(button, a)[class*='Primary'],
+[data-dashboard-workspace='true'] :is(button, a)[class*='primary'],
+[data-dashboard-workspace='true'] :is(button, a)[class*='Primary'] {
+  border-color: var(--v2-blue) !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #237bf4, #075bdc) !important;
+  box-shadow: 0 10px 22px rgb(23 111 242 / 0.18) !important;
+}
+
+.business-ceo-content :is(button, a)[class*='secondary'],
+[data-dashboard-workspace='true'] :is(button, a)[class*='secondary'] {
+  border-color: #d7e2ef !important;
+  color: #20304f !important;
+  background: #fff !important;
+}
+
+.business-ceo-content [role='tablist'],
+[data-dashboard-workspace='true'] [role='tablist'] {
+  border-color: var(--v2-border) !important;
+  background: var(--v2-soft) !important;
+}
+
+.business-ceo-content [role='tab'],
+[data-dashboard-workspace='true'] [role='tab'] {
+  color: #596986 !important;
+}
+
+.business-ceo-content [role='tab'][aria-selected='true'],
+.business-ceo-content [role='tab'][data-state='active'],
+[data-dashboard-workspace='true'] [role='tab'][aria-selected='true'],
+[data-dashboard-workspace='true'] [role='tab'][data-state='active'] {
+  border-color: #8db8ff !important;
+  color: #075bdc !important;
+  background: #fff !important;
+  box-shadow: 0 5px 14px rgb(30 96 210 / 0.08) !important;
+}
+
+.business-ceo-content [class*='eyebrow'],
+[data-dashboard-workspace='true'] [class*='eyebrow'] {
+  color: var(--v2-blue) !important;
+}
+
+.business-ceo-content :is(.glass-card, .glass-card-glow, .glass-card-gold),
+[data-dashboard-workspace='true'] :is(.glass-card, .glass-card-glow, .glass-card-gold),
+.business-ceo-content :is(section, article, aside, div).rounded-xl.border,
+.business-ceo-content :is(section, article, aside, div).rounded-2xl.border,
+[data-dashboard-workspace='true'] :is(section, article, aside, div).rounded-xl.border,
+[data-dashboard-workspace='true'] :is(section, article, aside, div).rounded-2xl.border {
+  border-color: var(--v2-border) !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgb(30 62 116 / 0.065) !important;
+}
+
+.business-ceo-content :is(.bg-slate-950, .bg-slate-900, .bg-slate-800),
+[data-dashboard-workspace='true'] :is(.bg-slate-950, .bg-slate-900, .bg-slate-800) {
+  background-color: #fff !important;
+}
+
+.business-ceo-content :is(.text-white, .text-slate-100),
+[data-dashboard-workspace='true'] :is(.text-white, .text-slate-100) {
+  color: var(--v2-ink) !important;
+}
+
+.business-ceo-content :is(.border-slate-800, .border-slate-700),
+[data-dashboard-workspace='true'] :is(.border-slate-800, .border-slate-700) {
+  border-color: var(--v2-border) !important;
+}
+
+/* CRM uses stable cross-page class hooks and therefore receives a stricter pass. */
+.ceo-stat-card,
+.ceo-filter-bar,
+.ceo-data-table,
+.ceo-notification-panel,
+.ceo-empty-state,
+.ceo-chat-interface,
+.ceo-loading-state > div {
+  color: var(--v2-ink) !important;
+  border-color: var(--v2-border) !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgb(30 62 116 / 0.065) !important;
+}
+
+.ceo-data-table thead,
+.ceo-chat-header,
+.ceo-notification-panel > div:first-child,
+.ceo-chat-interface > div[aria-live='polite'] {
+  color: var(--v2-ink) !important;
+  border-color: #e1e9f3 !important;
+  background: var(--v2-soft) !important;
+}
+
+.ceo-notification-panel h2,
+.business-ceo-content h2 {
+  color: var(--v2-ink) !important;
+  font-family: Inter, "Segoe UI", Arial, sans-serif !important;
+}
+
+.business-ceo-content ::-webkit-scrollbar,
+[data-dashboard-workspace='true'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.business-ceo-content ::-webkit-scrollbar-thumb,
+[data-dashboard-workspace='true'] ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgb(23 111 242 / 0.28) !important;
+  background-clip: padding-box !important;
+}
+
+@media (max-width: 1000px) {
+  .business-ceo-content {
+    padding-inline: 14px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .business-ceo-content *,
+  [data-dashboard-workspace='true'] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

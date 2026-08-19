@@ -39,6 +39,7 @@ export default function BusinessCeoDashboard({
   const [conversations, setConversations] = useState<SalesConversation[]>([]);
   const [appointments, setAppointments] = useState<SalesAppointment[]>([]);
   const [metrics, setMetrics] = useState<AssistantMetrics | null>(null);
+  const [huntedPortfolioCount, setHuntedPortfolioCount] = useState<number | null>(null);
   const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppStatus | null>(null);
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,11 +65,14 @@ export default function BusinessCeoDashboard({
                 return null;
               })
           : Promise.resolve(null);
-        const [conversationResponse, appointmentResponse, metricsResponse, status] =
+        const [conversationResponse, appointmentResponse, metricsResponse, huntingResponse, status] =
           await Promise.all([
             fetch('/api/fabrika/assistant/conversations', { cache: 'no-store' }),
             fetch('/api/fabrika/assistant/appointment', { cache: 'no-store' }),
             fetch('/api/fabrika/assistant/metrics', { cache: 'no-store' }),
+            fetch('/api/fabrika/hunting/listings?page=1&pageSize=1', {
+              cache: 'no-store',
+            }).catch(() => null),
             whatsappRequest,
           ]);
         const [nextConversations, nextAppointments, nextMetrics] =
@@ -91,6 +95,16 @@ export default function BusinessCeoDashboard({
         setConversations(Array.isArray(nextConversations) ? nextConversations : []);
         setAppointments(Array.isArray(nextAppointments) ? nextAppointments : []);
         setMetrics(nextMetrics);
+        if (huntingResponse?.ok) {
+          const huntingData = (await huntingResponse.json().catch(() => null)) as
+            | { pagination?: { total?: number } }
+            | null;
+          setHuntedPortfolioCount(
+            typeof huntingData?.pagination?.total === 'number'
+              ? huntingData.pagination.total
+              : null
+          );
+        }
         setWhatsappStatus(status);
         setWhatsappError(nextWhatsappError);
         setError(null);
@@ -194,6 +208,7 @@ export default function BusinessCeoDashboard({
       isOwner={isOwner}
       loading={loading}
       metrics={metrics}
+      huntedPortfolioCount={huntedPortfolioCount}
       onDeleteConversation={deleteConversation}
       onRefresh={() => void loadDashboard(true)}
       onSendMessage={sendMessage}

@@ -1304,3 +1304,218 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Business CEO light workspace skin. Structure and behaviour stay unchanged. */
+.workspace {
+  --crm-ink: #f7f9fd;
+  --crm-panel: #ffffff;
+  --crm-panel-2: #f7f9fc;
+  --crm-border: rgba(30, 99, 235, 0.16);
+  --crm-line: rgba(148, 163, 184, 0.24);
+  --crm-text: #122033;
+  --crm-muted: #64748b;
+  --crm-gold: #b7791f;
+  --crm-green: #1d9b57;
+}
+
+.pageHeader h1,
+.metricCard strong,
+.funnelStep strong,
+.funnelPair article strong,
+.panelHeading h2,
+.verifiedName h2,
+.propertyCopy > strong {
+  color: #13233a;
+}
+
+.eyebrow,
+.panelHeading > div > p {
+  color: #2563eb;
+}
+
+.secondaryButton,
+.viewSwitch,
+.searchField,
+.filterPills button,
+.secondaryFilters span,
+.leadScore,
+.contactActions a,
+.contactActions button,
+.noteCard input,
+.noteCard form button,
+.nextActionCard > button {
+  background: #ffffff;
+  border-color: #d7e0ec;
+  color: #334155;
+}
+
+.secondaryButton:hover,
+.filterPills button:hover,
+.contactActions a:hover,
+.contactActions button:hover {
+  border-color: #7aa7f7;
+  color: #1d4ed8;
+}
+
+.metricCard {
+  background: #ffffff;
+  border-color: #dce5f0;
+  box-shadow: 0 8px 24px rgba(31, 55, 87, 0.06);
+}
+
+.metricCard span,
+.intro,
+.secondaryFilters small,
+.funnelPair article small,
+.emptyCopy,
+.noDeals {
+  color: #64748b;
+}
+
+.viewSwitch .activeView,
+.filterPills .activeFilter {
+  background: #eaf7ef;
+  border-color: #9bd9b5;
+  color: #16804a;
+}
+
+.customerPanel,
+.compactFunnel,
+.detailRail,
+.fullPipeline {
+  background: #ffffff;
+  border-color: #dce5f0;
+  box-shadow: 0 12px 34px rgba(31, 55, 87, 0.07);
+}
+
+.filters,
+.secondaryFilters,
+.detailTabs,
+.profileFooter {
+  border-color: #e4eaf2;
+}
+
+.searchField svg,
+.searchField input::placeholder,
+.customerTable thead,
+.detailTabs button,
+.preferenceCard dt,
+.miniTimeline time,
+.timeline time,
+.miniTimeline p,
+.timeline p,
+.propertyCopy p,
+.propertyCopy span,
+.noteCard p,
+.nextActionCard p,
+.appointmentCard > span,
+.profileFooter {
+  color: #718096;
+}
+
+.searchField input,
+.noteCard input {
+  color: #17263b;
+}
+
+.customerTable thead {
+  background: #f4f7fb;
+}
+
+.customerTable tbody tr {
+  border-color: #e9eef5;
+  color: #475569;
+}
+
+.customerTable tbody tr:hover {
+  background: #f2f7ff;
+}
+
+.customerTable tbody tr[aria-selected='true'] {
+  background: linear-gradient(90deg, #eaf8ef, #f7fcf9);
+  box-shadow: inset 0 0 0 1px #77c995;
+}
+
+.customerTable td strong,
+.preferenceCard dd,
+.miniTimeline strong,
+.timeline strong,
+.propertyCopy h4,
+.appointmentCard p,
+.sectionHeading h3,
+.leadScore strong {
+  color: #203047;
+}
+
+.customerTable td small,
+.profileIdentity a,
+.leadScore small {
+  color: #64748b;
+}
+
+.scoreBadge {
+  background: #eef9f2;
+  color: #167347;
+}
+
+.preferenceCard,
+.historyCard,
+.matchSection,
+.noteCard,
+.nextActionCard,
+.appointmentCard,
+.activityView,
+.matchGrid article,
+.dealColumn,
+.dealColumn article {
+  background: #f8fafc;
+  border-color: #dfe7f1;
+}
+
+.leadScore > span {
+  background:
+    radial-gradient(circle at center, #ffffff 54%, transparent 56%),
+    conic-gradient(#2fb16b var(--score), #dce6ef 0);
+  color: #17314b;
+}
+
+.detailTabs button:hover {
+  color: #1d4ed8;
+}
+
+.detailTabs button[aria-current='page'] {
+  border-bottom-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.propertyImage {
+  background: linear-gradient(145deg, #e7eef8, #d8e4f2);
+}
+
+.propertyImage > svg {
+  color: #6f87a2;
+}
+
+.dealColumn > header {
+  border-color: #e1e8f1;
+}
+
+.dealColumn > header span,
+.dealColumn article h3 {
+  color: #203047;
+}
+
+.dealColumn > header strong {
+  background: #e9eff7;
+  color: #52677f;
+}
+
+.dealColumn article p,
+.dealColumn article > span {
+  color: #64748b;
+}
+
+.dealColumn article button {
+  border-color: #d5e0ec;
+  color: #334155;
+}

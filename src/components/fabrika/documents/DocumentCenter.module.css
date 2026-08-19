@@ -1105,3 +1105,87 @@
     transition: none;
   }
 }
+
+/* Light document workspace; document workflows and data bindings remain intact. */
+.page {
+  --doc-panel: #ffffff;
+  --doc-panel-soft: #f7f9fc;
+  --doc-deep: #f2f6fb;
+  --doc-border: #dce5f0;
+  --doc-muted: #64748b;
+  --doc-text: #17263b;
+  --doc-gold: #b7791f;
+  --doc-green: #18945a;
+}
+
+.embeddedPage .tabs,
+.heroActions button,
+.templateManagementButton,
+.metricCard,
+.catalogPanel,
+.recentPanel,
+.quickPanel,
+.historyStrip,
+.documentList,
+.templateCard,
+.recentList > button {
+  background: #ffffff;
+  border-color: #dce5f0;
+  color: #334155;
+}
+
+.metricCard,
+.catalogPanel,
+.recentPanel,
+.quickPanel,
+.historyStrip,
+.documentList {
+  box-shadow: 0 10px 30px rgba(31, 55, 87, 0.06);
+}
+
+.templateCard:hover,
+.recentList > button:hover {
+  background: #f5f9ff;
+  border-color: #9ebcf1;
+}
+
+.titleRow h1,
+.sectionHeading h2,
+.sideHeading h2,
+.historyHeading h2,
+.templateCopy h3,
+.recentCopy strong {
+  color: #17263b;
+}
+
+.titleRow p,
+.legalNotice,
+.sectionHeading p,
+.sideHeading p,
+.sectionHeading > span,
+.templateCategory,
+.templateDescription,
+.templateMeta,
+.recentCopy small,
+.recentList time,
+.noRecent {
+  color: #64748b;
+}
+
+.recentList {
+  border-color: #e1e8f1;
+}
+
+.recentList > button {
+  border-bottom-color: #e7edf4;
+}
+
+.prepareButton {
+  background: #eef9f3;
+  color: #167347;
+}
+
+.prepareButton:hover {
+  background: #dff4e8;
+  color: #115c39;
+}

@@ -7,6 +7,7 @@ import {
   cleanupExpiredStudioVideoJobs,
   processNextStudioVideoJob,
 } from "@/lib/studio-video/jobs";
+import { processNextBannerbearPosterVideoJob } from "@/lib/bannerbear-poster-video-jobs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -24,6 +25,9 @@ type WorkerResult =
     >)
   | ({ kind: "STUDIO_VIDEO" } & NonNullable<
       Awaited<ReturnType<typeof processNextStudioVideoJob>>
+    >)
+  | ({ kind: "POSTER_VIDEO" } & NonNullable<
+      Awaited<ReturnType<typeof processNextBannerbearPosterVideoJob>>
     >);
 
 async function processNext(
@@ -31,6 +35,10 @@ async function processNext(
 ): Promise<WorkerResult | null> {
   if (kind === "STUDIO") {
     const result = await processNextStudioBatchItem();
+    return result ? { kind, ...result } : null;
+  }
+  if (kind === "POSTER_VIDEO") {
+    const result = await processNextBannerbearPosterVideoJob();
     return result ? { kind, ...result } : null;
   }
   const result = await processNextStudioVideoJob();
@@ -48,10 +56,16 @@ export async function GET(request: Request) {
   ]);
   const results: WorkerResult[] = [];
   while (results.length < 3 && Date.now() - startedAt < 240_000) {
-    const preferredKind = results.length % 2 === 0 ? "STUDIO" : "STUDIO_VIDEO";
-    const fallbackKind = preferredKind === "STUDIO" ? "STUDIO_VIDEO" : "STUDIO";
-    const result =
-      (await processNext(preferredKind)) ?? (await processNext(fallbackKind));
+    const order: WorkerResult["kind"][] = results.length % 3 === 0
+      ? ["STUDIO", "POSTER_VIDEO", "STUDIO_VIDEO"]
+      : results.length % 3 === 1
+        ? ["POSTER_VIDEO", "STUDIO_VIDEO", "STUDIO"]
+        : ["STUDIO_VIDEO", "STUDIO", "POSTER_VIDEO"];
+    let result: WorkerResult | null = null;
+    for (const kind of order) {
+      result = await processNext(kind);
+      if (result) break;
+    }
     if (!result) break;
     results.push(result);
   }

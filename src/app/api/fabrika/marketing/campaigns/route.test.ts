@@ -26,7 +26,10 @@ vi.mock('@/lib/platform-ai-readiness', () => ({
 
 vi.mock('@/lib/prisma', () => ({
   default: {
-    adCampaign: { findMany: mocks.findCampaigns, updateMany: mocks.updateCampaigns },
+    adCampaign: {
+      findMany: mocks.findCampaigns,
+      updateMany: mocks.updateCampaigns,
+    },
     adCopy: { findFirst: mocks.findCopy, update: mocks.updateCopy },
     crmProperty: { findMany: mocks.findProperties },
     crmPropertyMedia: { findMany: mocks.findPosterAssets },
@@ -77,7 +80,11 @@ describe('/api/fabrika/marketing/campaigns PATCH', () => {
         height: 1350,
         prompt: 'Zarif emlak posteri',
         createdAt: new Date('2026-08-05T10:00:00.000Z'),
-        property: { id: 'property-a', title: 'Sahil Evi', referenceCode: 'P-1' },
+        property: {
+          id: 'property-a',
+          title: 'Sahil Evi',
+          referenceCode: 'P-1',
+        },
       },
     ]);
     mocks.findVideoAssets.mockResolvedValue([
@@ -90,7 +97,11 @@ describe('/api/fabrika/marketing/campaigns PATCH', () => {
         ratio: '9:16',
         durationSeconds: 15,
         createdAt: new Date('2026-08-05T11:00:00.000Z'),
-        property: { id: 'property-a', title: 'Sahil Evi', referenceCode: 'P-1' },
+        property: {
+          id: 'property-a',
+          title: 'Sahil Evi',
+          referenceCode: 'P-1',
+        },
       },
     ]);
 
@@ -108,9 +119,27 @@ describe('/api/fabrika/marketing/campaigns PATCH', () => {
         where: expect.objectContaining({ companyAccountId: 'company-a' }),
       }),
     );
+    expect(mocks.findProperties).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          media: expect.objectContaining({
+            where: expect.objectContaining({ archivedAt: null }),
+            take: 12,
+          }),
+        }),
+      }),
+    );
     expect(body.creativeAssets).toEqual([
-      expect.objectContaining({ id: 'video-1', kind: 'VIDEO', propertyId: 'property-a' }),
-      expect.objectContaining({ id: 'poster-1', kind: 'POSTER', propertyId: 'property-a' }),
+      expect.objectContaining({
+        id: 'video-1',
+        kind: 'VIDEO',
+        propertyId: 'property-a',
+      }),
+      expect.objectContaining({
+        id: 'poster-1',
+        kind: 'POSTER',
+        propertyId: 'property-a',
+      }),
     ]);
     expect(JSON.stringify(body.creativeAssets)).not.toContain('storageKey');
   });

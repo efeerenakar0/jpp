@@ -98,6 +98,15 @@ function canOpenPublishing(portal: InternationalPortal) {
   return portal.eligibility === "direct" || portal.eligibility === "membership";
 }
 
+export function orderedPortalChoices(market: InternationalMarket) {
+  const recommended = recommendInternationalPortal(market);
+  if (!recommended) return [];
+  return [
+    recommended,
+    ...market.portals.filter((portal) => portal.id !== recommended.id),
+  ];
+}
+
 type GeneratedSnapshot = {
   id: string | null;
   name: string;
@@ -186,7 +195,6 @@ export default function InternationalMarketingPanel({
   );
   const [countryQuery, setCountryQuery] = useState("");
   const [showAllCountries, setShowAllCountries] = useState(false);
-  const [showAlternatives, setShowAlternatives] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [resultCampaignId, setResultCampaignId] = useState<string | null>(null);
@@ -200,16 +208,15 @@ export default function InternationalMarketingPanel({
   const selectedMarket = (INTERNATIONAL_MARKETS.find(
     (market) => market.code === countryCode,
   ) || INTERNATIONAL_MARKETS[0]) as MarketWithOptionalMetadata;
-  const recommendedPortal = recommendInternationalPortal(selectedMarket) as
+  const portalChoices = orderedPortalChoices(
+    selectedMarket,
+  ) as PortalWithOptionalMetadata[];
+  const recommendedPortal = portalChoices[0] as
     | PortalWithOptionalMetadata
     | undefined;
   const selectedPortal = (selectedMarket.portals.find(
     (portal) => portal.id === portalId,
   ) || recommendedPortal) as PortalWithOptionalMetadata | undefined;
-  const alternativePortals = selectedMarket.portals.filter(
-    (portal) => portal.id !== recommendedPortal?.id,
-  ) as PortalWithOptionalMetadata[];
-
   const visibleCampaigns = campaigns
     .filter(
       (campaign) =>
@@ -290,7 +297,6 @@ export default function InternationalMarketingPanel({
   function chooseMarket(market: InternationalMarket) {
     setCountryCode(market.code);
     setPortalId(recommendInternationalPortal(market)?.id || "");
-    setShowAlternatives(false);
     setGenerationError(null);
     setResultCampaignId(null);
     setGeneratedSnapshot(null);
@@ -751,89 +757,48 @@ export default function InternationalMarketingPanel({
               {recommendedPortal ? (
                 <div className={styles.portalPicker}>
                   <div className={styles.portalSectionLabel}>
-                    <span>Önerilen başlangıç yolu</span>
-                    <small>Plan yalnız bu site ve akış için hazırlanır</small>
+                    <span>Bu ülkedeki ilan siteleri</span>
+                    <small>
+                      Bir site seçin; plan yalnız seçtiğiniz sitenin kurallarına
+                      göre hazırlansın
+                    </small>
                   </div>
 
-                  <button
-                    type="button"
-                    className={styles.portalChoice}
-                    data-active={selectedPortal?.id === recommendedPortal.id}
-                    aria-pressed={selectedPortal?.id === recommendedPortal.id}
-                    onClick={() => choosePortal(recommendedPortal.id)}
-                    disabled={generating}
+                  <div
+                    className={styles.portalGallery}
+                    aria-label={`${selectedMarket.country} ilan siteleri`}
                   >
-                    <span className={styles.portalMark} aria-hidden="true">
-                      <Globe2 />
-                    </span>
-                    <span>
-                      <b>{recommendedPortal.name}</b>
-                      <small>
-                        {portalEligibilityLabel(recommendedPortal)} ·{" "}
-                        {accountTypeLabel(recommendedPortal.accountType)}
-                      </small>
-                    </span>
-                    <span className={styles.recommendedBadge}>Önerilen</span>
-                    {selectedPortal?.id === recommendedPortal.id && (
-                      <Check aria-hidden="true" />
-                    )}
-                  </button>
-
-                  {alternativePortals.length > 0 && (
-                    <>
+                    {portalChoices.map((portal) => (
                       <button
+                        key={portal.id}
                         type="button"
-                        className={styles.revealButton}
-                        onClick={() =>
-                          setShowAlternatives((current) => !current)
-                        }
+                        className={styles.portalChoice}
+                        data-active={selectedPortal?.id === portal.id}
+                        aria-pressed={selectedPortal?.id === portal.id}
+                        onClick={() => choosePortal(portal.id)}
                         disabled={generating}
-                        aria-expanded={showAlternatives}
-                        aria-controls="international-alternative-portals"
                       >
-                        {showAlternatives ? <ChevronUp /> : <ChevronDown />}
-                        {showAlternatives
-                          ? "Alternatifleri gizle"
-                          : `Alternatif portalları gör (${alternativePortals.length})`}
+                        <span className={styles.portalMark} aria-hidden="true">
+                          {portal.name.slice(0, 2).toLocaleUpperCase("tr-TR")}
+                        </span>
+                        <span>
+                          <b>{portal.name}</b>
+                          <small>
+                            {portalEligibilityLabel(portal)} ·{" "}
+                            {accountTypeLabel(portal.accountType)}
+                          </small>
+                        </span>
+                        {portal.id === recommendedPortal.id && (
+                          <span className={styles.recommendedBadge}>
+                            Önerilen
+                          </span>
+                        )}
+                        {selectedPortal?.id === portal.id && (
+                          <Check aria-hidden="true" />
+                        )}
                       </button>
-
-                      {showAlternatives && (
-                        <div
-                          id="international-alternative-portals"
-                          className={styles.alternativeList}
-                        >
-                          {alternativePortals.map((portal) => (
-                            <button
-                              key={portal.id}
-                              type="button"
-                              className={styles.portalChoice}
-                              data-active={selectedPortal?.id === portal.id}
-                              aria-pressed={selectedPortal?.id === portal.id}
-                              onClick={() => choosePortal(portal.id)}
-                              disabled={generating}
-                            >
-                              <span
-                                className={styles.portalMark}
-                                aria-hidden="true"
-                              >
-                                <Globe2 />
-                              </span>
-                              <span>
-                                <b>{portal.name}</b>
-                                <small>
-                                  {portalEligibilityLabel(portal)} ·{" "}
-                                  {accountTypeLabel(portal.accountType)}
-                                </small>
-                              </span>
-                              {selectedPortal?.id === portal.id && (
-                                <Check aria-hidden="true" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
+                    ))}
+                  </div>
 
                   {selectedPortal && (
                     <div className={styles.portalDetails}>
@@ -953,14 +918,20 @@ export default function InternationalMarketingPanel({
               type="button"
               onClick={() => void generatePlan()}
               disabled={
-                generating || !isOnline || !selectedProperty || !selectedPortal
+                generating ||
+                !isOnline ||
+                !selectedProperty ||
+                !selectedPortal ||
+                selectedPortal.eligibility === "unsupported"
               }
               className={styles.primaryAction}
             >
               {generating ? <Loader2 className={styles.spin} /> : <Sparkles />}
               {generating
                 ? "Plan hazırlanıyor…"
-                : `${selectedPortal?.name || "Portal"} planını hazırla`}
+                : selectedPortal?.eligibility === "unsupported"
+                  ? "Bu site Türkiye ilanını kabul etmiyor"
+                  : `${selectedPortal?.name || "Portal"} planını hazırla`}
             </Button>
           </div>
         </section>

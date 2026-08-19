@@ -132,6 +132,7 @@ const GROQ_DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const GROQ_MARKETING_MODEL = 'qwen/qwen3.6-27b';
 const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const OPENROUTER_MARKETING_MODEL = 'qwen/qwen3.6-flash';
+const OPENROUTER_POSTER_TEXT_MODEL = 'qwen/qwen3.7-flash';
 const CLOUDFLARE_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
 const AI_TIMEOUT_MS = 30_000;
 
@@ -146,6 +147,12 @@ function modelOrder(requestType = '') {
 }
 
 function openRouterModel(requestType = '') {
+  if (requestType.includes('poster-marketing')) {
+    return (
+      process.env.OPENROUTER_POSTER_TEXT_MODEL?.trim() ||
+      OPENROUTER_POSTER_TEXT_MODEL
+    );
+  }
   const configured = process.env.OPENROUTER_TEXT_MODEL?.trim();
   if (configured) return configured;
   const contentFocused =

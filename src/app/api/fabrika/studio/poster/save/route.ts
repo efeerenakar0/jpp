@@ -159,14 +159,17 @@ export async function POST(request: Request) {
           parentMediaId: mediaIds[0] || null,
           prompt:
             mode === 'creative'
-              ? 'Stable Image Ultra ana görsel yeniden yorumlama ve Business CEO AI poster şablonu'
+              ? 'Nano Banana 2 görsel kompozisyonu ve sistem tarafından doğrulanan kesin metin katmanı'
               : 'Business CEO AI gerçek fotoğraflı poster şablonu',
-          aiProvider: mode === 'creative' ? 'STABILITY' : null,
-          aiModel: mode === 'creative' ? 'stable-image-ultra' : null,
+          aiProvider: mode === 'creative' ? 'OPENROUTER' : null,
+          aiModel:
+            mode === 'creative'
+              ? 'google/gemini-3.1-flash-image'
+              : null,
           usageRightsStatus: outputUsageRights,
           fingerprint,
           provenance: {
-            template: 'luxury-editorial-v2',
+            template: 'nano-banana-accurate-text-v1',
             mode,
             format,
             mediaIds,

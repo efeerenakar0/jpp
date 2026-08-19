@@ -47,6 +47,12 @@ export type DomesticMarketingProperty = {
   imageUrl: string | null;
   referenceCode: string | null;
   status: string;
+  media?: Array<{
+    id: string;
+    url: string;
+    fileName: string;
+    isCover: boolean;
+  }>;
 };
 
 export type DomesticMarketingAdCopy = {
@@ -96,6 +102,17 @@ type DomesticMarketingFlowProps = {
 type FlowStep = 1 | 2 | 3 | 4;
 type CampaignType = "listing" | "brand" | "website";
 type GoalId = "LEADS" | "FAST" | "BRAND";
+
+const DOMESTIC_FLOW_STEPS: Array<{
+  id: FlowStep;
+  label: string;
+  detail: string;
+}> = [
+  { id: 1, label: "Kaynak", detail: "Neyi tanıtıyoruz?" },
+  { id: 2, label: "Hedef", detail: "Ne sonuç istiyoruz?" },
+  { id: 3, label: "İçerikler", detail: "Kanal ve görsel" },
+  { id: 4, label: "Yayın", detail: "Kontrol ve yayın" },
+];
 
 const GOALS: Array<{
   id: GoalId;
@@ -295,6 +312,7 @@ export default function DomesticMarketingFlow({
   const [publicationUrl, setPublicationUrl] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [analyzingWebsite, setAnalyzingWebsite] = useState(false);
+  const [activeGalleryUrl, setActiveGalleryUrl] = useState("");
 
   const selectedProperty = useMemo(
     () =>
@@ -305,6 +323,35 @@ export default function DomesticMarketingFlow({
     [initialPropertyId, properties, propertyId],
   );
   const effectivePropertyId = selectedProperty?.id || "";
+
+  const propertyGallery = useMemo(() => {
+    const seen = new Set<string>();
+    const items: Array<{ id: string; url: string; label: string }> = [];
+    const addItem = (
+      id: string,
+      url: string | null | undefined,
+      label: string,
+    ) => {
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      items.push({ id, url, label });
+    };
+
+    addItem(
+      "property-cover",
+      selectedProperty?.imageUrl,
+      "Portföy kapak fotoğrafı",
+    );
+    for (const media of selectedProperty?.media || []) {
+      addItem(media.id, media.url, media.fileName || "Portföy fotoğrafı");
+    }
+    return items.slice(0, 12);
+  }, [selectedProperty]);
+
+  const activeGalleryItem =
+    propertyGallery.find((item) => item.url === activeGalleryUrl) ||
+    propertyGallery[0] ||
+    null;
 
   const selectedGoal = GOALS.find((goal) => goal.id === goalId) || GOALS[0];
   const availableCreativeAssets = useMemo(
@@ -659,12 +706,7 @@ export default function DomesticMarketingFlow({
             className={styles.stepper}
             aria-label="Yurt içi kampanya adımları"
           >
-            {[
-              { id: 1 as const, label: "Kaynak", detail: "Neyi tanıtıyoruz?" },
-              { id: 2 as const, label: "Hedef", detail: "Ne sonuç istiyoruz?" },
-              { id: 3 as const, label: "İçerikler", detail: "Kanal ve görsel" },
-              { id: 4 as const, label: "Kontrol", detail: "Üret ve yayınla" },
-            ].map((item) => (
+            {DOMESTIC_FLOW_STEPS.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -683,101 +725,100 @@ export default function DomesticMarketingFlow({
             ))}
           </nav>
 
-          {step === 1 && (
+          {step === 1 && campaignType === "listing" && (
             <section
-              className={styles.stage}
-              aria-labelledby="domestic-step-one"
+              className={styles.galleryStage}
+              aria-labelledby="domestic-gallery-title"
             >
-              <div className={styles.stageHeading}>
-                <span>1</span>
-                <div>
-                  <p>İlk seçim</p>
-                  <h2 id="domestic-step-one">Ne tanıtmak istiyorsunuz?</h2>
-                  <p>Bir seçim yapın; gerisini sistem sizin için hazırlasın.</p>
-                </div>
-              </div>
-
-              <div className={styles.sourceNotice}>
-                <span>
-                  {campaignType === "listing" ? (
-                    <Building2 />
-                  ) : campaignType === "brand" ? (
-                    <Megaphone />
-                  ) : (
-                    <Globe2 />
-                  )}
-                </span>
-                <div>
-                  <strong>
-                    {campaignType === "listing"
-                      ? "Portföy kampanyası"
-                      : campaignType === "brand"
-                        ? "Şirket tanıtımı"
-                        : "Web sitesi reklam planı"}
-                  </strong>
-                  <p>
-                    Kaynağı değiştirmek isterseniz soldaki seçenekleri
-                    kullanabilirsiniz.
-                  </p>
-                </div>
-                <Check />
-              </div>
-
-              {campaignType === "listing" && (
-                <div className={styles.propertyPicker}>
-                  <label htmlFor="marketing-property">
-                    Tanıtılacak portföy
-                  </label>
+              <div className={styles.campaignDeskLayout}>
+                <div className={styles.galleryMain}>
                   {loading ? (
-                    <div className={styles.skeleton} />
-                  ) : properties.length ? (
+                    <div className={styles.gallerySkeleton} />
+                  ) : selectedProperty ? (
                     <>
-                      <select
-                        id="marketing-property"
-                        value={effectivePropertyId}
-                        onChange={(event) => {
-                          setPropertyId(event.target.value);
-                          setCreativeKey("");
-                        }}
+                      <div
+                        className={styles.galleryHero}
+                        style={
+                          activeGalleryItem
+                            ? {
+                                backgroundImage: `url("${activeGalleryItem.url}")`,
+                              }
+                            : undefined
+                        }
+                        role="img"
+                        aria-label={`${selectedProperty.title} seçili portföy görseli`}
                       >
-                        {properties.map((property) => (
-                          <option key={property.id} value={property.id}>
-                            {property.referenceCode
-                              ? `${property.referenceCode} · `
-                              : ""}
-                            {property.title}
-                          </option>
+                        {!activeGalleryItem && <ImageIcon aria-hidden="true" />}
+                        <span className={styles.galleryLabel}>
+                          <Camera aria-hidden="true" /> Seçilen portföy
+                        </span>
+                      </div>
+
+                      <div
+                        className={styles.galleryStrip}
+                        aria-label="Portföy fotoğrafları"
+                      >
+                        {propertyGallery.map((item, index) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            data-active={activeGalleryItem?.url === item.url}
+                            onClick={() => setActiveGalleryUrl(item.url)}
+                            aria-label={`${index + 1}. fotoğrafı göster: ${item.label}`}
+                            aria-pressed={activeGalleryItem?.url === item.url}
+                            style={{ backgroundImage: `url("${item.url}")` }}
+                          />
                         ))}
-                      </select>
-                      {selectedProperty && (
-                        <article className={styles.propertySummary}>
-                          <div
-                            className={styles.propertyImage}
-                            style={
-                              selectedProperty.imageUrl
-                                ? {
-                                    backgroundImage: `url("${selectedProperty.imageUrl}")`,
-                                  }
-                                : undefined
-                            }
-                            role="img"
-                            aria-label={`${selectedProperty.title} portföy görseli`}
+                        {!propertyGallery.length && (
+                          <div className={styles.galleryEmptyThumb}>
+                            <ImageIcon aria-hidden="true" />
+                            Fotoğraf bekleniyor
+                          </div>
+                        )}
+                      </div>
+
+                      <div className={styles.portfolioFacts}>
+                        <div>
+                          <span>
+                            {selectedProperty.referenceCode || "Aktif portföy"}
+                          </span>
+                          <h2 id="domestic-gallery-title">
+                            {selectedProperty.title}
+                          </h2>
+                          <p>
+                            {selectedProperty.location || "Konum bilgisi yok"}
+                          </p>
+                        </div>
+                        <strong>{money(selectedProperty.price)}</strong>
+                      </div>
+
+                      <div className={styles.portfolioSelectRow}>
+                        <label htmlFor="marketing-property">
+                          <span>Tanıtılacak portföy</span>
+                          <select
+                            id="marketing-property"
+                            value={effectivePropertyId}
+                            onChange={(event) => {
+                              setPropertyId(event.target.value);
+                              setCreativeKey("");
+                              setActiveGalleryUrl("");
+                            }}
+                            disabled={loading || !properties.length}
                           >
-                            {!selectedProperty.imageUrl && <ImageIcon />}
-                          </div>
-                          <div>
-                            <span>
-                              {selectedProperty.referenceCode ||
-                                "Aktif portföy"}
-                            </span>
-                            <h3>{selectedProperty.title}</h3>
-                            <p>
-                              {selectedProperty.location || "Konum bilgisi yok"}
-                            </p>
-                            <strong>{money(selectedProperty.price)}</strong>
-                          </div>
-                        </article>
-                      )}
+                            {properties.map((property) => (
+                              <option key={property.id} value={property.id}>
+                                {property.referenceCode
+                                  ? `${property.referenceCode} · `
+                                  : ""}
+                                {property.title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <span>
+                          <CheckCircle2 aria-hidden="true" /> Aktif portföy
+                        </span>
+                      </div>
                     </>
                   ) : (
                     <div className={styles.emptyNotice}>
@@ -797,7 +838,154 @@ export default function DomesticMarketingFlow({
                     </div>
                   )}
                 </div>
-              )}
+
+                <div className={styles.strategyColumn}>
+                  <article className={styles.strategyCard}>
+                    <span>
+                      <Target aria-hidden="true" />
+                    </span>
+                    <div>
+                      <small>Kampanya amacı</small>
+                      <h3>{selectedGoal.title}</h3>
+                      <p>{selectedGoal.description}</p>
+                      <em>2. adımda değiştirebilirsiniz</em>
+                    </div>
+                  </article>
+
+                  <article className={styles.strategyCard}>
+                    <span>
+                      <Users2 aria-hidden="true" />
+                    </span>
+                    <div>
+                      <small>Hedef kitle</small>
+                      <h3>{audience}</h3>
+                      <p>
+                        Sistem konum, amaç ve seçilen kanallara göre kitleyi
+                        netleştirecek.
+                      </p>
+                      <ul>
+                        {selectedGoal.channels.slice(0, 3).map((channel) => (
+                          <li key={channel}>
+                            <Check aria-hidden="true" />
+                            {marketingChannelLabel(channel)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </article>
+                </div>
+
+                <aside
+                  className={styles.livePreview}
+                  aria-label="Yayın önizlemesi"
+                >
+                  <div className={styles.livePreviewHeader}>
+                    <div>
+                      <p>Yayın önizlemesi</p>
+                      <span>İçerik üretilmeden önce taslak görünüm</span>
+                    </div>
+                    <div aria-label="Önerilen kanallar">
+                      {selectedGoal.channels.slice(0, 4).map((channel) => {
+                        const ChannelIcon = channelIcon(channel);
+                        return (
+                          <span
+                            key={channel}
+                            title={marketingChannelLabel(channel)}
+                          >
+                            <ChannelIcon aria-hidden="true" />
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className={styles.phonePreview}>
+                    <div className={styles.phoneTop}>
+                      <span>
+                        {companyName.slice(0, 1).toLocaleUpperCase("tr-TR")}
+                      </span>
+                      <div>
+                        <strong>{companyName}</strong>
+                        <small>Taslak gönderi</small>
+                      </div>
+                      <b>•••</b>
+                    </div>
+                    <div
+                      className={styles.phoneImage}
+                      style={
+                        activeGalleryItem
+                          ? {
+                              backgroundImage: `url("${activeGalleryItem.url}")`,
+                            }
+                          : undefined
+                      }
+                    >
+                      {!activeGalleryItem && <ImageIcon aria-hidden="true" />}
+                      {selectedProperty && (
+                        <div>
+                          <strong>{selectedProperty.title}</strong>
+                          <span>
+                            {selectedProperty.location || "Konum bilgisi yok"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.phoneActions} aria-hidden="true">
+                      <span>♡</span>
+                      <span>○</span>
+                      <span>⌁</span>
+                      <span>◇</span>
+                    </div>
+                    <p>
+                      Metin, başlık ve çağrı cümlesi içerikler adımında otomatik
+                      hazırlanacak.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.livePreviewAction}
+                    onClick={goToPrepare}
+                    disabled={!isOnline || !effectivePropertyId}
+                  >
+                    İleri: Hedefi seç <ArrowRight />
+                  </button>
+                </aside>
+              </div>
+            </section>
+          )}
+
+          {step === 1 && campaignType !== "listing" && (
+            <section
+              className={styles.stage}
+              aria-labelledby="domestic-step-one"
+            >
+              <div className={styles.stageHeading}>
+                <span>1</span>
+                <div>
+                  <p>İlk seçim</p>
+                  <h2 id="domestic-step-one">Ne tanıtmak istiyorsunuz?</h2>
+                  <p>Bir seçim yapın; gerisini sistem sizin için hazırlasın.</p>
+                </div>
+              </div>
+
+              <div className={styles.sourceNotice}>
+                <span>
+                  {campaignType === "brand" ? <Megaphone /> : <Globe2 />}
+                </span>
+                <div>
+                  <strong>
+                    {campaignType === "brand"
+                      ? "Şirket tanıtımı"
+                      : "Web sitesi reklam planı"}
+                  </strong>
+                  <p>
+                    Kaynağı değiştirmek isterseniz soldaki seçenekleri
+                    kullanabilirsiniz.
+                  </p>
+                </div>
+                <Check />
+              </div>
 
               {campaignType === "brand" && (
                 <div className={styles.brandSummary}>
@@ -848,7 +1036,6 @@ export default function DomesticMarketingFlow({
                   disabled={
                     analyzingWebsite ||
                     !isOnline ||
-                    (campaignType === "listing" && !effectivePropertyId) ||
                     (campaignType === "website" && !websiteUrl.trim())
                   }
                 >

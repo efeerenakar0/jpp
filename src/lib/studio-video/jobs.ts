@@ -474,6 +474,7 @@ export async function processNextStudioVideoJob(
   const persistArtifact = input.persistArtifact ?? persistStudioVideoArtifact;
   const candidate = await client.studioVideoJob.findFirst({
     where: {
+      provider: { not: "BANNERBEAR" },
       status: { in: ["QUEUED", "GENERATING", "PERSISTING"] },
       AND: [
         { OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }] },
@@ -487,6 +488,7 @@ export async function processNextStudioVideoJob(
   const claimed = await client.studioVideoJob.updateMany({
     where: {
       id: candidate.id,
+      provider: { not: "BANNERBEAR" },
       status: candidate.status,
       AND: [
         { OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }] },

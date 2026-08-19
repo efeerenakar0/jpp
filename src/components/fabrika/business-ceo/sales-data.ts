@@ -40,6 +40,7 @@ export type SalesAppointment = {
 };
 
 export type AssistantMetrics = {
+  totalConversations?: number;
   activeConversations: number;
   handoffConversations: number;
   todayMessages: number;

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 
 export const MAX_POSTER_REGENERATIONS = 2;
+export const POSTER_PROCESSING_STALE_MS = 8 * 60 * 1000;
 
 export type StudioPosterGenerationAction = 'INITIAL' | 'REGENERATE';
 
@@ -145,23 +146,40 @@ export async function reserveStudioPosterGeneration(input: {
           await tx.studioPosterGenerationAttempt.findFirst({
             where: {
               generationId: existingGeneration.id,
-              kind: { in: ['INITIAL', 'INITIAL_RETRY'] },
+              kind: { in: ['INITIAL', 'INITIAL_RETRY', 'INITIAL_RECOVERY'] },
             },
             orderBy: { sequence: 'desc' },
           });
         if (latestInitialAttempt?.status === 'SUCCEEDED') {
-          throw new StudioPosterGenerationError(
-            'Bu bilgilerle bir poster zaten oluşturuldu. Mevcut posterin yeniden üret seçeneğini kullanın.',
-            409,
-            'POSTER_ALREADY_CREATED'
-          );
+          if (latestInitialAttempt.outputUrl) {
+            return {
+              duplicate: true as const,
+              reusable: true as const,
+              generation: existingGeneration,
+              attempt: latestInitialAttempt,
+            };
+          }
         }
         if (latestInitialAttempt?.status === 'PROCESSING') {
-          throw new StudioPosterGenerationError(
-            'Bu poster isteği hâlâ işleniyor.',
-            409,
-            'GENERATION_IN_PROGRESS'
-          );
+          const processingSince = latestInitialAttempt.updatedAt.getTime();
+          if (now.getTime() - processingSince < POSTER_PROCESSING_STALE_MS) {
+            throw new StudioPosterGenerationError(
+              'Bu poster isteği hâlâ işleniyor.',
+              409,
+              'GENERATION_IN_PROGRESS'
+            );
+          }
+          await tx.studioPosterGenerationAttempt.updateMany({
+            where: {
+              id: latestInitialAttempt.id,
+              status: 'PROCESSING',
+            },
+            data: {
+              status: 'FAILED',
+              failureCode: 'STALE_PROCESSING',
+              completedAt: now,
+            },
+          });
         }
 
         const nextSequence =
@@ -173,7 +191,10 @@ export async function reserveStudioPosterGeneration(input: {
             companyAccountId: input.companyAccountId,
             generationId: existingGeneration.id,
             idempotencyKey: input.idempotencyKey,
-            kind: 'INITIAL_RETRY',
+            kind:
+              latestInitialAttempt?.status === 'SUCCEEDED'
+                ? 'INITIAL_RECOVERY'
+                : 'INITIAL_RETRY',
             sequence: nextSequence,
             status: 'PROCESSING',
             requestFingerprint: input.requestFingerprint,
@@ -244,6 +265,22 @@ export async function reserveStudioPosterGeneration(input: {
       );
     }
 
+    await tx.studioPosterGenerationAttempt.updateMany({
+      where: {
+        generationId: generation.id,
+        kind: 'REGENERATION',
+        status: 'PROCESSING',
+        updatedAt: {
+          lt: new Date(now.getTime() - POSTER_PROCESSING_STALE_MS),
+        },
+      },
+      data: {
+        status: 'FAILED',
+        failureCode: 'STALE_PROCESSING',
+        completedAt: now,
+      },
+    });
+
     const activeRegenerations =
       await tx.studioPosterGenerationAttempt.count({
         where: {
@@ -285,6 +322,12 @@ export async function completeStudioPosterGenerationAttempt(input: {
   companyAccountId: string;
   attemptId: string;
   resultDigest: string;
+  outputUrl: string;
+  outputStorageKey: string;
+  outputMimeType: string;
+  outputByteSize: number;
+  providerCostUsd?: number | null;
+  providerRequestId?: string | null;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -324,6 +367,12 @@ export async function completeStudioPosterGenerationAttempt(input: {
         data: {
           status: 'SUCCEEDED',
           resultDigest: input.resultDigest,
+          outputUrl: input.outputUrl,
+          outputStorageKey: input.outputStorageKey,
+          outputMimeType: input.outputMimeType,
+          outputByteSize: input.outputByteSize,
+          providerCostUsd: input.providerCostUsd ?? null,
+          providerRequestId: input.providerRequestId ?? null,
           failureCode: null,
           completedAt: now,
         },
@@ -359,6 +408,9 @@ export async function completeStudioPosterGenerationAttempt(input: {
           kind: attempt.kind,
           sequence: attempt.sequence,
           resultDigest: input.resultDigest,
+          outputByteSize: input.outputByteSize,
+          providerCostUsd: input.providerCostUsd ?? null,
+          providerRequestId: input.providerRequestId ?? null,
         },
         occurredAt: now,
         idempotencyKey: `studio-poster:completed:${attempt.id}`,

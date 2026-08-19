@@ -1006,3 +1006,101 @@
     transition: none;
   }
 }
+
+/* Light communications workspace; conversation state and WhatsApp actions stay intact. */
+.page {
+  --assistant-surface: #ffffff;
+  --assistant-panel: #ffffff;
+  --assistant-panel-strong: #ffffff;
+  --assistant-line: #dce5f0;
+  --assistant-line-soft: #e7edf4;
+  --assistant-gold: #1d6fd8;
+  --assistant-green: #17a867;
+  color: #17263b;
+}
+
+.headerCopy h1,
+.metricCard strong,
+.summaryTitle,
+.conversationTitle strong,
+.emptyChat h2,
+.scoreCard > div > p strong,
+.nextActions h3,
+.preferenceCard dd {
+  color: #17263b;
+}
+
+.headerCopy > p:last-child,
+.metricCard small,
+.conversationSummary,
+.conversationTitle time,
+.emptyChat p,
+.scoreCard > p,
+.preferenceCard dt,
+.notesCard p,
+.lastContact,
+.lastContact time {
+  color: #64748b;
+}
+
+.statusAction,
+.secondaryAction,
+.metricCard,
+.tabs,
+.appointmentSurface,
+.customerRail,
+.searchRow label,
+.searchRow > button,
+.conversationItem,
+.detailsTrigger,
+.chatColumn :global(.ceo-chat-interface),
+.chatColumn :global(.ceo-chat-header),
+.emptyChat,
+.lastContact,
+.nextActions > div,
+.railActions button {
+  background: #ffffff;
+  border-color: #dce5f0;
+  color: #334155;
+}
+
+.metricCard,
+.appointmentSurface,
+.customerRail,
+.chatColumn :global(.ceo-chat-interface),
+.emptyChat {
+  box-shadow: 0 12px 32px rgba(31, 55, 87, 0.065);
+}
+
+.tabs button {
+  color: #64748b;
+}
+
+.tabs button[data-active='true'] {
+  color: #167347;
+}
+
+.searchRow input {
+  background: #ffffff;
+  border-color: #dce5f0;
+  color: #17263b;
+}
+
+.conversationItem[data-active='true'] {
+  background: #eaf8ef;
+}
+
+.avatar,
+.deleteConversation,
+.detailsTrigger {
+  background: #eef3f8;
+  color: #334155;
+}
+
+.drawerBackdrop {
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.scoreRing i {
+  background: #ffffff;
+}

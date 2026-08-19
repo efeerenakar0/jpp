@@ -33,6 +33,10 @@ describe("DomesticMarketingFlow", () => {
     expect(html).toContain("Web sitesi planı");
     expect(html).toContain("Son çalışmalar");
     expect(html).toContain("Deniz manzaralı daire");
+    expect(html).toContain("Yayın önizlemesi");
+    expect(html).toContain("Kampanya amacı");
+    expect(html).toContain("Hedef kitle");
+    expect(html).toContain("İleri: Hedefi seç");
     expect(html).not.toContain("&quot;caption&quot;");
   });
 });

@@ -60,15 +60,16 @@ describe('FabrikaTopbar role safety and keyboard surface', () => {
     expect(html).not.toContain('aria-label="Koyu temaya geç"');
     expect(html).toContain('aria-label="Modülleri aç"');
     expect(html).toContain('aria-label="Şirket ve hesap menüsü"');
+    expect(html).toContain('aria-label="Hesap makinesi ve kur çeviriciyi aç"');
     expect(html).toContain('href="/fabrika/ayarlar"');
   });
 
-  it('uses the shared dark header logo on inner Fabrika pages', () => {
+  it('uses the shared light-surface logo on inner Fabrika pages', () => {
     mocks.pathname = '/fabrika/avci';
 
     const html = renderTopbar(baseSession);
 
-    expect(html).toContain('%2Fbusiness-ceo%2Fbusiness-ceo-ai-dark-header.png');
+    expect(html).toContain('%2Fbusiness-ceo%2Fbusiness-ceo-ai-light-header.png');
     expect(html).toContain('REAL ESTATE');
     expect(html).not.toContain('Real Estate');
   });

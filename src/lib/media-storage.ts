@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { resolve4, resolve6 } from 'node:dns/promises';
-import { put } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 import { isPrivateOrReservedIp } from '@/lib/hunting-v2/security';
 
 export const PROPERTY_MEDIA_MIME_TYPES = new Set([
@@ -136,6 +136,97 @@ export async function persistGeneratedMedia(input: {
     byteSize: input.bytes.byteLength,
     checksum,
   };
+}
+
+export async function persistStudioPosterOutput(input: {
+  companyAccountId: string;
+  generationId: string;
+  attemptId: string;
+  bytes: Buffer;
+  format: 'post' | 'story';
+}) {
+  const mimeType = 'image/jpeg';
+  if (
+    input.bytes.byteLength <= 0 ||
+    input.bytes.byteLength > PROPERTY_MEDIA_MAX_FILE_BYTES
+  ) {
+    throw new MediaValidationError('Üretilen poster geçerli değil.');
+  }
+
+  const checksum = createHash('sha256').update(input.bytes).digest('hex');
+  const safeAccountId = input.companyAccountId.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_'
+  );
+  const safeGenerationId = input.generationId.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_'
+  );
+  const safeAttemptId = input.attemptId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const pathname = [
+    'studio-posters',
+    safeAccountId,
+    safeGenerationId,
+    `${safeAttemptId}-${checksum.slice(0, 20)}-${input.format}.jpg`,
+  ].join('/');
+  const blob = await put(pathname, input.bytes, {
+    access: 'public',
+    addRandomSuffix: false,
+    contentType: mimeType,
+  });
+
+  return {
+    url: blob.url,
+    storageKey: blob.pathname || pathname,
+    mimeType,
+    byteSize: input.bytes.byteLength,
+    checksum,
+  };
+}
+
+export async function publishStudioPosterReference(input: {
+  companyAccountId: string;
+  attemptId: string;
+  role: string;
+  bytes: Buffer;
+  mimeType: string;
+}) {
+  if (
+    !PROPERTY_MEDIA_MIME_TYPES.has(input.mimeType) ||
+    input.bytes.byteLength <= 0 ||
+    input.bytes.byteLength > PROPERTY_MEDIA_MAX_FILE_BYTES
+  ) {
+    throw new MediaValidationError('Poster referans görseli geçerli değil.');
+  }
+  const checksum = createHash('sha256').update(input.bytes).digest('hex');
+  const safeAccountId = input.companyAccountId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeAttemptId = input.attemptId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeRole = input.role.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'source';
+  const extension = input.mimeType === 'image/png'
+    ? 'png'
+    : input.mimeType === 'image/webp'
+      ? 'webp'
+      : input.mimeType === 'image/avif'
+        ? 'avif'
+        : 'jpg';
+  const pathname = [
+    'studio-poster-references',
+    safeAccountId,
+    safeAttemptId,
+    `${safeRole}-${checksum.slice(0, 20)}.${extension}`,
+  ].join('/');
+  const blob = await put(pathname, input.bytes, {
+    access: 'public',
+    addRandomSuffix: false,
+    contentType: input.mimeType,
+  });
+  return { url: blob.url, storageKey: blob.pathname || pathname };
+}
+
+export async function deleteStudioPosterReferences(storageKeys: string[]) {
+  const uniqueKeys = Array.from(new Set(storageKeys.filter(Boolean)));
+  if (!uniqueKeys.length) return;
+  await del(uniqueKeys);
 }
 
 export async function fetchOwnedMediaBytes(

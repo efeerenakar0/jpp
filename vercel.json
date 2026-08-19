@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run vercel-build",
+  "buildCommand": "node scripts/deploy-pending-database-migrations.mjs && npm run build",
   "crons": [
     {
       "path": "/api/cron/appointment-reminders",

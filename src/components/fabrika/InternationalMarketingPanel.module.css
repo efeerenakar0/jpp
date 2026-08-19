@@ -805,6 +805,11 @@
   font-size: 8px;
   font-weight: 500;
 }
+.portalGallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 7px;
+}
 .portalChoice,
 .alternativeList button {
   width: 100%;
@@ -822,6 +827,14 @@
   gap: 10px;
   min-height: 78px;
   padding: 12px;
+  transition:
+    transform 170ms ease,
+    border-color 170ms ease,
+    background 170ms ease;
+}
+.portalChoice:hover {
+  transform: translateY(-1px);
+  border-color: rgba(84, 217, 232, 0.32);
 }
 .portalChoice[data-active="true"] {
   border-color: rgba(85, 214, 173, 0.4);
@@ -849,6 +862,9 @@
   place-items: center;
   border-radius: 12px;
   color: var(--im-cyan);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
   background: rgba(84, 217, 232, 0.08);
 }
 .portalMark svg {

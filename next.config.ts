@@ -73,6 +73,11 @@ const nextConfig: NextConfig = {
     ],
   },
   serverExternalPackages: ['whatsapp-web.js', 'puppeteer'],
+  outputFileTracingIncludes: {
+    '/api/fabrika/studio/poster': [
+      './node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf',
+    ],
+  },
   turbopack: {
     root: process.cwd(),
   },

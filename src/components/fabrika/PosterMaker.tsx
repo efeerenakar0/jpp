@@ -1,30 +1,67 @@
 'use client';
 
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BedDouble,
   Building2,
   Check,
+  ChevronRight,
+  CircleCheckBig,
   Copy,
   Download,
-  LayoutTemplate,
+  Eye,
+  FileText,
+  Film,
+  Folder,
+  FolderOpen,
+  Image as ImageIcon,
   Loader2,
+  MapPin,
   MessageCircle,
+  Phone,
+  Play,
+  RefreshCw,
   RotateCcw,
+  Save,
   Share2,
+  SlidersHorizontal,
   Sparkles,
+  Tag,
   UploadCloud,
+  WandSparkles,
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { siFacebook, siInstagram, siWhatsapp } from 'simple-icons';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
-import { prepareInstagramShare } from '@/lib/instagram-sharing';
 import {
-  recommendPropertyMedia,
-  togglePosterMediaSelection,
-} from '@/lib/property-media-selection';
+  AUTO_BANNERBEAR_PRESET_ID,
+  bannerbearPresetsForFormat,
+  findBannerbearPreset,
+} from '@/lib/bannerbear-poster-catalog';
+import { prepareInstagramShare } from '@/lib/instagram-sharing';
+import { recommendPropertyMedia } from '@/lib/property-media-selection';
+import styles from './PosterMaker.module.css';
 
 type PosterFormat = 'post' | 'story';
-type PosterMode = 'faithful' | 'creative';
+type PosterOutputSize = 'square' | 'portrait' | 'wide';
+type PosterMode = 'creative';
+type VideoTransition = 'none' | 'fade' | 'dissolve' | 'wipeleft' | 'slideleft';
+type PosterPlatformId =
+  | 'instagram-post'
+  | 'instagram-story'
+  | 'facebook'
+  | 'whatsapp'
+  | 'linkedin';
+
+type PosterContentOptions = {
+  price: boolean;
+  location: boolean;
+  propertyFacts: boolean;
+  logo: boolean;
+  contact: boolean;
+  description: boolean;
+};
 
 type WorkspaceProperty = {
   id: string;
@@ -32,7 +69,9 @@ type WorkspaceProperty = {
   location: string | null;
   price: number | null;
   roomCount: string | null;
+  propertyType: string | null;
   area: number | null;
+  listingType: string;
   description: string | null;
   status: string;
 };
@@ -55,6 +94,103 @@ type PosterResult = {
   maxRegenerations: number;
   remainingRegenerations: number;
   savedMediaId?: string;
+  contentOptions: PosterContentOptions;
+  platforms: PosterPlatformId[];
+  requiresTextReview: boolean;
+  providerCostUsd: number | null;
+};
+
+type PosterApiResponse = {
+  success?: boolean;
+  error?: string;
+  code?: string;
+  alreadyCompleted?: boolean;
+  posterUrl?: string;
+  posterDataUrl?: string;
+  backgroundDataUrl?: string;
+  logoDataUrl?: string;
+  requiresTextReview?: boolean;
+  providerCostUsd?: number | null;
+  templateUid?: string;
+  templateName?: string;
+  presetId?: string;
+  presetName?: string;
+  generation?: {
+    id: string;
+    regenerationCount: number;
+    maxRegenerations: number;
+    remainingRegenerations: number;
+  };
+};
+
+type PosterVideoResult = {
+  jobId: string;
+  videoUrl: string;
+  durationSeconds: number;
+  photoCount: number;
+};
+
+type PosterVideoApiResponse = Partial<PosterVideoResult> & {
+  success?: boolean;
+  error?: string;
+  pending?: boolean;
+  progress?: number;
+};
+
+type PosterVideoJobResponse = {
+  job?: {
+    id: string;
+    status: 'QUEUED' | 'SUBMITTING' | 'GENERATING' | 'PERSISTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+    progress: number;
+    durationSeconds: number;
+    referenceMediaIds: string[];
+    artifactHref: string | null;
+    errorMessage: string | null;
+  };
+  error?: string;
+};
+
+type PosterQueueItem = {
+  id: string;
+  label: string;
+  status: 'PROCESSING' | 'FAILED';
+  error?: string;
+};
+
+type PosterHistoryPhoto = {
+  id: string;
+  name: string;
+  url: string;
+  format: PosterFormat;
+  createdAt: string;
+  byteSize: number | null;
+};
+
+type PosterHistoryVideo = {
+  id: string;
+  name: string;
+  url: string;
+  thumbnailUrl: string | null;
+  durationSeconds: number;
+  ratio: string;
+  createdAt: string;
+  byteSize: number | null;
+};
+
+type PosterHistoryFolder = {
+  id: string;
+  propertyId: string | null;
+  name: string;
+  location: string | null;
+  latestAt: string;
+  photos: PosterHistoryPhoto[];
+  videos: PosterHistoryVideo[];
+};
+
+type PosterHistoryResponse = {
+  folders?: PosterHistoryFolder[];
+  totals?: { photos: number; videos: number };
+  error?: string;
 };
 
 type PortfolioMedia = {
@@ -84,6 +220,8 @@ type PosterForm = {
   highlight2: string;
   highlight3: string;
   format: PosterFormat;
+  outputSize: PosterOutputSize;
+  presetId: string;
   mode: PosterMode;
   posterName: string;
 };
@@ -101,9 +239,141 @@ const INITIAL_FORM: PosterForm = {
   highlight2: '',
   highlight3: '',
   format: 'post',
-  mode: 'faithful',
+  outputSize: 'square',
+  presetId: AUTO_BANNERBEAR_PRESET_ID,
+  mode: 'creative',
   posterName: '',
 };
+
+const INITIAL_CONTENT_OPTIONS: PosterContentOptions = {
+  price: true,
+  location: true,
+  propertyFacts: true,
+  logo: true,
+  contact: true,
+  description: true,
+};
+
+const POSTER_ROTATION_STORAGE_KEY = 'business-ceo-ai-poster-layout-bag-v2';
+const VIDEO_JOB_STORAGE_KEY = 'business-ceo-ai-poster-video-job';
+
+type PosterRotationBag = Partial<Record<PosterFormat, { last: string | null; remaining: string[] }>>;
+
+function shuffled<T>(items: T[]) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const values = new Uint32Array(1);
+    crypto.getRandomValues(values);
+    const swapIndex = values[0] % (index + 1);
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+}
+
+/** Uses every real layout once before opening a new shuffled cycle. */
+function takeRandomPreset(format: PosterFormat, avoidPresetId?: string | null) {
+  const presets = bannerbearPresetsForFormat(format);
+  if (!presets.length) throw new Error('Bu boyut için Bannerbear şablonu bulunamadı.');
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(POSTER_ROTATION_STORAGE_KEY) || '{}'
+    ) as PosterRotationBag;
+    const last = avoidPresetId || stored[format]?.last || null;
+    const validIds = new Set(presets.map((preset) => preset.id));
+    let remaining = (stored[format]?.remaining || []).filter(
+      (id) => validIds.has(id) && id !== last
+    );
+    if (!remaining.length) {
+      remaining = shuffled(presets.map((preset) => preset.id).filter((id) => id !== last));
+      if (!remaining.length) remaining = [presets[0].id];
+    }
+    const nextId = remaining.shift()!;
+    const next = findBannerbearPreset(nextId) || presets[0];
+    window.localStorage.setItem(
+      POSTER_ROTATION_STORAGE_KEY,
+      JSON.stringify({
+        ...stored,
+        [format]: { last: next.id, remaining },
+      } satisfies PosterRotationBag)
+    );
+    return next;
+  } catch {
+    const alternatives = presets.filter((preset) => preset.id !== avoidPresetId);
+    return shuffled(alternatives.length ? alternatives : presets)[0];
+  }
+}
+
+function historyDate(value: string) {
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function historyFileSize(value: number | null) {
+  if (!value || value <= 0) return '';
+  if (value < 1_000_000) return `${Math.max(1, Math.round(value / 1_000))} KB`;
+  return `${(value / 1_000_000).toFixed(1)} MB`;
+}
+
+const PLATFORM_OPTIONS: Array<{
+  id: PosterPlatformId;
+  name: string;
+  shortName: string;
+  tone: 'instagram' | 'facebook' | 'whatsapp' | 'linkedin';
+  iconPath: string;
+}> = [
+  {
+    id: 'instagram-post',
+    name: 'Instagram Post',
+    shortName: 'IG',
+    tone: 'instagram',
+    iconPath: siInstagram.path,
+  },
+  {
+    id: 'instagram-story',
+    name: 'Instagram Story',
+    shortName: 'ST',
+    tone: 'instagram',
+    iconPath: siInstagram.path,
+  },
+  {
+    id: 'facebook',
+    name: 'Facebook',
+    shortName: 'f',
+    tone: 'facebook',
+    iconPath: siFacebook.path,
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp Durum',
+    shortName: 'WA',
+    tone: 'whatsapp',
+    iconPath: siWhatsapp.path,
+  },
+  {
+    id: 'linkedin',
+    name: 'LinkedIn',
+    shortName: 'in',
+    tone: 'linkedin',
+    iconPath: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.124 2.062 2.062 0 0 1 0 4.124zM3.56 20.452h3.553V9H3.56v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z',
+  },
+];
+
+const POSTER_SIZE_OPTIONS: Array<{
+  id: PosterOutputSize;
+  name: string;
+  dimensions: string;
+  format: PosterFormat;
+  shape: 'square' | 'portrait' | 'wide';
+}> = [
+  { id: 'square', name: 'Kare', dimensions: '1080 × 1080', format: 'post', shape: 'square' },
+  { id: 'portrait', name: 'Dikey', dimensions: '1080 × 1350', format: 'story', shape: 'portrait' },
+  { id: 'wide', name: 'Yatay banner', dimensions: '1500 × 500', format: 'post', shape: 'wide' },
+];
 
 function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -114,7 +384,7 @@ function loadImage(source: string): Promise<HTMLImageElement> {
   });
 }
 
-const POSTER_TEMPLATE_VERSION = 'luxury-editorial-v2';
+const POSTER_TEMPLATE_VERSION = 'bannerbear-v5-real-layouts-contrast-v2';
 const POSTER_NAVY = '#06243a';
 const POSTER_NAVY_DARK = '#031725';
 const POSTER_GOLD = '#e8b85b';
@@ -306,11 +576,14 @@ function drawLogo(
   context.textAlign = 'left';
 }
 
+// Eski canvas şablonu geriye dönük karşılaştırma için tutuluyor; yeni akış bunu çağırmaz.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function createFinalPoster(input: {
   backgroundUrl: string;
   photoUrls: string[];
   logoUrl: string | null;
   form: PosterForm;
+  contentOptions: PosterContentOptions;
 }) {
   const width = 1080;
   const height = input.form.format === 'story' ? 1920 : 1350;
@@ -376,9 +649,11 @@ async function createFinalPoster(input: {
       { x: heroWidth + 34, y: 112, width: railWidth - 68, height: heroHeight - 138 }
     );
 
-    context.fillStyle = POSTER_GOLD;
-    context.font = '700 20px Arial';
-    context.fillText(company.toLocaleUpperCase('tr-TR'), 44, 58);
+    if (input.contentOptions.logo) {
+      context.fillStyle = POSTER_GOLD;
+      context.font = '700 20px Arial';
+      context.fillText(company.toLocaleUpperCase('tr-TR'), 44, 58);
+    }
     context.fillStyle = '#ffffff';
     const titleSize = fitText(context, title, heroWidth - 88, 65, 34, 400, 'Georgia');
     context.font = `400 ${titleSize}px Georgia`;
@@ -424,26 +699,32 @@ async function createFinalPoster(input: {
     context.fillRect(0, footerY, width, footerHeight);
     context.fillStyle = POSTER_GOLD;
     context.fillRect(0, footerY, width, 3);
-    context.strokeStyle = POSTER_GOLD;
-    context.lineWidth = 2;
-    context.strokeRect(34, footerY + 34, 350, 142);
-    context.fillStyle = POSTER_GOLD;
-    context.font = '500 22px Arial';
-    context.fillText('FİYAT', 58, footerY + 69);
-    const price = input.form.price || 'BİLGİ İÇİN ARAYIN';
-    const priceSize = fitText(context, price, 302, 45, 23, 700);
-    context.font = `700 ${priceSize}px Arial`;
-    context.fillText(price, 58, footerY + 129);
+    if (input.contentOptions.price) {
+      context.strokeStyle = POSTER_GOLD;
+      context.lineWidth = 2;
+      context.strokeRect(34, footerY + 34, 350, 142);
+      context.fillStyle = POSTER_GOLD;
+      context.font = '500 22px Arial';
+      context.fillText('FİYAT', 58, footerY + 69);
+      const price = input.form.price || 'BİLGİ İÇİN ARAYIN';
+      const priceSize = fitText(context, price, 302, 45, 23, 700);
+      context.font = `700 ${priceSize}px Arial`;
+      context.fillText(price, 58, footerY + 129);
+    }
 
-    context.fillStyle = POSTER_CREAM;
-    context.font = '700 25px Arial';
-    context.textAlign = 'center';
-    context.fillText('DETAY VE RANDEVU İÇİN', 570, footerY + 76);
-    context.fillStyle = POSTER_GOLD;
-    context.font = 'italic 26px Georgia';
-    context.fillText('Bizimle iletişime geçin', 570, footerY + 119);
-    context.textAlign = 'left';
-    drawLogo(context, logo, company, { x: 760, y: footerY + 34, width: 276, height: 132 });
+    if (input.contentOptions.contact) {
+      context.fillStyle = POSTER_CREAM;
+      context.font = '700 25px Arial';
+      context.textAlign = 'center';
+      context.fillText('DETAY VE RANDEVU İÇİN', 570, footerY + 76);
+      context.fillStyle = POSTER_GOLD;
+      context.font = 'italic 26px Georgia';
+      context.fillText('Bizimle iletişime geçin', 570, footerY + 119);
+      context.textAlign = 'left';
+    }
+    if (input.contentOptions.logo) {
+      drawLogo(context, logo, company, { x: 760, y: footerY + 34, width: 276, height: 132 });
+    }
 
     context.fillStyle = POSTER_CREAM;
     context.fillRect(0, footerY + 200, width, footerHeight - 200);
@@ -483,9 +764,11 @@ async function createFinalPoster(input: {
     context.fillStyle = heroGradient;
     context.fillRect(0, 0, width, heroHeight);
 
-    context.fillStyle = POSTER_GOLD;
-    context.font = '700 24px Arial';
-    context.fillText(company.toLocaleUpperCase('tr-TR'), 56, 72);
+    if (input.contentOptions.logo) {
+      context.fillStyle = POSTER_GOLD;
+      context.font = '700 24px Arial';
+      context.fillText(company.toLocaleUpperCase('tr-TR'), 56, 72);
+    }
     context.fillStyle = '#ffffff';
     const titleSize = fitText(context, title, width - 112, 78, 42, 400, 'Georgia');
     context.font = `400 ${titleSize}px Georgia`;
@@ -536,30 +819,36 @@ async function createFinalPoster(input: {
     context.fillRect(0, footerY, width, height - footerY);
     context.fillStyle = POSTER_GOLD;
     context.fillRect(0, footerY, width, 3);
-    context.strokeStyle = POSTER_GOLD;
-    context.strokeRect(48, footerY + 42, 430, 174);
-    context.fillStyle = POSTER_GOLD;
-    context.font = '500 24px Arial';
-    context.fillText('FİYAT', 76, footerY + 82);
-    const price = input.form.price || 'BİLGİ İÇİN ARAYIN';
-    const priceSize = fitText(context, price, 374, 52, 27, 700);
-    context.font = `700 ${priceSize}px Arial`;
-    context.fillText(price, 76, footerY + 151);
-    context.fillStyle = POSTER_CREAM;
-    context.font = '700 27px Arial';
-    context.textAlign = 'center';
-    context.fillText('DETAY VE RANDEVU İÇİN', 758, footerY + 74);
-    context.fillStyle = POSTER_GOLD;
-    context.font = 'italic 30px Georgia';
-    context.fillText('Bizimle iletişime geçin', 758, footerY + 122);
-    drawLogo(context, logo, company, { x: 586, y: footerY + 147, width: 344, height: 92 });
+    if (input.contentOptions.price) {
+      context.strokeStyle = POSTER_GOLD;
+      context.strokeRect(48, footerY + 42, 430, 174);
+      context.fillStyle = POSTER_GOLD;
+      context.font = '500 24px Arial';
+      context.fillText('FİYAT', 76, footerY + 82);
+      const price = input.form.price || 'BİLGİ İÇİN ARAYIN';
+      const priceSize = fitText(context, price, 374, 52, 27, 700);
+      context.font = `700 ${priceSize}px Arial`;
+      context.fillText(price, 76, footerY + 151);
+    }
+    if (input.contentOptions.contact) {
+      context.fillStyle = POSTER_CREAM;
+      context.font = '700 27px Arial';
+      context.textAlign = 'center';
+      context.fillText('DETAY VE RANDEVU İÇİN', 758, footerY + 74);
+      context.fillStyle = POSTER_GOLD;
+      context.font = 'italic 30px Georgia';
+      context.fillText('Bizimle iletişime geçin', 758, footerY + 122);
+    }
+    if (input.contentOptions.logo) {
+      drawLogo(context, logo, company, { x: 586, y: footerY + 147, width: 344, height: 92 });
+    }
     context.textAlign = 'left';
   }
 
-  const modeLabel = input.form.mode === 'creative' ? 'TEMSİLİ AI GÖRSELİ' : 'GERÇEK PORTFÖY FOTOĞRAFLARI';
-  context.fillStyle = input.form.mode === 'creative' ? 'rgba(92, 48, 8, 0.94)' : 'rgba(3, 23, 37, 0.9)';
+  const modeLabel = 'NANO BANANA 2 + DOĞRU METİN';
+  context.fillStyle = 'rgba(92, 48, 8, 0.94)';
   context.fillRect(20, height - 33, 280, 25);
-  context.fillStyle = input.form.mode === 'creative' ? '#fde68a' : '#dbeafe';
+  context.fillStyle = '#fde68a';
   context.font = '700 13px Arial';
   context.fillText(modeLabel, 31, height - 15);
 
@@ -574,12 +863,33 @@ export default function PosterMaker() {
   const [savedLogoUrl, setSavedLogoUrl] = useState<string | null>(null);
   const [rememberLogo, setRememberLogo] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [results, setResults] = useState<PosterResult[]>([]);
+  const [posterQueue, setPosterQueue] = useState<PosterQueueItem[]>([]);
   const [heroKey, setHeroKey] = useState('');
   const [portfolioMedia, setPortfolioMedia] = useState<PortfolioMedia[]>([]);
   const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [workspaceProperties, setWorkspaceProperties] = useState<WorkspaceProperty[]>([]);
+  const [contentOptions, setContentOptions] =
+    useState<PosterContentOptions>(INITIAL_CONTENT_OPTIONS);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PosterPlatformId[]>(
+    ['instagram-post']
+  );
+  const [videoTransition, setVideoTransition] = useState<VideoTransition>('fade');
+  const [videoSlideDuration, setVideoSlideDuration] = useState(3);
+  const [isCreatingVideo, setIsCreatingVideo] = useState(false);
+  const [videoJobId, setVideoJobId] = useState('');
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [videoResult, setVideoResult] = useState<PosterVideoResult | null>(null);
+  const [historyFolders, setHistoryFolders] = useState<PosterHistoryFolder[]>([]);
+  const [historyTotals, setHistoryTotals] = useState({ photos: 0, videos: 0 });
+  const [historyKind, setHistoryKind] = useState<'photos' | 'videos'>('photos');
+  const [historyFolderId, setHistoryFolderId] = useState('');
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const posterRequestInFlightRef = useRef(false);
@@ -614,9 +924,168 @@ export default function PosterMaker() {
   }, [heroKey, photoPreviews, portfolioMedia, selectedMediaIds]);
   const effectiveHeroKey = selectedPosterSources[0]?.key || '';
   const logoPreview = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : savedLogoUrl), [logoFile, savedLogoUrl]);
+  const selectedProperty = useMemo(
+    () => workspaceProperties.find((property) => property.id === form.propertyId) ?? null,
+    [form.propertyId, workspaceProperties]
+  );
+  const latestResult = results[0] ?? null;
+  const livePreviewUrl = latestResult?.previewUrl ?? selectedPosterSources[0]?.url ?? '';
+
+  const loadHistory = useCallback(async (announce = false) => {
+    setIsHistoryLoading(true);
+    try {
+      const response = await fetch('/api/fabrika/studio/poster/history', {
+        cache: 'no-store',
+      });
+      const body = (await response.json().catch(() => null)) as PosterHistoryResponse | null;
+      if (!response.ok || !body) {
+        throw new Error(body?.error || 'Çalışma geçmişi yüklenemedi.');
+      }
+      const folders = body.folders || [];
+      setHistoryFolders(folders);
+      setHistoryTotals(body.totals || { photos: 0, videos: 0 });
+      setHistoryFolderId((current) =>
+        folders.some((folder) => folder.id === current)
+          ? current
+          : folders[0]?.id || ''
+      );
+      if (announce) toast.success('Fotoğraf ve video geçmişi yenilendi.');
+    } catch (error) {
+      if (announce) {
+        toast.error(error instanceof Error ? error.message : 'Çalışma geçmişi yüklenemedi.');
+      }
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, []);
+
+  const visibleHistoryFolders = useMemo(
+    () =>
+      historyFolders.filter((folder) =>
+        historyKind === 'photos' ? folder.photos.length > 0 : folder.videos.length > 0
+      ),
+    [historyFolders, historyKind]
+  );
+  const activeHistoryFolder = useMemo(
+    () =>
+      visibleHistoryFolders.find((folder) => folder.id === historyFolderId) ||
+      visibleHistoryFolders[0] ||
+      null,
+    [historyFolderId, visibleHistoryFolders]
+  );
 
   useEffect(() => () => photoPreviews.forEach(({ url }) => URL.revokeObjectURL(url)), [photoPreviews]);
   useEffect(() => () => { if (logoFile && logoPreview) URL.revokeObjectURL(logoPreview); }, [logoFile, logoPreview]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadHistory(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadHistory]);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    try {
+      const rawDraft = window.localStorage.getItem('business-ceo-ai-poster-draft');
+      if (!rawDraft) return;
+      const draft = JSON.parse(rawDraft) as {
+        form?: Partial<PosterForm>;
+        contentOptions?: Partial<PosterContentOptions>;
+        selectedPlatforms?: PosterPlatformId[];
+      };
+      timer = window.setTimeout(() => {
+        if (draft.form) {
+          setForm((current) => ({
+            ...current,
+            ...draft.form,
+            propertyId: '',
+            mode: 'creative',
+            presetId: AUTO_BANNERBEAR_PRESET_ID,
+            outputSize: POSTER_SIZE_OPTIONS.some(
+              (option) => option.id === draft.form?.outputSize
+            )
+              ? draft.form!.outputSize!
+              : current.outputSize,
+          }));
+        }
+        if (draft.contentOptions) {
+          setContentOptions((current) => ({ ...current, ...draft.contentOptions }));
+        }
+        if (draft.selectedPlatforms?.length) {
+          setSelectedPlatforms(
+            draft.selectedPlatforms.filter((id) =>
+              PLATFORM_OPTIONS.some((platform) => platform.id === id)
+            )
+          );
+        }
+      }, 0);
+    } catch {
+      window.localStorage.removeItem('business-ceo-ai-poster-draft');
+    }
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const storedJobId = window.localStorage.getItem(VIDEO_JOB_STORAGE_KEY) || '';
+    if (!storedJobId) return;
+    const timer = window.setTimeout(() => {
+      setVideoJobId(storedJobId);
+      setIsCreatingVideo(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!videoJobId) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const check = async () => {
+      try {
+        const response = await fetch(
+          `/api/fabrika/studio/video/jobs/${encodeURIComponent(videoJobId)}`,
+          { cache: 'no-store' }
+        );
+        const body = (await response.json().catch(() => null)) as PosterVideoJobResponse | null;
+        if (!response.ok || !body?.job) {
+          throw new Error(body?.error || 'Video durumu alınamadı.');
+        }
+        if (cancelled) return;
+        setVideoProgress(body.job.progress);
+        if (body.job.status === 'COMPLETED' && body.job.artifactHref) {
+          setVideoResult({
+            jobId: body.job.id,
+            videoUrl: body.job.artifactHref,
+            durationSeconds: body.job.durationSeconds,
+            photoCount: body.job.referenceMediaIds.length,
+          });
+          setVideoJobId('');
+          setIsCreatingVideo(false);
+          setVideoProgress(100);
+          window.localStorage.removeItem(VIDEO_JOB_STORAGE_KEY);
+          toast.success('Portföy videonuz hazır.');
+          void loadHistory();
+          return;
+        }
+        if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(body.job.status)) {
+          setVideoJobId('');
+          setIsCreatingVideo(false);
+          window.localStorage.removeItem(VIDEO_JOB_STORAGE_KEY);
+          toast.error(body.job.errorMessage || 'Portföy videosu tamamlanamadı.');
+          return;
+        }
+        timer = window.setTimeout(check, 2_000);
+      } catch (error) {
+        if (cancelled) return;
+        timer = window.setTimeout(check, 4_000);
+        console.warn('[poster-video] status check delayed', error);
+      }
+    };
+    void check();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [loadHistory, videoJobId]);
 
   useEffect(() => {
     void (async () => {
@@ -638,6 +1107,29 @@ export default function PosterMaker() {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const selectOutputSize = (outputSize: PosterOutputSize) => {
+    const option = POSTER_SIZE_OPTIONS.find((item) => item.id === outputSize);
+    if (!option) return;
+    setForm((current) => ({
+      ...current,
+      outputSize,
+      format: option.format,
+      presetId: AUTO_BANNERBEAR_PRESET_ID,
+    }));
+  };
+
+  const toggleContentOption = (key: keyof PosterContentOptions) => {
+    setContentOptions((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const togglePlatform = (platformId: PosterPlatformId) => {
+    setSelectedPlatforms((current) =>
+      current.includes(platformId)
+        ? current.filter((item) => item !== platformId)
+        : [...current, platformId]
+    );
+  };
+
   const selectProperty = async (propertyId: string, requestedIds: string[] = []) => {
     const property = workspaceProperties.find((item) => item.id === propertyId);
     if (!property) {
@@ -649,13 +1141,18 @@ export default function PosterMaker() {
     setForm((current) => ({
       ...current,
       propertyId,
-      posterName: property.title || current.posterName,
-      location: property.location || current.location,
-      roomCount: property.roomCount || current.roomCount,
-      area: property.area ? String(property.area) : current.area,
-      price: property.price ? `${new Intl.NumberFormat('tr-TR').format(property.price)} TL` : current.price,
-      details: property.description || current.details,
+      posterName: property.title || '',
+      location: property.location || '',
+      roomCount: property.roomCount || '',
+      propertyType: property.propertyType || '',
+      area: property.area != null ? String(property.area) : '',
+      price:
+        property.price != null
+          ? `${new Intl.NumberFormat('tr-TR').format(property.price)} TL`
+          : '',
+      details: property.description || '',
     }));
+    setPhotos([]);
     setIsLoadingMedia(true);
     try {
       const response = await fetch(
@@ -674,10 +1171,7 @@ export default function PosterMaker() {
       const recommended = recommendPropertyMedia(items, {
         mode: form.mode,
       });
-      const selected = (requested.length ? requested : recommended).slice(
-        0,
-        Math.max(0, 6 - photos.length)
-      );
+      const selected = (requested.length ? requested : recommended).slice(0, 1);
       setSelectedMediaIds(selected);
       const cover = items.find(
         (item) => item.isCover && selected.includes(item.id)
@@ -718,10 +1212,14 @@ export default function PosterMaker() {
   const addPhotos = (incoming: File[]) => {
     const images = incoming.filter((file) => file.type.startsWith('image/'));
     if (incoming.length !== images.length) toast.error('Yalnızca görsel dosyaları ekleyebilirsiniz.');
-    setPhotos((current) => {
-      const keys = new Set(current.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
-      return [...current, ...images.filter((file) => !keys.has(`${file.name}-${file.size}-${file.lastModified}`))].slice(0, Math.max(0, 6 - selectedMediaIds.length));
-    });
+    const selectedImages = images.slice(0, 6);
+    if (!selectedImages.length) return;
+    setSelectedMediaIds([]);
+    setPhotos(selectedImages);
+    setHeroKey('file:0');
+    if (images.length > 6) {
+      toast('Poster için ilk 6 fotoğraf eklendi.');
+    }
   };
 
   const removePhoto = (index: number) => {
@@ -734,20 +1232,49 @@ export default function PosterMaker() {
     event.target.value = '';
   };
 
-  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+  const onDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     addPhotos(Array.from(event.dataTransfer.files));
   };
 
-  const createPoster = async (regenerateFrom?: PosterResult) => {
+  const createPoster = async (
+    regenerateFrom?: PosterResult,
+    formatOverride?: PosterFormat
+  ) => {
     if (posterRequestInFlightRef.current) return;
     if (!selectedPosterSources.length) {
       toast.error('Portföyden veya bilgisayarınızdan en az bir görsel seçin.');
       return;
     }
+    const activeContentOptions = regenerateFrom?.contentOptions ?? contentOptions;
+    const sourceForm = regenerateFrom?.brief ?? form;
+    const activeFormat = formatOverride ?? sourceForm.format;
+    const automaticStyle = true;
+    const resolvedPreset = takeRandomPreset(
+      activeFormat,
+      regenerateFrom?.brief.presetId || null
+    );
+    const activeForm: PosterForm = {
+      ...sourceForm,
+      format: activeFormat,
+      presetId: resolvedPreset.id,
+      companyName: activeContentOptions.logo ? sourceForm.companyName : '',
+      location: activeContentOptions.location ? sourceForm.location : '',
+      roomCount: activeContentOptions.propertyFacts ? sourceForm.roomCount : '',
+      propertyType: activeContentOptions.propertyFacts ? sourceForm.propertyType : '',
+      area: activeContentOptions.propertyFacts ? sourceForm.area : '',
+      price: activeContentOptions.price ? sourceForm.price : '',
+      details: activeContentOptions.description ? sourceForm.details : '',
+      highlight1: activeContentOptions.description ? sourceForm.highlight1 : '',
+      highlight2: activeContentOptions.description ? sourceForm.highlight2 : '',
+      highlight3: activeContentOptions.description ? sourceForm.highlight3 : '',
+    };
+    const targetPlatforms = regenerateFrom?.platforms ?? [...selectedPlatforms];
     const fingerprint = JSON.stringify({
       template: POSTER_TEMPLATE_VERSION,
-      form,
+      form: activeForm,
+      contentOptions: activeContentOptions,
+      platforms: targetPlatforms,
       heroKey: selectedPosterSources[0]?.key,
       sources: selectedPosterSources.map((source) =>
         source.mediaId
@@ -768,6 +1295,18 @@ export default function PosterMaker() {
     }
     posterRequestInFlightRef.current = true;
     setIsCreating(true);
+    const queueId = crypto.randomUUID();
+    const sizeName = POSTER_SIZE_OPTIONS.find(
+      (option) => option.id === activeForm.outputSize
+    )?.name || 'Poster';
+    setPosterQueue((current) => [
+      {
+        id: queueId,
+        label: `${activeForm.posterName.trim() || 'Portföy posteri'} · ${sizeName}`,
+        status: 'PROCESSING',
+      },
+      ...current.filter((item) => item.status === 'PROCESSING'),
+    ]);
     try {
       const data = new FormData();
       selectedPosterSources
@@ -786,21 +1325,40 @@ export default function PosterMaker() {
         JSON.stringify(selectedPosterSources.map((source) => source.key))
       );
       data.append('heroKey', selectedPosterSources[0]?.key || '');
-      if (logoFile) data.append('logo', logoFile);
-      data.append('companyName', form.companyName);
-      data.append('propertyId', form.propertyId);
-      data.append('location', form.location);
-      data.append('roomCount', form.roomCount);
-      data.append('propertyType', form.propertyType);
-      data.append('area', form.area);
-      data.append('price', form.price);
-      data.append('details', form.details);
-      data.append('posterName', form.posterName);
-      data.append('highlight1', form.highlight1);
-      data.append('highlight2', form.highlight2);
-      data.append('highlight3', form.highlight3);
-      data.append('format', form.format);
-      data.append('mode', form.mode);
+      if (logoFile && activeContentOptions.logo) data.append('logo', logoFile);
+      data.append('companyName', activeForm.companyName);
+      data.append('propertyId', activeForm.propertyId);
+      data.append('location', activeForm.location);
+      data.append('roomCount', activeForm.roomCount);
+      data.append('propertyType', activeForm.propertyType);
+      data.append('area', activeForm.area);
+      data.append('price', activeForm.price);
+      data.append('details', activeForm.details);
+      data.append('posterName', activeForm.posterName);
+      data.append('highlight1', activeForm.highlight1);
+      data.append('highlight2', activeForm.highlight2);
+      data.append('highlight3', activeForm.highlight3);
+      data.append('format', activeForm.format);
+      data.append('outputSize', activeForm.outputSize);
+      data.append('presetId', activeForm.presetId);
+      data.append(
+        'templateUid',
+        findBannerbearPreset(activeForm.presetId)?.templateUid || ''
+      );
+      data.append('mode', activeForm.mode);
+      data.append('automaticStyle', String(automaticStyle));
+      data.append('showLogo', String(activeContentOptions.logo));
+      data.append('showContact', String(activeContentOptions.contact));
+      data.append('includePrice', String(activeContentOptions.price));
+      data.append('includeLocation', String(activeContentOptions.location));
+      data.append(
+        'includePropertyFacts',
+        String(activeContentOptions.propertyFacts)
+      );
+      data.append(
+        'includeDescription',
+        String(activeContentOptions.description)
+      );
       data.append(
         'generationAction',
         regenerateFrom ? 'REGENERATE' : 'INITIAL'
@@ -809,46 +1367,66 @@ export default function PosterMaker() {
         data.append('generationId', regenerateFrom.generationId);
       }
       data.append('idempotencyKey', crypto.randomUUID());
-      data.append('rememberLogo', String(rememberLogo && permissions.canManageSecrets));
-      const response = await fetch('/api/fabrika/studio/poster', { method: 'POST', body: data });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Poster üretilemedi.');
-      if (body.alreadyCompleted || !body.backgroundDataUrl) {
-        setResults((current) =>
-          current.map((item) =>
-            item.generationId === body.generation?.id
-              ? {
-                  ...item,
-                  regenerationCount: body.generation.regenerationCount,
-                  maxRegenerations: body.generation.maxRegenerations,
-                  remainingRegenerations:
-                    body.generation.remainingRegenerations,
-                }
-              : item
-          )
-        );
-        toast.success('Bu poster isteği daha önce tamamlandı; hakkınız tekrar kullanılmadı.');
-        return;
-      }
-      const previewUrl = await createFinalPoster({
-        backgroundUrl: body.backgroundDataUrl,
-        photoUrls: selectedPosterSources.map((item) => item.url),
-        logoUrl: body.logoDataUrl || logoPreview,
-        form,
+      data.append(
+        'rememberLogo',
+        String(
+          activeContentOptions.logo &&
+            rememberLogo &&
+            permissions.canManageSecrets
+        )
+      );
+      const response = await fetch('/api/fabrika/studio/poster', {
+        method: 'POST',
+        body: data,
       });
+      const rawBody = await response.text();
+      let body: PosterApiResponse = {};
+      try {
+        body = rawBody ? (JSON.parse(rawBody) as PosterApiResponse) : {};
+      } catch {
+        throw new Error(
+          response.status === 413
+            ? 'Poster hazırlandı fakat sunucunun yanıt sınırına takıldı. Sayfayı yenileyip tekrar açın; aynı işlem ikinci kez ücretlendirilmez.'
+            : 'Sunucudan poster sonucu okunamadı. Lütfen birkaç saniye sonra tekrar deneyin.'
+        );
+      }
+      if (!response.ok) {
+        throw new Error(body.error || 'Poster üretilemedi.');
+      }
+      const previewUrl =
+        body.posterUrl || body.posterDataUrl || body.backgroundDataUrl || '';
       if (!body.generation?.id) {
         throw new Error('Poster hakkı bilgisi alınamadı. Lütfen yeniden deneyin.');
       }
-      const name = form.posterName.trim() || `Portföy posteri ${results.length + 1}`;
+      if (!previewUrl) {
+        throw new Error(
+          body.alreadyCompleted
+            ? 'Tamamlanan posterin dosyası bulunamadı. Yeni güvenli kayıt için düğmeye yeniden basın.'
+            : 'Poster tamamlandı ancak görsel adresi alınamadı. Lütfen tekrar deneyin.'
+        );
+      }
+      const generation = body.generation;
+      const actualPreset = body.presetId
+        ? findBannerbearPreset(body.presetId)
+        : null;
+      const resultForm: PosterForm = {
+        ...activeForm,
+        presetId:
+          actualPreset?.format === activeForm.format
+            ? actualPreset.id
+            : activeForm.presetId,
+      };
+      const baseName = activeForm.posterName.trim() || `Portföy posteri ${results.length + 1}`;
+      const name = `${baseName} · ${sizeName}`;
       setResults((current) => {
         const synchronized = current.map((item) =>
-          item.generationId === body.generation.id
+          item.generationId === generation.id
             ? {
                 ...item,
-                regenerationCount: body.generation.regenerationCount,
-                maxRegenerations: body.generation.maxRegenerations,
+                regenerationCount: generation.regenerationCount,
+                maxRegenerations: generation.maxRegenerations,
                 remainingRegenerations:
-                  body.generation.remainingRegenerations,
+                  generation.remainingRegenerations,
               }
             : item
         );
@@ -857,31 +1435,115 @@ export default function PosterMaker() {
             id: crypto.randomUUID(),
             name,
             previewUrl,
-            fingerprint: `${fingerprint}:${body.generation.id}:${body.generation.regenerationCount}`,
-            brief: { ...form },
+            fingerprint: `${fingerprint}:${generation.id}:${generation.regenerationCount}`,
+            brief: resultForm,
             mediaIds: selectedPosterSources
               .map((source) => source.mediaId)
               .filter((id): id is string => Boolean(id)),
-            mode: form.mode,
-            generationId: body.generation.id,
-            regenerationCount: body.generation.regenerationCount,
-            maxRegenerations: body.generation.maxRegenerations,
-            remainingRegenerations: body.generation.remainingRegenerations,
+            mode: activeForm.mode,
+            generationId: generation.id,
+            regenerationCount: generation.regenerationCount,
+            maxRegenerations: generation.maxRegenerations,
+            remainingRegenerations: generation.remainingRegenerations,
+            contentOptions: { ...activeContentOptions },
+            platforms: targetPlatforms,
+            requiresTextReview: body.requiresTextReview !== false,
+            providerCostUsd:
+              typeof body.providerCostUsd === 'number'
+                ? body.providerCostUsd
+                : null,
           },
           ...synchronized,
         ];
       });
       if (body.logoDataUrl) setSavedLogoUrl(body.logoDataUrl);
+      setPosterQueue((current) => current.filter((item) => item.id !== queueId));
       toast.success(
-        regenerateFrom
-          ? `Yeni varyasyon hazır. ${body.generation.remainingRegenerations} yeniden üretim hakkı kaldı.`
+        body.alreadyCompleted
+          ? 'Daha önce tamamlanan poster açıldı; tekrar ücret alınmadı.'
+          : regenerateFrom
+          ? `Yeni varyasyon hazır. ${generation.remainingRegenerations} yeniden üretim hakkı kaldı.`
           : 'Posteriniz hazır. En fazla iki kez yeniden üretebilirsiniz.'
       );
+      void loadHistory();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Poster üretilemedi.');
+      const message = error instanceof Error ? error.message : 'Poster üretilemedi.';
+      setPosterQueue((current) =>
+        current.map((item) =>
+          item.id === queueId
+            ? { ...item, status: 'FAILED', error: message }
+            : item
+        )
+      );
+      toast.error(message);
     } finally {
       posterRequestInFlightRef.current = false;
       setIsCreating(false);
+    }
+  };
+
+  const createSelectedPosters = async () => {
+    if (!selectedPlatforms.length) {
+      toast.error('En az bir paylaşım platformu seçin.');
+      return;
+    }
+    setGenerationProgress({ current: 1, total: 1 });
+    toast.success('Poster arka plana alındı. Sayfada çalışmaya devam edebilirsiniz.');
+    await createPoster(undefined, form.format);
+    setGenerationProgress(null);
+  };
+
+  const createPortfolioVideo = async () => {
+    if (!form.propertyId) {
+      toast.error('Video için önce bir portföy seçin.');
+      return;
+    }
+    if (selectedMediaIds.length < 2) {
+      toast.error('Video için portföyden en az 2 fotoğraf seçin.');
+      return;
+    }
+    setIsCreatingVideo(true);
+    setVideoProgress(8);
+    setVideoResult(null);
+    try {
+      const response = await fetch('/api/fabrika/studio/poster/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: form.propertyId,
+          mediaIds: selectedMediaIds.slice(0, 8),
+          format: form.format,
+          transition: videoTransition,
+          slideDuration: videoSlideDuration,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as PosterVideoApiResponse | null;
+      if (!response.ok || !body?.success || !body.jobId) {
+        throw new Error(body?.error || 'Portföy videosu hazırlanamadı.');
+      }
+      setVideoJobId(body.jobId);
+      setVideoProgress(body.progress || 8);
+      window.localStorage.setItem(VIDEO_JOB_STORAGE_KEY, body.jobId);
+      if (body.videoUrl) {
+        setVideoResult({
+          jobId: body.jobId,
+          videoUrl: body.videoUrl,
+          durationSeconds: body.durationSeconds || selectedMediaIds.length * videoSlideDuration,
+          photoCount: body.photoCount || selectedMediaIds.length,
+        });
+        setVideoJobId('');
+        setIsCreatingVideo(false);
+        setVideoProgress(100);
+        window.localStorage.removeItem(VIDEO_JOB_STORAGE_KEY);
+        toast.success('Portföy videonuz hazır.');
+        void loadHistory();
+      } else {
+        toast.success('Video arka planda hazırlanıyor. Bu sayfada çalışmaya devam edebilirsiniz.');
+      }
+    } catch (error) {
+      setIsCreatingVideo(false);
+      setVideoProgress(0);
+      toast.error(error instanceof Error ? error.message : 'Portföy videosu hazırlanamadı.');
     }
   };
 
@@ -1019,97 +1681,473 @@ export default function PosterMaker() {
     }
   };
 
+  const saveDraft = () => {
+    try {
+      window.localStorage.setItem(
+        'business-ceo-ai-poster-draft',
+        JSON.stringify({
+          form: { ...form, propertyId: '' },
+          contentOptions,
+          selectedPlatforms,
+        })
+      );
+      toast.success('Poster ayarlarınız bu cihazda taslak olarak kaydedildi.');
+    } catch {
+      toast.error('Taslak bu cihazda kaydedilemedi.');
+    }
+  };
+
   return (
-    <section className="space-y-6">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)]">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
-          <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300"><LayoutTemplate className="h-5 w-5" /></span>
-            <div>
-              <h2 className="text-lg font-bold text-white">Gayrimenkul reklam posteri</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-400">Yapay zekâ görselinizi reklam estetiğine taşır; şirket kimliği ve tüm ilan bilgileri poster üzerinde net biçimde yer alır.</p>
-            </div>
-          </div>
+    <section className={styles.workshop} aria-labelledby="poster-workshop-title">
+      <div className={styles.workspaceGrid}>
+        <aside className={styles.stepRail}>
+          <header className={styles.workshopIntro}>
+            <span className={styles.eyebrow}>
+              <WandSparkles aria-hidden="true" />
+              AI Reklam Tasarımı
+            </span>
+            <h1 id="poster-workshop-title">Poster Atölyesi</h1>
+            <p>Dört kolay adımı tamamlayın, paylaşmaya hazır posterinizi oluşturun.</p>
+          </header>
 
-          <label className="mt-6 block rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3 text-xs font-bold text-emerald-100">Portföyden otomatik doldur <span className="font-normal text-emerald-200/70">(isteğe bağlı)</span>
-            <select value={form.propertyId} onChange={(event) => void selectProperty(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400">
-              <option value="">Manuel bilgi gireceğim</option>
-              {workspaceProperties.map((property) => <option key={property.id} value={property.id}>{property.title}{property.location ? ` · ${property.location}` : ''}</option>)}
+          <article className={styles.stepCard}>
+            <div className={styles.stepHeader}>
+              <span className={styles.stepNumber}>1</span>
+              <span className={styles.stepIcon}><Building2 aria-hidden="true" /></span>
+              <span className={styles.stepCopy}>
+                <strong>Portföy</strong>
+                <small>{selectedProperty ? selectedProperty.title : 'Bir portföy seçin'}</small>
+              </span>
+              {selectedProperty ? (
+                <CircleCheckBig className={styles.stepDone} aria-label="Tamamlandı" />
+              ) : (
+                <ChevronRight className={styles.stepArrow} aria-hidden="true" />
+              )}
+            </div>
+            <label className={styles.srLabel} htmlFor="poster-property">Reklam portföyü</label>
+            <select
+              className={styles.propertySelect}
+              id="poster-property"
+              value={form.propertyId}
+              onChange={(event) => void selectProperty(event.target.value)}
+            >
+              <option value="">Portföyünüzü seçin</option>
+              {workspaceProperties.map((property) => (
+                <option key={property.id} value={property.id}>
+                  {property.title}
+                  {property.location ? ' · ' + property.location : ''}
+                </option>
+              ))}
             </select>
-          </label>
+            {selectedProperty && (
+              <div className={styles.propertySummary}>
+                <span>{selectedProperty.location || 'Konum belirtilmemiş'}</span>
+                <span className={styles.statusDot}>Aktif</span>
+              </div>
+            )}
+          </article>
 
-          <fieldset className="mt-5">
-            <legend className="text-xs font-bold text-slate-300">Poster modu</legend>
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => update('mode', 'faithful')} aria-pressed={form.mode === 'faithful'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${form.mode === 'faithful' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Gerçek fotoğraflı profesyonel poster</span><span className="mt-1 block text-xs leading-5 text-slate-400">Mülkün fotoğrafları aynen korunur; başlık, özellikler, galeri, fiyat ve şirket kimliği profesyonel broşür şablonuna yerleştirilir.</span></button>
-              <button type="button" onClick={() => update('mode', 'creative')} aria-pressed={form.mode === 'creative'} className={`rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${form.mode === 'creative' ? 'border-amber-400/70 bg-amber-400/10' : 'border-slate-700 bg-slate-950 hover:border-slate-600'}`}><span className="block text-sm font-bold text-white">Kreatif AI görselli poster</span><span className="mt-1 block text-xs leading-5 text-slate-400">Aynı profesyonel broşür tasarımı kullanılır; yalnızca seçtiğiniz ana fotoğraf Stable Image Ultra ile belirgin biçimde yeniden yorumlanır.</span></button>
+          <article className={styles.stepCard}>
+            <div className={styles.stepHeader}>
+              <span className={styles.stepNumber}>2</span>
+              <span className={styles.stepIcon}><ImageIcon aria-hidden="true" /></span>
+              <span className={styles.stepCopy}>
+                <strong>Fotoğraflar</strong>
+                <small>{selectedPosterSources.length ? `${selectedMediaIds.length || selectedPosterSources.length} fotoğraf seçildi` : 'Bir ana fotoğraf seçin'}</small>
+              </span>
+              {selectedPosterSources.length ? (
+                <CircleCheckBig className={styles.stepDone} aria-label="Tamamlandı" />
+              ) : (
+                <ChevronRight className={styles.stepArrow} aria-hidden="true" />
+              )}
             </div>
-            {form.mode === 'creative' && <p role="status" className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">Bu görsel AI ile yeniden yorumlanır ve <strong>temsilîdir</strong>. İlanın gerçek fotoğrafı veya teknik özelliği olarak kullanılmamalıdır.</p>}
-          </fieldset>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="text-xs font-bold text-slate-300">Şirket adı <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-              <input value={form.companyName} onChange={(event) => update('companyName', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Şirket adınız" />
-            </label>
-            <label className="text-xs font-bold text-slate-300">Poster adı <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-              <input value={form.posterName} onChange={(event) => update('posterName', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. Kestel deniz manzaralı villa" />
-            </label>
-            <label className="text-xs font-bold text-slate-300">Konum <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-              <input value={form.location} onChange={(event) => update('location', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. Alanya / Kestel" />
-            </label>
-            <label className="text-xs font-bold text-slate-300">Portföy tipi <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-              <input value={form.propertyType} onChange={(event) => update('propertyType', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. Satılık villa" />
-            </label>
-            <label className="text-xs font-bold text-slate-300">Oda sayısı <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-              <input value={form.roomCount} onChange={(event) => update('roomCount', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. 4+1" />
-            </label>
-            <label className="text-xs font-bold text-slate-300">Metrekare <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-              <input value={form.area} onChange={(event) => update('area', event.target.value)} inputMode="numeric" className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. 185" />
-            </label>
-            <label className="text-xs font-bold text-slate-300">Fiyat <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-              <input value={form.price} onChange={(event) => update('price', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Örn. 12.500.000 TL" />
-            </label>
+            {isLoadingMedia ? (
+              <div className={styles.mediaLoading}>
+                <Loader2 aria-hidden="true" />
+                Fotoğraflar yükleniyor
+              </div>
+            ) : portfolioMedia.length ? (
+              <div className={styles.mediaPicker} aria-label="Portföy fotoğrafları">
+                {portfolioMedia.map((item) => {
+                  const selected = selectedMediaIds.includes(item.id);
+                  const unavailable =
+                    item.mediaType !== 'PHOTO' ||
+                    item.usageRightsStatus === 'RESTRICTED' ||
+                    item.variantType === 'CREATIVE';
+                  return (
+                    <div
+                      className={[
+                        styles.mediaTile,
+                        selected ? styles.mediaTileSelected : '',
+                        unavailable ? styles.mediaTileUnavailable : '',
+                      ].filter(Boolean).join(' ')}
+                      key={item.id}
+                    >
+                      <button
+                        aria-label={item.fileName + ' görselini ' + (selected ? 'çıkar' : 'seç')}
+                        aria-pressed={selected}
+                        disabled={unavailable}
+                        onClick={() => {
+                          setPhotos([]);
+                          setVideoResult(null);
+                          setSelectedMediaIds((current) => {
+                            if (selected) {
+                              const next = current.filter((id) => id !== item.id);
+                              if (heroKey === 'media:' + item.id) {
+                                setHeroKey(next.length ? 'media:' + next[0] : '');
+                              }
+                              return next;
+                            }
+                            if (current.length >= 8) {
+                              toast.error('Video için en fazla 8 fotoğraf seçebilirsiniz.');
+                              return current;
+                            }
+                            const next = [...current, item.id];
+                            if (!heroKey) setHeroKey('media:' + item.id);
+                            return next;
+                          });
+                        }}
+                        type="button"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img alt={item.fileName} loading="lazy" src={item.url} />
+                        <span className={styles.mediaCheck}><Check aria-hidden="true" /></span>
+                      </button>
+                      {selected && (
+                        <button
+                          className={[
+                            styles.heroBadge,
+                            effectiveHeroKey === 'media:' + item.id ? styles.heroBadgeActive : '',
+                          ].filter(Boolean).join(' ')}
+                          onClick={() => setHeroKey('media:' + item.id)}
+                          type="button"
+                        >
+                          {effectiveHeroKey === 'media:' + item.id ? 'ANA' : 'Ana yap'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : form.propertyId ? (
+              <p className={styles.emptyMedia}>Bu portföyde kullanılabilir fotoğraf bulunamadı.</p>
+            ) : (
+              <p className={styles.emptyMedia}>Fotoğrafları görmek için önce portföy seçin.</p>
+            )}
+
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className={styles.hiddenInput}
+              onChange={onPhotoChange}
+            />
+            <button
+              type="button"
+              className={styles.compactUpload}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={onDrop}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              <UploadCloud aria-hidden="true" />
+              Bilgisayardan fotoğraf ekle
+            </button>
+
+            {photoPreviews.length > 0 && (
+              <div className={styles.manualMedia}>
+                {photoPreviews.map(({ file, url }, index) => {
+                  const key = 'file:' + index;
+                  return (
+                    <div
+                      className={[
+                        styles.mediaTile,
+                        effectiveHeroKey === key ? styles.mediaTileSelected : '',
+                      ].filter(Boolean).join(' ')}
+                      key={file.name + '-' + file.lastModified}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setHeroKey(key)}
+                        aria-pressed={effectiveHeroKey === key}
+                        aria-label={file.name + ' ana görsel olarak seç'}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={file.name} />
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.removeMedia}
+                        onClick={() => removePhoto(index)}
+                        aria-label={file.name + ' görselini kaldır'}
+                      >
+                        <X aria-hidden="true" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+
+          <article className={[styles.stepCard, styles.stepCardActive].join(' ')}>
+            <div className={styles.stepHeader}>
+              <span className={styles.stepNumber}>3</span>
+              <span className={styles.stepIcon}><FileText aria-hidden="true" /></span>
+              <span className={styles.stepCopy}>
+                <strong>İçerik</strong>
+                <small>Başlık, fiyat ve özellikler</small>
+              </span>
+              <span className={styles.editLabel}>Düzenleniyor</span>
+            </div>
+          </article>
+
+          <article className={styles.stepCard}>
+            <div className={styles.stepHeader}>
+              <span className={styles.stepNumber}>4</span>
+              <span className={styles.stepIcon}><Share2 aria-hidden="true" /></span>
+              <span className={styles.stepCopy}>
+                <strong>Platformlar</strong>
+                <small>{selectedPlatforms.length} platform seçildi</small>
+              </span>
+              {selectedPlatforms.length ? (
+                <CircleCheckBig className={styles.stepDone} aria-label="Tamamlandı" />
+              ) : (
+                <ChevronRight className={styles.stepArrow} aria-hidden="true" />
+              )}
+            </div>
+            <div className={styles.platformMiniatures}>
+              {PLATFORM_OPTIONS.filter((platform) =>
+                selectedPlatforms.includes(platform.id)
+              ).map((platform) => (
+                <span data-tone={platform.tone} key={platform.id}>
+                  {platform.shortName}
+                </span>
+              ))}
+            </div>
+          </article>
+        </aside>
+
+        <main className={styles.previewColumn}>
+          <div className={styles.previewToolbar}>
+            <div>
+              <Eye aria-hidden="true" />
+              <span>
+                <strong>{latestResult ? 'Son oluşturulan poster' : 'Canlı önizleme'}</strong>
+                <small>{latestResult ? 'İndirmeye ve kaydetmeye hazır' : 'Seçimleriniz burada görünür'}</small>
+              </span>
+            </div>
+            <span className={styles.previewSizeBadge}>
+              {POSTER_SIZE_OPTIONS.find((option) => option.id === form.outputSize)?.dimensions}
+            </span>
           </div>
 
-          <label className="mt-4 block text-xs font-bold text-slate-300">Ek bilgiler <span className="font-normal text-slate-500">(isteğe bağlı)</span>
-            <textarea value={form.details} onChange={(event) => update('details', event.target.value)} className="mt-2 min-h-24 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder="Konum, oda sayısı, manzara, teslim durumu veya posterde öne çıkarmak istediğiniz özellikler..." />
-          </label>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            {(['highlight1', 'highlight2', 'highlight3'] as const).map((field, index) => <label key={field} className="text-xs font-bold text-slate-300">Öne çıkan özellik {index + 1} <span className="font-normal text-slate-500">(isteğe bağlı)</span><input value={form[field]} onChange={(event) => update(field, event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none transition focus:border-emerald-400" placeholder={['Denize yakın', 'Özel havuz', 'Yeni teslim'][index]} /></label>)}
+          <div className={styles.previewStage} data-has-preview={Boolean(livePreviewUrl)}>
+            <div
+              className={styles.previewCanvas}
+              data-size={latestResult?.brief.outputSize ?? form.outputSize}
+            >
+              {livePreviewUrl ? (
+                latestResult ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    className={styles.generatedPreview}
+                    src={livePreviewUrl}
+                    alt={latestResult.name}
+                  />
+                ) : (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className={styles.previewPhoto}
+                      src={livePreviewUrl}
+                      alt={selectedPosterSources[0]?.name || 'Seçilen portföy fotoğrafı'}
+                    />
+                    <div className={styles.aiPreviewHint}>
+                      <Sparkles aria-hidden="true" />
+                      <span>
+                        <strong>ANA fotoğraf seçilen şablona yerleştirilecek</strong>
+                        <small>Fotoğraf yeniden çizilmez; doğrulanmış portföy bilgileri ayrı alanlara yazılır.</small>
+                      </span>
+                    </div>
+                  </>
+                )
+              ) : (
+                <div className={styles.previewEmpty}>
+                  <span><ImageIcon aria-hidden="true" /></span>
+                  <strong>Poster önizlemesi için portföy seçin</strong>
+                  <p>Portföyünüzün fotoğrafları yüklendiğinde tasarım burada oluşmaya başlar.</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-            <fieldset>
-              <legend className="text-xs font-bold text-slate-300">Tasarım boyutu</legend>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {([['post', 'Post · 4:5'], ['story', 'Story · 9:16']] as const).map(([value, label]) => (
-                  <button key={value} type="button" onClick={() => update('format', value)} aria-pressed={form.format === value} className={`rounded-lg border px-3 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${form.format === value ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-600'}`}>{label}</button>
+          <div className={styles.previewFooter}>
+            <span>
+              <SlidersHorizontal aria-hidden="true" />
+              Akıllı şablon alanı
+            </span>
+            <p>Fotoğraf, doğrulanmış bilgiler, logo ve telefonla profesyonel emlak posterine dönüştürülür.</p>
+          </div>
+        </main>
+
+        <aside className={styles.settingsPanel} id="poster-content-settings">
+          <header className={styles.settingsHeader}>
+            <div>
+              <span>Görsel üzerindeki öğeler</span>
+              <strong>Posterde neler yer alsın?</strong>
+            </div>
+            <SlidersHorizontal aria-hidden="true" />
+          </header>
+
+          <div className={styles.optionList}>
+            <button type="button" aria-pressed={contentOptions.price} onClick={() => toggleContentOption('price')}>
+              <span className={styles.optionIcon}><Tag aria-hidden="true" /></span>
+              <span><strong>Fiyatı göster</strong><small>Satış veya kira bedeli</small></span>
+              <span className={styles.toggle} data-on={contentOptions.price}><i /></span>
+            </button>
+            <button type="button" aria-pressed={contentOptions.location} onClick={() => toggleContentOption('location')}>
+              <span className={styles.optionIcon}><MapPin aria-hidden="true" /></span>
+              <span><strong>Konumu göster</strong><small>İlçe ve bölge bilgisi</small></span>
+              <span className={styles.toggle} data-on={contentOptions.location}><i /></span>
+            </button>
+            <button type="button" aria-pressed={contentOptions.propertyFacts} onClick={() => toggleContentOption('propertyFacts')}>
+              <span className={styles.optionIcon}><BedDouble aria-hidden="true" /></span>
+              <span><strong>Oda ve m²</strong><small>Temel portföy özellikleri</small></span>
+              <span className={styles.toggle} data-on={contentOptions.propertyFacts}><i /></span>
+            </button>
+            <button type="button" aria-pressed={contentOptions.logo} onClick={() => toggleContentOption('logo')}>
+              <span className={styles.optionIcon}><Building2 aria-hidden="true" /></span>
+              <span><strong>Şirket logosu</strong><small>Marka kimliğiniz</small></span>
+              <span className={styles.toggle} data-on={contentOptions.logo}><i /></span>
+            </button>
+            <button type="button" aria-pressed={contentOptions.contact} onClick={() => toggleContentOption('contact')}>
+              <span className={styles.optionIcon}><Phone aria-hidden="true" /></span>
+              <span><strong>İletişim çağrısı</strong><small>Randevu ve bilgi yönlendirmesi</small></span>
+              <span className={styles.toggle} data-on={contentOptions.contact}><i /></span>
+            </button>
+            <button type="button" aria-pressed={contentOptions.description} onClick={() => toggleContentOption('description')}>
+              <span className={styles.optionIcon}><FileText aria-hidden="true" /></span>
+              <span><strong>Açıklama ve özellikler</strong><small>Özel mesaj ve üç vurgu</small></span>
+              <span className={styles.toggle} data-on={contentOptions.description}><i /></span>
+            </button>
+          </div>
+
+          <div className={styles.automaticStyleNotice}>
+            <Sparkles aria-hidden="true" />
+            <span>
+              <strong>Tasarımı sistem seçer</strong>
+              <small>Mevcut {bannerbearPresetsForFormat(form.format).length} gerçek şablon karıştırılır; aynı şablon art arda gelmez.</small>
+            </span>
+          </div>
+
+          <details className={styles.detailsEditor}>
+            <summary>
+              <span><FileText aria-hidden="true" /> Metinleri ve tasarım türünü düzenle</span>
+              <ChevronRight aria-hidden="true" />
+            </summary>
+            <div className={styles.editorFields}>
+              <label>
+                Poster başlığı
+                <input
+                  value={form.posterName}
+                  onChange={(event) => update('posterName', event.target.value)}
+                  placeholder="Örn. Hayalinizdeki yaşam"
+                />
+              </label>
+              <div className={styles.twoFields}>
+                <label>
+                  Fiyat
+                  <input
+                    value={form.price}
+                    onChange={(event) => update('price', event.target.value)}
+                    placeholder="12.500.000 TL"
+                  />
+                </label>
+                <label>
+                  Konum
+                  <input
+                    value={form.location}
+                    onChange={(event) => update('location', event.target.value)}
+                    placeholder="Alanya / Kestel"
+                  />
+                </label>
+              </div>
+              <div className={styles.threeFields}>
+                <label>
+                  Oda
+                  <input
+                    value={form.roomCount}
+                    onChange={(event) => update('roomCount', event.target.value)}
+                    placeholder="4+1"
+                  />
+                </label>
+                <label>
+                  m²
+                  <input
+                    inputMode="numeric"
+                    value={form.area}
+                    onChange={(event) => update('area', event.target.value)}
+                    placeholder="185"
+                  />
+                </label>
+                <label>
+                  Tür
+                  <input
+                    value={form.propertyType}
+                    onChange={(event) => update('propertyType', event.target.value)}
+                    placeholder="Villa"
+                  />
+                </label>
+              </div>
+              <label>
+                Kısa açıklama
+                <textarea
+                  value={form.details}
+                  onChange={(event) => update('details', event.target.value)}
+                  placeholder="Portföyü öne çıkaran kısa ve etkileyici açıklama..."
+                />
+              </label>
+              <div className={styles.threeFields}>
+                {(['highlight1', 'highlight2', 'highlight3'] as const).map((field, index) => (
+                  <label key={field}>
+                    Özellik {index + 1}
+                    <input
+                      value={form[field]}
+                      onChange={(event) => update(field, event.target.value)}
+                      placeholder={['Özel havuz', 'Deniz manzarası', 'Yeni teslim'][index]}
+                    />
+                  </label>
                 ))}
               </div>
-            </fieldset>
-            <div>
-              <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} />
-              <button type="button" onClick={() => logoInputRef.current?.click()} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs font-semibold text-slate-200 transition hover:border-slate-600 sm:w-auto"><Building2 className="h-4 w-4 text-emerald-300" /> {logoPreview ? 'Logoyu değiştir' : 'Şirket logosu ekle'}</button>
+
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className={styles.hiddenInput}
+                onChange={(event) => setLogoFile(event.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                className={styles.logoButton}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                <Building2 aria-hidden="true" />
+                {logoPreview ? 'Şirket logosunu değiştir' : 'Şirket logosu ekle'}
+              </button>
               {logoPreview && (
-                <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
-                  {/* Local object URLs and saved tenant logos intentionally use native preview rendering. */}
+                <div className={styles.logoStatus}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={logoPreview}
-                    alt="Şirket logosu ön izlemesi"
-                    className="h-5 w-8 rounded bg-white object-contain p-0.5"
-                  />
-                  Logo hazır
+                  <img src={logoPreview} alt="Şirket logosu önizlemesi" />
+                  <span>Logo hazır</span>
                   {permissions.canManageSecrets && (
-                    <label className="ml-1 inline-flex items-center gap-1">
+                    <label>
                       <input
                         type="checkbox"
                         checked={rememberLogo}
-                        onChange={(event) =>
-                          setRememberLogo(event.target.checked)
-                        }
-                        className="accent-emerald-400"
+                        onChange={(event) => setRememberLogo(event.target.checked)}
                       />
                       Profilde hatırla
                     </label>
@@ -1117,334 +2155,306 @@ export default function PosterMaker() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </details>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
-          {form.propertyId && (
-            <section className="mb-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold text-cyan-100">
-                    Portföy medya adayları
-                  </p>
-                  <p className="mt-1 text-[11px] leading-5 text-slate-400">
-                    Tüm görseller görünür; posterde en fazla 6 seçili görsel
-                    kullanılır. Kapak varsayılan ana görseldir.
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] font-bold text-cyan-200">
-                  {selectedPosterSources.length}/6
-                </span>
-              </div>
-              {isLoadingMedia ? (
-                <div className="grid h-28 place-items-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
-                </div>
-              ) : portfolioMedia.length ? (
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {portfolioMedia.map((item) => {
-                    const selected = selectedMediaIds.includes(item.id);
-                    const unavailable =
-                      item.mediaType !== 'PHOTO' ||
-                      item.usageRightsStatus === 'RESTRICTED' ||
-                      (form.mode === 'faithful' &&
-                        item.variantType === 'CREATIVE');
-                    const limitReached =
-                      !selected &&
-                      selectedMediaIds.length + photos.length >= 6;
-                    return (
-                      <article
-                        className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${
-                          selected
-                            ? 'border-cyan-300 ring-2 ring-cyan-300/25'
-                            : 'border-slate-700'
-                        } ${unavailable ? 'opacity-45' : ''}`}
-                        key={item.id}
-                      >
-                        <button
-                          aria-label={`${item.fileName} görselini ${selected ? 'çıkar' : 'seç'}`}
-                          aria-pressed={selected}
-                          className="h-full w-full disabled:cursor-not-allowed"
-                          disabled={unavailable || limitReached}
-                          onClick={() => {
-                            const next = togglePosterMediaSelection(
-                              selectedMediaIds,
-                              item.id
-                            ).slice(0, Math.max(0, 6 - photos.length));
-                            setSelectedMediaIds(next);
-                            if (!next.includes(item.id) && heroKey === `media:${item.id}`) {
-                              setHeroKey('');
-                            }
-                          }}
-                          type="button"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            alt={item.fileName}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                            src={item.url}
-                          />
-                          <span
-                            className={`absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full border ${
-                              selected
-                                ? 'border-cyan-100 bg-cyan-300 text-cyan-950'
-                                : 'border-white/40 bg-slate-950/75 text-transparent'
-                            }`}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/90 to-transparent px-1.5 pb-1.5 pt-5 text-left text-[9px] font-bold text-white">
-                            {item.isCover ? 'Kapak · ' : ''}
-                            {item.variantType === 'ENHANCED'
-                              ? 'İyileştirilmiş'
-                              : item.variantType === 'CREATIVE'
-                                ? 'Temsilî'
-                                : 'Orijinal'}
-                          </span>
-                        </button>
-                        {selected && (
-                          <button
-                            className={`absolute bottom-1.5 right-1.5 rounded px-1.5 py-1 text-[9px] font-bold ${
-                              effectiveHeroKey === `media:${item.id}`
-                                ? 'bg-amber-300 text-amber-950'
-                                : 'bg-slate-950/85 text-white hover:bg-amber-300 hover:text-amber-950'
-                            }`}
-                            onClick={() => setHeroKey(`media:${item.id}`)}
-                            type="button"
-                          >
-                            {effectiveHeroKey === `media:${item.id}`
-                              ? 'ANA'
-                              : 'Ana yap'}
-                          </button>
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="mt-3 rounded-lg border border-dashed border-slate-700 p-4 text-center text-xs text-slate-400">
-                  Bu portföyde medya yok. Aşağıdan manuel görsel ekleyebilirsiniz.
-                </p>
-              )}
-            </section>
-          )}
-          <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={onPhotoChange} />
-          <div onDragOver={(event) => event.preventDefault()} onDrop={onDrop} role="button" tabIndex={0} onKeyDown={(event) => event.key === 'Enter' && photoInputRef.current?.click()} onClick={() => photoInputRef.current?.click()} className="grid min-h-56 cursor-pointer place-items-center rounded-xl border border-dashed border-emerald-400/40 bg-emerald-400/[0.05] p-6 text-center transition hover:bg-emerald-400/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
-            <div><span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-emerald-300 text-emerald-950"><UploadCloud className="h-6 w-6" /></span><p className="mt-4 text-sm font-bold text-white">Gayrimenkul görsellerini yükleyin</p><p className="mt-1 text-xs leading-5 text-slate-400">Bir veya birden çok görsel bırakın ya da seçmek için tıklayın. En fazla 6 görsel.</p></div>
+          <div className={styles.platformSection}>
+            <span className={styles.sectionLabel}>Nerede paylaşacaksınız?</span>
+            <div className={styles.platformGrid}>
+              {PLATFORM_OPTIONS.map((platform) => {
+                const selected = selectedPlatforms.includes(platform.id);
+                return (
+                  <button
+                    key={platform.id}
+                    type="button"
+                    aria-pressed={selected}
+                    className={selected ? styles.platformSelected : undefined}
+                    onClick={() => togglePlatform(platform.id)}
+                  >
+                    <span className={styles.platformLogo} data-tone={platform.tone}>
+                      <svg aria-hidden="true" viewBox="0 0 24 24"><path d={platform.iconPath} fill="currentColor" /></svg>
+                    </span>
+                    <strong>{platform.name}</strong>
+                    <span className={styles.platformCheck}><Check aria-hidden="true" /></span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className={styles.sectionLabel}>Poster boyutu</span>
+            <div className={styles.sizeGrid} role="radiogroup" aria-label="Poster boyutunu seçin">
+              {POSTER_SIZE_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.outputSize === option.id}
+                  className={form.outputSize === option.id ? styles.sizeSelected : undefined}
+                  onClick={() => selectOutputSize(option.id)}
+                >
+                  <i data-shape={option.shape} aria-hidden="true" />
+                  <span><strong>{option.name}</strong><small>{option.dimensions}</small></span>
+                  <Check aria-hidden="true" />
+                </button>
+              ))}
+            </div>
           </div>
-          {photoPreviews.length > 0 && (
-            <>
-              <p className="mt-4 text-xs font-semibold text-slate-300">
-                Manuel görseller · ana görseli seçin
-              </p>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {photoPreviews.map(({ file, url }, index) => {
-                  const key = `file:${index}`;
-                  return (
-                    <div
-                      key={`${file.name}-${file.lastModified}`}
-                      className={`group relative aspect-[4/3] overflow-hidden rounded-lg border ${
-                        heroKey === key
-                          ? 'border-amber-300 ring-2 ring-amber-300/40'
-                          : 'border-slate-700'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setHeroKey(key)}
-                        className="h-full w-full"
-                        aria-pressed={heroKey === key}
-                        aria-label={`${file.name} ana görsel olarak seç`}
-                      >
-                        {/* Native img is required for local object URL previews. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={url}
-                          alt={file.name}
-                          className="h-full w-full object-cover"
-                        />
-                        {heroKey === key && (
-                          <span className="absolute bottom-1.5 left-1.5 rounded bg-amber-300 px-1.5 py-1 text-[10px] font-bold text-amber-950">
-                            ANA GÖRSEL
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          removePhoto(index);
-                        }}
-                        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-950/80 text-white transition hover:bg-rose-500"
-                        aria-label={`${file.name} görselini kaldır`}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-          <p className="mt-4 text-xs leading-5 text-slate-500">{form.mode === 'faithful' ? 'Gerçek fotoğraflı modda seçtiğiniz ana görsel ve galeri fotoğrafları değiştirilmeden profesyonel şablona yerleştirilir.' : 'Kreatif modda yalnızca seçtiğiniz ana görsel Stable Image Ultra ile yeniden yorumlanır; diğer gerçek fotoğraflar galeri bölümünde aynen korunur.'} Görselleriniz yalnızca poster üretimi için sunucuda işlenir.</p>
-          <button type="button" onClick={() => createPoster()} disabled={isCreating || !selectedPosterSources.length} className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${form.mode === 'creative' ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-emerald-300 text-emerald-950 hover:bg-emerald-200'}`}>{isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {isCreating ? 'Poster hazırlanıyor…' : form.mode === 'creative' ? 'Kreatif AI posteri oluştur' : 'Gerçeğe sadık poster oluştur'}</button>
-        </div>
+
+          <section className={styles.videoComposer} aria-labelledby="portfolio-video-title">
+            <header>
+              <span className={styles.videoComposerIcon}><Film aria-hidden="true" /></span>
+              <span>
+                <strong id="portfolio-video-title">Portföy videosu</strong>
+                <small>Gerçek fotoğraflarla otomatik MP4</small>
+              </span>
+              <b>{selectedMediaIds.length}/8</b>
+            </header>
+            <p>Portföyden 2–8 fotoğraf seçin. Fotoğraflar yeniden çizilmeden sırayla videoya dönüşür.</p>
+            <div className={styles.videoControls}>
+              <label>
+                Geçiş
+                <select
+                  value={videoTransition}
+                  onChange={(event) => setVideoTransition(event.target.value as VideoTransition)}
+                >
+                  <option value="fade">Yumuşak geçiş</option>
+                  <option value="dissolve">Akıcı çözülme</option>
+                  <option value="slideleft">Sola kaydır</option>
+                  <option value="wipeleft">Perde geçişi</option>
+                  <option value="none">Geçişsiz</option>
+                </select>
+              </label>
+              <label>
+                Fotoğraf süresi
+                <select
+                  value={videoSlideDuration}
+                  onChange={(event) => setVideoSlideDuration(Number(event.target.value))}
+                >
+                  <option value={2}>2 saniye</option>
+                  <option value={3}>3 saniye</option>
+                  <option value={4}>4 saniye</option>
+                  <option value={5}>5 saniye</option>
+                </select>
+              </label>
+            </div>
+            <button
+              type="button"
+              className={styles.videoGenerateButton}
+              disabled={isCreatingVideo || selectedMediaIds.length < 2 || !form.propertyId}
+              onClick={() => void createPortfolioVideo()}
+            >
+              {isCreatingVideo ? <Loader2 className={styles.spin} aria-hidden="true" /> : <Play aria-hidden="true" />}
+              {isCreatingVideo ? `Video arka planda hazırlanıyor · %${videoProgress}` : 'Portföy videosu oluştur'}
+            </button>
+          </section>
+        </aside>
       </div>
 
-      {results.length > 0 && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+      <footer className={styles.actionBar}>
+        <button type="button" className={styles.draftButton} onClick={saveDraft}>
+          <Save aria-hidden="true" />
+          Taslağı kaydet
+        </button>
+        <div className={styles.actionSummary}>
+          <span><b>{selectedPosterSources.length}</b> fotoğraf</span>
+          <span><b>{selectedPlatforms.length}</b> platform</span>
+          <span><b>1</b> akıllı şablon üretimi</span>
+        </div>
+        <button
+          type="button"
+          className={styles.generateButton}
+          onClick={() => void createSelectedPosters()}
+          disabled={isCreating || !selectedPosterSources.length || !selectedPlatforms.length}
+        >
+          {isCreating ? <Loader2 className={styles.spin} aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
+          {isCreating
+            ? generationProgress
+              ? `${generationProgress.current}/${generationProgress.total} poster hazırlanıyor…`
+              : 'Poster hazırlanıyor…'
+            : 'Posteri oluştur'}
+          <ChevronRight aria-hidden="true" />
+        </button>
+      </footer>
+
+      {videoResult && (
+        <section className={styles.videoResult} aria-labelledby="video-result-title">
+          <div className={styles.videoResultCopy}>
+            <span><Film aria-hidden="true" /></span>
             <div>
-              <h2 className="text-lg font-bold text-white">
-                Oluşturulan posterler
-              </h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Her postere özel kampanya metni üretin ve sonucu seçili
-                portföyün medya kütüphanesine kaydedin.
-              </p>
+              <small>Bannerbear video hazır</small>
+              <h2 id="video-result-title">Portföyünüz hareketli sunuma dönüştürüldü</h2>
+              <p>{videoResult.photoCount} gerçek fotoğraf · {videoResult.durationSeconds} saniye · MP4</p>
             </div>
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
-              <Check className="h-3.5 w-3.5" /> {results.length} hazır
-            </span>
           </div>
-          <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <video controls playsInline preload="metadata" src={videoResult.videoUrl}>
+            Tarayıcınız video oynatmayı desteklemiyor.
+          </video>
+          <a className={styles.videoDownloadButton} href={videoResult.videoUrl} download>
+            <Download aria-hidden="true" /> Videoyu indir
+          </a>
+        </section>
+      )}
+
+      {posterQueue.length > 0 && (
+        <section className={styles.backgroundQueue} aria-live="polite">
+          <header>
+            <span><Loader2 className={styles.spin} aria-hidden="true" /></span>
+            <div>
+              <strong>Arka plandaki poster işleri</strong>
+              <small>Poster hazırlanırken portföy, içerik ve platform seçimlerinizi kullanmaya devam edebilirsiniz.</small>
+            </div>
+          </header>
+          <div>
+            {posterQueue.map((item) => (
+              <article key={item.id} data-status={item.status}>
+                {item.status === 'PROCESSING' ? (
+                  <Loader2 className={styles.spin} aria-hidden="true" />
+                ) : (
+                  <X aria-hidden="true" />
+                )}
+                <span>
+                  <strong>{item.label}</strong>
+                  <small>{item.status === 'PROCESSING' ? 'Bannerbear şablonu hazırlanıyor…' : item.error}</small>
+                </span>
+                {item.status === 'FAILED' && (
+                  <button type="button" onClick={() => setPosterQueue((current) => current.filter((entry) => entry.id !== item.id))}>
+                    Kapat
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {results.length > 0 && (
+        <section className={styles.resultsSection} aria-labelledby="poster-results-title">
+          <header>
+            <div>
+              <span className={styles.eyebrow}><Sparkles aria-hidden="true" /> Hazır tasarımlar</span>
+              <h2 id="poster-results-title">Oluşturulan posterler</h2>
+              <p>Posteri indirin, portföye kaydedin veya paylaşım metnini hazırlayın.</p>
+            </div>
+            <span className={styles.readyBadge}><Check aria-hidden="true" /> {results.length} hazır</span>
+          </header>
+          <div className={styles.resultGrid}>
             {results.map((result) => (
-              <article
-                key={result.id}
-                className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950"
-              >
-                <div className="relative">
+              <article key={result.id} className={styles.resultCard}>
+                <div className={styles.resultImage}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={result.previewUrl}
                     alt={result.name}
-                    className="w-full object-cover"
                     style={{
                       aspectRatio:
-                        result.brief.format === 'story' ? '9 / 16' : '4 / 5',
+                        result.brief.outputSize === 'wide'
+                          ? '3 / 1'
+                          : result.brief.outputSize === 'square'
+                            ? '1 / 1'
+                            : '4 / 5',
                     }}
                   />
-                  {result.brief.mode === 'creative' ? (
-                    <span className="absolute left-3 top-3 rounded-full border border-amber-200/30 bg-amber-950/90 px-2 py-1 text-[10px] font-bold text-amber-100">
-                      TEMSİLİ AI GÖRSELİ
-                    </span>
-                  ) : (
-                    <span className="absolute left-3 top-3 rounded-full border border-sky-200/20 bg-slate-950/90 px-2 py-1 text-[10px] font-bold text-sky-100">
-                      GERÇEK FOTOĞRAFLAR
-                    </span>
-                  )}
+                  <span>Bannerbear şablonuyla oluşturuldu</span>
                 </div>
-                <div className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-sm font-bold text-white">
-                      {result.name}
-                    </h3>
+                <div className={styles.resultBody}>
+                  <div className={styles.resultTitle}>
+                    <div>
+                      <h3>{result.name}</h3>
+                      <p>
+                        {result.platforms
+                          .map((id) => PLATFORM_OPTIONS.find((platform) => platform.id === id)?.name)
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
                     <a
                       href={result.previewUrl}
-                      download={`${result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'jasmine_poster'}.jpg`}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-700 text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
-                      aria-label="Posteri indir"
+                      download={(result.name.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, '_') || 'business_ceo_ai_poster') + '.jpg'}
+                      aria-label={result.name + ' posterini indir'}
                     >
-                      <Download className="h-4 w-4" />
+                      <Download aria-hidden="true" />
                     </a>
                   </div>
-                  {result.brief.propertyId && (
+                  {result.requiresTextReview && (
+                    <div className={styles.aiReviewNotice}>
+                      <Eye aria-hidden="true" />
+                      <span>
+                        <strong>AI metinlerini kontrol edin</strong>
+                        <small>
+                          Yayınlamadan önce fiyatı, konumu, telefonu ve Türkçe yazıları gözden geçirin.
+                          {result.providerCostUsd !== null
+                            ? ` Bu üretim: $${result.providerCostUsd.toFixed(4)}`
+                            : ''}
+                        </small>
+                      </span>
+                    </div>
+                  )}
+                  {!result.requiresTextReview && (
+                    <div className={styles.aiVerifiedNotice}>
+                      <Check aria-hidden="true" />
+                      <span>
+                        <strong>Metinler doğru yerleştirildi</strong>
+                        <small>
+                          Seçilen fotoğraf yeniden çizilmedi; bilgiler portföy kaydından alınıp şablona yerleştirildi.
+                          {result.providerCostUsd === 0
+                            ? ' Üretken görsel AI ücreti yok; bir Bannerbear kredisi kullanıldı.'
+                            : result.providerCostUsd !== null
+                              ? ` Ek görsel üretim ücreti: $${result.providerCostUsd.toFixed(4)}`
+                              : ''}
+                        </small>
+                      </span>
+                    </div>
+                  )}
+                  <div className={styles.resultActions}>
+                    {result.brief.propertyId && (
+                      <button
+                        type="button"
+                        onClick={() => savePosterToProperty(result.id)}
+                        disabled={result.saveLoading || Boolean(result.savedMediaId)}
+                      >
+                        {result.saveLoading ? <Loader2 className={styles.spin} aria-hidden="true" /> : <Check aria-hidden="true" />}
+                        {result.savedMediaId ? 'Portföye kaydedildi' : 'Portföye kaydet'}
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => savePosterToProperty(result.id)}
-                      disabled={result.saveLoading || Boolean(result.savedMediaId)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-2.5 text-xs font-bold text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:border-emerald-400/25 disabled:bg-emerald-400/10 disabled:text-emerald-200"
+                      onClick={() => void createPoster(result)}
+                      disabled={isCreating || result.remainingRegenerations <= 0}
                     >
-                      {result.saveLoading ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Check className="h-3.5 w-3.5" />
-                      )}
-                      {result.savedMediaId
-                        ? 'Portföye kaydedildi'
-                        : result.mode === 'creative'
-                          ? 'Pazarlama materyallerine kaydet'
-                          : 'Portföye poster olarak kaydet'}
+                      <RotateCcw aria-hidden="true" />
+                      {result.remainingRegenerations > 0
+                        ? 'Yeniden üret · ' + result.remainingRegenerations + ' hak'
+                        : 'Hak kalmadı'}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => createPoster(result)}
-                    disabled={isCreating || result.remainingRegenerations <= 0}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300/35 bg-amber-300/10 px-3 py-2.5 text-xs font-bold text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
-                  >
-                    {isCreating ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    )}
-                    {result.remainingRegenerations > 0
-                      ? `Yeniden üret · ${result.remainingRegenerations} hak`
-                      : 'Yeniden üretim hakkı kalmadı'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => createCampaign(result.id)}
-                    disabled={result.campaignLoading}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-400/20 disabled:opacity-50"
-                  >
-                    {result.campaignLoading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-3.5 w-3.5" />
-                    )}{' '}
-                    AI ile reklam kampanyası oluştur
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => createCampaign(result.id)}
+                      disabled={result.campaignLoading}
+                    >
+                      {result.campaignLoading ? <Loader2 className={styles.spin} aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
+                      Paylaşım metni hazırla
+                    </button>
+                  </div>
                   {result.whatsapp && (
-                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200">
-                          <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                          mesajı
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            copy(result.whatsapp || '', 'WhatsApp mesajı')
-                          }
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"
-                        >
-                          <Copy className="h-3 w-3" /> Kopyala
+                    <div className={styles.copyBox}>
+                      <div>
+                        <strong><MessageCircle aria-hidden="true" /> WhatsApp mesajı</strong>
+                        <button type="button" onClick={() => copy(result.whatsapp || '', 'WhatsApp mesajı')}>
+                          <Copy aria-hidden="true" /> Kopyala
                         </button>
                       </div>
-                      <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">
-                        {result.whatsapp}
-                      </p>
+                      <p>{result.whatsapp}</p>
                     </div>
                   )}
                   {result.instagram && (
-                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-200">
-                          <Share2 className="h-3.5 w-3.5" /> Instagram
-                          açıklaması
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            copy(result.instagram || '', 'Instagram açıklaması')
-                          }
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white"
-                        >
-                          <Copy className="h-3 w-3" /> Kopyala
+                    <div className={styles.copyBox}>
+                      <div>
+                        <strong><Share2 aria-hidden="true" /> Instagram açıklaması</strong>
+                        <button type="button" onClick={() => copy(result.instagram || '', 'Instagram açıklaması')}>
+                          <Copy aria-hidden="true" /> Kopyala
                         </button>
                       </div>
-                      <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-300">
-                        {result.instagram}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => shareOnInstagram(result)}
-                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-pink-200 hover:text-pink-100"
-                      >
-                        <Share2 className="h-3.5 w-3.5" /> Instagram için hazırla
+                      <p>{result.instagram}</p>
+                      <button type="button" className={styles.instagramAction} onClick={() => shareOnInstagram(result)}>
+                        <Share2 aria-hidden="true" /> Instagram için hazırla
                       </button>
                     </div>
                   )}
@@ -1452,8 +2462,141 @@ export default function PosterMaker() {
               </article>
             ))}
           </div>
-        </div>
+        </section>
       )}
+
+      <section className={styles.mediaArchive} aria-labelledby="media-archive-title">
+        <header className={styles.mediaArchiveHeader}>
+          <div>
+            <span className={styles.eyebrow}><FolderOpen aria-hidden="true" /> Çalışma arşivi</span>
+            <h2 id="media-archive-title">Fotoğraf ve video geçmişi</h2>
+            <p>Üretilen çalışmalar portföy adına göre otomatik klasörlenir.</p>
+          </div>
+          <button
+            type="button"
+            className={styles.historyRefresh}
+            onClick={() => void loadHistory(true)}
+            disabled={isHistoryLoading}
+          >
+            <RefreshCw className={isHistoryLoading ? styles.spin : undefined} aria-hidden="true" />
+            Yenile
+          </button>
+        </header>
+
+        <div className={styles.archiveTabs} role="tablist" aria-label="Çalışma türü">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={historyKind === 'photos'}
+            className={historyKind === 'photos' ? styles.archiveTabActive : undefined}
+            onClick={() => setHistoryKind('photos')}
+          >
+            <ImageIcon aria-hidden="true" /> Fotoğraflar <b>{historyTotals.photos}</b>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={historyKind === 'videos'}
+            className={historyKind === 'videos' ? styles.archiveTabActive : undefined}
+            onClick={() => setHistoryKind('videos')}
+          >
+            <Film aria-hidden="true" /> Videolar <b>{historyTotals.videos}</b>
+          </button>
+        </div>
+
+        {isHistoryLoading ? (
+          <div className={styles.archiveEmpty} aria-live="polite">
+            <Loader2 className={styles.spin} aria-hidden="true" /> Geçmiş hazırlanıyor…
+          </div>
+        ) : visibleHistoryFolders.length === 0 ? (
+          <div className={styles.archiveEmpty}>
+            {historyKind === 'photos' ? <ImageIcon aria-hidden="true" /> : <Film aria-hidden="true" />}
+            <strong>Henüz kayıt yok</strong>
+            <span>İlk çalışmanızı oluşturduğunuzda burada otomatik görünecek.</span>
+          </div>
+        ) : (
+          <div className={styles.archiveWorkspace}>
+            <nav className={styles.folderRail} aria-label="Portföy klasörleri">
+              {visibleHistoryFolders.map((folder) => {
+                const selected = activeHistoryFolder?.id === folder.id;
+                const count = historyKind === 'photos' ? folder.photos.length : folder.videos.length;
+                return (
+                  <button
+                    type="button"
+                    key={folder.id}
+                    aria-current={selected ? 'page' : undefined}
+                    className={selected ? styles.folderActive : undefined}
+                    onClick={() => setHistoryFolderId(folder.id)}
+                  >
+                    <span className={styles.folderIcon}>
+                      {selected ? <FolderOpen aria-hidden="true" /> : <Folder aria-hidden="true" />}
+                    </span>
+                    <span>
+                      <strong>{folder.name}</strong>
+                      <small>{folder.location || 'Konum belirtilmemiş'}</small>
+                    </span>
+                    <b>{count}</b>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className={styles.folderContents} role="tabpanel">
+              <div className={styles.folderContentsHeader}>
+                <div>
+                  <strong>{activeHistoryFolder?.name}</strong>
+                  <small>{historyKind === 'photos' ? 'Poster fotoğrafları' : 'Portföy videoları'}</small>
+                </div>
+                <span>
+                  {historyKind === 'photos'
+                    ? activeHistoryFolder?.photos.length
+                    : activeHistoryFolder?.videos.length}{' '}
+                  çalışma
+                </span>
+              </div>
+
+              {historyKind === 'photos' ? (
+                <div className={styles.historyGrid}>
+                  {activeHistoryFolder?.photos.map((photo) => (
+                    <article className={styles.historyCard} key={photo.id}>
+                      <a href={photo.url} target="_blank" rel="noreferrer" className={styles.historyPreview}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={photo.url} alt={photo.name} loading="lazy" />
+                        <span>{photo.format === 'story' ? 'Hikâye' : 'Gönderi'}</span>
+                      </a>
+                      <div className={styles.historyMeta}>
+                        <span><strong>{photo.name}</strong><small>{historyDate(photo.createdAt)}{historyFileSize(photo.byteSize) ? ` · ${historyFileSize(photo.byteSize)}` : ''}</small></span>
+                        <a href={photo.url} download aria-label={`${photo.name} indir`}><Download aria-hidden="true" /></a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.historyGrid}>
+                  {activeHistoryFolder?.videos.map((video) => (
+                    <article className={styles.historyCard} key={video.id}>
+                      <video
+                        controls
+                        playsInline
+                        preload="none"
+                        poster={video.thumbnailUrl || undefined}
+                        className={styles.historyVideo}
+                      >
+                        <source src={video.url} type="video/mp4" />
+                        Tarayıcınız video oynatmayı desteklemiyor.
+                      </video>
+                      <div className={styles.historyMeta}>
+                        <span><strong>{video.name}</strong><small>{historyDate(video.createdAt)} · {video.durationSeconds} sn{historyFileSize(video.byteSize) ? ` · ${historyFileSize(video.byteSize)}` : ''}</small></span>
+                        <a href={video.url} download aria-label={`${video.name} indir`}><Download aria-hidden="true" /></a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
     </section>
   );
 }

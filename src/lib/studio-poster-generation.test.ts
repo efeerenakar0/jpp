@@ -75,6 +75,12 @@ function attempt(overrides: Record<string, unknown> = {}) {
     status: 'PROCESSING',
     requestFingerprint: 'request-fingerprint-a',
     resultDigest: null,
+    outputUrl: null,
+    outputStorageKey: null,
+    outputMimeType: null,
+    outputByteSize: null,
+    providerCostUsd: null,
+    providerRequestId: null,
     failureCode: null,
     completedAt: null,
     createdAt: now,
@@ -156,29 +162,61 @@ describe('studio poster generation limit', () => {
     expect(mocks.attemptCreate).not.toHaveBeenCalled();
   });
 
-  it('does not allow a fresh initial request to bypass the same logical poster limit', async () => {
+  it('reuses a stored successful poster without another paid generation', async () => {
+    mocks.generationFindFirst.mockResolvedValue(generation());
+    mocks.attemptFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(
+        attempt({
+          status: 'SUCCEEDED',
+          outputUrl: 'https://blob.example/studio-posters/poster-a.jpg',
+        })
+      );
+
+    const result = await reserveStudioPosterGeneration({
+      companyAccountId: 'company-a',
+      memberId: 'member-a',
+      propertyId: 'property-a',
+      action: 'INITIAL',
+      logicalFingerprint: 'logical-a',
+      requestFingerprint: 'request-fingerprint-bypass',
+      idempotencyKey: 'request-0000000006',
+      now,
+    });
+
+    expect(result.duplicate).toBe(true);
+    expect(result.attempt.outputUrl).toBe(
+      'https://blob.example/studio-posters/poster-a.jpg'
+    );
+    expect(mocks.generationCreate).not.toHaveBeenCalled();
+    expect(mocks.attemptCreate).not.toHaveBeenCalled();
+  });
+
+  it('allows one recovery attempt when an old paid result has no stored output', async () => {
     mocks.generationFindFirst.mockResolvedValue(generation());
     mocks.attemptFindFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(attempt({ status: 'SUCCEEDED' }));
+    mocks.attemptCount.mockResolvedValue(1);
 
-    await expect(
-      reserveStudioPosterGeneration({
-        companyAccountId: 'company-a',
-        memberId: 'member-a',
-        propertyId: 'property-a',
-        action: 'INITIAL',
-        logicalFingerprint: 'logical-a',
-        requestFingerprint: 'request-fingerprint-bypass',
-        idempotencyKey: 'request-0000000006',
-        now,
-      })
-    ).rejects.toMatchObject({
-      code: 'POSTER_ALREADY_CREATED',
-      status: 409,
+    const result = await reserveStudioPosterGeneration({
+      companyAccountId: 'company-a',
+      memberId: 'member-a',
+      propertyId: 'property-a',
+      action: 'INITIAL',
+      logicalFingerprint: 'logical-a',
+      requestFingerprint: 'request-fingerprint-recovery',
+      idempotencyKey: 'request-0000000012',
+      now,
     });
-    expect(mocks.generationCreate).not.toHaveBeenCalled();
-    expect(mocks.attemptCreate).not.toHaveBeenCalled();
+
+    expect(result.duplicate).toBe(false);
+    expect(mocks.attemptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        kind: 'INITIAL_RECOVERY',
+        sequence: 1,
+      }),
+    });
   });
 
   it('retries a failed initial provider attempt without spending a regeneration right', async () => {
@@ -205,6 +243,49 @@ describe('studio poster generation limit', () => {
     expect(mocks.attemptCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         generationId: 'poster-generation-a',
+        kind: 'INITIAL_RETRY',
+        sequence: 1,
+      }),
+    });
+  });
+
+  it('releases an abandoned processing attempt after the provider timeout window', async () => {
+    mocks.generationFindFirst.mockResolvedValue(generation());
+    mocks.attemptFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(
+        attempt({
+          status: 'PROCESSING',
+          updatedAt: new Date(now.getTime() - 9 * 60 * 1000),
+        })
+      );
+    mocks.attemptCount.mockResolvedValue(1);
+
+    const result = await reserveStudioPosterGeneration({
+      companyAccountId: 'company-a',
+      memberId: 'member-a',
+      propertyId: 'property-a',
+      action: 'INITIAL',
+      logicalFingerprint: 'logical-a',
+      requestFingerprint: 'request-fingerprint-stale',
+      idempotencyKey: 'request-0000000013',
+      now,
+    });
+
+    expect(result.duplicate).toBe(false);
+    expect(mocks.attemptUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'poster-attempt-a',
+        status: 'PROCESSING',
+      },
+      data: {
+        status: 'FAILED',
+        failureCode: 'STALE_PROCESSING',
+        completedAt: now,
+      },
+    });
+    expect(mocks.attemptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
         kind: 'INITIAL_RETRY',
         sequence: 1,
       }),
@@ -321,6 +402,12 @@ describe('studio poster generation limit', () => {
       companyAccountId: 'company-a',
       attemptId: 'poster-attempt-a',
       resultDigest: 'sha256-result-a',
+      outputUrl: 'https://blob.example/studio-posters/poster-a.jpg',
+      outputStorageKey: 'studio-posters/poster-a.jpg',
+      outputMimeType: 'image/jpeg',
+      outputByteSize: 1234,
+      providerCostUsd: 0.014,
+      providerRequestId: 'openrouter-generation-a',
       now,
     });
 
@@ -329,6 +416,18 @@ describe('studio poster generation limit', () => {
       data: { regenerationCount: { increment: 1 } },
     });
     expect(result.regenerationCount).toBe(1);
+    expect(mocks.attemptUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          outputUrl: 'https://blob.example/studio-posters/poster-a.jpg',
+          outputStorageKey: 'studio-posters/poster-a.jpg',
+          outputMimeType: 'image/jpeg',
+          outputByteSize: 1234,
+          providerCostUsd: 0.014,
+          providerRequestId: 'openrouter-generation-a',
+        }),
+      })
+    );
     expect(mocks.auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         companyAccountId: 'company-a',

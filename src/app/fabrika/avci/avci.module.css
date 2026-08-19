@@ -1,10 +1,10 @@
 .page {
-  --portfolio-panel: rgba(6, 18, 33, 0.82);
-  --portfolio-border: rgba(103, 232, 249, 0.14);
-  --portfolio-type-boost: 3pt;
+  --portfolio-panel: rgba(255, 255, 255, 0.96);
+  --portfolio-border: #d8e3f0;
+  --portfolio-type-boost: 1pt;
   display: grid;
   gap: 16px;
-  color: #eaf6ff;
+  color: #0b1734;
   font-size: calc(1rem + var(--portfolio-type-boost));
 }
 
@@ -472,4 +472,177 @@
   .activeRangeButton {
     transition: none;
   }
+}
+
+/*
+ * The portfolio workflow was originally designed for a dark workspace. The
+ * application shell is now light, so these scoped compatibility rules keep
+ * every existing workflow/control while restoring readable contrast.
+ */
+.page .statsToolbar,
+.page .metricCard,
+.page .tabs {
+  border-color: #d8e3f0;
+  color: #0b1734;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 6px 20px rgba(35, 60, 108, 0.045);
+}
+
+.page .statsToolbarCopy strong,
+.page .metricCard strong {
+  color: #0a1632;
+}
+
+.page .statsToolbarCopy small,
+.page .metricCard small,
+.page .rangeButton,
+.page .tab {
+  color: #667895;
+}
+
+.page .statsToolbarIcon,
+.page .metricCard > svg,
+.page .metricDocumentAction,
+.page .metricInfo {
+  border-color: #c6def3;
+  color: #0875bd;
+  background: #edfaff;
+}
+
+.page .rangeSelector {
+  border-color: #dce5f0;
+  background: #f3f6fa;
+}
+
+.page .rangeButton:hover,
+.page .tab:hover {
+  color: #144ca8;
+  background: #e8f1ff;
+}
+
+.page .activeRangeButton {
+  border-color: #176ff2;
+  color: #fff;
+  background: #176ff2;
+  box-shadow: 0 5px 13px rgba(23, 111, 242, 0.2);
+}
+
+.page .activeTab {
+  border-color: #bed2ec;
+  color: #0756d8;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(35, 65, 121, 0.08);
+}
+
+.page .metricCard {
+  min-height: 92px;
+}
+
+.page .metricInfo::after {
+  border-color: #bfdbfe;
+  color: #f8fbff;
+  background: #0b2346;
+}
+
+.page .infoBanner {
+  border-color: #cce4f4;
+  color: #1f567d;
+  background: #f0faff;
+}
+
+.page .loadingPanel,
+.page .emptyPanel {
+  border-color: #c3d3e5;
+  color: #637592;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.page .emptyPanel button {
+  border-color: #9fc5f6;
+  color: #0d58c9;
+  background: #eef5ff;
+}
+
+.page .discoveryWorkspace :global(.bg-slate-900),
+.page .boardWorkspace :global(.bg-slate-900),
+.page .discoveryWorkspace :global([class*='bg-slate-900']),
+.page .boardWorkspace :global([class*='bg-slate-900']) {
+  background-color: #fff !important;
+}
+
+.page .discoveryWorkspace :global(.bg-slate-950),
+.page .boardWorkspace :global(.bg-slate-950),
+.page .discoveryWorkspace :global([class*='bg-slate-950']),
+.page .boardWorkspace :global([class*='bg-slate-950']) {
+  background-color: #f5f8fc !important;
+}
+
+.page .discoveryWorkspace :global(.fixed[class*='bg-slate-950']),
+.page .boardWorkspace :global(.fixed[class*='bg-slate-950']) {
+  background-color: rgba(3, 13, 31, 0.68) !important;
+}
+
+.page .discoveryWorkspace :global([class*='border-slate-']),
+.page .boardWorkspace :global([class*='border-slate-']) {
+  border-color: #d6e1ee !important;
+}
+
+.page .discoveryWorkspace :global(.text-white),
+.page .boardWorkspace :global(.text-white),
+.page .discoveryWorkspace :global(.text-slate-100),
+.page .boardWorkspace :global(.text-slate-100),
+.page .discoveryWorkspace :global(.text-slate-200),
+.page .boardWorkspace :global(.text-slate-200) {
+  color: #0d1c39 !important;
+}
+
+.page .discoveryWorkspace :global(.text-slate-300),
+.page .boardWorkspace :global(.text-slate-300),
+.page .discoveryWorkspace :global(.text-slate-400),
+.page .boardWorkspace :global(.text-slate-400),
+.page .discoveryWorkspace :global(.text-slate-500),
+.page .boardWorkspace :global(.text-slate-500) {
+  color: #607390 !important;
+}
+
+.page .discoveryWorkspace :global(.text-emerald-100),
+.page .discoveryWorkspace :global(.text-emerald-200),
+.page .discoveryWorkspace :global(.text-emerald-300),
+.page .boardWorkspace :global(.text-emerald-100),
+.page .boardWorkspace :global(.text-emerald-200),
+.page .boardWorkspace :global(.text-emerald-300) {
+  color: #087443 !important;
+}
+
+.page .discoveryWorkspace :global(input),
+.page .discoveryWorkspace :global(select),
+.page .discoveryWorkspace :global(textarea),
+.page .boardWorkspace :global(input),
+.page .boardWorkspace :global(select),
+.page .boardWorkspace :global(textarea) {
+  border-color: #cbd9e8 !important;
+  color: #0d1c39 !important;
+  background: #fff !important;
+}
+
+.page .discoveryWorkspace :global(input::placeholder),
+.page .discoveryWorkspace :global(textarea::placeholder),
+.page .boardWorkspace :global(input::placeholder),
+.page .boardWorkspace :global(textarea::placeholder) {
+  color: #8594aa !important;
+}
+
+.page .discoveryWorkspace :global(label:has(input:disabled)) {
+  border-color: #d8dee8 !important;
+  color: #53627a !important;
+  background: #f2f5f8 !important;
+  opacity: 1 !important;
+}
+
+.page .discoveryWorkspace :global(label:has(input:disabled) .text-white) {
+  color: #53627a !important;
+}
+
+.page .discoveryWorkspace :global(label:has(input:disabled) .text-amber-200) {
+  color: #9a4e05 !important;
 }

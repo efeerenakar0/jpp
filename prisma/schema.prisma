@@ -1700,6 +1700,12 @@ model StudioPosterGenerationAttempt {
   status             String                 @default("PROCESSING")
   requestFingerprint String
   resultDigest       String?
+  outputUrl          String?                @db.Text
+  outputStorageKey   String?
+  outputMimeType     String?
+  outputByteSize     Int?
+  providerCostUsd    Float?
+  providerRequestId  String?
   failureCode        String?
   completedAt        DateTime?
   createdAt          DateTime               @default(now())

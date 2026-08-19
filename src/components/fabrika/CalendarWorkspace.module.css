@@ -907,3 +907,94 @@
     margin-left: 0;
   }
 }
+
+/* Light dashboard calendar while preserving every calendar interaction. */
+.page {
+  --calendar-border: #dce5f0;
+  --calendar-panel: #ffffff;
+  --calendar-panel-soft: #f7f9fc;
+  color: #17263b;
+}
+
+.hero h1,
+.metric strong,
+.toolbarTitle,
+.sectionHead h2,
+.smallCard h2,
+.agendaInfo strong,
+.weekDay > button strong,
+.timelineItem h3 {
+  color: #17263b;
+}
+
+.hero p:not(.eyebrow),
+.metric span,
+.liveStatus,
+.agendaInfo,
+.emptyCompact,
+.workloadRow small,
+.timelineItem p {
+  color: #64748b;
+}
+
+.secondaryAction,
+.syncAction,
+.metric,
+.card,
+.smallCard,
+.viewSwitch,
+.viewSwitch button,
+.weekDay > button,
+.timelineItem article,
+.agendaActions button,
+.googleButtons button,
+.settingsLabel select {
+  background: #ffffff;
+  border-color: #dce5f0;
+  color: #334155;
+}
+
+.metric,
+.card,
+.smallCard {
+  box-shadow: 0 12px 32px rgba(31, 55, 87, 0.065);
+}
+
+.metric[data-tone='warning'],
+.overdueBanner {
+  background: #fff9eb;
+  border-color: #f2d28b;
+}
+
+.completionRing::after {
+  background: #ffffff;
+}
+
+.viewSwitch button[data-active='true'] {
+  background: #eaf2ff;
+  color: #145bc4;
+}
+
+.dayCell,
+.dayCell[data-outside='true'] {
+  background: #ffffff;
+  border-color: #e4eaf2;
+  color: #475569;
+}
+
+.dayCell[data-outside='true'] {
+  background: #f7f9fc;
+  color: #94a3b8;
+}
+
+.dayCell[data-today='true'] {
+  background: #eefaf5;
+  box-shadow: inset 0 0 0 1px #66c995;
+}
+
+.countBadge,
+.workloadRow progress,
+.workloadRow progress::-webkit-progress-bar {
+  background: #e7edf5;
+  color: #475569;
+}

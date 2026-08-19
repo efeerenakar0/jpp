@@ -22,6 +22,7 @@ export async function GET() {
     };
     const today = getIstanbulDayStart();
     const [
+      totalConversations,
       activeConversations,
       handoffConversations,
       todayMessages,
@@ -33,6 +34,9 @@ export async function GET() {
       approvedToday,
       conversationSnapshots,
     ] = await Promise.all([
+      prisma.customerConversation.count({
+        where: { companyAccountId: accountId },
+      }),
       prisma.customerConversation.count({
         where: { companyAccountId: accountId, isActive: true },
       }),
@@ -106,6 +110,7 @@ export async function GET() {
       return latestMessage?.role === 'customer' && !latestMessage.readAt;
     }).length;
     return NextResponse.json({
+      totalConversations,
       activeConversations,
       handoffConversations,
       todayMessages,

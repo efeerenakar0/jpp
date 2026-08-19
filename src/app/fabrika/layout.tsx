@@ -5,6 +5,7 @@ import { requireFabrikaPrincipal } from '@/lib/fabrika-session';
 import { isHunterEnabled } from '@/lib/company-accounts';
 import { businessCeoBrand } from '@/lib/business-ceo-brand';
 import styles from './fabrika-ui.module.css';
+import './fabrika-light-overrides.css';
 
 export const metadata = {
   title: `${businessCeoBrand.productName} | Real Estate`,
@@ -16,7 +17,7 @@ export default async function FabrikaLayout({ children }: { children: React.Reac
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div className={`${styles.root} dark`}>
+      <div className={styles.root}>
         <FabrikaAppShell
           account={{
             companyName: principal.account.companyName,

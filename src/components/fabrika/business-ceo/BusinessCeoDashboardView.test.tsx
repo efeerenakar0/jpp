@@ -1,222 +1,95 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { BUSINESS_CEO_MODULES } from '@/lib/business-ceo-dashboard';
-
 import { BusinessCeoDashboardView } from './BusinessCeoDashboardView';
 
 const noOp = vi.fn();
-const deleteConversation = async () => undefined;
+const baseProps = {
+  appointments: [],
+  conversations: [],
+  error: null,
+  isOwner: true,
+  loading: false,
+  metrics: null,
+  onDeleteConversation: async () => undefined,
+  onRefresh: noOp,
+  onSendMessage: async () => undefined,
+  whatsappStatus: null,
+} as const;
 
 describe('BusinessCeoDashboardView', () => {
-  it('keeps the requested workflow and secondary module order', () => {
-    const html = renderToStaticMarkup(
-      <BusinessCeoDashboardView
-        appointments={[]}
-        conversations={[]}
-        error={null}
-        isOwner
-        loading={false}
-        metrics={null}
-        onDeleteConversation={deleteConversation}
-        onRefresh={noOp}
-        onSendMessage={async () => undefined}
-        whatsappStatus={null}
-      />
-    );
+  it('renders the approved ten-module order and working destinations', () => {
+    const html = renderToStaticMarkup(<BusinessCeoDashboardView {...baseProps} />);
+    const expected = [
+      ['AI Portföy Uzmanı', '/fabrika/avci'],
+      ['AI Foto Stüdyo', '/fabrika/studyo?area=enhancer'],
+      ['AI Reklam Tasarımı', '/fabrika/reklam-tasarimi'],
+      ['AI Pazarlama Marketing', '/fabrika/pazarlamaci'],
+      ['AI Satış Asistanı', '/fabrika/asistan'],
+      ['AI Yazılımcı', '/fabrika/yazilimci'],
+      ['AI Yurt İçi Yurt Dışı Partner Bulucu', '/fabrika/partnerler'],
+      ['AI Yetkili Gayrimenkul Havuzu', '/fabrika/yetkili-havuz'],
+      ['AI Tapu Takip Uzmanı', '/fabrika/tapu-takip'],
+      ['AI Şirket CEO', '/fabrika/crm?view=company-ceo'],
+    ] as const;
 
     let cursor = -1;
-    for (const definition of [
-      ...BUSINESS_CEO_MODULES.workflow,
-      ...BUSINESS_CEO_MODULES.secondary,
-    ]) {
-      const next = html.indexOf(definition.title);
+    for (const [title, href] of expected) {
+      const next = html.indexOf(title);
       expect(next).toBeGreaterThan(cursor);
       cursor = next;
+      expect(html).toContain(`href="${href.replace('&', '&amp;')}"`);
     }
-    expect(html).toContain('Henüz gerçek müşteri konuşması yok');
-    expect(html).toContain('Hızlı akışı başlat');
-    expect(html).toContain('aria-haspopup="dialog"');
-    expect(html).toContain('aria-labelledby="business-ceo-workflow-title"');
-    expect(html).toContain('aria-labelledby="business-ceo-sales-title"');
-    expect(html).not.toContain('aria-label="Business CEO AI sistem durumu"');
-    expect(html).not.toContain('aria-label="Örnek iş ortakları"');
-    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-developer-page-v3.png');
-    expect(html).toContain('alt="AI Yazılımcı sayfa içi önizlemesi"');
-    expect(html).toContain(
-      'url=%2Fbusiness-ceo%2Fmodules%2Fai-advertising-page-v3.png',
-    );
-    expect(html).toContain(
-      'url=%2Fbusiness-ceo%2Fmodules%2Fai-marketing-page-v3.png',
-    );
-    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-partner-finder.png');
-    expect(html).toContain('alt="AI Partner Bulucu modül görseli"');
-    expect(html).toContain(
-      'url=%2Fbusiness-ceo%2Fmodules%2Fai-authorized-portfolio-pool.png',
-    );
-    expect(html).toContain('alt="AI Yetkili Portföy Havuzu modül görseli"');
-    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-deed-tracking.png');
-    expect(html).toContain('alt="AI Tapu Takip modül görseli"');
-    expect(html).toContain('url=%2Fbusiness-ceo%2Fmodules%2Fai-company-ceo.png');
-    expect(html).toContain('alt="AI Şirket CEO modül görseli"');
-    expect(html).toContain('<dl class=');
-    for (const definition of BUSINESS_CEO_MODULES.secondary) {
-      expect(html).toContain(
-        `aria-label="${definition.title} sayfasını aç"`
-      );
-      expect(html).toContain(`href="${definition.href.replace('&', '&amp;')}"`);
-    }
-    for (const definition of BUSINESS_CEO_MODULES.workflow) {
-      expect(html).toContain(
-        `aria-label="${definition.title} sayfasını aç"`
-      );
-      expect(html).toContain(`href="${definition.href.replace('&', '&amp;')}"`);
-    }
-    expect(html).not.toContain('Bu modül mevcut şirket kayıtlarınızı kullanır.');
+    expect(html.match(/Paneli Aç/g)).toHaveLength(10);
+    expect(html).toContain('aria-label="Yapay zekâ uzmanları"');
   });
 
-  it('renders real conversation content and owner WhatsApp action', () => {
+  it('shows real dashboard totals without invented values', () => {
     const html = renderToStaticMarkup(
       <BusinessCeoDashboardView
-        appointments={[]}
-        conversations={[
-          {
-            id: 'conversation-1',
-            customerName: 'Gerçek Müşteri',
-            customerPhone: '+905551112233',
-            channel: 'WHATSAPP',
-            intent: 'RESIDENTIAL',
-            summary: null,
-            updatedAt: '2026-08-05T12:00:00.000Z',
-            messages: [
-              {
-                id: 'message-1',
-                role: 'customer',
-                content: 'Portföyü bugün görebilir miyim?',
-                createdAt: '2026-08-05T12:00:00.000Z',
-                readAt: null,
-              },
-            ],
-          },
-        ]}
-        error={null}
-        isOwner
-        loading={false}
+        {...baseProps}
+        huntedPortfolioCount={3486}
         metrics={{
-          activeConversations: 1,
+          totalConversations: 1248,
+          activeConversations: 642,
           handoffConversations: 0,
-          todayMessages: 1,
-          incomingMessages: 1,
+          todayMessages: 248,
+          incomingMessages: 248,
           outgoingMessages: 0,
           deliveredMessages: 0,
           failedMessages: 0,
-          pendingAppointments: 0,
+          pendingAppointments: 18,
           approvedToday: 0,
         }}
-        onDeleteConversation={deleteConversation}
-        onRefresh={noOp}
-        onSendMessage={async () => undefined}
-        whatsappStatus={{
-          provider: 'WAHA',
-          configured: true,
-          connectionStatus: 'CONNECTED',
-          connectedPhone: '+905559998877',
-          connectedProfileName: 'Ofis',
-          lastConnectedAt: '2026-08-05T10:00:00.000Z',
-          lastHealthCheckAt: '2026-08-05T12:00:00.000Z',
-          lastError: null,
-          platformEnabled: true,
-          autoReplyEnabled: true,
-          allowFirstContact: false,
-          dailyMessageLimit: 80,
-        }}
       />
     );
 
-    expect(html).toContain('Gerçek Müşteri');
-    expect(html).toContain('Portföyü bugün görebilir miyim?');
-    expect(html).toContain('WhatsApp Bağlı');
-    expect(html).toContain('WhatsApp bağlı');
-    expect(html).toContain('href="/fabrika/asistan"');
-    expect(html).toContain('AI Aktif');
-    expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain(
-      'aria-label="Gerçek Müşteri için AI yanıtlarını kapat"'
-    );
-    expect(html).toContain('data-ai-mode-switch="true"');
-    expect(html).toContain('data-status="NEW">Yeni</span>');
-    expect(html).toContain('data-brand-icon="whatsapp"');
-    expect(html).toContain(
-      'src="/api/fabrika/assistant/conversations/conversation-1/avatar"'
-    );
-    expect(html).toContain('Gerçek Müşteri WhatsApp profil fotoğrafı');
-    expect(html).toContain('aria-label="Gerçek Müşteri sohbetini sil"');
-    expect(html).toContain('aria-haspopup="dialog"');
-    expect(html).toContain('aria-expanded="false"');
-    expect(html).toContain('role="list"');
-    expect(html).toContain('role="listitem"');
+    expect(html).toContain('Toplam İletişime Geçen Müşteri');
+    expect(html).toContain('1.248');
+    expect(html).toContain('Gelen Mesajlar');
+    expect(html).toContain('248');
+    expect(html).toContain('Gelen Randevu Talepleri');
+    expect(html).toContain('18');
+    expect(html).toContain('3.486');
   });
 
-  it('does not expose WhatsApp connection controls to employees', () => {
-    const html = renderToStaticMarkup(
-      <BusinessCeoDashboardView
-        appointments={[]}
-        conversations={[]}
-        error={null}
-        isOwner={false}
-        loading={false}
-        metrics={null}
-        onDeleteConversation={deleteConversation}
-        onRefresh={noOp}
-        onSendMessage={async () => undefined}
-        whatsappStatus={null}
-      />
-    );
+  it('renders the approved references area and enlarged card descriptions', () => {
+    const html = renderToStaticMarkup(<BusinessCeoDashboardView {...baseProps} />);
 
-    expect(html).not.toContain('WhatsApp Bağla');
-    expect(html).not.toContain('WhatsApp Bağlı');
+    expect(html).toContain('id="references-title"');
+    expect(html).toContain('Müşteri deneyimleri ve tamamlanan işlemlerden geri bildirimler.');
+    expect(html).toContain('Portföy toplama, analiz etme ve yönetme uzmanı');
+    expect(html).toContain('Profesyonel emlak fotoğraflarını hazırlayın ve iyileştirin.');
+    expect(html).toContain('5 üzerinden 5 yıldız');
   });
 
-  it('does not present a WhatsApp service error as a disconnected account', () => {
+  it('exposes a retry action when dashboard data cannot be loaded', () => {
     const html = renderToStaticMarkup(
-      <BusinessCeoDashboardView
-        appointments={[]}
-        conversations={[]}
-        error={null}
-        isOwner
-        loading={false}
-        metrics={null}
-        onDeleteConversation={deleteConversation}
-        onRefresh={noOp}
-        onSendMessage={async () => undefined}
-        whatsappError="WhatsApp durumu alınamadı."
-        whatsappStatus={null}
-      />
-    );
-
-    expect(html).toContain('WhatsApp durumunu kontrol et');
-    expect(html).toContain('WhatsApp bağlantı durumu kontrol edilemedi');
-    expect(html).not.toContain('>WhatsApp Bağla<');
-  });
-
-  it('exposes a retry action when live data cannot be loaded', () => {
-    const html = renderToStaticMarkup(
-      <BusinessCeoDashboardView
-        appointments={[]}
-        conversations={[]}
-        error="Canlı veriler alınamadı."
-        isOwner
-        loading={false}
-        metrics={null}
-        onDeleteConversation={deleteConversation}
-        onRefresh={noOp}
-        onSendMessage={async () => undefined}
-        whatsappStatus={null}
-      />
+      <BusinessCeoDashboardView {...baseProps} error="Canlı veriler alınamadı." />
     );
 
     expect(html).toContain('Canlı veriler alınamadı.');
     expect(html).toContain('Yeniden dene');
-    expect(html).not.toContain('aria-label="Business CEO AI sistem durumu"');
+    expect(html).toContain('role="alert"');
   });
 });

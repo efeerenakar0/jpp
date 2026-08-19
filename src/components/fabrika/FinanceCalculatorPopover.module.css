@@ -1,0 +1,60 @@
+.trigger { display:inline-flex; min-height:43px; align-items:center; gap:8px; padding:0 12px; cursor:pointer; border:1px solid #dfe5ef; border-radius:11px; color:#0f2f70; font-size:.72rem; font-weight:720; background:#fff; box-shadow:0 3px 12px rgba(28,62,121,.04); transition:border-color 180ms ease,background 180ms ease,transform 180ms ease; }
+.trigger:hover { border-color:#91b8ff; background:#f4f8ff; transform:translateY(-1px); }
+.trigger:focus-visible { outline:2px solid #176ff2; outline-offset:2px; }
+.trigger svg { width:17px; height:17px; color:#176ff2; }
+.layer { position:fixed; z-index:10000; inset:0; isolation:isolate; }
+.backdrop { position:absolute; inset:0; width:100%; cursor:default; border:0; background:rgba(3,13,31,.24); backdrop-filter:blur(3px); }
+.panel { position:absolute; top:78px; right:18px; width:min(420px,calc(100vw - 24px)); max-height:calc(100dvh - 92px); overflow:auto; border:1px solid #cfdced; border-radius:20px; color:#0b1734; background:linear-gradient(180deg,#fff,#f8fbff); box-shadow:0 24px 70px rgba(12,34,74,.28); animation:panelIn 180ms ease-out; }
+.panelHeader { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:17px 18px 14px; border-bottom:1px solid #e4ebf4; }
+.panelHeader > span { display:flex; min-width:0; align-items:center; gap:11px; }
+.panelHeader > span > svg { width:37px; height:37px; padding:9px; border-radius:11px; color:#fff; background:linear-gradient(145deg,#176ff2,#074ed1); box-shadow:0 8px 20px rgba(23,111,242,.25); }
+.panelHeader strong,.panelHeader small { display:block; }
+.panelHeader strong { font-size:.96rem; }
+.panelHeader small { margin-top:3px; color:#667794; font-size:.66rem; }
+.panelHeader > button { display:grid; width:34px; height:34px; flex:0 0 auto; cursor:pointer; place-items:center; border:1px solid #dce5f1; border-radius:10px; color:#3d4f70; background:#fff; }
+.panelHeader > button svg { width:17px; height:17px; }
+.tabs { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:14px 16px 0; padding:4px; border:1px solid #dfe7f2; border-radius:12px; background:#f1f5fb; }
+.tabs button { display:flex; min-height:39px; cursor:pointer; align-items:center; justify-content:center; gap:7px; border:0; border-radius:9px; color:#667794; font-size:.72rem; font-weight:720; background:transparent; }
+.tabs button[data-active='true'] { color:#0e55d4; background:#fff; box-shadow:0 4px 12px rgba(39,75,132,.1); }
+.tabs svg { width:15px; height:15px; }
+.calculatorPage,.exchangePage { padding:15px 16px 18px; }
+.display { display:grid; min-height:78px; align-content:center; justify-items:end; padding:10px 15px; border:1px solid #d7e2ef; border-radius:13px; background:#071b35; box-shadow:inset 0 0 22px rgba(34,120,255,.12); }
+.display small { min-height:18px; color:#8ca3bd; font-size:.66rem; }
+.display strong { max-width:100%; overflow:hidden; color:#fff; font-size:1.7rem; letter-spacing:-.035em; text-overflow:ellipsis; }
+.keypad { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-top:10px; }
+.keypad button { display:grid; min-height:46px; cursor:pointer; place-items:center; border:1px solid #dce4ee; border-radius:11px; color:#102143; font-size:.95rem; font-weight:760; background:#fff; box-shadow:0 3px 10px rgba(30,58,105,.04); }
+.keypad button:hover { border-color:#9abbef; background:#f4f8ff; }
+.keypad button svg { width:18px; height:18px; }
+.keypad .operatorKey { color:#075cdd; background:#edf5ff; }
+.keypad .clearKey { color:#b4233c; background:#fff1f3; }
+.keypad .equalsKey { color:#fff; background:linear-gradient(145deg,#176ff2,#0752d9); }
+.keypad .zeroKey { grid-column:span 2; }
+.exchangePage { display:grid; gap:13px; }
+.exchangePage label { display:grid; min-width:0; gap:6px; color:#4b5e80; font-size:.68rem; font-weight:700; }
+.exchangePage input,.exchangePage select { width:100%; min-height:45px; border:1px solid #d4dfed; border-radius:11px; padding:0 12px; outline:0; color:#0e1e3d; font-size:.82rem; font-weight:650; background:#fff; }
+.exchangePage input:focus,.exchangePage select:focus { border-color:#176ff2; box-shadow:0 0 0 3px rgba(23,111,242,.1); }
+.currencyRow { display:grid; grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr); align-items:end; gap:7px; }
+.currencyRow > button { display:grid; width:36px; height:42px; cursor:pointer; place-items:center; border:1px solid #cddcf0; border-radius:10px; color:#0c5bdd; background:#eef5ff; }
+.currencyRow > button svg { width:16px; height:16px; }
+.exchangeResult { padding:14px 15px; border:1px solid #bdd4fa; border-radius:13px; background:linear-gradient(135deg,#eef5ff,#f8fbff); }
+.exchangeResult small,.exchangeResult strong { display:block; }
+.exchangeResult small { color:#667794; font-size:.68rem; }
+.exchangeResult strong { margin-top:5px; color:#0748bb; font-size:1.42rem; letter-spacing:-.03em; }
+.sourceNote { display:flex; min-height:18px; align-items:center; gap:6px; margin:0; color:#6d7d98; font-size:.64rem; line-height:1.4; }
+.sourceNote svg { width:13px; height:13px; }
+.spin { animation:spin 1s linear infinite; }
+.liveRates { display:grid; gap:7px; margin-top:12px; padding:11px 12px; border:1px solid rgba(107,177,232,.32); border-radius:12px; color:#eaf5ff; background:linear-gradient(135deg,rgba(12,48,82,.92),rgba(5,27,51,.94)); box-shadow:inset 0 1px 0 rgba(255,255,255,.04); }
+.liveRatesTitle { display:flex; align-items:center; gap:7px; }
+.liveRatesTitle svg { width:15px; height:15px; color:#65c8ff; }
+.liveRatesTitle strong { font-size:.72rem; }
+.liveRatesTitle small { margin-left:auto; padding:2px 6px; border-radius:999px; color:#89b9dc; font-size:.52rem; background:rgba(112,190,242,.09); }
+.liveRateValues { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.liveRateValues > span { padding:7px 8px; border:1px solid rgba(115,180,228,.2); border-radius:8px; color:#fff; font-size:.66rem; background:rgba(255,255,255,.035); }
+.liveRateValues b { color:#6cc9ff; font-size:.58rem; }
+.rateDate { color:#7f99af; font-size:.53rem; }
+.rateLoading,.rateError { color:#9bb3c8; font-size:.62rem; }
+@keyframes panelIn { from{opacity:0;transform:translateY(-10px) scale(.98)} to{opacity:1;transform:none} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@media (max-width:1320px) { .trigger span{display:none}.trigger{width:43px;padding:0;justify-content:center} }
+@media (max-width:640px) { .panel{top:66px;right:12px}.trigger{width:40px;min-height:40px}.currencyRow{grid-template-columns:1fr 34px 1fr}.exchangePage select{font-size:.7rem;padding-inline:7px} }
+@media (prefers-reduced-motion:reduce) { .panel,.trigger{animation:none;transition:none}.spin{animation:none} }
