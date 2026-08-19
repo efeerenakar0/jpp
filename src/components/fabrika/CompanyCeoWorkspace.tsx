@@ -1,73 +1,116 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   BriefcaseBusiness,
   Building2,
   CalendarCheck2,
   ChartNoAxesCombined,
   CheckCircle2,
   CircleDollarSign,
-  ClipboardList,
+  Clock3,
+  Gauge,
   Megaphone,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
+  Target,
+  TrendingUp,
   Users,
-} from 'lucide-react';
-import WorkspacePage from '@/components/fabrika/WorkspacePage';
-import { Button } from '@/components/ui/button';
+} from "lucide-react";
+import WorkspacePage from "@/components/fabrika/WorkspacePage";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@/components/ui/dialog";
 import {
   buildCompanyCeoSnapshot,
   companyCeoManagerSchema,
   companyCeoMarketingSchema,
   companyCeoWorkspaceSchema,
-} from '@/lib/company-ceo-view';
+} from "@/lib/company-ceo-view";
+import styles from "./CompanyCeoWorkspace.module.css";
 
-type CompanyCeoSection = 'overview' | 'customers' | 'pipeline';
+type CompanyCeoSection = "overview" | "customers" | "pipeline";
 type Snapshot = ReturnType<typeof buildCompanyCeoSnapshot>;
-type DetailPanel = 'performance' | 'alerts' | 'report' | null;
+type DetailView = "performance" | "alerts" | "report" | null;
+
+const STAGE_LABELS: Record<string, string> = {
+  NEW: "Yeni",
+  CONTACTED: "Temas kuruldu",
+  QUALIFIED: "Nitelikli",
+  MATCHED: "Eşleşti",
+  VIEWING: "Gösterim",
+  OFFER: "Teklif",
+  CONTRACT: "Sözleşme",
+};
 
 async function fetchJson(url: string, signal?: AbortSignal) {
-  const response = await fetch(url, { cache: 'no-store', signal });
+  const response = await fetch(url, { cache: "no-store", signal });
   const body = (await response.json()) as Record<string, unknown>;
   if (!response.ok) {
     throw new Error(
-      typeof body.error === 'string' ? body.error : 'Veriler yüklenemedi.',
+      typeof body.error === "string" ? body.error : "Veriler yüklenemedi.",
     );
   }
   return body;
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
     maximumFractionDigits: 0,
   }).format(value);
 }
 
+function formatCompactCurrency(value: number) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(value));
+}
+
 export default function CompanyCeoWorkspace({
-  initialSection = 'overview',
+  initialSection = "overview",
+  initialSnapshot = null,
 }: {
   initialSection?: CompanyCeoSection;
+  initialSnapshot?: Snapshot | null;
 }) {
   const [section, setSection] = useState<CompanyCeoSection>(initialSection);
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [loading, setLoading] = useState(initialSection === 'overview');
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(initialSnapshot);
+  const [loading, setLoading] = useState(
+    initialSection === "overview" && !initialSnapshot,
+  );
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const [detailPanel, setDetailPanel] = useState<DetailPanel>(null);
+  const [detailView, setDetailView] = useState<DetailView>(null);
 
   const loadOverview = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -76,20 +119,20 @@ export default function CompanyCeoWorkspace({
     try {
       const [workspaceResult, managerResult, marketingResult] =
         await Promise.allSettled([
-          fetchJson('/api/fabrika/workspace', signal),
-          fetchJson('/api/fabrika/general-manager/dashboard', signal),
-          fetchJson('/api/fabrika/marketing/campaigns', signal),
+          fetchJson("/api/fabrika/workspace", signal),
+          fetchJson("/api/fabrika/general-manager/dashboard", signal),
+          fetchJson("/api/fabrika/marketing/campaigns", signal),
         ]);
 
-      if (workspaceResult.status === 'rejected') throw workspaceResult.reason;
-      if (managerResult.status === 'rejected') throw managerResult.reason;
+      if (workspaceResult.status === "rejected") throw workspaceResult.reason;
+      if (managerResult.status === "rejected") throw managerResult.reason;
 
       const workspaceEnvelope = workspaceResult.value;
       if (workspaceEnvelope.success !== true) {
         throw new Error(
-          typeof workspaceEnvelope.error === 'string'
+          typeof workspaceEnvelope.error === "string"
             ? workspaceEnvelope.error
-            : 'Şirket çalışma alanı yüklenemedi.',
+            : "Şirket çalışma alanı yüklenemedi.",
         );
       }
 
@@ -98,25 +141,28 @@ export default function CompanyCeoWorkspace({
       );
       const manager = companyCeoManagerSchema.parse(managerResult.value);
       const campaigns =
-        marketingResult.status === 'fulfilled'
+        marketingResult.status === "fulfilled"
           ? companyCeoMarketingSchema.parse(marketingResult.value).campaigns
           : [];
 
-      if (marketingResult.status === 'rejected') {
+      if (marketingResult.status === "rejected") {
         setWarning(
-          'Kampanya verileri şu anda alınamadı; diğer şirket verileri günceldir.',
+          "Kampanya verileri şu anda alınamadı; diğer şirket verileri günceldir.",
         );
       }
 
       setSnapshot(buildCompanyCeoSnapshot(workspace, manager, campaigns));
     } catch (loadError) {
-      if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+      if (
+        loadError instanceof DOMException &&
+        loadError.name === "AbortError"
+      ) {
         return;
       }
       setError(
         loadError instanceof Error
           ? loadError.message
-          : 'Şirket özeti yüklenemedi.',
+          : "Şirket özeti yüklenemedi.",
       );
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -124,7 +170,7 @@ export default function CompanyCeoWorkspace({
   }, []);
 
   useEffect(() => {
-    if (section !== 'overview' || snapshot) return;
+    if (section !== "overview" || snapshot) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void loadOverview(controller.signal);
@@ -135,19 +181,19 @@ export default function CompanyCeoWorkspace({
     };
   }, [loadOverview, section, snapshot]);
 
-  if (section !== 'overview') {
+  if (section !== "overview") {
     return (
-      <div className="space-y-4 p-4 sm:p-6 lg:p-8">
-        <Button
-          className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
-          onClick={() => setSection('overview')}
+      <div className={styles.subWorkspace}>
+        <button
+          className={styles.backButton}
+          onClick={() => setSection("overview")}
           type="button"
-          variant="outline"
         >
-          <ArrowLeft className="h-4 w-4" /> Şirket özetine dön
-        </Button>
+          <ArrowLeft aria-hidden="true" />
+          Şirket özetine dön
+        </button>
         <WorkspacePage
-          initialView={section === 'pipeline' ? 'pipeline' : 'customers'}
+          initialView={section === "pipeline" ? "pipeline" : "customers"}
           mode="crm"
         />
       </div>
@@ -155,170 +201,763 @@ export default function CompanyCeoWorkspace({
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-      <header className="flex flex-col gap-4 border-b border-slate-800 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">
-            Doğrulanmış şirket görünümü
-          </p>
-          <h1 className="mt-2 text-3xl font-black text-white">AI Şirket CEO</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-            Müşteri, portföy, satış, görev, ekip ve kampanya verilerini tek ve
-            sade bir yönetici ekranında takip edin.
+    <div className={styles.commandDeck}>
+      <header className={styles.masthead}>
+        <div className={styles.mastheadCopy}>
+          <div className={styles.liveLine}>
+            <span className={styles.liveStatus}>
+              <span aria-hidden="true" className={styles.liveDot} />
+              Canlı şirket görünümü
+            </span>
+            {snapshot && (
+              <span>
+                Son kontrol{" "}
+                <time dateTime={snapshot.generatedAt}>
+                  {formatTime(snapshot.generatedAt)}
+                </time>
+              </span>
+            )}
+          </div>
+          <p className={styles.eyebrow}>AI ŞİRKET CEO</p>
+          <h1 className={styles.mastheadTitle}>
+            Bugün neye odaklanmanız gerektiğini görün.
+          </h1>
+          <p className={styles.mastheadDescription}>
+            {snapshot?.companyName
+              ? `${snapshot.companyName} için satış, ekip ve risk sinyalleri tek bir karar ekranında.`
+              : "Satış, ekip ve risk sinyallerini tek bir karar ekranında takip edin."}
           </p>
         </div>
-        <Button
-          className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
-          disabled={loading}
-          onClick={() => void loadOverview()}
-          type="button"
-          variant="outline"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Yenile
-        </Button>
+        <div className={styles.mastheadActions}>
+          <button
+            className={styles.secondaryButton}
+            disabled={loading}
+            onClick={() => void loadOverview()}
+            type="button"
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={loading ? styles.spinning : undefined}
+            />
+            Yenile
+          </button>
+          <button
+            className={styles.primaryButton}
+            disabled={!snapshot}
+            onClick={() => setDetailView("alerts")}
+            type="button"
+          >
+            Kararları incele
+            <ArrowRight aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       {warning && (
-        <div
-          className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
-          role="status"
-        >
+        <div className={styles.warningBanner} role="status">
+          <AlertTriangle aria-hidden="true" />
           {warning}
         </div>
       )}
 
       {error ? (
-        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-8 text-center">
-          <AlertTriangle className="mx-auto h-8 w-8 text-rose-300" />
-          <h2 className="mt-3 font-bold text-white">Şirket özeti açılamadı</h2>
-          <p className="mt-2 text-sm text-rose-100">{error}</p>
-          <Button
-            className="mt-5 bg-cyan-400 font-bold text-slate-950 hover:bg-cyan-300"
-            onClick={() => void loadOverview()}
-            type="button"
-          >
-            Yeniden dene
-          </Button>
-        </section>
+        <ErrorState message={error} onRetry={() => void loadOverview()} />
       ) : loading || !snapshot ? (
         <CompanyCeoSkeleton />
       ) : (
-        <>
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Şirket göstergeleri">
-            <MetricCard label="Müşteriler" value={snapshot.metrics.customers} icon={Users} />
-            <MetricCard label="Aktif portföyler" value={snapshot.metrics.portfolios} icon={Building2} />
-            <MetricCard label="Satış fırsatları" value={snapshot.metrics.opportunities} icon={CircleDollarSign} />
-            <MetricCard label="Geciken görevler" value={snapshot.metrics.overdueTasks} icon={ClipboardList} warning={snapshot.metrics.overdueTasks > 0} />
+        <div aria-live="polite" className={styles.loadedContent}>
+          <section
+            aria-labelledby="ceo-briefing-title"
+            className={styles.briefingCanvas}
+          >
+            <div className={styles.briefingBeam} aria-hidden="true" />
+            <div className={styles.briefingCopy}>
+              <div className={styles.briefingLabel}>
+                <Sparkles aria-hidden="true" />
+                AI yönetici brifingi
+              </div>
+              <h2 id="ceo-briefing-title">Şirketin bugünkü nabzı</h2>
+              <p className={styles.briefingText}>{snapshot.report}</p>
+              <button
+                className={styles.briefingButton}
+                onClick={() => setDetailView("report")}
+                type="button"
+              >
+                Brifingin tamamını aç
+                <ArrowRight aria-hidden="true" />
+              </button>
+            </div>
+            <div
+              className={styles.signalStack}
+              aria-label="Öncelikli sinyaller"
+            >
+              <Signal
+                icon={AlertTriangle}
+                label="Karar bekleyen"
+                tone={snapshot.criticalAlerts.length > 0 ? "warning" : "good"}
+                value={snapshot.criticalAlerts.length}
+              />
+              <Signal
+                icon={CircleDollarSign}
+                label="Açık satış hattı"
+                tone="neutral"
+                value={formatCompactCurrency(snapshot.metrics.pipelineValue)}
+              />
+              <Signal
+                icon={Target}
+                label="Ortalama eşleşme"
+                tone="good"
+                value={`%${Math.round(snapshot.metrics.averageMatchScore)}`}
+              />
+            </div>
           </section>
 
-          <section>
-            <div className="mb-3 flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">Çalışma alanları</h2>
-                <p className="mt-1 text-sm text-slate-500">Ayrıntıyı yalnız ihtiyacınız olduğunda açın.</p>
-              </div>
-              <span className="text-xs text-slate-500">
-                Son kontrol {new Intl.DateTimeFormat('tr-TR', { timeStyle: 'short' }).format(new Date(snapshot.generatedAt))}
-              </span>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <ActionCard title="Müşteriler" detail={`${snapshot.metrics.customers} kayıt`} icon={Users} onClick={() => setSection('customers')} />
-              <ActionLink title="Portföyler" detail={`${snapshot.metrics.portfolios} aktif`} icon={Building2} href="/fabrika/portfoyler" />
-              <ActionCard title="Satış fırsatları" detail={`${snapshot.metrics.opportunities} açık`} icon={BriefcaseBusiness} onClick={() => setSection('pipeline')} />
-              <ActionLink title="Görevler" detail={`${snapshot.metrics.overdueTasks} geciken · ${snapshot.metrics.upcomingCriticalTasks} yaklaşan`} icon={CalendarCheck2} href="/fabrika/takvim" />
-              <ActionCard title="Çalışan performansı" detail={`${snapshot.employeePerformance.length} aktif çalışan`} icon={ChartNoAxesCombined} onClick={() => setDetailPanel('performance')} />
-              <ActionLink title="Kampanyalar" detail={`${snapshot.metrics.campaigns} çalışma · ${snapshot.metrics.manuallyConfirmedCampaigns} doğrulandı`} icon={Megaphone} href="/fabrika/pazarlamaci" />
-              <ActionCard title="Kritik uyarılar" detail={`${snapshot.criticalAlerts.length} kayıt`} icon={AlertTriangle} onClick={() => setDetailPanel('alerts')} warning={snapshot.criticalAlerts.length > 0} />
-              <ActionCard title="Özet rapor" detail="Doğrulanmış günlük görünüm" icon={Sparkles} onClick={() => setDetailPanel('report')} />
-            </div>
+          <section
+            aria-label="Şirketin temel göstergeleri"
+            className={styles.metricGrid}
+          >
+            <MetricTile
+              detail={`${snapshot.metrics.opportunities} açık fırsat`}
+              icon={TrendingUp}
+              label="Satış hattı"
+              value={formatCompactCurrency(snapshot.metrics.pipelineValue)}
+            />
+            <MetricTile
+              detail="Doğrulanmış kapanışlardan"
+              icon={CircleDollarSign}
+              label="Kazanılan komisyon"
+              tone="mint"
+              value={formatCompactCurrency(snapshot.metrics.wonCommission)}
+            />
+            <MetricTile
+              detail={`${snapshot.metrics.customers} müşteri kaydı`}
+              icon={Building2}
+              label="Aktif portföy"
+              tone="violet"
+              value={snapshot.metrics.portfolios}
+            />
+            <MetricTile
+              detail={`${snapshot.metrics.upcomingCriticalTasks} yaklaşan kritik görev`}
+              icon={CalendarCheck2}
+              label="Geciken görev"
+              tone={snapshot.metrics.overdueTasks > 0 ? "warning" : "mint"}
+              value={snapshot.metrics.overdueTasks}
+            />
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-              <div className="flex items-center gap-3">
-                <Sparkles className="h-5 w-5 text-cyan-300" />
-                <h2 className="font-bold text-white">Bugünün yönetici özeti</h2>
-              </div>
-              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-300">{snapshot.report}</p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <SmallMetric label="Satış hattı" value={formatCurrency(snapshot.metrics.pipelineValue)} />
-                <SmallMetric label="Kazanılan komisyon" value={formatCurrency(snapshot.metrics.wonCommission)} />
-                <SmallMetric label="Ortalama eşleşme" value={`%${Math.round(snapshot.metrics.averageMatchScore)}`} />
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-bold text-white">Kritik akış</h2>
-                <span className={`rounded-full px-2 py-1 text-xs ${snapshot.criticalAlerts.length ? 'bg-amber-500/10 text-amber-200' : 'bg-emerald-500/10 text-emerald-200'}`}>
-                  {snapshot.criticalAlerts.length || 'Temiz'}
-                </span>
-              </div>
-              {snapshot.criticalAlerts.length === 0 ? (
-                <div className="mt-6 text-center">
-                  <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-300" />
-                  <p className="mt-2 text-sm text-slate-300">Acil müdahale bekleyen kayıt yok.</p>
-                </div>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {snapshot.criticalAlerts.slice(0, 4).map((alert) => (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3" key={alert.id}>
-                      <p className="text-sm font-semibold text-amber-100">{alert.title}</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-400">{alert.detail}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        </>
+          <div className={styles.primaryGrid}>
+            <ThirtyDayCanvas
+              onOpenPipeline={() => setSection("pipeline")}
+              outlook={snapshot.thirtyDayOutlook}
+            />
+            <DecisionRail
+              alerts={snapshot.criticalAlerts}
+              onOpen={() => setDetailView("alerts")}
+            />
+          </div>
+
+          <div className={styles.secondaryGrid}>
+            <PipelineCanvas
+              onOpen={() => setSection("pipeline")}
+              stages={snapshot.pipelineStages}
+            />
+            <TeamCanvas
+              members={snapshot.employeePerformance}
+              onOpen={() => setDetailView("performance")}
+            />
+          </div>
+
+          <DestinationGrid
+            onOpenCustomers={() => setSection("customers")}
+            onOpenPerformance={() => setDetailView("performance")}
+            onOpenPipeline={() => setSection("pipeline")}
+          />
+        </div>
       )}
 
-      <Dialog open={detailPanel !== null} onOpenChange={(open) => !open && setDetailPanel(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto border-slate-700 bg-slate-950 text-slate-100 sm:max-w-2xl">
-          {detailPanel === 'performance' && snapshot && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Çalışan performansı</DialogTitle>
-                <DialogDescription className="text-slate-400">Bu ayın gerçek görev, fırsat ve portföy kayıtları.</DialogDescription>
-              </DialogHeader>
-              {snapshot.employeePerformance.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">Aktif çalışan performansı bulunamadı.</p> : <div className="space-y-3">{snapshot.employeePerformance.map((member) => <div className="rounded-xl border border-slate-800 bg-slate-900 p-4" key={member.id}><p className="font-bold text-white">{member.name}</p><div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4"><SmallMetric label="Tamamlanan" value={member.completedTasks} /><SmallMetric label="Açık görev" value={member.openTasks} /><SmallMetric label="Kazanılan" value={member.wonDeals} /><SmallMetric label="Yeni portföy" value={member.newProperties} /></div></div>)}</div>}
-            </>
-          )}
-          {detailPanel === 'alerts' && snapshot && (
-            <>
-              <DialogHeader><DialogTitle>Kritik uyarılar</DialogTitle><DialogDescription className="text-slate-400">Yalnız doğrulanmış görev, onay ve teslimat sorunları listelenir.</DialogDescription></DialogHeader>
-              {snapshot.criticalAlerts.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">Açık kritik kayıt yok.</p> : <div className="space-y-3">{snapshot.criticalAlerts.map((alert) => <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4" key={alert.id}><p className="font-bold text-amber-100">{alert.title}</p><p className="mt-1 text-sm text-slate-400">{alert.detail}</p></div>)}</div>}
-            </>
-          )}
-          {detailPanel === 'report' && snapshot && (
-            <>
-              <DialogHeader><DialogTitle>Doğrulanmış özet rapor</DialogTitle><DialogDescription className="text-slate-400">Şirket kayıtlarından üretilen kısa yönetici özeti.</DialogDescription></DialogHeader>
-              <p className="whitespace-pre-line rounded-xl border border-slate-800 bg-slate-900 p-4 text-sm leading-7 text-slate-300">{snapshot.report}</p>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <DetailDialog
+        detailView={detailView}
+        onClose={() => setDetailView(null)}
+        snapshot={snapshot}
+      />
     </div>
   );
 }
 
-function MetricCard({ label, value, icon: Icon, warning = false }: { label: string; value: number; icon: typeof Users; warning?: boolean }) {
-  return <div className={`rounded-2xl border p-4 ${warning ? 'border-amber-500/30 bg-amber-500/5' : 'border-slate-800 bg-slate-900/80'}`}><div className="flex items-center justify-between gap-3"><span className="text-sm text-slate-400">{label}</span><Icon className={`h-5 w-5 ${warning ? 'text-amber-300' : 'text-cyan-300'}`} /></div><strong className="mt-3 block text-2xl text-white">{value}</strong></div>;
+function Signal({
+  icon: Icon,
+  label,
+  tone,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  tone: "good" | "warning" | "neutral";
+  value: string | number;
+}) {
+  return (
+    <div className={styles.signal} data-tone={tone}>
+      <span className={styles.signalIcon}>
+        <Icon aria-hidden="true" />
+      </span>
+      <span>
+        <small>{label}</small>
+        <strong>{value}</strong>
+      </span>
+    </div>
+  );
 }
 
-function ActionCard({ title, detail, icon: Icon, onClick, warning = false }: { title: string; detail: string; icon: typeof Users; onClick: () => void; warning?: boolean }) {
-  return <button className={`rounded-2xl border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${warning ? 'border-amber-500/30 bg-amber-500/5 hover:border-amber-400/60' : 'border-slate-800 bg-slate-900/80 hover:border-cyan-400/50'}`} onClick={onClick} type="button"><Icon className={`h-5 w-5 ${warning ? 'text-amber-300' : 'text-cyan-300'}`} /><h3 className="mt-4 font-bold text-white">{title}</h3><p className="mt-1 text-sm text-slate-500">{detail}</p></button>;
+function MetricTile({
+  detail,
+  icon: Icon,
+  label,
+  tone = "blue",
+  value,
+}: {
+  detail: string;
+  icon: LucideIcon;
+  label: string;
+  tone?: "blue" | "mint" | "violet" | "warning";
+  value: string | number;
+}) {
+  return (
+    <article className={styles.metricTile} data-tone={tone}>
+      <div className={styles.metricTopline}>
+        <span>{label}</span>
+        <span className={styles.metricIcon}>
+          <Icon aria-hidden="true" />
+        </span>
+      </div>
+      <strong className={styles.metricValue}>{value}</strong>
+      <p>{detail}</p>
+    </article>
+  );
 }
 
-function ActionLink({ title, detail, icon: Icon, href }: { title: string; detail: string; icon: typeof Users; href: string }) {
-  return <Link className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-left transition hover:border-cyan-400/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300" href={href}><Icon className="h-5 w-5 text-cyan-300" /><h3 className="mt-4 font-bold text-white">{title}</h3><p className="mt-1 text-sm text-slate-500">{detail}</p></Link>;
+function ThirtyDayCanvas({
+  onOpenPipeline,
+  outlook,
+}: {
+  onOpenPipeline: () => void;
+  outlook: Snapshot["thirtyDayOutlook"];
+}) {
+  const confidenceLabel = {
+    high: "Yüksek güven",
+    medium: "Orta güven",
+    low: "Düşük güven",
+  }[outlook.confidence];
+
+  return (
+    <section
+      aria-labelledby="thirty-day-title"
+      className={styles.outlookCanvas}
+    >
+      <div className={styles.sectionHeading}>
+        <div>
+          <span className={styles.sectionKicker}>
+            <Gauge aria-hidden="true" />
+            Açıklanabilir hesap
+          </span>
+          <h2 id="thirty-day-title">30 Günlük Görünüm</h2>
+        </div>
+        <span
+          className={styles.confidenceBadge}
+          data-level={outlook.confidence}
+        >
+          {confidenceLabel}
+        </span>
+      </div>
+
+      {outlook.status === "available" ? (
+        <>
+          <div className={styles.outlookLead}>
+            <div>
+              <span>Olasılık ağırlıklı komisyon</span>
+              <strong>{formatCurrency(outlook.expectedCommission)}</strong>
+            </div>
+            <p>
+              {outlook.eligibleDealCount} tarihli fırsat · %
+              {outlook.dataCoverage} veri kapsamı
+            </p>
+          </div>
+
+          <div
+            aria-label="Komisyon senaryoları"
+            className={styles.scenarioRail}
+          >
+            <Scenario label="Temkinli" value={outlook.conservativeCommission} />
+            <Scenario
+              featured
+              label="Ağırlıklı"
+              value={outlook.expectedCommission}
+            />
+            <Scenario label="Olumlu" value={outlook.optimisticCommission} />
+          </div>
+
+          {outlook.topOpportunities.length > 0 && (
+            <div className={styles.opportunityList}>
+              <div className={styles.listHeading}>
+                <span>Görünümü en çok etkileyen fırsatlar</span>
+                <span>Beklenen katkı</span>
+              </div>
+              {outlook.topOpportunities.map((opportunity) => (
+                <div className={styles.opportunityRow} key={opportunity.id}>
+                  <span>
+                    <strong>{opportunity.title}</strong>
+                    <small>
+                      {STAGE_LABELS[opportunity.stage] || opportunity.stage} ·{" "}
+                      {formatShortDate(opportunity.expectedCloseAt)}
+                    </small>
+                  </span>
+                  <strong>
+                    {formatCompactCurrency(opportunity.weightedCommission)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className={styles.readinessState}>
+          <div className={styles.readinessIcon}>
+            <ShieldCheck aria-hidden="true" />
+          </div>
+          <div>
+            <h3>Henüz güvenilir bir tutar göstermiyoruz.</h3>
+            <p>
+              Tahmin üretmek için açık fırsatlarda beklenen kapanış tarihi,
+              değer ve komisyon oranı bulunmalı.
+            </p>
+          </div>
+          <div className={styles.coverageTrack}>
+            <span style={{ width: `${outlook.dataCoverage}%` }} />
+          </div>
+          <div className={styles.readinessMeta}>
+            <span>{outlook.missingExpectedCloseAt} tarihsiz fırsat</span>
+            <span>{outlook.missingFinancials} finansal bilgisi eksik</span>
+          </div>
+        </div>
+      )}
+
+      <div className={styles.methodLine}>
+        <span>
+          CRM olasılıkları hesaplar; AI yalnızca sonucu yorumlar. Kesin satış
+          sözü değildir.
+        </span>
+        <button onClick={onOpenPipeline} type="button">
+          Satış hattını aç
+          <ArrowRight aria-hidden="true" />
+        </button>
+      </div>
+    </section>
+  );
 }
 
-function SmallMetric({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3"><p className="text-xs text-slate-500">{label}</p><strong className="mt-1 block text-sm text-slate-100">{value}</strong></div>;
+function Scenario({
+  featured = false,
+  label,
+  value,
+}: {
+  featured?: boolean;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className={styles.scenario} data-featured={featured || undefined}>
+      <span>{label}</span>
+      <strong>{formatCompactCurrency(value)}</strong>
+    </div>
+  );
+}
+
+function DecisionRail({
+  alerts,
+  onOpen,
+}: {
+  alerts: Snapshot["criticalAlerts"];
+  onOpen: () => void;
+}) {
+  return (
+    <section aria-labelledby="decision-title" className={styles.decisionRail}>
+      <div className={styles.sectionHeading}>
+        <div>
+          <span className={styles.sectionKicker}>
+            <Target aria-hidden="true" />
+            CEO karar kutusu
+          </span>
+          <h2 id="decision-title">Bugün sizden beklenenler</h2>
+        </div>
+        <span className={styles.decisionCount}>{alerts.length}</span>
+      </div>
+
+      {alerts.length === 0 ? (
+        <div className={styles.cleanState}>
+          <CheckCircle2 aria-hidden="true" />
+          <strong>Kritik akış temiz</strong>
+          <p>Acil müdahale veya patron onayı bekleyen kayıt yok.</p>
+        </div>
+      ) : (
+        <div className={styles.decisionList}>
+          {alerts.slice(0, 4).map((alert, index) => (
+            <button key={alert.id} onClick={onOpen} type="button">
+              <span className={styles.decisionIndex}>
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className={styles.decisionCopy}>
+                <strong>{alert.title}</strong>
+                <small>{alert.detail}</small>
+              </span>
+              <ArrowRight aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button className={styles.railButton} onClick={onOpen} type="button">
+        Tüm kararları incele
+        <ArrowRight aria-hidden="true" />
+      </button>
+    </section>
+  );
+}
+
+function PipelineCanvas({
+  onOpen,
+  stages,
+}: {
+  onOpen: () => void;
+  stages: Snapshot["pipelineStages"];
+}) {
+  const maxCount = Math.max(...stages.map((stage) => stage.count), 1);
+  const total = stages.reduce((sum, stage) => sum + stage.count, 0);
+
+  return (
+    <section aria-labelledby="pipeline-title" className={styles.dataCanvas}>
+      <div className={styles.sectionHeading}>
+        <div>
+          <span className={styles.sectionKicker}>
+            <ChartNoAxesCombined aria-hidden="true" />
+            Satış hattı dağılımı
+          </span>
+          <h2 id="pipeline-title">Fırsatlar hangi aşamada?</h2>
+        </div>
+        <strong className={styles.totalFigure}>{total}</strong>
+      </div>
+      <div className={styles.pipelineBars}>
+        {stages.map((stage) => (
+          <div className={styles.pipelineRow} key={stage.key}>
+            <div>
+              <span>{stage.label}</span>
+              <strong>{stage.count}</strong>
+            </div>
+            <div className={styles.pipelineTrack}>
+              <span
+                style={{
+                  width: `${stage.count === 0 ? 0 : Math.max(8, (stage.count / maxCount) * 100)}%`,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button className={styles.inlineButton} onClick={onOpen} type="button">
+        Fırsatları incele
+        <ArrowRight aria-hidden="true" />
+      </button>
+    </section>
+  );
+}
+
+function TeamCanvas({
+  members,
+  onOpen,
+}: {
+  members: Snapshot["employeePerformance"];
+  onOpen: () => void;
+}) {
+  return (
+    <section aria-labelledby="team-title" className={styles.teamCanvas}>
+      <div className={styles.sectionHeading}>
+        <div>
+          <span className={styles.sectionKicker}>
+            <Users aria-hidden="true" />
+            Ekip nabzı
+          </span>
+          <h2 id="team-title">İş yükü ve sonuçlar</h2>
+        </div>
+        <span className={styles.teamCount}>{members.length} aktif</span>
+      </div>
+      {members.length === 0 ? (
+        <p className={styles.emptyCopy}>
+          Aktif çalışan performansı bulunamadı.
+        </p>
+      ) : (
+        <div className={styles.teamList}>
+          {members.slice(0, 4).map((member) => (
+            <div className={styles.teamRow} key={member.id}>
+              <span className={styles.avatar} aria-hidden="true">
+                {member.name.slice(0, 1).toLocaleUpperCase("tr-TR")}
+              </span>
+              <span className={styles.memberName}>{member.name}</span>
+              <span>
+                <strong>{member.completedTasks}</strong>
+                <small>tamamlanan</small>
+              </span>
+              <span>
+                <strong>{member.openTasks}</strong>
+                <small>açık görev</small>
+              </span>
+              <span>
+                <strong>{member.wonDeals}</strong>
+                <small>kazanılan</small>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <button className={styles.inlineButton} onClick={onOpen} type="button">
+        Ekip ayrıntısını aç
+        <ArrowRight aria-hidden="true" />
+      </button>
+    </section>
+  );
+}
+
+function DestinationGrid({
+  onOpenCustomers,
+  onOpenPerformance,
+  onOpenPipeline,
+}: {
+  onOpenCustomers: () => void;
+  onOpenPerformance: () => void;
+  onOpenPipeline: () => void;
+}) {
+  return (
+    <section
+      aria-labelledby="destinations-title"
+      className={styles.destinationCanvas}
+    >
+      <div className={styles.destinationHeading}>
+        <div>
+          <span className={styles.sectionKicker}>
+            <BriefcaseBusiness aria-hidden="true" />
+            Hızlı geçişler
+          </span>
+          <h2 id="destinations-title">Ayrıntıya gerektiğinde inin</h2>
+        </div>
+        <p>CEO görünümünden çalışma alanlarına tek adımda geçin.</p>
+      </div>
+      <div className={styles.destinationGrid}>
+        <button
+          className={styles.destinationItem}
+          onClick={onOpenCustomers}
+          type="button"
+        >
+          <Users aria-hidden="true" />
+          <span>
+            <strong>Müşteriler</strong>
+            <small>CRM kayıtları</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </button>
+        <button
+          className={styles.destinationItem}
+          onClick={onOpenPipeline}
+          type="button"
+        >
+          <CircleDollarSign aria-hidden="true" />
+          <span>
+            <strong>Satış fırsatları</strong>
+            <small>Hattı yönetin</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </button>
+        <Link className={styles.destinationItem} href="/fabrika/portfoyler">
+          <Building2 aria-hidden="true" />
+          <span>
+            <strong>Portföyler</strong>
+            <small>Aktif stok</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </Link>
+        <Link className={styles.destinationItem} href="/fabrika/takvim">
+          <Clock3 aria-hidden="true" />
+          <span>
+            <strong>Görev ve takvim</strong>
+            <small>Kritik tarihler</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </Link>
+        <button
+          className={styles.destinationItem}
+          onClick={onOpenPerformance}
+          type="button"
+        >
+          <ChartNoAxesCombined aria-hidden="true" />
+          <span>
+            <strong>Ekip performansı</strong>
+            <small>İş yükü ve sonuç</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </button>
+        <Link className={styles.destinationItem} href="/fabrika/pazarlamaci">
+          <Megaphone aria-hidden="true" />
+          <span>
+            <strong>Kampanyalar</strong>
+            <small>Yayın ve sonuçlar</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function DetailDialog({
+  detailView,
+  onClose,
+  snapshot,
+}: {
+  detailView: DetailView;
+  onClose: () => void;
+  snapshot: Snapshot | null;
+}) {
+  return (
+    <Dialog
+      open={detailView !== null}
+      onOpenChange={(open) => !open && onClose()}
+    >
+      <DialogContent className={styles.dialogSurface}>
+        {detailView === "performance" && snapshot && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Ekip performansı</DialogTitle>
+              <DialogDescription className={styles.dialogDescription}>
+                Bu ayın doğrulanmış görev, fırsat ve portföy kayıtları.
+              </DialogDescription>
+            </DialogHeader>
+            {snapshot.employeePerformance.length === 0 ? (
+              <p className={styles.dialogEmpty}>
+                Aktif çalışan performansı bulunamadı.
+              </p>
+            ) : (
+              <div className={styles.dialogList}>
+                {snapshot.employeePerformance.map((member) => (
+                  <div className={styles.dialogEntry} key={member.id}>
+                    <strong>{member.name}</strong>
+                    <div className={styles.dialogStats}>
+                      <SmallStat
+                        label="Tamamlanan"
+                        value={member.completedTasks}
+                      />
+                      <SmallStat label="Açık görev" value={member.openTasks} />
+                      <SmallStat label="Kazanılan" value={member.wonDeals} />
+                      <SmallStat
+                        label="Yeni portföy"
+                        value={member.newProperties}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {detailView === "alerts" && snapshot && (
+          <>
+            <DialogHeader>
+              <DialogTitle>CEO karar kutusu</DialogTitle>
+              <DialogDescription className={styles.dialogDescription}>
+                Yalnız doğrulanmış görev, onay ve teslimat sorunları listelenir.
+              </DialogDescription>
+            </DialogHeader>
+            {snapshot.criticalAlerts.length === 0 ? (
+              <div className={styles.dialogClean}>
+                <CheckCircle2 aria-hidden="true" />
+                <p>Açık kritik kayıt yok.</p>
+              </div>
+            ) : (
+              <div className={styles.dialogList}>
+                {snapshot.criticalAlerts.map((alert) => (
+                  <div className={styles.alertEntry} key={alert.id}>
+                    <AlertTriangle aria-hidden="true" />
+                    <span>
+                      <strong>{alert.title}</strong>
+                      <p>{alert.detail}</p>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {detailView === "report" && snapshot && (
+          <>
+            <DialogHeader>
+              <DialogTitle>AI yönetici brifingi</DialogTitle>
+              <DialogDescription className={styles.dialogDescription}>
+                Şirket kayıtlarından üretilen yönetici özeti; kararlarınızı
+                destekler, tek başına işlem yapmaz.
+              </DialogDescription>
+            </DialogHeader>
+            <p className={styles.reportBody}>{snapshot.report}</p>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SmallStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className={styles.smallStat}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <section className={styles.errorState}>
+      <span className={styles.errorIcon}>
+        <AlertTriangle aria-hidden="true" />
+      </span>
+      <h2>Şirket özeti açılamadı</h2>
+      <p>{message}</p>
+      <Button onClick={onRetry} type="button">
+        Yeniden dene
+      </Button>
+    </section>
+  );
 }
 
 function CompanyCeoSkeleton() {
-  return <div aria-label="Şirket özeti yükleniyor" className="space-y-5" role="status"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton className="h-28 rounded-2xl bg-slate-800" key={index} />)}</div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }).map((_, index) => <Skeleton className="h-32 rounded-2xl bg-slate-800" key={index} />)}</div></div>;
+  return (
+    <div
+      aria-label="Şirket özeti yükleniyor"
+      className={styles.loadingState}
+      role="status"
+    >
+      <div className={styles.loadingBrief} />
+      <div className={styles.loadingMetrics}>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div className={styles.loadingTile} key={index} />
+        ))}
+      </div>
+      <div className={styles.loadingSplit}>
+        <div />
+        <div />
+      </div>
+    </div>
+  );
 }

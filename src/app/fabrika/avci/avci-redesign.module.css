@@ -1,0 +1,702 @@
+.shell {
+  --portfolio-type-boost: 0px;
+  --avci-ink: #0a1c3b;
+  --avci-muted: #637795;
+  --avci-line: #d9e4f1;
+  --avci-line-strong: #c6d7eb;
+  --avci-blue: #176ff2;
+  --avci-blue-dark: #0758db;
+  --avci-blue-soft: #eef5ff;
+  --avci-mint: #32b99b;
+  --avci-mint-dark: #08785f;
+  --avci-mint-soft: #effbf8;
+  --avci-panel: rgba(255, 255, 255, 0.98);
+  --avci-shadow: 0 9px 30px rgba(38, 70, 120, 0.065);
+  gap: 14px;
+  color: var(--avci-ink);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+.shell :global(h1),
+.shell :global(h2),
+.shell :global(h3),
+.shell :global(h4),
+.shell :global(button),
+.shell :global(input),
+.shell :global(select),
+.shell :global(textarea) {
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+.shell :global([data-avci-tabs]) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  overflow: visible;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.shell :global([data-avci-tabs] > button) {
+  min-height: 48px;
+  border-color: var(--avci-line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #637795;
+  box-shadow: 0 3px 12px rgba(26, 59, 111, 0.035);
+  font-size: 13px;
+  font-weight: 750;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.shell :global([data-avci-tabs] > button[aria-selected='true']) {
+  border-color: #4d86ff;
+  background: #fff;
+  color: var(--avci-blue-dark);
+  box-shadow:
+    0 6px 18px rgba(23, 111, 242, 0.09),
+    inset 0 0 0 1px rgba(23, 111, 242, 0.06);
+}
+
+.shell :global([data-avci-tabs] > button:hover) {
+  border-color: #9db9e3;
+  background: #fff;
+  color: var(--avci-blue-dark);
+}
+
+.shell :global([data-avci-tabs] svg) {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.9;
+}
+
+.shell :global([data-avci-period]) {
+  min-height: 62px;
+  border-color: var(--avci-line);
+  border-radius: 14px;
+  padding: 10px 13px;
+  background: var(--avci-panel);
+  box-shadow: var(--avci-shadow);
+}
+
+.shell :global([data-avci-period] strong) {
+  color: var(--avci-ink);
+  font-size: 13px;
+}
+
+.shell :global([data-avci-period] small) {
+  color: var(--avci-muted);
+  font-size: 11px;
+}
+
+.shell :global([data-avci-period] > div:first-child > span:first-child) {
+  border-color: #d7e5f7;
+  color: #376495;
+  background: #f5f8fc;
+}
+
+.shell :global([data-avci-range]) {
+  gap: 0;
+  border-color: #dce5f0;
+  border-radius: 10px;
+  padding: 3px;
+  background: #f4f7fb;
+}
+
+.shell :global([data-avci-range] > button) {
+  min-height: 34px;
+  border-radius: 8px;
+  padding: 0 14px;
+  color: #607391;
+  font-size: 11px;
+}
+
+.shell :global([data-avci-range] > button[aria-pressed='true']) {
+  border-color: var(--avci-blue);
+  background: var(--avci-blue);
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(23, 111, 242, 0.24);
+}
+
+.shell :global([data-avci-metrics]) {
+  gap: 10px;
+}
+
+.shell :global([data-avci-metric]) {
+  min-height: 93px;
+  border-color: var(--avci-line);
+  border-radius: 14px;
+  padding: 13px 15px;
+  background: var(--avci-panel);
+  box-shadow: var(--avci-shadow);
+}
+
+.shell :global([data-avci-metric] > svg) {
+  width: 38px;
+  height: 38px;
+  border-color: #cfe1f9;
+  border-radius: 11px;
+  padding: 9px;
+  background: #f2f7ff;
+  color: var(--avci-blue);
+  stroke-width: 1.9;
+}
+
+.shell :global([data-avci-metric] small) {
+  color: var(--avci-muted);
+  font-size: 11px;
+  font-weight: 520;
+}
+
+.shell :global([data-avci-metric] strong) {
+  color: var(--avci-ink);
+  font-size: 21px;
+  font-weight: 760;
+}
+
+.shell :global([data-avci-workspace]) {
+  gap: 14px;
+}
+
+.shell :global([data-avci-discovery] > div) {
+  display: grid;
+  gap: 14px;
+}
+
+.shell :global([data-avci-hunt-layout]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1.47fr) minmax(410px, 1fr);
+  gap: 14px;
+}
+
+.shell :global([data-avci-form-card]),
+.shell :global([data-avci-live-card]),
+.shell :global([data-avci-listing-explorer]) {
+  border-color: var(--avci-line) !important;
+  border-radius: 15px !important;
+  background: var(--avci-panel) !important;
+  box-shadow: var(--avci-shadow);
+}
+
+.shell :global([data-avci-form-card]),
+.shell :global([data-avci-live-card]) {
+  min-height: 528px;
+  padding: 20px !important;
+}
+
+.shell :global([data-avci-form-card] > div:first-child) {
+  gap: 12px;
+}
+
+.shell :global([data-avci-form-card] > div:first-child > div:first-child) {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-color: #bfeadd !important;
+  border-radius: 10px;
+  padding: 0 !important;
+  background: #f0fbf7 !important;
+}
+
+.shell :global([data-avci-form-card] > div:first-child > div:first-child svg) {
+  width: 20px;
+  height: 20px;
+  color: #168c70 !important;
+  stroke-width: 1.8;
+}
+
+.shell :global([data-avci-form-card] h2) {
+  color: var(--avci-ink) !important;
+  font-size: 16px;
+  font-weight: 760;
+  letter-spacing: -0.012em;
+}
+
+.shell :global([data-avci-form-card] h2 + p) {
+  max-width: 760px;
+  color: var(--avci-muted) !important;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.shell :global([data-avci-hunt-form]) {
+  position: relative;
+  margin-top: 19px !important;
+  padding-left: 40px;
+}
+
+.shell :global([data-avci-hunt-form]::before) {
+  position: absolute;
+  top: 12px;
+  bottom: 38px;
+  left: 11px;
+  width: 1px;
+  background: linear-gradient(#b7e9dd, #90dec9 78%, transparent);
+  content: '';
+}
+
+.shell :global([data-avci-step]) {
+  position: relative;
+}
+
+.shell :global([data-avci-step]::before) {
+  position: absolute;
+  z-index: 2;
+  top: -1px;
+  left: -40px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #58cbb1, #1fa68a);
+  box-shadow: 0 2px 7px rgba(25, 158, 128, 0.22);
+  color: #fff;
+  content: attr(data-avci-step);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.shell :global([data-avci-step] > legend) {
+  margin-bottom: 10px;
+  color: var(--avci-ink) !important;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.shell :global([data-avci-step] > legend::first-letter) {
+  color: transparent;
+  font-size: 0;
+}
+
+.shell :global([data-avci-hunt-form] label > span:first-child) {
+  color: #657792 !important;
+}
+
+.shell :global([data-avci-hunt-form] select) {
+  min-height: 42px;
+  border-color: #c9d9ec !important;
+  border-radius: 9px;
+  background: #fff !important;
+  color: var(--avci-ink) !important;
+  box-shadow: 0 1px 2px rgba(20, 48, 91, 0.025);
+}
+
+.shell :global([data-avci-hunt-form] select:focus-visible) {
+  border-color: var(--avci-blue) !important;
+  outline: 3px solid rgba(23, 111, 242, 0.16);
+}
+
+.shell :global([data-avci-hunt-form] fieldset:first-child > p) {
+  color: #617695 !important;
+}
+
+.shell :global([data-avci-category-grid]) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.shell :global([data-avci-category]) {
+  min-height: 76px;
+  border-color: #d6e1ee !important;
+  border-radius: 11px !important;
+  padding: 12px 13px !important;
+  background: #fff !important;
+  box-shadow: 0 3px 10px rgba(28, 58, 103, 0.025);
+  color: var(--avci-ink);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.shell :global([data-avci-category]:hover) {
+  border-color: #a9c4e8 !important;
+  background: #f9fbfe !important;
+}
+
+.shell :global([data-avci-category][data-selected='true']) {
+  border-color: #4cbda3 !important;
+  background: #f0fbf8 !important;
+  box-shadow: inset 0 0 0 1px rgba(50, 185, 155, 0.12);
+}
+
+.shell :global([data-avci-category][data-disabled='true']) {
+  border-color: #dce3eb !important;
+  background: #f5f7fa !important;
+  opacity: 1 !important;
+}
+
+.shell :global([data-avci-category] > span:first-of-type) {
+  align-items: center;
+}
+
+.shell :global([data-avci-category] [data-avci-category-icon]) {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  color: #486a9a;
+  stroke-width: 1.75;
+}
+
+.shell :global([data-avci-category][data-selected='true'] [data-avci-category-icon]) {
+  color: var(--avci-mint-dark);
+}
+
+.shell :global([data-avci-category] .text-white) {
+  color: var(--avci-ink) !important;
+  font-size: 13px;
+}
+
+.shell :global([data-avci-category] > span:first-of-type > svg),
+.shell :global([data-avci-category] > span:first-of-type > span:last-child) {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.shell :global([data-avci-category] .text-amber-200) {
+  color: #a45100 !important;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.shell :global([data-avci-source-row]) {
+  display: grid;
+  min-height: 54px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-color: #bfe8dc !important;
+  border-radius: 10px !important;
+  padding: 5px 6px 5px 13px !important;
+  background: linear-gradient(90deg, #f1fbf8, #f7fffd) !important;
+}
+
+.shell :global([data-avci-source-row] > span) {
+  color: var(--avci-mint-dark) !important;
+}
+
+.shell :global([data-avci-source-row] button) {
+  min-width: 188px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #55cdb4 0%, #18abc3 46%, #176ff2 100%) !important;
+  box-shadow: 0 8px 18px rgba(23, 111, 242, 0.2);
+  color: #fff !important;
+  font-size: 13px;
+  font-weight: 760;
+  transition:
+    filter 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.shell :global([data-avci-source-row] button:hover:not(:disabled)) {
+  box-shadow: 0 10px 22px rgba(23, 111, 242, 0.25);
+  filter: brightness(1.03);
+}
+
+.shell :global([data-avci-source-row] button:disabled) {
+  box-shadow: none;
+  filter: grayscale(0.25);
+  opacity: 0.48;
+}
+
+.shell :global([data-avci-live-card]) {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.shell :global([data-avci-live-header]) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.shell :global([data-avci-live-header] h2) {
+  margin: 0;
+  color: var(--avci-ink);
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.shell :global([data-avci-live-header] p) {
+  margin: 3px 0 0;
+  color: var(--avci-muted);
+  font-size: 11px;
+}
+
+.shell :global([data-avci-live-badge]) {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid #bfe8dc;
+  border-radius: 999px;
+  padding: 0 11px;
+  background: var(--avci-mint-soft);
+  color: var(--avci-mint-dark);
+  font-size: 10.5px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.shell :global([data-avci-live-badge][data-active='true'])::before {
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: #29b98e;
+  box-shadow: 0 0 0 4px rgba(41, 185, 142, 0.12);
+  content: '';
+}
+
+.shell :global([data-avci-live-stages]) {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 2px 0 0;
+  list-style: none;
+}
+
+.shell :global([data-avci-live-stages]::before) {
+  position: absolute;
+  top: 22px;
+  right: 11%;
+  left: 11%;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    #d3deeb 0,
+    #d3deeb 5px,
+    transparent 5px,
+    transparent 9px
+  );
+  content: '';
+}
+
+.shell :global([data-avci-live-stages] li) {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: #71819a;
+  font-size: 10px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.shell :global([data-avci-stage-icon]) {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid #d8e1ec;
+  border-radius: 999px;
+  background: #f6f8fb;
+  color: #8b98aa;
+}
+
+.shell :global([data-avci-stage-icon] svg) {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.9;
+}
+
+.shell :global([data-avci-live-stages] li[data-state='ready'] [data-avci-stage-icon]),
+.shell :global([data-avci-live-stages] li[data-state='active'] [data-avci-stage-icon]) {
+  border-color: #4c8cff;
+  background: linear-gradient(145deg, #22bfc4, #176ff2);
+  box-shadow:
+    0 0 0 5px rgba(23, 111, 242, 0.08),
+    0 7px 14px rgba(23, 111, 242, 0.18);
+  color: #fff;
+}
+
+.shell :global([data-avci-live-stages] li[data-state='complete'] [data-avci-stage-icon]) {
+  border-color: #6fcfb8;
+  background: #edf9f6;
+  color: #12886c;
+}
+
+.shell :global([data-avci-live-stages] li[data-state='ready']),
+.shell :global([data-avci-live-stages] li[data-state='active']) {
+  color: var(--avci-ink);
+}
+
+.shell :global([data-avci-live-empty]) {
+  min-height: 250px;
+  border: 1px dashed #d6e1ed;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(23, 111, 242, 0.045), transparent 36%),
+    linear-gradient(180deg, #fbfdff, #f8fbff);
+}
+
+.shell :global([data-avci-live-empty] > svg) {
+  width: 34px;
+  height: 34px;
+  color: #5f7898 !important;
+}
+
+.shell :global([data-avci-live-empty] p:first-of-type) {
+  color: var(--avci-ink) !important;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.shell :global([data-avci-live-empty] p:last-of-type) {
+  color: var(--avci-muted) !important;
+  font-size: 11px;
+}
+
+.shell :global([data-avci-job-details]) {
+  border-top: 1px solid #e0e8f2;
+  padding-top: 15px;
+}
+
+.shell :global([data-avci-job-details] [role='progressbar']) {
+  background: #e6ecf4 !important;
+}
+
+.shell :global([data-avci-job-details] [role='progressbar'] > div) {
+  background: linear-gradient(90deg, #20b69a, #176ff2) !important;
+}
+
+.shell :global([data-avci-listing-explorer]) {
+  padding: 18px !important;
+}
+
+.shell :global([data-avci-listing-explorer] h2) {
+  color: var(--avci-ink) !important;
+  font-weight: 760;
+}
+
+.shell :global([data-avci-listing-explorer] h2 + p) {
+  color: var(--avci-muted) !important;
+}
+
+.shell :global([data-avci-listing-explorer] input) {
+  border-color: #c9d9ec !important;
+  background: #fff !important;
+  color: var(--avci-ink) !important;
+}
+
+.shell :global([data-avci-listing-explorer] > div:nth-of-type(2)) {
+  border-color: #c9eadf !important;
+  background: #f2fbf8 !important;
+}
+
+.shell :global([data-avci-listing-explorer] button:focus-visible),
+.shell :global([data-avci-form-card] button:focus-visible),
+.shell :global([data-avci-form-card] input:focus-visible),
+.shell :global([data-avci-form-card] select:focus-visible) {
+  outline: 3px solid rgba(23, 111, 242, 0.2);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1280px) {
+  .shell :global([data-avci-hunt-layout]) {
+    grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+  }
+
+  .shell :global([data-avci-category-grid]) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .shell :global([data-avci-hunt-layout]) {
+    grid-template-columns: 1fr;
+  }
+
+  .shell :global([data-avci-form-card]),
+  .shell :global([data-avci-live-card]) {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .shell :global([data-avci-tabs]) {
+    grid-template-columns: 1fr;
+  }
+
+  .shell :global([data-avci-period]) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .shell :global([data-avci-range]) {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .shell :global([data-avci-range] > button) {
+    min-height: 44px;
+  }
+
+  .shell :global([data-avci-category-grid]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shell :global([data-avci-hunt-form]) {
+    padding-left: 34px;
+  }
+
+  .shell :global([data-avci-step]::before) {
+    left: -34px;
+  }
+
+  .shell :global([data-avci-source-row]) {
+    grid-template-columns: 1fr;
+    padding: 11px !important;
+  }
+
+  .shell :global([data-avci-source-row] button) {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .shell :global([data-avci-range]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shell :global([data-avci-category-grid]) {
+    grid-template-columns: 1fr;
+  }
+
+  .shell :global([data-avci-live-stages]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+
+  .shell :global([data-avci-live-stages]::before) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell *,
+  .shell *::before,
+  .shell *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

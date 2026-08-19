@@ -2,13 +2,15 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Building2, LayoutDashboard, FolderKanban, Users, MessageSquare, Calendar, LogOut } from "lucide-react";
+import { Building2, LayoutDashboard, FolderKanban, Users, MessageSquare, Calendar } from "lucide-react";
 import LogoutButton from "@/components/admin/LogoutButton";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
 
-  if (!session || (session.user as any).role !== "ADMIN") {
+  const role = (session?.user as { role?: string } | undefined)?.role;
+
+  if (!session || role !== "ADMIN") {
     redirect("/admin/giris");
   }
 

@@ -24,6 +24,7 @@ type ExchangeRateResponse = {
   success: boolean;
   source?: string;
   publishedDate?: string;
+  fetchedAt?: string;
   rates?: ExchangeRate[];
   error?: string;
 };
@@ -34,8 +35,22 @@ const formatter = new Intl.NumberFormat('tr-TR', {
   maximumFractionDigits: 4,
 });
 
+const fetchedAtFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: '2-digit',
+  timeZone: 'Europe/Istanbul',
+  year: 'numeric',
+});
+
 export const EXCHANGE_RATE_REFRESH_MS = 2 * 60 * 60 * 1000;
 
+export function formatExchangeRateFetchedAt(fetchedAt?: string | null) {
+  if (!fetchedAt) return null;
+  const date = new Date(fetchedAt);
+  return Number.isNaN(date.getTime()) ? null : fetchedAtFormatter.format(date);
+}
 export function calculateBinary(left: number, right: number, operator: Operator) {
   if (operator === '+') return left + right;
   if (operator === '-') return left - right;
@@ -45,7 +60,7 @@ export function calculateBinary(left: number, right: number, operator: Operator)
 
 function useExchangeRates(enabled = true) {
   const [rates, setRates] = useState<ExchangeRate[]>([]);
-  const [publishedDate, setPublishedDate] = useState<string | null>(null);
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +82,7 @@ function useExchangeRates(enabled = true) {
         }
         if (active) {
           setRates(payload.rates);
-          setPublishedDate(payload.publishedDate || null);
+          setFetchedAt(payload.fetchedAt || null);
           setError(null);
         }
       } catch (loadError) {
@@ -88,13 +103,14 @@ function useExchangeRates(enabled = true) {
     };
   }, [enabled]);
 
-  return { error, loading, publishedDate, rates };
+  return { error, fetchedAt, loading, rates };
 }
 
 export function LiveExchangeRates() {
-  const { error, loading, publishedDate, rates } = useExchangeRates();
+  const { error, fetchedAt, loading, rates } = useExchangeRates();
   const usd = rates.find((rate) => rate.code === 'USD');
   const eur = rates.find((rate) => rate.code === 'EUR');
+  const fetchedAtLabel = formatExchangeRateFetchedAt(fetchedAt);
 
   return (
     <section aria-label="Güncel döviz kurları" className={styles.liveRates}>
@@ -111,7 +127,11 @@ export function LiveExchangeRates() {
           <span><b>EUR</b> ₺{formatter.format(eur.selling)}</span>
         </span>
       ) : null}
-      {publishedDate ? <small className={styles.rateDate}>{publishedDate}</small> : null}
+      {fetchedAtLabel ? (
+        <small className={styles.rateDate}>
+          Son veri çekimi: <time dateTime={fetchedAt || undefined}>{fetchedAtLabel}</time>
+        </small>
+      ) : null}
     </section>
   );
 }
@@ -126,7 +146,8 @@ export default function FinanceCalculatorPopover() {
   const [amount, setAmount] = useState('1');
   const [fromCode, setFromCode] = useState('USD');
   const [toCode, setToCode] = useState('TRY');
-  const { error, loading, publishedDate, rates } = useExchangeRates(open);
+  const { error, fetchedAt, loading, rates } = useExchangeRates(open);
+  const fetchedAtLabel = formatExchangeRateFetchedAt(fetchedAt);
 
   useEffect(() => {
     if (!open) return;
@@ -324,7 +345,14 @@ export default function FinanceCalculatorPopover() {
                 <p className={styles.sourceNote}>
                   {loading ? <><RefreshCw className={styles.spin} aria-hidden="true" /> Kurlar yükleniyor…</> : null}
                   {error ? error : null}
-                  {!loading && !error ? `TCMB döviz satış kuru · ${publishedDate || 'güncel'}` : null}
+                  {!loading && !error ? (
+                    <>
+                      TCMB döviz satış kuru
+                      {fetchedAtLabel ? (
+                        <> · Son veri çekimi: <time dateTime={fetchedAt || undefined}>{fetchedAtLabel}</time></>
+                      ) : null}
+                    </>
+                  ) : null}
                 </p>
               </div>
             )}

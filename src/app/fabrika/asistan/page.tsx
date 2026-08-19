@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { 
   Bot, Plus, MessageSquare, Calendar, Loader2,
   X, Settings, Save, Trash2,
@@ -11,9 +12,11 @@ import {
 import ChatInterface from '@/components/fabrika/ChatInterface';
 import AppointmentApproval from '@/components/fabrika/AppointmentApproval';
 import LoadingSkeleton from '@/components/fabrika/LoadingSkeleton';
+import WhatsAppConnectionPanel from '@/components/fabrika/WhatsAppConnectionPanel';
 import { useFabrikaSession } from '@/components/fabrika/FabrikaSessionContext';
 import toast from 'react-hot-toast';
 import styles from './assistant.module.css';
+import conversationStyles from './conversations.module.css';
 
 interface Message {
   id: string;
@@ -655,7 +658,7 @@ export default function AsistanPage() {
   ];
 
   return (
-    <div className={`${styles.page} relative overflow-x-hidden pb-8 text-slate-100`}>
+    <div className={`${styles.page} ${conversationStyles.page} relative overflow-x-hidden pb-8`}>
       {/* Settings Modal */}
       {permissions.canManageSecrets && isSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4">
@@ -826,18 +829,18 @@ export default function AsistanPage() {
         </div>
       )}
 
-      <section className={styles.executiveHeader}>
-        <div className={styles.headerCopy}>
-          <p className={styles.eyebrow}>M4 · CRM ve iletişim</p>
-          <h1>Yapay Zeka Asistanı</h1>
-          <p>Canlı müşteri sohbetlerini yönetin, yapay zeka ile anında yanıtlayın ve randevu taleplerini tek akışta organize edin.</p>
+      <section className={`${styles.executiveHeader} ${conversationStyles.executiveHeader}`}>
+        <div className={`${styles.headerCopy} ${conversationStyles.headerCopy}`}>
+          <p className={`${styles.eyebrow} ${conversationStyles.eyebrow}`}>CRM · WHATSAPP İLETİŞİM</p>
+          <h1>Sohbetler</h1>
+          <p>WhatsApp konuşmalarınızı tek ekrandan yönetin, müşterilere hızlıca yanıt verin ve takip akışını kaybetmeyin.</p>
         </div>
-        <div className={styles.headerActions}>
-          <button type="button" onClick={() => setIsModalOpen(true)} className={styles.primaryAction}>
+        <div className={`${styles.headerActions} ${conversationStyles.headerActions}`}>
+          <button type="button" onClick={() => setIsModalOpen(true)} className={`${styles.primaryAction} ${conversationStyles.primaryAction}`}>
             <Plus aria-hidden="true" /> Yeni sohbet
           </button>
           {permissions.canManageSecrets && (
-            <button type="button" onClick={() => setIsSettingsOpen(true)} className={styles.secondaryAction}>
+            <button type="button" onClick={() => setIsSettingsOpen(true)} className={`${styles.secondaryAction} ${conversationStyles.secondaryAction}`}>
               <Settings aria-hidden="true" /> Ayarlar
             </button>
           )}
@@ -845,7 +848,7 @@ export default function AsistanPage() {
             type="button"
             onClick={handleCleanupData}
             disabled={isCleaningData}
-            className={styles.iconAction}
+            className={`${styles.iconAction} ${conversationStyles.iconAction}`}
             title="Test ve hatalı sohbet verilerini temizle"
             aria-label="Test ve hatalı sohbet verilerini temizle"
           >
@@ -854,29 +857,29 @@ export default function AsistanPage() {
         </div>
       </section>
 
-      <section className={styles.metricGrid} aria-label="Asistan performans göstergeleri">
-        <article className={styles.metricCard}>
-          <span className={styles.metricIcon}><MessageSquare /></span>
+      <section className={`${styles.metricGrid} ${conversationStyles.metricGrid}`} aria-label="Sohbet performans göstergeleri">
+        <article className={`${styles.metricCard} ${conversationStyles.metricCard}`}>
+          <span className={`${styles.metricIcon} ${conversationStyles.metricIcon}`}><MessageSquare /></span>
           <span><small>Aktif sohbet</small><strong>{metrics?.activeConversations ?? conversations.length}</strong></span>
-          <i className={styles.onlineDot} aria-label="Canlı" />
+          <i className={`${styles.onlineDot} ${conversationStyles.onlineDot}`} aria-label="Canlı" />
         </article>
-        <article className={styles.metricCard}>
-          <span className={styles.metricIcon}><Calendar /></span>
+        <article className={`${styles.metricCard} ${conversationStyles.metricCard}`}>
+          <span className={`${styles.metricIcon} ${conversationStyles.metricIcon}`}><Calendar /></span>
           <span><small>Bekleyen randevu</small><strong>{pendingAppointments}</strong></span>
         </article>
-        <article className={styles.metricCard}>
-          <span className={styles.metricIcon}><MessageSquare /></span>
+        <article className={`${styles.metricCard} ${conversationStyles.metricCard}`}>
+          <span className={`${styles.metricIcon} ${conversationStyles.metricIcon}`}><MessageSquare /></span>
           <span><small>Bugünkü mesaj</small><strong>{metrics?.todayMessages ?? 0}</strong></span>
         </article>
-        <article className={styles.metricCard}>
-          <span className={styles.metricIcon}><Timer /></span>
+        <article className={`${styles.metricCard} ${conversationStyles.metricCard}`}>
+          <span className={`${styles.metricIcon} ${conversationStyles.metricIcon}`}><Timer /></span>
           <span><small>Yanıt süresi</small><strong>{averageResponse}</strong></span>
           <em>Ortalama</em>
         </article>
       </section>
 
-      <main className={styles.workspace}>
-        <div className={styles.tabs}>
+      <main className={`${styles.workspace} ${conversationStyles.workspace}`}>
+        <div className={`${styles.tabs} ${conversationStyles.tabs}`}>
           <button type="button" onClick={() => setActiveTab('chat')} data-active={activeTab === 'chat'}>
             Canlı sohbetler <span>{conversations.length}</span>
           </button>
@@ -888,7 +891,7 @@ export default function AsistanPage() {
         {isLoading ? (
           <LoadingSkeleton rows={5} />
         ) : activeTab === 'appointments' ? (
-          <div className={styles.appointmentSurface}>
+          <div className={`${styles.appointmentSurface} ${conversationStyles.appointmentSurface}`}>
             <AppointmentApproval
               appointments={appointments}
               onAction={handleAppointmentAction}
@@ -896,19 +899,20 @@ export default function AsistanPage() {
             />
           </div>
         ) : (
-          <div className={styles.threeColumnGrid}>
-            <aside className={styles.conversationPanel} aria-label="Sohbetler">
-              <div className={styles.panelHeading}>
-                <strong>Sohbetler</strong><span>{filteredConversations.length}</span>
+          <div className={`${styles.threeColumnGrid} ${conversationStyles.threeColumnGrid}`}>
+            <aside className={`${styles.conversationPanel} ${conversationStyles.conversationPanel}`} aria-label="Sohbetler">
+              <div className={`${styles.panelHeading} ${conversationStyles.panelHeading}`}>
+                <strong>Gelen kutusu</strong><span>{filteredConversations.length}</span>
               </div>
-              <div className={styles.searchRow}>
+              {permissions.canManageSecrets && <WhatsAppConnectionPanel compact />}
+              <div className={`${styles.searchRow} ${conversationStyles.searchRow}`}>
                 <label>
                   <Search aria-hidden="true" />
                   <input
                     type="search"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Ara..."
+                    placeholder="Konuşmalarda ara"
                     aria-label="Müşteri adı veya telefonla ara"
                   />
                 </label>
@@ -916,12 +920,12 @@ export default function AsistanPage() {
                   <SlidersHorizontal aria-hidden="true" />
                 </button>
               </div>
-              <div className={styles.filterChips}>
+              <div className={`${styles.filterChips} ${conversationStyles.filterChips}`}>
                 <button type="button" onClick={() => setFilterIntent('ALL')} data-active={filterIntent === 'ALL'}>Tümü <span>{conversations.length}</span></button>
                 <button type="button" onClick={() => setFilterIntent('HOT')} data-active={filterIntent === 'HOT'}>Sıcak <span>{hotConversationCount}</span></button>
                 <button type="button" onClick={() => setFilterIntent('APPOINTMENT')} data-active={filterIntent === 'APPOINTMENT'}>Bekleyen <span>{pendingAppointments}</span></button>
               </div>
-              <div className={`${styles.conversationList} custom-scrollbar`}>
+              <div className={`${styles.conversationList} ${conversationStyles.conversationList} custom-scrollbar`}>
                 {filteredConversations.length === 0 ? (
                   <div className={styles.emptyConversation}>
                     <MessageSquare aria-hidden="true" />
@@ -929,36 +933,45 @@ export default function AsistanPage() {
                   </div>
                 ) : filteredConversations.map((conversation) => (
                   <div
-                    role="button"
-                    tabIndex={0}
                     key={conversation.id}
-                    onClick={() => setSelectedConvId(conversation.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        setSelectedConvId(conversation.id);
-                      }
-                    }}
-                    className={styles.conversationItem}
+                    className={`${styles.conversationItem} ${conversationStyles.conversationItem}`}
                     data-active={selectedConvId === conversation.id}
                   >
-                    <span className={styles.avatar}>{customerInitials(conversation.customerName)}</span>
-                    <span className={styles.conversationCopy}>
-                      <span className={styles.conversationTitle}>
-                        <strong>{conversation.customerName}</strong>
-                        <time>{new Date(conversation.updatedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</time>
-                      </span>
-                      <span className={styles.conversationSummary}>{conversation.summary || 'Henüz mesaj yok'}</span>
-                      <span className={styles.conversationMeta}>
-                        <i>WhatsApp</i>
-                        <b className={intentColors[conversation.intent] || intentColors.UNKNOWN}>
-                          {conversation.intent === 'INVESTMENT' ? 'Sıcak' : conversation.intent === 'RESIDENTIAL' ? 'Konut' : 'İlgili'}
-                        </b>
-                      </span>
-                    </span>
                     <button
                       type="button"
-                      className={styles.deleteConversation}
+                      className={conversationStyles.conversationSelect}
+                      onClick={() => setSelectedConvId(conversation.id)}
+                      aria-pressed={selectedConvId === conversation.id}
+                    >
+                      <span className={`${styles.avatar} ${conversationStyles.avatar}`}>
+                        {customerInitials(conversation.customerName)}
+                        <Image
+                          src={`/api/fabrika/assistant/conversations/${conversation.id}/avatar`}
+                          alt=""
+                          width={44}
+                          height={44}
+                          unoptimized
+                          onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                        />
+                        <i aria-hidden="true" />
+                      </span>
+                      <span className={`${styles.conversationCopy} ${conversationStyles.conversationCopy}`}>
+                        <span className={`${styles.conversationTitle} ${conversationStyles.conversationTitle}`}>
+                          <strong>{conversation.customerName}</strong>
+                          <time>{new Date(conversation.updatedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</time>
+                        </span>
+                        <span className={`${styles.conversationSummary} ${conversationStyles.conversationSummary}`}>{conversation.summary || 'Henüz mesaj yok'}</span>
+                        <span className={`${styles.conversationMeta} ${conversationStyles.conversationMeta}`}>
+                          <i>WhatsApp</i>
+                          <b className={intentColors[conversation.intent] || intentColors.UNKNOWN}>
+                            {conversation.intent === 'INVESTMENT' ? 'Sıcak' : conversation.intent === 'RESIDENTIAL' ? 'Konut' : 'İlgili'}
+                          </b>
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.deleteConversation} ${conversationStyles.deleteConversation}`}
                       title="Sohbeti sil"
                       onClick={(event) => handleDeleteConversation(conversation.id, event)}
                       aria-label={`${conversation.customerName} sohbetini sil`}
@@ -971,16 +984,9 @@ export default function AsistanPage() {
               <footer><span>{conversations.length} sohbet</span><button type="button" onClick={() => setFilterIntent('ALL')}>Tümünü görüntüle</button></footer>
             </aside>
 
-            <section className={styles.chatColumn} aria-label="Seçili sohbet">
+            <section className={`${styles.chatColumn} ${conversationStyles.chatColumn}`} aria-label="Seçili sohbet">
               {selectedConvId ? (
                 <>
-                  <button
-                    type="button"
-                    className={styles.detailsTrigger}
-                    onClick={() => setIsCustomerDetailsOpen(true)}
-                  >
-                    <UserRound aria-hidden="true" /> Müşteri bilgileri
-                  </button>
                   <ChatInterface
                     key={selectedConvId}
                     conversationId={selectedConvId}
@@ -988,6 +994,7 @@ export default function AsistanPage() {
                     onSendMessage={handleSendMessage}
                     onUpdateConversation={handleUpdateConversation}
                     onDeleteConversation={() => handleDeleteConversation(selectedConvId)}
+                    onOpenCustomerDetails={() => setIsCustomerDetailsOpen(true)}
                     customerName={selectedConversation?.customerName || 'Müşteri'}
                     intent={selectedConversation?.intent || 'UNKNOWN'}
                     notes={selectedConversation?.notes}
@@ -997,7 +1004,7 @@ export default function AsistanPage() {
                   />
                 </>
               ) : (
-                <div className={styles.emptyChat}>
+                <div className={`${styles.emptyChat} ${conversationStyles.emptyChat}`}>
                   <span><Bot aria-hidden="true" /></span>
                   <h2>Canlı sohbet seçin</h2>
                   <p>Soldan bir müşteri seçerek konuşmayı ve yapay zeka yanıtlarını görüntüleyin.</p>
@@ -1008,18 +1015,18 @@ export default function AsistanPage() {
             {isCustomerDetailsOpen && (
               <button
                 type="button"
-                className={styles.drawerBackdrop}
+                className={`${styles.drawerBackdrop} ${conversationStyles.drawerBackdrop}`}
                 aria-label="Müşteri bilgilerini kapat"
                 onClick={() => setIsCustomerDetailsOpen(false)}
               />
             )}
             <aside
-              className={styles.customerRail}
+              className={`${styles.customerRail} ${conversationStyles.customerRail}`}
               data-open={isCustomerDetailsOpen}
               aria-label="Müşteri özeti"
               aria-hidden={!isCustomerDetailsOpen}
             >
-              <div className={styles.summaryTitle}>
+              <div className={`${styles.summaryTitle} ${conversationStyles.summaryTitle}`}>
                 <strong>Müşteri bilgileri</strong>
                 <button
                   type="button"

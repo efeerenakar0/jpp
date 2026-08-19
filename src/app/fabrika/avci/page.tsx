@@ -24,6 +24,7 @@ import type {
   HuntingStatus,
 } from '@/components/fabrika/portfolio-specialist/types';
 import styles from './avci.module.css';
+import redesign from './avci-redesign.module.css';
 
 type ActiveView = 'discover' | 'authorization' | 'portfolios';
 
@@ -194,11 +195,12 @@ export default function AvciPage() {
   ];
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${redesign.shell}`} data-avci-shell>
       <Toaster position="bottom-right" />
 
       <div
         className={styles.tabs}
+        data-avci-tabs
         role="tablist"
         aria-label="AI Portföy Uzmanı bölümleri"
       >
@@ -222,6 +224,7 @@ export default function AvciPage() {
       <section
         aria-labelledby="statistics-period-title"
         className={styles.statsToolbar}
+        data-avci-period
       >
         <div className={styles.statsToolbarCopy}>
           <span className={styles.statsToolbarIcon}>
@@ -237,6 +240,7 @@ export default function AvciPage() {
         <div
           aria-label="İstatistik tarih aralığı"
           className={styles.rangeSelector}
+          data-avci-range
           role="group"
         >
           {TIME_RANGE_OPTIONS.map((option) => (
@@ -260,7 +264,11 @@ export default function AvciPage() {
         </div>
       </section>
 
-      <section className={styles.metrics} aria-label="Portföy uzmanı özeti">
+      <section
+        className={styles.metrics}
+        data-avci-metrics
+        aria-label="Portföy uzmanı özeti"
+      >
         {[
           {
             label: 'Tespit edilen portföyler',
@@ -291,7 +299,11 @@ export default function AvciPage() {
             info: 'Satış yetkisini aldığınız portföyler.',
           },
         ].map((metric) => (
-          <article className={styles.metricCard} key={metric.label}>
+          <article
+            className={styles.metricCard}
+            data-avci-metric
+            key={metric.label}
+          >
             <metric.icon aria-hidden="true" />
             <span>
               <span className={styles.metricLabelRow}>
@@ -328,10 +340,11 @@ export default function AvciPage() {
         <section
           aria-labelledby="tab-discover"
           className={styles.workspace}
+          data-avci-workspace
           id="panel-discover"
           role="tabpanel"
         >
-          <div className={styles.discoveryWorkspace}>
+          <div className={styles.discoveryWorkspace} data-avci-discovery>
             <AvciV2Workspace />
           </div>
           <ImportedListingsSummary

@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('server-only', () => ({}));
+
 const mocks = vi.hoisted(() => ({
   cleanupExpiredStudioBatches: vi.fn(),
   cleanupExpiredStudioVideoJobs: vi.fn(),
+  processNextBannerbearPosterVideoJob: vi.fn(),
   processNextStudioBatchItem: vi.fn(),
   processNextStudioVideoJob: vi.fn(),
 }));
@@ -15,6 +18,11 @@ vi.mock('@/lib/studio-batches', () => ({
 vi.mock('@/lib/studio-video/jobs', () => ({
   cleanupExpiredStudioVideoJobs: mocks.cleanupExpiredStudioVideoJobs,
   processNextStudioVideoJob: mocks.processNextStudioVideoJob,
+}));
+
+vi.mock('@/lib/bannerbear-poster-video-jobs', () => ({
+  processNextBannerbearPosterVideoJob:
+    mocks.processNextBannerbearPosterVideoJob,
 }));
 
 import { GET } from './route';
@@ -37,14 +45,21 @@ describe('studio worker cron', () => {
     const response = await GET(cronRequest('Bearer wrong'));
 
     expect(response.status).toBe(401);
+    expect(mocks.processNextBannerbearPosterVideoJob).not.toHaveBeenCalled();
     expect(mocks.processNextStudioBatchItem).not.toHaveBeenCalled();
     expect(mocks.processNextStudioVideoJob).not.toHaveBeenCalled();
   });
 
-  it('alternates image and video work within the shared three-job budget', async () => {
-    mocks.processNextStudioBatchItem
-      .mockResolvedValueOnce({ ok: true, itemId: 'image-1' })
-      .mockResolvedValueOnce({ ok: true, itemId: 'image-2' });
+  it('alternates all studio queues within the shared three-job budget', async () => {
+    mocks.processNextStudioBatchItem.mockResolvedValueOnce({
+      ok: true,
+      itemId: 'image-1',
+    });
+    mocks.processNextBannerbearPosterVideoJob.mockResolvedValueOnce({
+      ok: true,
+      jobId: 'poster-video-1',
+      status: 'GENERATING',
+    });
     mocks.processNextStudioVideoJob.mockResolvedValueOnce({
       ok: true,
       jobId: 'video-1',
@@ -62,16 +77,18 @@ describe('studio worker cron', () => {
       cleanedVideos: 1,
       results: [
         { kind: 'STUDIO', itemId: 'image-1' },
+        { kind: 'POSTER_VIDEO', jobId: 'poster-video-1' },
         { kind: 'STUDIO_VIDEO', jobId: 'video-1' },
-        { kind: 'STUDIO', itemId: 'image-2' },
       ],
     });
-    expect(mocks.processNextStudioBatchItem).toHaveBeenCalledTimes(2);
+    expect(mocks.processNextStudioBatchItem).toHaveBeenCalledTimes(1);
+    expect(mocks.processNextBannerbearPosterVideoJob).toHaveBeenCalledTimes(1);
     expect(mocks.processNextStudioVideoJob).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to the other queue without spending a processing slot', async () => {
     mocks.processNextStudioBatchItem.mockResolvedValue(null);
+    mocks.processNextBannerbearPosterVideoJob.mockResolvedValue(null);
     mocks.processNextStudioVideoJob
       .mockResolvedValueOnce({ ok: true, jobId: 'video-1', status: 'GENERATING' })
       .mockResolvedValueOnce({ ok: true, jobId: 'video-2', status: 'GENERATING' })

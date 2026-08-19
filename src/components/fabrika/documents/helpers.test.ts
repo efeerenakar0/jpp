@@ -3,6 +3,7 @@ import { getDocumentTemplate } from '../../../lib/document-center/catalog';
 import type { DocumentContextDTO } from '../../../lib/document-center/types';
 import {
   createInitialValues,
+  findQuickStartTemplate,
   fillFromContact,
   fillFromProperty,
 } from './helpers';
@@ -71,5 +72,32 @@ describe('Belge Merkezi otomatik doldurma', () => {
     const values = fillFromContact({}, 'contact-a', template, context);
     expect(values.customerName).toBe('Ayşe Müşteri');
     expect(values.customerPhone).toBe('+90 555 300 00 00');
+  });
+});
+
+describe('Belge ve Sözleşme Asistanı hızlı başlangıç', () => {
+  const templates = [
+    getDocumentTemplate('satis-yetkilendirme-sozlesmesi'),
+    getDocumentTemplate('kiralama-yetkilendirme-sozlesmesi'),
+    getDocumentTemplate('acik-riza-metni'),
+  ].map((template) => ({ ...template, favorite: false }));
+
+  it('doğal dil isteğini en uygun sözleşme şablonuna bağlar', () => {
+    expect(
+      findQuickStartTemplate(
+        templates,
+        'Kiralama yetkilendirme sözleşmesi hazırla'
+      )?.key
+    ).toBe('kiralama-yetkilendirme-sozlesmesi');
+  });
+
+  it('Türkçe büyük-küçük harf farkından etkilenmez', () => {
+    expect(findQuickStartTemplate(templates, 'AÇIK RIZA METNİ')?.key).toBe(
+      'acik-riza-metni'
+    );
+  });
+
+  it('boş istek için şablon seçmez', () => {
+    expect(findQuickStartTemplate(templates, '   ')).toBeNull();
   });
 });

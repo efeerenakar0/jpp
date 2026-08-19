@@ -9,7 +9,9 @@ const prisma = new PrismaClient();
 export default async function AgentPanel() {
   const session = await getServerSession(authOptions);
 
-  if (!session || (session.user as any).role !== "AGENT") {
+  const role = (session?.user as { role?: string } | undefined)?.role;
+
+  if (!session || role !== "AGENT") {
     redirect("/admin/giris"); // Veya emlakçı özel girişine yönlendir
   }
 

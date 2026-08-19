@@ -94,7 +94,7 @@ type CalendarTask = {
 
 type Choice = { id: string; name?: string; title?: string };
 
-type CalendarData = {
+export type CalendarData = {
   tasks: CalendarTask[];
   contacts: Array<Choice & { phone: string | null }>;
   properties: Array<Choice & { location: string | null }>;
@@ -233,11 +233,9 @@ function TaskPill({
       title={`${task.title} · ${eventTime(task)}`}
       type="button"
     >
-      {!compact && (
-        <span className={styles.taskTime}>
-          {eventTime(task)}
-        </span>
-      )}
+      <span className={styles.taskTime}>
+        {compact ? eventTime(task).split('–')[0] : eventTime(task)}
+      </span>
       <span className={styles.taskTitle}>
         {task.title}
       </span>
@@ -248,9 +246,15 @@ function TaskPill({
   );
 }
 
-export default function CalendarWorkspace() {
-  const [calendar, setCalendar] = useState<CalendarData | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function CalendarWorkspace({
+  initialCalendar = null,
+  preview = false,
+}: {
+  initialCalendar?: CalendarData | null;
+  preview?: boolean;
+} = {}) {
+  const [calendar, setCalendar] = useState<CalendarData | null>(initialCalendar);
+  const [loading, setLoading] = useState(!initialCalendar);
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState<CalendarView>('month');
   const [cursor, setCursor] = useState(startOfDay(new Date()));
@@ -260,6 +264,7 @@ export default function CalendarWorkspace() {
   const [renderedAt] = useState(Date.now);
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarOption[]>([]);
   const [googleCalendarsLoading, setGoogleCalendarsLoading] = useState(false);
+  const [googleMenuOpen, setGoogleMenuOpen] = useState(false);
   const googleCalendarsLoaded = useRef(false);
 
   const loadGoogleCalendars = useCallback(async () => {
@@ -310,6 +315,8 @@ export default function CalendarWorkspace() {
   }, [loadGoogleCalendars]);
 
   useEffect(() => {
+    if (preview) return;
+
     const timeout = window.setTimeout(loadCalendar, 0);
     const interval = window.setInterval(loadCalendar, 30_000);
     const result = new URLSearchParams(window.location.search).get('google');
@@ -330,7 +337,7 @@ export default function CalendarWorkspace() {
       window.clearTimeout(timeout);
       window.clearInterval(interval);
     };
-  }, [loadCalendar]);
+  }, [loadCalendar, preview]);
 
   async function postAction(
     payload: Record<string, unknown>,
@@ -522,18 +529,6 @@ export default function CalendarWorkspace() {
   const completionRate = tasks.length
     ? Math.round((completedCount / tasks.length) * 100)
     : 0;
-  const memberWorkloads = calendar.members
-    .map((member) => ({
-      id: member.id,
-      name: member.name || 'Ekip üyesi',
-      count: tasks.filter(
-        (task) =>
-          task.status === 'OPEN' && task.assignedMember?.id === member.id
-      ).length,
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 6);
-  const workloadMax = Math.max(1, ...memberWorkloads.map((member) => member.count));
   const exactCalendarReady = Array.isArray(calendar.tasks);
 
   if (exactCalendarReady) {
@@ -551,30 +546,101 @@ export default function CalendarWorkspace() {
             <button className={styles.primaryAction} onClick={() => openNew()} type="button">
               <Plus /> Yeni etkinlik
             </button>
-            {calendar.google.connected ? (
-              <button
-                className={styles.secondaryAction}
-                disabled={saving}
-                onClick={() =>
-                  postAction(
-                    { action: 'sync-google' },
-                    'Google Calendar senkronu tamamlandı.'
-                  )
-                }
-                type="button"
-              >
-                <RefreshCw className={saving ? 'animate-spin' : ''} />
-                Google Takvim&apos;i eşitle
-              </button>
-            ) : calendar.permissions.canManageSecrets && calendar.google.configured ? (
-              <a className={styles.secondaryAction} href="/api/fabrika/calendar/google/connect">
-                <Cloud /> Google Takvim&apos;i bağla
-              </a>
-            ) : calendar.permissions.canManageSecrets ? (
-              <button className={styles.secondaryAction} disabled type="button">
-                <CloudOff /> Google kurulumu bekliyor
-              </button>
-            ) : null}
+            {(calendar.google.connected || calendar.permissions.canManageSecrets) && (
+              <div className={styles.googleMenu} data-open={googleMenuOpen}>
+                <button
+                  aria-expanded={googleMenuOpen}
+                  aria-haspopup="dialog"
+                  aria-label="Google Takvim ayarlarını aç"
+                  className={styles.secondaryAction}
+                  onClick={() => setGoogleMenuOpen((open) => !open)}
+                  type="button"
+                >
+                  {calendar.google.connected ? <Cloud /> : <CloudOff />}
+                  {calendar.google.connected
+                    ? 'Google Takvim bağlı'
+                    : calendar.google.configured
+                      ? 'Google Takvim bağlanabilir'
+                      : 'Google kurulumu bekleniyor'}
+                </button>
+                {googleMenuOpen && <div className={styles.googlePanel} role="dialog" aria-label="Google Takvim bağlantısı">
+                  <div className={styles.googlePanelHead}>
+                    <span className={styles.googlePanelIcon}>
+                      {calendar.google.connected ? <Cloud /> : <CloudOff />}
+                    </span>
+                    <div>
+                      <strong>
+                        {calendar.google.connected
+                          ? 'Google Takvim bağlı'
+                          : 'Google Takvim bağlantısı'}
+                      </strong>
+                      <span>
+                        {calendar.google.connected
+                          ? calendar.google.email || 'Hesap bağlı'
+                          : calendar.google.configured
+                            ? 'Bağlantı kurulmaya hazır.'
+                            : 'OAuth bilgileri henüz yapılandırılmamış.'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {calendar.google.connected && calendar.permissions.canManageSecrets && (
+                    <label className={styles.settingsLabel}>
+                      Kullanılacak Google takvimi
+                      <select
+                        aria-label="Kullanılacak Google takvimi"
+                        disabled={saving || googleCalendarsLoading}
+                        onChange={(event) => void changeGoogleCalendar(event.target.value)}
+                        value={calendar.google.calendarId || 'primary'}
+                      >
+                        {!googleCalendars.length && (
+                          <option value={calendar.google.calendarId || 'primary'}>
+                            {googleCalendarsLoading ? 'Takvimler yükleniyor…' : 'Birincil takvim'}
+                          </option>
+                        )}
+                        {googleCalendars.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.summary}{option.primary ? ' · Birincil' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  <div className={styles.googleButtons}>
+                    {calendar.google.connected ? (
+                      <>
+                        <button
+                          disabled={saving}
+                          onClick={() =>
+                            postAction(
+                              { action: 'sync-google' },
+                              'Google Calendar senkronu tamamlandı.'
+                            )
+                          }
+                          type="button"
+                        >
+                          <RefreshCw className={saving ? 'animate-spin' : ''} />
+                          Şimdi eşitle
+                        </button>
+                        {calendar.permissions.canManageSecrets && (
+                          <ConfirmDialog
+                            confirmLabel="Bağlantıyı kaldır"
+                            description="Google erişimi iptal edilir. Mevcut Business CEO AI kayıtları silinmez."
+                            destructive
+                            onConfirm={disconnectGoogle}
+                            title="Google Calendar bağlantısı kaldırılsın mı?"
+                            trigger={<button type="button"><CloudOff /> Bağlantıyı kaldır</button>}
+                          />
+                        )}
+                      </>
+                    ) : calendar.permissions.canManageSecrets && calendar.google.configured ? (
+                      <a href="/api/fabrika/calendar/google/connect"><Cloud /> Google ile bağlan</a>
+                    ) : null}
+                  </div>
+                </div>}
+              </div>
+            )}
             <span className={styles.liveStatus}>
               {calendar.google.connected ? 'Canlı senkronizasyon' : 'Business CEO AI takvimi'}
             </span>
@@ -583,14 +649,15 @@ export default function CalendarWorkspace() {
 
         <section className={styles.metrics} aria-label="Takvim özeti">
           <CalendarMetric icon={CalendarDays} label="Bugün" value={calendar.metrics.today} />
-          <CalendarMetric icon={Activity} label="Bu hafta" value={calendar.metrics.nextSevenDays} />
+          <CalendarMetric icon={Activity} label="Bu hafta" tone="info" value={calendar.metrics.nextSevenDays} />
           <CalendarMetric
             icon={Clock3}
-            label="Geciken görev"
+            ariaLabel="Geciken görevleri görüntüle"
+            label="Geciken"
+            onClick={() => { setCursor(startOfDay(new Date())); setView('day'); }}
             tone={calendar.metrics.overdue > 0 ? 'warning' : 'default'}
             value={calendar.metrics.overdue}
           />
-          <CalendarMetric icon={UserRound} label="Randevu" value={calendar.metrics.appointments} />
           <article className={styles.metric}>
             <span
               aria-hidden="true"
@@ -720,7 +787,7 @@ export default function CalendarWorkspace() {
                 </div>
               )}
 
-              <footer className={styles.legend}>
+              <footer className={styles.legend} aria-label="Etkinlik renkleri">
                 {([
                   ['MEETING', 'Randevu'], ['VIEWING', 'Gösterim'], ['CALL', 'Arama'],
                   ['DOCUMENT', 'Sözleşme'], ['FOLLOW_UP', 'Görev'],
@@ -730,17 +797,17 @@ export default function CalendarWorkspace() {
               </footer>
             </section>
 
-            {calendar.metrics.overdue > 0 && (
-              <section className={styles.overdueBanner}>
-                <div><Clock3 /><p><strong>Geciken görevler</strong><span>{calendar.metrics.overdue} görev süresi geçti. Detayları görüntüleyip tamamlayın.</span></p></div>
-                <button onClick={() => { setCursor(startOfDay(new Date())); setView('day'); }} type="button">Gecikenleri gör →</button>
-              </section>
-            )}
           </div>
 
           <aside className={styles.rightColumn}>
             <section className={`${styles.card} ${styles.agendaCard}`}>
-              <header className={styles.sectionHead}><h2>Bugünün ajandası</h2><span className={styles.countBadge}>{todayAgenda.length} etkinlik</span></header>
+              <header className={styles.sectionHead}>
+                <div>
+                  <h2>Bugünün ajandası</h2>
+                  <p>{format(new Date(), 'd MMMM EEEE', { locale: tr })}</p>
+                </div>
+                <span className={styles.countBadge}>{todayAgenda.length} etkinlik</span>
+              </header>
               <div className={styles.agendaList}>
                 {todayAgenda.length ? todayAgenda.slice(0, 6).map((task) => (
                   <article className={styles.agendaItem} key={task.id}>
@@ -763,90 +830,30 @@ export default function CalendarWorkspace() {
               <button className={styles.cardFooter} onClick={() => { setCursor(startOfDay(new Date())); setView('day'); }} type="button">Günün tamamını görüntüle →</button>
             </section>
 
-            <div className={styles.miniGrid}>
-              <section className={styles.smallCard}>
-                <header><h2>Yaklaşanlar</h2><span className={styles.countBadge}>{upcoming.length}</span></header>
-                <div className={styles.compactList}>
-                  {upcoming.slice(0, 5).map((task) => (
-                    <button key={task.id} onClick={() => openTask(task)} type="button">
-                      <i style={{ '--dot': taskColors[task.type] } as CSSProperties} />
-                      <span><strong>{format(new Date(task.dueAt!), 'd MMM HH:mm', { locale: tr })}</strong>{task.title}</span>
-                    </button>
-                  ))}
-                  {!upcoming.length && <p className={styles.emptyCompact}>Yaklaşan kayıt yok.</p>}
-                </div>
-              </section>
+            <section className={`${styles.smallCard} ${styles.upcomingCard}`}>
+              <header><h2>Yaklaşanlar</h2><span className={styles.countBadge}>{upcoming.length}</span></header>
+              <div className={styles.compactList}>
+                {upcoming.slice(0, 5).map((task) => (
+                  <button key={task.id} onClick={() => openTask(task)} type="button">
+                    <i style={{ '--dot': taskColors[task.type] } as CSSProperties} />
+                    <span><strong>{format(new Date(task.dueAt!), 'd MMM, EEE · HH:mm', { locale: tr })}</strong>{task.title}</span>
+                  </button>
+                ))}
+                {!upcoming.length && <p className={styles.emptyCompact}>Yaklaşan kayıt yok.</p>}
+              </div>
+            </section>
 
-              <section className={styles.smallCard}>
-                <header><h2>Takım iş yükü</h2><span className={styles.countBadge}>{memberWorkloads.length}</span></header>
-                <div className={styles.workloadList}>
-                  {memberWorkloads.map((member) => (
-                    <div className={styles.workloadRow} key={member.id}>
-                      <span>{member.name}</span><progress max={workloadMax} value={member.count} /><small>{member.count} iş</small>
-                    </div>
-                  ))}
-                  {!memberWorkloads.length && <p className={styles.emptyCompact}>Ekip üyesi bulunmuyor.</p>}
-                </div>
-              </section>
-            </div>
-
-            <div className={styles.miniGrid}>
-              <section className={styles.smallCard}>
-                <header><h2>Hatırlatıcı ayarları</h2><Bell /></header>
-                <label className={styles.settingsLabel}>Hatırlatma süresi
-                  <select defaultValue="15"><option value="15">15 dakika önce</option><option value="30">30 dakika önce</option><option value="60">1 saat önce</option></select>
-                </label>
-              </section>
-
-              <section className={styles.smallCard}>
-                <header><h2>Google Takvim etkinlikleri</h2>{calendar.google.connected ? <Cloud /> : <CloudOff />}</header>
-                <div className={styles.googleStatus}>
-                  <strong>{calendar.google.connected ? 'Senkronize edildi' : 'Bağlantı bekleniyor'}</strong>
-                  {calendar.google.lastSyncedAt ? `Son senkron: ${format(new Date(calendar.google.lastSyncedAt), 'd MMM yyyy HH:mm', { locale: tr })}` : 'Etkinlikler şu anda Business CEO AI takviminde tutuluyor.'}
-                </div>
-                {calendar.google.connected && calendar.permissions.canManageSecrets && (
-                  <label className={styles.settingsLabel}>
-                    Kullanılacak Google takvimi
-                    <select
-                      aria-label="Kullanılacak Google takvimi"
-                      disabled={saving || googleCalendarsLoading}
-                      onChange={(event) => void changeGoogleCalendar(event.target.value)}
-                      value={calendar.google.calendarId || 'primary'}
-                    >
-                      {!googleCalendars.length && (
-                        <option value={calendar.google.calendarId || 'primary'}>
-                          {googleCalendarsLoading ? 'Takvimler yükleniyor…' : 'Birincil takvim'}
-                        </option>
-                      )}
-                      {googleCalendars.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.summary}{option.primary ? ' · Birincil' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <div className={styles.googleButtons}>
-                  {calendar.google.connected ? (
-                    <>
-                      <button disabled={saving} onClick={() => postAction({ action: 'sync-google' })} type="button"><RefreshCw /> Şimdi eşitle</button>
-                      {calendar.permissions.canManageSecrets && (
-                        <ConfirmDialog
-                          confirmLabel="Bağlantıyı kaldır"
-                          description="Google erişimi iptal edilir. Mevcut Business CEO AI kayıtları silinmez."
-                          destructive
-                          onConfirm={disconnectGoogle}
-                          title="Google Calendar bağlantısı kaldırılsın mı?"
-                          trigger={<button type="button"><CloudOff /> Bağlantıyı kaldır</button>}
-                        />
-                      )}
-                    </>
-                  ) : calendar.permissions.canManageSecrets && calendar.google.configured ? (
-                    <a href="/api/fabrika/calendar/google/connect"><Cloud /> Google ile bağlan</a>
-                  ) : null}
-                </div>
-              </section>
-            </div>
+            <section className={`${styles.smallCard} ${styles.reminderCard}`}>
+              <header><Bell /><h2>Hatırlatma</h2></header>
+              <label className={styles.reminderSelect}>
+                <span>Hatırlatma süresi</span>
+                <select aria-label="Hatırlatma süresi" defaultValue="15">
+                  <option value="15">15 dakika önce</option>
+                  <option value="30">30 dakika önce</option>
+                  <option value="60">1 saat önce</option>
+                </select>
+              </label>
+            </section>
           </aside>
         </div>
 
@@ -1419,16 +1426,41 @@ function CalendarMetric({
   label,
   value,
   tone = 'default',
+  ariaLabel,
+  onClick,
 }: {
   icon: typeof CalendarDays;
   label: string;
   value: number;
-  tone?: 'default' | 'warning';
+  tone?: 'default' | 'info' | 'warning';
+  ariaLabel?: string;
+  onClick?: () => void;
 }) {
-  return (
-    <article className={styles.metric} data-tone={tone}>
+  const content = (
+    <>
       <span className={styles.metricIcon}><Icon /></span>
       <div><span>{label}</span><strong>{value}</strong></div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        aria-label={ariaLabel || label}
+        className={styles.metric}
+        data-interactive="true"
+        data-tone={tone}
+        onClick={onClick}
+        type="button"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <article className={styles.metric} data-tone={tone}>
+      {content}
     </article>
   );
 }

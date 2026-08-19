@@ -23,6 +23,11 @@ describe('HuntJobPanel', () => {
     expect(markup).toContain('Devren Mülk');
     expect(markup).toContain('Turistik Tesis');
     expect(markup.match(/name="propertyType"/g)).toHaveLength(7);
+    expect(markup).toContain('Canlı görev durumu');
+    expect(markup).toContain('Taramayı başlat');
+    expect(markup).toContain('İlanlar taranıyor');
+    expect(markup).toContain('Maliklerle görüşülüyor');
+    expect(markup).toContain('Yetki süreci');
     expect(markup).toContain(
       'AI portföy uzmanı yeni portföy fırsatlarını keşfeder ve Sizin'
     );

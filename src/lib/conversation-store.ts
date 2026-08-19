@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path from 'path';
 
 export interface StoredMessage {
   id: string;
@@ -48,9 +47,9 @@ export function normalizePhoneNumber(phone?: string | null): string {
   return clean;
 }
 
-export function isBannedConversation(c: any): boolean {
-  if (!c) return true;
-  const id = String(c.id || '').toLowerCase();
+export function isBannedConversation(c: unknown): boolean {
+  if (!c || typeof c !== 'object') return true;
+  const id = String('id' in c ? c.id || '' : '').toLowerCase();
   // Only filter explicitly marked dummy test IDs, allow ALL real customer names and numbers
   return id === 'demo_conv_dummy_test_1';
 }
@@ -64,7 +63,7 @@ function loadFromFileStore(): StoredConversation[] {
         return deduplicateConversations(parsed.filter(c => !isBannedConversation(c)));
       }
     }
-  } catch (e) {}
+  } catch {}
   return [];
 }
 
@@ -99,7 +98,7 @@ function saveToFileStore(convs: StoredConversation[]) {
   try {
     const cleaned = deduplicateConversations(convs.filter(c => !isBannedConversation(c)));
     fs.writeFileSync(TMP_CONVERSATIONS_PATH, JSON.stringify(cleaned));
-  } catch (e) {}
+  } catch {}
 }
 
 export function getConversationsStore(): StoredConversation[] {

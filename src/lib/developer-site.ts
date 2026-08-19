@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const DEVELOPER_THEME_IDS = [
+const LEGACY_DEVELOPER_THEMES = [
   'midnight-estate',
   'coastal-living',
   'monaco-luxe',
@@ -28,8 +28,169 @@ export const DEVELOPER_THEME_IDS = [
   'classic-court',
 ] as const;
 
-export const developerThemeIdSchema = z.enum(DEVELOPER_THEME_IDS);
-export type DeveloperThemeId = z.infer<typeof developerThemeIdSchema>;
+const EXTRA_THEME_COLLECTIONS = [
+  {
+    mood: 'Riviera & resort', description: 'Deniz, marina ve yazlık yaşamı rafine bir seyahat diliyle sunar.',
+    colors: { background: '#edf9fb', surface: '#ffffff', ink: '#103840', muted: '#648087', accentSoft: '#d6f0f1' },
+    editions: [
+      ['pearl-marina', 'Pearl Marina', '#008f9c'], ['aegean-breeze', 'Aegean Breeze', '#1479a8'],
+      ['lagoon-club', 'Lagoon Club', '#00a68f'], ['island-atelier', 'Island Atelier', '#4169a6'],
+      ['blue-horizon', 'Blue Horizon', '#087eb8'],
+    ],
+  },
+  {
+    mood: 'Şehir & yatırım', description: 'Yatırım verisini, lokasyon gücünü ve şehir portföyünü net bir kurumsal ritimle anlatır.',
+    colors: { background: '#eef2f7', surface: '#ffffff', ink: '#17243a', muted: '#66748a', accentSoft: '#dce5f2' },
+    editions: [
+      ['metro-axis', 'Metro Axis', '#3457d5'], ['tower-one', 'Tower One', '#005f99'],
+      ['district-nine', 'District Nine', '#6f42c1'], ['capital-square', 'Capital Square', '#b44537'],
+      ['urban-ledger', 'Urban Ledger', '#246b5b'],
+    ],
+  },
+  {
+    mood: 'Butik & couture', description: 'Kişisel danışmanlığı moda evi inceliği ve yüksek temaslı hizmet diliyle öne çıkarır.',
+    colors: { background: '#21151a', surface: '#301f26', ink: '#fff7f1', muted: '#cfb6bd', accentSoft: '#50333d' },
+    editions: [
+      ['maison-rouge', 'Maison Rouge', '#d27b71'], ['velvet-key', 'Velvet Key', '#c9a463'],
+      ['private-address', 'Private Address', '#d69ab1'], ['atelier-living', 'Atelier Living', '#b994db'],
+      ['signature-noir', 'Signature Noir', '#e0c28b'],
+    ],
+  },
+  {
+    mood: 'Doğa & yavaş yaşam', description: 'Doğal malzemeleri, bahçeli evleri ve sakin yaşamı dokulu, insancıl bir anlatımla işler.',
+    colors: { background: '#eff2e8', surface: '#fafbf6', ink: '#2b382b', muted: '#718071', accentSoft: '#dfe7d4' },
+    editions: [
+      ['olive-grove', 'Olive Grove', '#71853d'], ['pine-retreat', 'Pine Retreat', '#376b50'],
+      ['stone-garden', 'Stone Garden', '#86715a'], ['meadow-house', 'Meadow House', '#6e944f'],
+      ['earthline', 'Earthline', '#9b6548'],
+    ],
+  },
+  {
+    mood: 'Proptech & dinamik', description: 'Akıllı filtreleri, hızlı karar akışını ve teknoloji odaklı portföy deneyimini görünür kılar.',
+    colors: { background: '#08152c', surface: '#102343', ink: '#f5f8ff', muted: '#9fb1d1', accentSoft: '#193b68' },
+    editions: [
+      ['pixel-estate', 'Pixel Estate', '#51e1ff'], ['proptech-one', 'Proptech One', '#65ffb7'],
+      ['vector-homes', 'Vector Homes', '#8f8cff'], ['data-district', 'Data District', '#ffb454'],
+      ['neon-address', 'Neon Address', '#ff68bf'],
+    ],
+  },
+  {
+    mood: 'Editoryal & kültürel', description: 'Portföyleri ilan değil; röportaj, mahalle rehberi ve yaşam kültürü dosyası gibi sunar.',
+    colors: { background: '#f0ebdf', surface: '#fffdf7', ink: '#1a1916', muted: '#706b61', accentSoft: '#e5dacc' },
+    editions: [
+      ['habitat-review', 'Habitat Review', '#9c342b'], ['city-edition', 'City Edition', '#1f5a78'],
+      ['dwelling-paper', 'Dwelling Paper', '#ac6b27'], ['address-journal', 'Address Journal', '#556b45'],
+      ['modern-living-review', 'Modern Living Review', '#714c7d'],
+    ],
+  },
+  {
+    mood: 'Minimal & mimari', description: 'Geniş boşluk, hassas tipografi ve malzeme detaylarıyla mimariyi başrole taşır.',
+    colors: { background: '#f5f5f2', surface: '#ffffff', ink: '#1d2222', muted: '#747b79', accentSoft: '#e5e7e4' },
+    editions: [
+      ['pure-form', 'Pure Form', '#252f30'], ['quiet-volume', 'Quiet Volume', '#596b68'],
+      ['line-and-light', 'Line & Light', '#8a765e'], ['white-canvas', 'White Canvas', '#4a5c72'],
+      ['spatial-notes', 'Spatial Notes', '#785e68'],
+    ],
+  },
+  {
+    mood: 'Miras & klasik', description: 'Köklü marka güvenini, tarihi mülkleri ve seçkin koleksiyonları zamansız bir düzenle anlatır.',
+    colors: { background: '#141c27', surface: '#202a38', ink: '#fff8e8', muted: '#b7bdc7', accentSoft: '#3a3d42' },
+    editions: [
+      ['palazzo-heritage', 'Palazzo Heritage', '#c9a861'], ['manor-and-co', 'Manor & Co.', '#aebd85'],
+      ['old-town-reserve', 'Old Town Reserve', '#cf806b'], ['legacy-court', 'Legacy Court', '#88a8c5'],
+      ['royal-terrace', 'Royal Terrace', '#d0a1bd'],
+    ],
+  },
+  {
+    mood: 'Tropikal & canlı', description: 'Güneş, peyzaj ve açık hava yaşamını enerjik renkler ve tatil kulübü kurgusuyla sunar.',
+    colors: { background: '#fff7e8', surface: '#fffdf7', ink: '#173f3b', muted: '#697f78', accentSoft: '#f2e4bd' },
+    editions: [
+      ['palm-house', 'Palm House', '#e56a3b'], ['equator-living', 'Equator Living', '#009c79'],
+      ['sun-club', 'Sun Club', '#e6a213'], ['tropic-reserve', 'Tropic Reserve', '#287f9d'],
+      ['coral-bay', 'Coral Bay', '#dc5d68'],
+    ],
+  },
+  {
+    mood: 'Alpine & inziva', description: 'Dağ evlerini, manzarayı ve dört mevsim yaşamı sıcak ama çağdaş bir lodge estetiğiyle işler.',
+    colors: { background: '#e9eef0', surface: '#f9fbfb', ink: '#25343a', muted: '#6f7d82', accentSoft: '#d6e0e3' },
+    editions: [
+      ['chalet-collective', 'Chalet Collective', '#7b4e39'], ['snowline-estates', 'Snowline Estates', '#406d80'],
+      ['alpine-frame', 'Alpine Frame', '#596b3e'], ['summit-lodge', 'Summit Lodge', '#986a3c'],
+      ['north-peak', 'North Peak', '#4d5875'],
+    ],
+  },
+  {
+    mood: 'Endüstriyel & loft', description: 'Beton, çelik ve dönüştürülmüş mekânları ham dokular ve cesur ızgaralarla sergiler.',
+    colors: { background: '#202224', surface: '#2b2e31', ink: '#f5f1e9', muted: '#a7a8a6', accentSoft: '#414346' },
+    editions: [
+      ['concrete-union', 'Concrete Union', '#ef6a3a'], ['steel-and-stone', 'Steel & Stone', '#b9cbcf'],
+      ['loft-district', 'Loft District', '#e0ad45'], ['warehouse-living', 'Warehouse Living', '#ce5b5b'],
+      ['raw-space', 'Raw Space', '#7fc0a3'],
+    ],
+  },
+  {
+    mood: 'Aile & mahalle', description: 'Güven, komşuluk ve gündelik hayatı sıcak, kolay anlaşılır ve davetkâr bir deneyimle buluşturur.',
+    colors: { background: '#fff4ea', surface: '#fffdf9', ink: '#48342e', muted: '#866f67', accentSoft: '#f2ddcf' },
+    editions: [
+      ['nest-neighborhood', 'Nest & Neighborhood', '#d46b4d'], ['happy-doors', 'Happy Doors', '#2d927f'],
+      ['warm-corner', 'Warm Corner', '#bc7c28'], ['home-story', 'Home Story', '#a85d79'],
+      ['together-living', 'Together Living', '#5c78b0'],
+    ],
+  },
+  {
+    mood: 'Fütüristik & deneysel', description: 'Yeni nesil projeleri, dijital deneyimi ve geleceğin yaşam biçimlerini katmanlı bir sahnede sunar.',
+    colors: { background: '#0c0b22', surface: '#171633', ink: '#f7f5ff', muted: '#aaa6cd', accentSoft: '#292653' },
+    editions: [
+      ['orbit-estate', 'Orbit Estate', '#7ce7ff'], ['prism-properties', 'Prism Properties', '#a982ff'],
+      ['holo-homes', 'Holo Homes', '#64ffcf'], ['nova-district', 'Nova District', '#ff7ac8'],
+      ['future-address', 'Future Address', '#ffc35c'],
+    ],
+  },
+  {
+    mood: 'Sanat & grafik', description: 'Mülkleri grafik tasarım, renk alanları ve kültürel afiş diliyle akılda kalıcı hale getirir.',
+    colors: { background: '#f6f0df', surface: '#fffdf4', ink: '#171717', muted: '#666159', accentSoft: '#e8dcc3' },
+    editions: [
+      ['bauhaus-block', 'Bauhaus Block', '#d94732'], ['pop-property', 'Pop Property', '#2464d8'],
+      ['memphis-homes', 'Memphis Homes', '#e49b18'], ['color-field', 'Color Field', '#6e50a8'],
+      ['kinetic-space', 'Kinetic Space', '#168b78'],
+    ],
+  },
+  {
+    mood: 'Yerel & seçkin', description: 'Bölgenin mimarisini, yaşam kültürünü ve lokasyon bilgisini yerel bir yayın kimliğiyle öne çıkarır.',
+    colors: { background: '#f4efe5', surface: '#fffdf8', ink: '#26333a', muted: '#707b7d', accentSoft: '#e7dbca' },
+    editions: [
+      ['istanbul-select', 'İstanbul Select', '#8f3040'], ['bodrum-edit', 'Bodrum Edit', '#247fa0'],
+      ['cappadocia-stone', 'Cappadocia Stone', '#a85f3d'], ['ankara-prime', 'Ankara Prime', '#385a86'],
+      ['izmir-coast', 'İzmir Coast', '#198a7b'],
+    ],
+  },
+] as const;
+
+type LegacyDeveloperThemeId = (typeof LEGACY_DEVELOPER_THEMES)[number];
+type ExtraDeveloperThemeId = (typeof EXTRA_THEME_COLLECTIONS)[number]['editions'][number][0];
+export type DeveloperThemeId = LegacyDeveloperThemeId | ExtraDeveloperThemeId;
+
+export const DEVELOPER_THEME_IDS = [
+  ...LEGACY_DEVELOPER_THEMES,
+  ...EXTRA_THEME_COLLECTIONS.flatMap((collection) =>
+    collection.editions.map(([id]) => id),
+  ),
+] as readonly DeveloperThemeId[];
+
+const DEVELOPER_THEME_ID_SET = new Set<string>(DEVELOPER_THEME_IDS);
+export const developerThemeIdSchema = z.custom<DeveloperThemeId>(
+  (value) => typeof value === 'string' && DEVELOPER_THEME_ID_SET.has(value),
+  'Geçersiz site tasarımı',
+);
+
+export type DeveloperThemeDesign = {
+  hero: 'split' | 'panorama' | 'poster' | 'gallery' | 'frame' | 'stacked' | 'centered' | 'sidebar' | 'collage' | 'journal';
+  navigation: 'floating' | 'rail' | 'masthead' | 'minimal' | 'boxed' | 'centered' | 'transparent' | 'split' | 'index' | 'compact';
+  portfolio: 'masonry' | 'catalog' | 'spotlight' | 'cards' | 'ledger' | 'filmstrip' | 'bento' | 'list' | 'gallery' | 'tiles';
+  typography: 'serif' | 'sans' | 'condensed' | 'mono' | 'humanist';
+  shape: 'soft' | 'sharp' | 'arched' | 'pill' | 'cut';
+  density: 'airy' | 'balanced' | 'compact';
+};
 
 export type DeveloperTheme = {
   id: DeveloperThemeId;
@@ -37,6 +198,7 @@ export type DeveloperTheme = {
   mood: string;
   description: string;
   layout: 'cinematic' | 'editorial' | 'minimal' | 'grid' | 'classic';
+  design: DeveloperThemeDesign;
   colors: {
     background: string;
     surface: string;
@@ -47,7 +209,7 @@ export type DeveloperTheme = {
   };
 };
 
-export const DEVELOPER_THEMES: readonly DeveloperTheme[] = [
+const LEGACY_THEME_DETAILS = [
   { id: 'midnight-estate', name: 'Midnight Estate', mood: 'Koyu & sinematik', description: 'Gece mavisi yüzeyler, güçlü başlıklar ve ışıklı detaylar.', layout: 'cinematic', colors: { background: '#07111f', surface: '#0f1c2e', ink: '#f7f4ed', muted: '#9caec4', accent: '#d8b36a', accentSoft: '#27344a' } },
   { id: 'coastal-living', name: 'Coastal Living', mood: 'Ferah & sahil', description: 'Turkuaz vurgular ve bol beyaz alanla tatil evi hissi.', layout: 'minimal', colors: { background: '#f3faf9', surface: '#ffffff', ink: '#123437', muted: '#648084', accent: '#16a6a0', accentSoft: '#d8f1ee' } },
   { id: 'monaco-luxe', name: 'Monaco Luxe', mood: 'Lüks & seçkin', description: 'Şampanya altını, bordo ve zarif serif tipografi.', layout: 'classic', colors: { background: '#160d12', surface: '#24151c', ink: '#fff8ed', muted: '#c8b2b9', accent: '#d6ad62', accentSoft: '#493342' } },
@@ -73,27 +235,53 @@ export const DEVELOPER_THEMES: readonly DeveloperTheme[] = [
   { id: 'kinetic-coral', name: 'Kinetic Coral', mood: 'Genç & hareketli', description: 'Mercan, mor ve keskin bloklarla sosyal bir enerji.', layout: 'grid', colors: { background: '#241439', surface: '#34204b', ink: '#fff6fc', muted: '#c7b1d6', accent: '#ff6b61', accentSoft: '#55335f' } },
   { id: 'forest-lodge', name: 'Forest Lodge', mood: 'Doğal & güvenilir', description: 'Orman tonları ve dokulu krem yüzeyler.', layout: 'cinematic', colors: { background: '#1a2a20', surface: '#263a2c', ink: '#f6f0df', muted: '#b3c0b5', accent: '#d79a58', accentSoft: '#3b5141' } },
   { id: 'classic-court', name: 'Classic Court', mood: 'Geleneksel & güçlü', description: 'Lacivert, beyaz ve kırmızıyla köklü kurum hissi.', layout: 'classic', colors: { background: '#f0f2f5', surface: '#ffffff', ink: '#16233b', muted: '#68758a', accent: '#a72b37', accentSoft: '#ead8dc' } },
-];
+] as const;
+
+const HERO_STYLES = ['split', 'panorama', 'poster', 'gallery', 'frame', 'stacked', 'centered', 'sidebar', 'collage', 'journal'] as const;
+const NAVIGATION_STYLES = ['floating', 'rail', 'masthead', 'minimal', 'boxed', 'centered', 'transparent', 'split', 'index', 'compact'] as const;
+const PORTFOLIO_STYLES = ['masonry', 'catalog', 'spotlight', 'cards', 'ledger', 'filmstrip', 'bento', 'list', 'gallery', 'tiles'] as const;
+const TYPOGRAPHY_STYLES = ['serif', 'sans', 'condensed', 'mono', 'humanist'] as const;
+const SHAPE_STYLES = ['soft', 'sharp', 'arched', 'pill', 'cut'] as const;
+const DENSITY_STYLES = ['airy', 'balanced', 'compact'] as const;
+
+function designForIndex(index: number): DeveloperThemeDesign {
+  return {
+    hero: HERO_STYLES[index % HERO_STYLES.length],
+    navigation: NAVIGATION_STYLES[Math.floor(index / 10) % NAVIGATION_STYLES.length],
+    portfolio: PORTFOLIO_STYLES[(index * 3 + Math.floor(index / 10)) % PORTFOLIO_STYLES.length],
+    typography: TYPOGRAPHY_STYLES[(index + Math.floor(index / 10)) % TYPOGRAPHY_STYLES.length],
+    shape: SHAPE_STYLES[(index * 2 + Math.floor(index / 10)) % SHAPE_STYLES.length],
+    density: DENSITY_STYLES[index % DENSITY_STYLES.length],
+  };
+}
+
+const EXTRA_THEME_DETAILS = EXTRA_THEME_COLLECTIONS.flatMap((collection) =>
+  collection.editions.map(([id, name, accent], editionIndex) => ({
+    id,
+    name,
+    mood: collection.mood,
+    description: collection.description,
+    layout: (['cinematic', 'editorial', 'minimal', 'grid', 'classic'] as const)[editionIndex],
+    colors: { ...collection.colors, accent },
+  })),
+);
+
+export const DEVELOPER_THEMES: readonly DeveloperTheme[] = [
+  ...LEGACY_THEME_DETAILS,
+  ...EXTRA_THEME_DETAILS,
+].map((theme, index) => ({
+  id: theme.id as DeveloperThemeId,
+  name: theme.name,
+  mood: theme.mood,
+  description: theme.description,
+  layout: theme.layout,
+  colors: theme.colors,
+  design: designForIndex(index),
+}));
 
 export const DEFAULT_DEVELOPER_THEME_ID: DeveloperThemeId = 'midnight-estate';
 
-export const FEATURED_DEVELOPER_THEME_IDS = [
-  'midnight-estate',
-  'coastal-living',
-  'monaco-luxe',
-  'nordic-space',
-  'editorial-ink',
-  'terracotta-home',
-  'emerald-reserve',
-  'skyline-pro',
-  'gallery-white',
-  'desert-modern',
-  'cobalt-grid',
-  'rosewood-signature',
-  'brutalist-key',
-  'sage-habitat',
-  'golden-hour',
-] as const satisfies readonly DeveloperThemeId[];
+export const FEATURED_DEVELOPER_THEME_IDS = DEVELOPER_THEME_IDS;
 
 export type DeveloperThemeBlueprint = {
   architecture: string;
@@ -103,10 +291,7 @@ export type DeveloperThemeBlueprint = {
   signatureItems: readonly [string, string, string];
 };
 
-export const DEVELOPER_THEME_BLUEPRINTS: Record<
-  (typeof FEATURED_DEVELOPER_THEME_IDS)[number],
-  DeveloperThemeBlueprint
-> = {
+const FEATURED_THEME_BLUEPRINT_OVERRIDES: Partial<Record<DeveloperThemeId, DeveloperThemeBlueprint>> = {
   'midnight-estate': {
     architecture: 'Sinematik vitrin',
     navigation: 'İnce çerçeveli gece menüsü',
@@ -214,6 +399,35 @@ export const DEVELOPER_THEME_BLUEPRINTS: Record<
   },
 };
 
+const DESIGN_LABELS = {
+  hero: {
+    split: 'İkiye bölünmüş vitrin', panorama: 'Tam genişlik panorama', poster: 'Afiş manşet sahnesi', gallery: 'Küratörlü galeri açılışı', frame: 'Çerçeveli mimari odak', stacked: 'Katmanlı hikâye sahnesi', centered: 'Merkezi marka manifestosu', sidebar: 'Dikey keşif rotası', collage: 'Asimetrik fotoğraf kolajı', journal: 'Dergi kapak açılışı',
+  },
+  navigation: {
+    floating: 'Yüzen kapsül menü', rail: 'Dikey ray navigasyonu', masthead: 'Editoryal masthead menü', minimal: 'Sessiz tipografik menü', boxed: 'Modüler kutu menü', centered: 'Simetrik merkez menü', transparent: 'Görsel üstü şeffaf menü', split: 'İki uçlu bölünmüş menü', index: 'Numaralı indeks menü', compact: 'Kompakt hızlı erişim',
+  },
+  portfolio: {
+    masonry: 'Değişken yükseklikli portföy duvarı', catalog: 'Yatay mimari katalog', spotlight: 'Öne çıkan ilan sahnesi', cards: 'Zengin bilgi kartları', ledger: 'Yatırım veri defteri', filmstrip: 'Sinematik film şeridi', bento: 'Bento proje panosu', list: 'Editoryal ilan listesi', gallery: 'Tam görsel galeri', tiles: 'Yoğun keşif karoları',
+  },
+} as const;
+
+export const DEVELOPER_THEME_BLUEPRINTS = Object.fromEntries(
+  DEVELOPER_THEMES.map((theme) => {
+    const override = FEATURED_THEME_BLUEPRINT_OVERRIDES[theme.id];
+    return [theme.id, override ?? {
+      architecture: `${theme.name} · ${DESIGN_LABELS.hero[theme.design.hero]}`,
+      navigation: `${theme.name} · ${DESIGN_LABELS.navigation[theme.design.navigation]}`,
+      portfolioPresentation: `${theme.name} · ${DESIGN_LABELS.portfolio[theme.design.portfolio]}`,
+      signature: `${theme.name} seçkisi`,
+      signatureItems: [
+        DESIGN_LABELS.hero[theme.design.hero],
+        DESIGN_LABELS.navigation[theme.design.navigation],
+        DESIGN_LABELS.portfolio[theme.design.portfolio],
+      ] as const,
+    }];
+  }),
+) as Record<DeveloperThemeId, DeveloperThemeBlueprint>;
+
 export function getDeveloperTheme(id: unknown) {
   const parsed = developerThemeIdSchema.safeParse(id);
   return (
@@ -224,18 +438,7 @@ export function getDeveloperTheme(id: unknown) {
 
 export function getDeveloperThemeBlueprint(id: unknown): DeveloperThemeBlueprint {
   const theme = getDeveloperTheme(id);
-  if (theme.id in DEVELOPER_THEME_BLUEPRINTS) {
-    return DEVELOPER_THEME_BLUEPRINTS[
-      theme.id as keyof typeof DEVELOPER_THEME_BLUEPRINTS
-    ];
-  }
-  return {
-    architecture: `${theme.mood} emlak vitrini`,
-    navigation: 'Klasik çok sayfalı menü',
-    portfolioPresentation: 'Profesyonel portföy kataloğu',
-    signature: theme.name,
-    signatureItems: ['Çok sayfalı yapı', 'Mobil uyumlu', 'Kolay yönetim'],
-  };
+  return DEVELOPER_THEME_BLUEPRINTS[theme.id];
 }
 
 const shortText = (max: number) => z.string().trim().max(max);

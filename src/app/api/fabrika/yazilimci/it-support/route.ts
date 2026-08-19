@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ reply });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json({ 
       reply: 'Merhaba! Web sitenizin sunucu ve domain kurulumunda size yardımcı olabilirim. Lütfen sormak istediğiniz IT konusunu iletin.' 
     });

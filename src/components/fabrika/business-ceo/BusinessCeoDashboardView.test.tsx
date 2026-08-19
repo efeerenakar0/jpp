@@ -42,6 +42,9 @@ describe('BusinessCeoDashboardView', () => {
     }
     expect(html.match(/Paneli Aç/g)).toHaveLength(10);
     expect(html).toContain('aria-label="Yapay zekâ uzmanları"');
+    expect(html).toContain('portfolio-transparent.png');
+    expect(html).toContain('ceo-transparent.png');
+    expect(html).not.toContain('.webp');
   });
 
   it('shows real dashboard totals without invented values', () => {

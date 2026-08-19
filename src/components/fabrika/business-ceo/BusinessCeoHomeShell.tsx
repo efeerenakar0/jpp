@@ -223,7 +223,7 @@ export default function BusinessCeoHomeShell({
 
       <aside className={styles.sidebar} data-open={mobileMenuOpen}>
         <Link aria-label="Business CEO AI ana panel" className={styles.brand} href="/fabrika">
-          <BusinessCeoLogo className={styles.brandLogo} decorative priority tone="dark" />
+          <BusinessCeoLogo className={styles.brandLogo} decorative priority tone="light" />
           <span>REAL ESTATE</span>
         </Link>
 
@@ -276,6 +276,9 @@ export default function BusinessCeoHomeShell({
               width={180}
             />
           </button>
+          <div className={styles.onlineStatus}>
+            <span /> Sistem çevrimiçi
+          </div>
           <div aria-live="polite" className={styles.assistantReply}>
             {assistantReply}
           </div>
@@ -300,10 +303,6 @@ export default function BusinessCeoHomeShell({
             </button>
           </form>
         </section>
-
-        <div className={styles.onlineStatus}>
-          <span /> Sistem Online
-        </div>
       </aside>
 
       <section className={styles.workspace}>

@@ -9,7 +9,6 @@ import {
   BrainCircuit,
   Building2,
   CalendarDays,
-  Camera,
   CheckCircle2,
   CircleDollarSign,
   Copy,
@@ -29,14 +28,12 @@ import {
   Mail,
   MapPin,
   MessageSquareText,
-  Megaphone,
   MoreHorizontal,
   Network,
   Phone,
   Plus,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Settings2,
   ShieldCheck,
   Share2,
@@ -61,6 +58,7 @@ import {
 import { toast } from 'sonner';
 import EmptyState from '@/components/fabrika/EmptyState';
 import PageHeader from '@/components/fabrika/PageHeader';
+import PortfolioWorkspace from '@/components/fabrika/PortfolioWorkspace';
 import StatCard from '@/components/fabrika/StatCard';
 import PortfolioSourcesPanel from '@/components/fabrika/PortfolioSourcesPanel';
 import PropertyMediaLibrary from '@/components/fabrika/PropertyMediaLibrary';
@@ -894,7 +892,7 @@ export default function WorkspacePage({
   if ((mode as string) === 'portfoyler') {
     return (
       <div className="pb-8">
-        <PortfolioExactWorkspace
+        <PortfolioWorkspace
           onAdd={() => setDialog('property')}
           onEdit={(id) => {
             setSelectedPropertyId(id);
@@ -906,8 +904,8 @@ export default function WorkspacePage({
           onPublicationChange={setPropertyPublication}
           onViewChange={setPortfolioView}
           portfolioView={portfolioView}
+          properties={workspace.properties}
           selectedProperty={selectedProperty || workspace.properties[0] || null}
-          workspace={workspace}
         />
         <WorkspaceDialog
           key={`${dialog || 'closed'}-${selectedProperty?.id || 'new'}`}
@@ -2820,198 +2818,6 @@ function CrmExactWorkspace({
             )}
           </aside>
         </div>
-      )}
-    </div>
-  );
-}
-
-function PortfolioExactWorkspace({
-  workspace,
-  portfolioView,
-  selectedProperty,
-  onViewChange,
-  onSelect,
-  onAdd,
-  onEdit,
-  onMedia,
-  onReload,
-  onPublicationChange,
-}: {
-  workspace: Workspace;
-  portfolioView: 'properties' | 'owner-reports' | 'sources';
-  selectedProperty: Property | null;
-  onViewChange: (view: 'properties' | 'owner-reports' | 'sources') => void;
-  onSelect: (id: string) => void;
-  onAdd: () => void;
-  onEdit: (id: string) => void;
-  onMedia: (property: Property) => void;
-  onReload: () => Promise<void>;
-  onPublicationChange: (
-    property: Property,
-    status: 'DRAFT' | 'ACTIVE'
-  ) => Promise<boolean>;
-}) {
-  const [propertyQuery, setPropertyQuery] = useState('');
-  const normalizedQuery = propertyQuery.toLocaleLowerCase('tr-TR');
-  const filteredProperties = workspace.properties.filter((property) =>
-    [property.title, property.referenceCode, property.location, property.description]
-      .filter(Boolean)
-      .some((value) => value!.toLocaleLowerCase('tr-TR').includes(normalizedQuery))
-  );
-  const activeCount = workspace.properties.filter((property) => property.status === 'ACTIVE').length;
-  const draftCount = workspace.properties.filter((property) => property.status === 'DRAFT').length;
-  const soldCount = workspace.properties.filter((property) => property.status === 'SOLD').length;
-  const rentedCount = workspace.properties.filter((property) => property.status === 'RENTED').length;
-  const statusLabel: Record<Property['status'], string> = {
-    DRAFT: 'Taslak',
-    ACTIVE: 'Yayında',
-    RESERVED: 'Rezerve',
-    SOLD: 'Satıldı',
-    RENTED: 'Kiralandı',
-    ARCHIVED: 'Arşiv',
-  };
-
-  return (
-    <div className={operationsStyles.workspace}>
-      <header className={operationsStyles.pageHeader}>
-        <div>
-          <p className={operationsStyles.eyebrow}>Portföy merkezi</p>
-          <h1>Portföy Yönetimi</h1>
-          <p>Tüm aktif, taslak ve arşivlenmiş gayrimenkulleri tek yerde yönetin.</p>
-        </div>
-        <div className={operationsStyles.headerActions}>
-          <button className={operationsStyles.secondaryButton} onClick={() => onViewChange('sources')} type="button">
-            <UploadCloud /> Web sitesinden içe aktar
-          </button>
-          <button className={operationsStyles.primaryButton} onClick={onAdd} type="button">
-            <Plus /> Yeni portföy ekle
-          </button>
-        </div>
-      </header>
-
-      <div className={operationsStyles.modeTabs}>
-        <button aria-pressed={portfolioView === 'properties'} onClick={() => onViewChange('properties')} type="button">Portföyler</button>
-        <button aria-pressed={portfolioView === 'owner-reports'} onClick={() => onViewChange('owner-reports')} type="button">Malik raporları</button>
-        <button aria-pressed={portfolioView === 'sources'} onClick={() => onViewChange('sources')} type="button">Kaynaklar ve onay</button>
-      </div>
-
-      {portfolioView === 'sources' ? (
-        <PortfolioSourcesPanel onPortfolioChanged={onReload} />
-      ) : portfolioView === 'owner-reports' ? (
-        <section className={operationsStyles.reportGrid}>
-          {workspace.properties.map((property) => (
-            <article key={property.id}>
-              <div className={operationsStyles.reportIcon}><Share2 /></div>
-              <div>
-                <h2>{property.title}</h2>
-                <p>{property.ownerContact?.name || 'Mülk sahibi atanmadı'} · {property.location || 'Konum yok'}</p>
-                <span>{property.listingViews + property.inquiryCount + property.showingCount + property.offerCount} toplam etkileşim</span>
-              </div>
-              <Link href={`/portfoy-takip/${property.sellerPortalToken}`} target="_blank">Raporu aç <ExternalLink /></Link>
-            </article>
-          ))}
-        </section>
-      ) : (
-        <>
-          <section className={operationsStyles.portfolioMetrics}>
-            {[
-              { label: 'Toplam portföy', value: workspace.properties.length, icon: Building2, tone: 'neutral' },
-              { label: 'Aktif', value: activeCount, icon: Home, tone: 'green' },
-              { label: 'Taslak', value: draftCount, icon: Building2, tone: 'gold' },
-              { label: 'Satışta', value: Math.max(activeCount - rentedCount, soldCount), icon: Target, tone: 'emerald' },
-              { label: 'Kiralık', value: rentedCount, icon: KeyRound, tone: 'violet' },
-            ].map((metric) => (
-              <article data-tone={metric.tone} key={metric.label}>
-                <metric.icon />
-                <div><span>{metric.label}</span><strong>{metric.value}</strong></div>
-              </article>
-            ))}
-          </section>
-
-          <div className={operationsStyles.portfolioSplit}>
-            <section className={operationsStyles.portfolioPanel}>
-              <div className={operationsStyles.portfolioFilters}>
-                <label>
-                  <Search />
-                  <input onChange={(event) => setPropertyQuery(event.target.value)} placeholder="Portföy adı, referans no. veya açıklama..." value={propertyQuery} />
-                </label>
-                <button type="button">İl <strong>Tümü</strong></button>
-                <button type="button">İlçe <strong>Tümü</strong></button>
-                <button type="button">Mahalle <strong>Tümü</strong></button>
-                <button type="button">Portföy tipi <strong>Tümü</strong></button>
-                <button type="button">Oda sayısı <strong>Tümü</strong></button>
-                <button type="button"><SlidersHorizontal /> Daha fazla filtre</button>
-              </div>
-              <div className={operationsStyles.activeFilters}>
-                <span>Aktif filtreler:</span><b>Durum: Aktif</b><b>Satışta veya Kiralık</b><button type="button">Filtreleri temizle</button>
-              </div>
-              <div className={operationsStyles.portfolioTableScroll}>
-                <table className={operationsStyles.portfolioTable}>
-                  <thead><tr><th>Portföy</th><th>Tip</th><th>Oda</th><th>m²</th><th>Fiyat</th><th>Sorumlu danışman</th><th>Yayın durumu</th><th>Leads</th><th>Son güncelleme</th><th /></tr></thead>
-                  <tbody>
-                    {filteredProperties.map((property) => (
-                      <tr data-selected={selectedProperty?.id === property.id} key={property.id} onClick={() => onSelect(property.id)} tabIndex={0}>
-                        <td>
-                          <div className={operationsStyles.portfolioThumb}>{property.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element -- portfolio images can be tenant-provided external URLs.
-                            <img alt="" src={property.imageUrl} />
-                          ) : <Home />}</div>
-                          <div><strong>{property.title}</strong><span>{property.location || 'Konum belirtilmedi'}</span><small>REF: {property.referenceCode || property.id.slice(0, 10).toUpperCase()}</small></div>
-                        </td>
-                        <td><span className={operationsStyles.typePill}>Gayrimenkul</span></td>
-                        <td>{property.roomCount || '—'}</td>
-                        <td>{property.area ? `${property.area} m²` : '—'}</td>
-                        <td><strong>{money(property.price)}</strong></td>
-                        <td>{property.assignedMember?.name || 'Atanmadı'}</td>
-                        <td><span className={operationsStyles.statusPill} data-status={property.status}>{statusLabel[property.status]}</span></td>
-                        <td>{property.inquiryCount}</td>
-                        <td>Canlı kayıt</td>
-                        <td><button aria-label="Portföyü düzenle" onClick={(event) => { event.stopPropagation(); onEdit(property.id); }} type="button"><MoreHorizontal /></button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <footer className={operationsStyles.tableFooter}><span>Toplam {filteredProperties.length} portföy</span><span>Sayfa 1 / 1</span></footer>
-            </section>
-
-            <aside className={operationsStyles.propertyRail}>
-              {selectedProperty ? (
-                <>
-                  <header><div><h2>{selectedProperty.title}</h2><p>REF: {selectedProperty.referenceCode || selectedProperty.id.slice(0, 10).toUpperCase()}</p></div><button aria-label="Portföyü düzenle" onClick={() => onEdit(selectedProperty.id)} type="button"><Edit3 /></button></header>
-                  <div className={operationsStyles.heroImage}>{selectedProperty.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- portfolio images can be tenant-provided external URLs.
-                    <img alt="" src={selectedProperty.imageUrl} />
-                  ) : <Home />}</div>
-                  <dl>
-                    <div><dt><Building2 /> Tip</dt><dd>Gayrimenkul</dd></div>
-                    <div><dt><MapPin /> Lokasyon</dt><dd>{selectedProperty.location || 'Belirtilmedi'}</dd></div>
-                    <div><dt><BedDouble /> Oda</dt><dd>{selectedProperty.roomCount || '—'}</dd></div>
-                    <div><dt><Gauge /> m²</dt><dd>{selectedProperty.area ? `${selectedProperty.area} m²` : '—'}</dd></div>
-                    <div><dt><Target /> Fiyat</dt><dd>{money(selectedProperty.price)}</dd></div>
-                    <div><dt><CheckCircle2 /> Durum</dt><dd>{statusLabel[selectedProperty.status]}</dd></div>
-                  </dl>
-                  <section className={operationsStyles.completeness}><div><span>Veri tamamlama</span><strong>{Math.min(100, [selectedProperty.title, selectedProperty.location, selectedProperty.price, selectedProperty.roomCount, selectedProperty.area, selectedProperty.description, selectedProperty.imageUrl].filter(Boolean).length * 14)}%</strong></div><progress max="100" value={Math.min(100, [selectedProperty.title, selectedProperty.location, selectedProperty.price, selectedProperty.roomCount, selectedProperty.area, selectedProperty.description, selectedProperty.imageUrl].filter(Boolean).length * 14)} /></section>
-                  <div className={operationsStyles.propertyActions}>
-                    <button
-                      data-primary="true"
-                      onClick={() => void onPublicationChange(
-                        selectedProperty,
-                        selectedProperty.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE'
-                      )}
-                      type="button"
-                    >
-                      {selectedProperty.status === 'ACTIVE' ? <X /> : <CheckCircle2 />}
-                      {selectedProperty.status === 'ACTIVE' ? 'Yayından kaldır' : 'Yayına al'}
-                    </button>
-                    <Link href={`/fabrika/pazarlamaci?propertyId=${encodeURIComponent(selectedProperty.id)}`}><Megaphone /> Pazarlamada kullan</Link>
-                    <button onClick={() => onMedia(selectedProperty)} type="button"><Camera /> Fotoğrafları yönet</button>
-                  </div>
-                </>
-              ) : <div className={operationsStyles.emptyRail}><Home /><h2>Portföy seçin</h2></div>}
-            </aside>
-          </div>
-        </>
       )}
     </div>
   );

@@ -8,9 +8,11 @@ import {
   CirclePause,
   LoaderCircle,
   MapPin,
+  PhoneCall,
   Radar,
   RotateCcw,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   UserRoundCheck,
   XCircle,
@@ -303,6 +305,15 @@ export default function HuntJobPanel({
     requestedResultsValue > 0
       ? Math.floor(requestedResultsValue)
       : contextQuota?.perRunLimit || 0;
+  const liveStages = [
+    { label: 'Taramayı başlat', icon: Search },
+    { label: 'İlanlar taranıyor', icon: Radar },
+    { label: 'Maliklerle görüşülüyor', icon: PhoneCall },
+    { label: 'Yetki süreci', icon: ShieldCheck },
+  ];
+  const scanFinished = Boolean(
+    job && ['COMPLETED', 'PARTIAL'].includes(job.status)
+  );
 
   useEffect(() => {
     if (!onScanContextChange || !contextPropertyType || !contextQuota) {
@@ -402,8 +413,14 @@ export default function HuntJobPanel({
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+    <section
+      className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]"
+      data-avci-hunt-layout
+    >
+      <div
+        className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+        data-avci-form-card
+      >
         <div className="flex items-start gap-3">
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2.5">
             <Search className="h-5 w-5 text-emerald-300" />
@@ -419,8 +436,12 @@ export default function HuntJobPanel({
           </div>
         </div>
 
-        <form className="mt-5 space-y-4" onSubmit={startJob}>
-          <fieldset className="space-y-3">
+        <form
+          className="mt-5 space-y-4"
+          data-avci-hunt-form
+          onSubmit={startJob}
+        >
+          <fieldset className="space-y-3" data-avci-step="1">
             <legend className="text-sm font-semibold text-slate-100">
               1. Nerede arıyorsunuz?
             </legend>
@@ -476,7 +497,11 @@ export default function HuntJobPanel({
             quotas={quotas}
             selected={propertyType}
           />
-          <div className="flex flex-col gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className="flex flex-col gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 sm:flex-row sm:items-center sm:justify-between"
+            data-avci-source-row
+            data-avci-step="3"
+          >
             <span className="grid gap-1 text-xs text-emerald-100">
               <span className="flex items-center gap-2 font-semibold">
                 <UserRoundCheck className="h-4 w-4" /> Kimden: Sahibinden
@@ -524,9 +549,64 @@ export default function HuntJobPanel({
         </form>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <div
+        className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+        data-avci-live-card
+      >
+        <div data-avci-live-header>
+          <div className="flex items-start gap-2.5">
+            <StatusIcon
+              aria-hidden="true"
+              className={`h-5 w-5 text-sky-500 ${
+                job && ['RUNNING', 'QUEUED'].includes(job.status)
+                  ? 'animate-spin'
+                  : ''
+              }`}
+            />
+            <div>
+              <h2>Canlı görev durumu</h2>
+              <p>
+                {job
+                  ? `Son güncelleme: ${new Intl.DateTimeFormat('tr-TR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }).format(new Date(job.updatedAt))}`
+                  : 'Tarama başladığında ilerleme burada görünecek.'}
+              </p>
+            </div>
+          </div>
+          <span data-active={hasActiveJob || undefined} data-avci-live-badge>
+            {hasActiveJob ? 'Çalışıyor' : job ? STATUS_LABELS[job.status] : 'Hazır'}
+          </span>
+        </div>
+
+        <ol aria-label="AI portföy avı aşamaları" data-avci-live-stages>
+          {liveStages.map(({ icon: StageIcon, label }, index) => {
+            const stageState = !job
+              ? index === 0
+                ? 'ready'
+                : 'pending'
+              : index === 0 || (index === 1 && scanFinished)
+                ? 'complete'
+                : index === 1
+                  ? 'active'
+                  : 'pending';
+            return (
+              <li data-state={stageState} key={label}>
+                <span data-avci-stage-icon>
+                  <StageIcon aria-hidden="true" />
+                </span>
+                <span>{label}</span>
+              </li>
+            );
+          })}
+        </ol>
+
         {!job ? (
-          <div className="flex min-h-44 flex-col items-center justify-center text-center">
+          <div
+            className="flex min-h-44 flex-col items-center justify-center text-center"
+            data-avci-live-empty
+          >
             <Radar className="h-8 w-8 text-slate-600" />
             <p className="mt-3 text-sm font-medium text-slate-200">
               Henüz izlenen bir av işi yok
@@ -536,7 +616,7 @@ export default function HuntJobPanel({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4" data-avci-job-details>
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <StatusIcon

@@ -11,10 +11,28 @@ import {
 } from './developer-site';
 
 describe('developer website themes and content', () => {
-  it('offers exactly 25 unique selectable themes', () => {
-    expect(DEVELOPER_THEMES).toHaveLength(25);
-    expect(new Set(DEVELOPER_THEMES.map((theme) => theme.id)).size).toBe(25);
-    expect(new Set(DEVELOPER_THEMES.map((theme) => theme.name)).size).toBe(25);
+  it('offers exactly 100 unique selectable themes', () => {
+    expect(DEVELOPER_THEMES).toHaveLength(100);
+    expect(FEATURED_DEVELOPER_THEME_IDS).toHaveLength(100);
+    expect(new Set(DEVELOPER_THEMES.map((theme) => theme.id)).size).toBe(100);
+    expect(new Set(DEVELOPER_THEMES.map((theme) => theme.name)).size).toBe(100);
+  });
+
+  it('gives all 100 themes a unique structural design fingerprint', () => {
+    const fingerprints = DEVELOPER_THEMES.map((theme) =>
+      [
+        theme.design.hero,
+        theme.design.navigation,
+        theme.design.portfolio,
+        theme.design.typography,
+        theme.design.shape,
+        theme.design.density,
+      ].join('|'),
+    );
+    expect(new Set(fingerprints).size).toBe(100);
+    expect(new Set(DEVELOPER_THEMES.map((theme) => theme.design.hero)).size).toBe(10);
+    expect(new Set(DEVELOPER_THEMES.map((theme) => theme.design.navigation)).size).toBe(10);
+    expect(new Set(DEVELOPER_THEMES.map((theme) => theme.design.portfolio)).size).toBe(10);
   });
 
   it('falls back to the safe default theme for an unknown id', () => {
@@ -27,11 +45,11 @@ describe('developer website themes and content', () => {
     const blueprints = FEATURED_DEVELOPER_THEME_IDS.map(
       (id) => DEVELOPER_THEME_BLUEPRINTS[id],
     );
-    expect(blueprints).toHaveLength(15);
-    expect(new Set(blueprints.map((item) => item.architecture)).size).toBe(15);
-    expect(new Set(blueprints.map((item) => item.navigation)).size).toBe(15);
-    expect(new Set(blueprints.map((item) => item.portfolioPresentation)).size).toBe(15);
-    expect(new Set(blueprints.map((item) => item.signature)).size).toBe(15);
+    expect(blueprints).toHaveLength(100);
+    expect(new Set(blueprints.map((item) => item.architecture)).size).toBe(100);
+    expect(new Set(blueprints.map((item) => item.navigation)).size).toBe(100);
+    expect(new Set(blueprints.map((item) => item.portfolioPresentation)).size).toBe(100);
+    expect(new Set(blueprints.map((item) => item.signature)).size).toBe(100);
   });
 
   it('creates complete editable website content for a company', () => {

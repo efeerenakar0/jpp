@@ -7,12 +7,10 @@ import {
   ChevronRight,
   Clock3,
   FileCheck2,
-  FileSignature,
   FilePlus2,
   Files,
   FileText,
   Heart,
-  History,
   PenLine,
   Plus,
   Search,
@@ -27,12 +25,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_CATEGORY_LABELS,
-  DOCUMENT_LEGAL_NOTICE,
   type DocumentCategory,
 } from '@/lib/document-center/types';
 import DocumentWizard from './DocumentWizard';
 import {
   documentStatusLabel,
+  findQuickStartTemplate,
   legalStatusLabel,
 } from './helpers';
 import {
@@ -52,7 +50,15 @@ export type DocumentCenterVariant = 'standalone' | 'embedded';
 
 type DocumentCenterProps = {
   variant?: DocumentCenterVariant;
+  initialData?: DocumentCenterPayload;
+  loadRemote?: boolean;
 };
+
+const quickStartSuggestions = [
+  'Satış yetkilendirme sözleşmesi',
+  'Kiralama yetkilendirme sözleşmesi',
+  'Açık rıza metni',
+] as const;
 
 const tabItems: Array<{
   id: MainTab;
@@ -248,9 +254,11 @@ function DocumentList({
 
 export default function DocumentCenter({
   variant = 'standalone',
+  initialData,
+  loadRemote = true,
 }: DocumentCenterProps) {
-  const [data, setData] = useState<DocumentCenterPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DocumentCenterPayload | null>(initialData ?? null);
+  const [loading, setLoading] = useState(loadRemote && !initialData);
   const [tab, setTab] = useState<MainTab>('catalog');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<'ALL' | DocumentCategory>('ALL');
@@ -261,12 +269,15 @@ export default function DocumentCenter({
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [quickTemplateKey, setQuickTemplateKey] = useState('');
+  const [quickPrompt, setQuickPrompt] = useState('');
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] =
     useState<DocumentTemplateDTO | null>(null);
   const [selectedDocument, setSelectedDocument] =
     useState<DocumentRecordDTO | null>(null);
   const catalogRef = useRef<HTMLDivElement>(null);
+  const quickPromptRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true);
@@ -289,9 +300,10 @@ export default function DocumentCenter({
   }, []);
 
   useEffect(() => {
+    if (!loadRemote) return;
     const timer = window.setTimeout(() => void loadData(true), 0);
     return () => window.clearTimeout(timer);
-  }, [loadData]);
+  }, [loadData, loadRemote]);
 
   const filteredTemplates = useMemo(() => {
     if (!data) return [];
@@ -317,6 +329,13 @@ export default function DocumentCenter({
     () => data?.documents.filter((document) => !document.deletedAt).slice(0, 5) || [],
     [data]
   );
+
+  const visibleTemplates = useMemo(() => {
+    const hasActiveFilter = Boolean(query.trim()) || category !== 'ALL' || favoritesOnly;
+    return showAllTemplates || hasActiveFilter
+      ? filteredTemplates
+      : filteredTemplates.slice(0, 4);
+  }, [category, favoritesOnly, filteredTemplates, query, showAllTemplates]);
 
   const stats = useMemo(() => {
     const documents = data?.documents || [];
@@ -409,93 +428,240 @@ export default function DocumentCenter({
     );
   }
 
+  function focusQuickStart() {
+    setTab('catalog');
+    window.requestAnimationFrame(() => quickPromptRef.current?.focus());
+  }
+
+  function startFromPrompt() {
+    const template = findQuickStartTemplate(data?.templates || [], quickPrompt);
+    if (template) {
+      openTemplate(template);
+      return;
+    }
+
+    if (!quickPrompt.trim()) {
+      toast.info('Hazırlamak istediğiniz belgeyi yazın.');
+      quickPromptRef.current?.focus();
+      return;
+    }
+
+    setQuery(quickPrompt);
+    toast.info('İfadenizle eşleşen şablonları listeledim.');
+    window.requestAnimationFrame(() =>
+      catalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    );
+  }
+
   if (loading || !data) return <LoadingState />;
 
   const embedded = variant === 'embedded';
+  const filterControls = (
+    <section className={styles.filterBar}>
+      <label className={styles.searchField}>
+        <Search aria-hidden="true" />
+        <span className="sr-only">Belge veya şablon ara</span>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={
+            tab === 'catalog'
+              ? 'Şablon ara…'
+              : 'Belge adı, numarası veya şablon ara…'
+          }
+        />
+      </label>
+
+      {tab === 'catalog' ? (
+        <>
+          <select
+            value={category}
+            onChange={(event) =>
+              setCategory(event.target.value as 'ALL' | DocumentCategory)
+            }
+            aria-label="Şablon kategorisi"
+          >
+            <option value="ALL">Kategori: Tümü</option>
+            {DOCUMENT_CATEGORIES.map((item) => (
+              <option key={item} value={item}>
+                {DOCUMENT_CATEGORY_LABELS[item]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setFavoritesOnly((current) => !current)}
+            className={favoritesOnly ? styles.favoriteFilterActive : styles.favoriteFilter}
+          >
+            <Heart fill={favoritesOnly ? 'currentColor' : 'none'} aria-hidden="true" />
+            Sadece favoriler
+          </button>
+        </>
+      ) : (
+        <>
+          {tab === 'archive' ? (
+            <select
+              value={archiveStatus}
+              onChange={(event) =>
+                setArchiveStatus(
+                  event.target.value as
+                    | 'ALL'
+                    | 'ARCHIVED'
+                    | 'CANCELLED'
+                    | 'DELETED'
+                )
+              }
+              aria-label="Arşiv durumu"
+            >
+              <option value="ALL">Tüm arşiv</option>
+              <option value="ARCHIVED">Arşivlenenler</option>
+              <option value="CANCELLED">İptal edilenler</option>
+              <option value="DELETED">Çöp kutusu</option>
+            </select>
+          ) : null}
+          <label className={styles.dateField}>
+            Başlangıç
+            <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+          </label>
+          <label className={styles.dateField}>
+            Bitiş
+            <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+          </label>
+        </>
+      )}
+    </section>
+  );
 
   return (
     <div
-      className={`${styles.page} ${embedded ? styles.embeddedPage : ''}`}
+      className={`${styles.page} ${
+        embedded ? styles.embeddedPage : styles.standalonePage
+      }`}
       data-variant={variant}
     >
       {!embedded ? (
         <header className={styles.hero}>
           <div>
-            <p className={styles.eyebrow}>M6 · SÖZLEŞME VE BELGELER</p>
+            <p className={styles.eyebrow}>BELGE VE SÖZLEŞME ASİSTANI</p>
             <div className={styles.titleRow}>
               <span className={styles.titleIcon} aria-hidden="true">
                 <Files />
               </span>
               <div>
-                <h1>Belge Merkezi</h1>
+                <h1>Belgelerinizi güvenle hazırlayın</h1>
                 <p>
-                  Gayrimenkul sözleşmeleri ve formlarınızı hazırlayın, onay
-                  süreçlerini yönetin ve sürümlü PDF veya DOCX olarak arşivleyin.
+                  Sözleşmelerinizi oluşturun, düzenleyin ve tek merkezden yönetin.
                 </p>
               </div>
             </div>
           </div>
           <div className={styles.heroActions}>
-            <button type="button" onClick={() => setTab('completed')}>
-              <History aria-hidden="true" /> Geçmiş
+            <button
+              type="button"
+              onClick={focusQuickStart}
+              className={styles.newDocumentButton}
+            >
+              <Plus aria-hidden="true" /> Yeni belge
             </button>
-            <button type="button" onClick={switchToCatalog}>
+            <button
+              type="button"
+              onClick={switchToCatalog}
+              className={styles.templateManagementButton}
+            >
               <Settings2 aria-hidden="true" /> Şablon yönetimi
             </button>
           </div>
         </header>
       ) : null}
 
-      {!embedded ? (
-        <section className={styles.actionBar}>
-          <button
-            type="button"
-            onClick={switchToCatalog}
-            className={styles.newDocumentButton}
-          >
-            <Plus aria-hidden="true" /> Yeni belge
-          </button>
-          <button
-            type="button"
-            onClick={switchToCatalog}
-            className={styles.templateManagementButton}
-          >
-            <FileSignature aria-hidden="true" /> Şablon kataloğu
-          </button>
-          <div className={styles.legalNotice}>
-            <ShieldCheck aria-hidden="true" />
-            <span>
-              Belgeleriniz ıslak imza, e-imza ve mevzuata uygunluk kontrolüne
-              hazır biçimde saklanır. {DOCUMENT_LEGAL_NOTICE}
-            </span>
+      {!embedded && tab === 'catalog' ? (
+        <section className={styles.assistantCard} aria-labelledby="quick-start-title">
+          <span className={styles.assistantIcon} aria-hidden="true">
+            <Sparkles />
+          </span>
+          <div className={styles.assistantContent}>
+            <h2 id="quick-start-title">Ne hazırlamak istiyorsunuz?</h2>
+            <div className={styles.promptRow}>
+              <label className={styles.promptField}>
+                <span className="sr-only">Hazırlamak istediğiniz belge</span>
+                <input
+                  ref={quickPromptRef}
+                  value={quickPrompt}
+                  onChange={(event) => setQuickPrompt(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') startFromPrompt();
+                  }}
+                  placeholder="Örn. Kiralama yetkilendirme sözleşmesi hazırla"
+                />
+              </label>
+              <button type="button" className={styles.quickStartButton} onClick={startFromPrompt}>
+                <Sparkles aria-hidden="true" /> Oluşturmaya başla
+              </button>
+            </div>
+            <div className={styles.suggestionRow} aria-label="Belge önerileri">
+              <span>Öneriler:</span>
+              {quickStartSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    setQuickPrompt(suggestion);
+                    quickPromptRef.current?.focus();
+                  }}
+                >
+                  {suggestion.replace(' yetkilendirme', '')}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
       ) : null}
 
       <section className={styles.metrics} aria-label="Belge Merkezi özeti">
-        {[
-          { label: 'Şablon', value: stats.templates, icon: Files, tone: 'green' },
-          { label: 'Taslak', value: stats.drafts, icon: FileText, tone: 'blue' },
-          {
-            label: 'Tamamlanan',
-            value: stats.completed,
-            icon: CheckCircle2,
-            tone: 'green',
-          },
-          { label: 'Bu ay hazırlanan', value: stats.thisMonth, icon: PenLine, tone: 'cyan' },
-          { label: 'Arşiv ve çöp', value: stats.archive, icon: Archive, tone: 'slate' },
-        ].map((stat) => (
-          <article className={styles.metricCard} data-tone={stat.tone} key={stat.label}>
-            <span><stat.icon aria-hidden="true" /></span>
-            <div>
-              <small>{stat.label}</small>
-              <strong>{stat.value}</strong>
-            </div>
-          </article>
-        ))}
+        {embedded
+          ? [
+              { label: 'Şablon', value: stats.templates, icon: Files, tone: 'green' },
+              { label: 'Taslak', value: stats.drafts, icon: FileText, tone: 'blue' },
+              { label: 'Tamamlanan', value: stats.completed, icon: CheckCircle2, tone: 'green' },
+              { label: 'Bu ay hazırlanan', value: stats.thisMonth, icon: PenLine, tone: 'cyan' },
+              { label: 'Arşiv ve çöp', value: stats.archive, icon: Archive, tone: 'slate' },
+            ].map((stat) => (
+              <article className={styles.metricCard} data-tone={stat.tone} key={stat.label}>
+                <span><stat.icon aria-hidden="true" /></span>
+                <div>
+                  <small>{stat.label}</small>
+                  <strong>{stat.value}</strong>
+                </div>
+              </article>
+            ))
+          : [
+              { label: 'Taslaklar', value: stats.drafts, icon: FileText, tone: 'blue', tab: 'drafts' as MainTab },
+              { label: 'Tamamlanan', value: stats.completed, icon: CheckCircle2, tone: 'green', tab: 'completed' as MainTab },
+              { label: 'Bu ay', value: stats.thisMonth, icon: CalendarClock, tone: 'violet', tab: 'completed' as MainTab },
+              { label: 'Arşiv', value: stats.archive, icon: Archive, tone: 'slate', tab: 'archive' as MainTab },
+            ].map((stat) => (
+              <button
+                type="button"
+                className={styles.metricCard}
+                data-tone={stat.tone}
+                data-active={tab === stat.tab}
+                key={stat.label}
+                onClick={() => setTab(stat.tab)}
+              >
+                <span><stat.icon aria-hidden="true" /></span>
+                <div>
+                  <small>{stat.label}</small>
+                  <strong>{stat.value}</strong>
+                </div>
+              </button>
+            ))}
       </section>
 
-      <nav ref={catalogRef} className={styles.tabs} aria-label="Belge görünümü">
+      <nav
+        ref={catalogRef}
+        className={`${styles.tabs} ${!embedded ? styles.standaloneTabs : ''}`}
+        aria-label="Belge görünümü"
+      >
         {tabItems.map((item) => {
           const count =
             item.id === 'catalog'
@@ -519,79 +685,7 @@ export default function DocumentCenter({
         })}
       </nav>
 
-      <section className={styles.filterBar}>
-        <label className={styles.searchField}>
-          <Search aria-hidden="true" />
-          <span className="sr-only">Belge veya şablon ara</span>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={
-              tab === 'catalog'
-                ? 'Belge adı ile ara…'
-                : 'Belge adı, numarası veya şablon ara…'
-            }
-          />
-        </label>
-
-        {tab === 'catalog' ? (
-          <>
-            <select
-              value={category}
-              onChange={(event) =>
-                setCategory(event.target.value as 'ALL' | DocumentCategory)
-              }
-              aria-label="Şablon kategorisi"
-            >
-              <option value="ALL">Kategori: Tümü</option>
-              {DOCUMENT_CATEGORIES.map((item) => (
-                <option key={item} value={item}>
-                  {DOCUMENT_CATEGORY_LABELS[item]}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setFavoritesOnly((current) => !current)}
-              className={favoritesOnly ? styles.favoriteFilterActive : styles.favoriteFilter}
-            >
-              <Heart fill={favoritesOnly ? 'currentColor' : 'none'} aria-hidden="true" />
-              Sadece favoriler
-            </button>
-          </>
-        ) : (
-          <>
-            {tab === 'archive' ? (
-              <select
-                value={archiveStatus}
-                onChange={(event) =>
-                  setArchiveStatus(
-                    event.target.value as
-                      | 'ALL'
-                      | 'ARCHIVED'
-                      | 'CANCELLED'
-                      | 'DELETED'
-                  )
-                }
-                aria-label="Arşiv durumu"
-              >
-                <option value="ALL">Tüm arşiv</option>
-                <option value="ARCHIVED">Arşivlenenler</option>
-                <option value="CANCELLED">İptal edilenler</option>
-                <option value="DELETED">Çöp kutusu</option>
-              </select>
-            ) : null}
-            <label className={styles.dateField}>
-              Başlangıç
-              <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-            </label>
-            <label className={styles.dateField}>
-              Bitiş
-              <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-            </label>
-          </>
-        )}
-      </section>
+      {embedded || tab !== 'catalog' ? filterControls : null}
 
       {tab === 'catalog' ? (
         <>
@@ -599,14 +693,25 @@ export default function DocumentCenter({
             <main className={styles.catalogPanel}>
               <div className={styles.sectionHeading}>
                 <div>
-                  <h2>Şablon kataloğu</h2>
+                  <h2>{embedded ? 'Şablon kataloğu' : 'Önerilen şablonlar'}</h2>
                   <p>{filteredTemplates.length} profesyonel Türkçe şablon</p>
                 </div>
-                <span><Sparkles aria-hidden="true" /> CRM ve portföy verileriyle dolar</span>
+                {!embedded && filteredTemplates.length > 4 ? (
+                  <button
+                    type="button"
+                    className={styles.showAllButton}
+                    onClick={() => setShowAllTemplates((current) => !current)}
+                  >
+                    {showAllTemplates ? 'Daha az göster' : 'Tüm şablonları gör'}
+                  </button>
+                ) : (
+                  <span><Sparkles aria-hidden="true" /> CRM ve portföy verileriyle dolar</span>
+                )}
               </div>
+              {!embedded ? filterControls : null}
               {filteredTemplates.length ? (
                 <div className={styles.templateGrid}>
-                  {filteredTemplates.map((template) => (
+                  {(embedded ? filteredTemplates : visibleTemplates).map((template) => (
                     <TemplateCard
                       key={template.key}
                       template={template}
@@ -628,7 +733,7 @@ export default function DocumentCenter({
               <section className={styles.recentPanel}>
                 <div className={styles.sideHeading}>
                   <div>
-                    <h2>Son belgeler</h2>
+                    <h2>{embedded ? 'Son belgeler' : 'Son çalışmalar'}</h2>
                     <p>Kaldığınız işe tek tıklamayla dönün.</p>
                   </div>
                   <button type="button" onClick={() => setTab('drafts')}>
@@ -648,7 +753,10 @@ export default function DocumentCenter({
                           <strong>{document.title}</strong>
                           <small>{document.template.name}</small>
                         </span>
-                        <span className={`${styles.recentStatus} ${statusClasses[document.status]}`}>
+                        <span
+                          className={`${styles.recentStatus} ${statusClasses[document.status]}`}
+                          data-status={document.status}
+                        >
                           {documentStatusLabel(document.status)}
                         </span>
                         <time>{formatDate(document.updatedAt)}</time>
@@ -659,9 +767,17 @@ export default function DocumentCenter({
                 ) : (
                   <p className={styles.noRecent}>Henüz hazırlanmış belge yok.</p>
                 )}
+                {!embedded ? (
+                  <div className={styles.compactLegalNotice}>
+                    <ShieldCheck aria-hidden="true" />
+                    <span>
+                      Belgeleriniz güvenli biçimde saklanır. Kullanım öncesi hukuki uygunluğu kontrol edin.
+                    </span>
+                  </div>
+                ) : null}
               </section>
 
-              <section className={styles.quickPanel}>
+              {embedded ? <section className={styles.quickPanel}>
                 <div className={styles.sideHeading}>
                   <div>
                     <h2>Hızlı belge</h2>
@@ -694,11 +810,11 @@ export default function DocumentCenter({
                   <li><CheckCircle2 aria-hidden="true" /> Portföy bilgileri eklenir</li>
                   <li><CheckCircle2 aria-hidden="true" /> Sürümlü taslak oluşturulur</li>
                 </ul>
-              </section>
+              </section> : null}
             </aside>
           </div>
 
-          {recentDocuments.length ? (
+          {embedded && recentDocuments.length ? (
             <section className={styles.historyStrip}>
               <div className={styles.historyHeading}>
                 <h2>Son işlemler &amp; belge geçmişi</h2>

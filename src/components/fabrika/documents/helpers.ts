@@ -5,6 +5,44 @@ import type {
   DocumentValue,
   DocumentValues,
 } from '@/lib/document-center/types';
+import type { DocumentTemplateDTO } from './types';
+
+function normalizeQuickStartText(value: string) {
+  return value
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9çğıöşü\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function findQuickStartTemplate(
+  templates: DocumentTemplateDTO[],
+  prompt: string
+) {
+  const normalizedPrompt = normalizeQuickStartText(prompt);
+  if (!normalizedPrompt) return null;
+
+  const promptTokens = normalizedPrompt
+    .split(' ')
+    .filter((token) => !['hazirla', 'olustur', 'istiyorum'].includes(token));
+
+  const ranked = templates
+    .map((template) => {
+      const searchable = normalizeQuickStartText(
+        [template.name, template.description, ...template.tags].join(' ')
+      );
+      const exactBoost = searchable.includes(normalizedPrompt) ? 10 : 0;
+      const tokenScore = promptTokens.filter((token) => searchable.includes(token)).length;
+      return { template, score: exactBoost + tokenScore };
+    })
+    .sort((left, right) => right.score - left.score);
+
+  const best = ranked[0];
+  const minimumScore = Math.max(1, Math.ceil(promptTokens.length / 2));
+  return best && best.score >= minimumScore ? best.template : null;
+}
 
 export function createInitialValues(
   template: DocumentTemplateDefinition,

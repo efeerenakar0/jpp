@@ -140,8 +140,14 @@ async function renderPublicPortfolioSite({
   return (
     <main
       className={styles.page}
+      data-density={selectedTheme.design.density}
+      data-hero={selectedTheme.design.hero}
       data-layout={selectedTheme.layout}
+      data-navigation={selectedTheme.design.navigation}
+      data-portfolio={selectedTheme.design.portfolio}
+      data-shape={selectedTheme.design.shape}
       data-theme={selectedTheme.id}
+      data-typography={selectedTheme.design.typography}
       style={theme}
     >
       <header className={styles.header}>

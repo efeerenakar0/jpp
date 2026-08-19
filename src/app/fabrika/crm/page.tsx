@@ -1,4 +1,5 @@
-import CompanyCeoWorkspace from '@/components/fabrika/CompanyCeoWorkspace';
+import CrmWorkspace from '@/components/fabrika/crm/CrmWorkspace';
+import type { CrmSection } from '@/components/fabrika/crm/crm-types';
 
 export default async function CrmPage({
   searchParams,
@@ -6,15 +7,17 @@ export default async function CrmPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const { view } = await searchParams;
-  return (
-    <CompanyCeoWorkspace
-      initialSection={
-        view === 'pipeline'
-          ? 'pipeline'
-          : view === 'customers'
-            ? 'customers'
-            : 'overview'
-      }
-    />
-  );
+  const allowedSections: CrmSection[] = [
+    'overview',
+    'customers',
+    'pipeline',
+    'tasks',
+    'finance',
+    'insights',
+  ];
+  const initialSection = allowedSections.includes(view as CrmSection)
+    ? (view as CrmSection)
+    : 'overview';
+
+  return <CrmWorkspace initialSection={initialSection} />;
 }

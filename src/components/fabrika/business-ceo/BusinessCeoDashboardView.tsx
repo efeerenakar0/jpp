@@ -117,7 +117,7 @@ export function BusinessCeoDashboardView({
           >
             <span className={styles.moduleNumber}>{number}</span>
             <span className={styles.moduleVisual}>
-              <Image alt={imageAlt} className={styles.moduleImage} fill sizes="(min-width: 1440px) 18vw, (min-width: 900px) 30vw, (min-width: 600px) 46vw, 92vw" src={`/business-ceo/homepage-v4/${image}.webp`} />
+              <Image alt={imageAlt} className={styles.moduleImage} fill loading={number === '01' ? 'eager' : 'lazy'} sizes="(min-width: 1440px) 18vw, (min-width: 900px) 30vw, (min-width: 600px) 46vw, 92vw" src={`/business-ceo/homepage-v4/${image}-transparent.png`} />
             </span>
             <span className={styles.moduleCopy}><strong>{title}</strong><small>{description}</small></span>
             <span className={styles.moduleAction}>Paneli Aç <ArrowRight aria-hidden="true" /></span>

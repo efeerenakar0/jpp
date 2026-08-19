@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import PageHeader from '@/components/fabrika/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import styles from './WhatsAppConnectionPanel.module.css';
 
 type Status = {
   provider: 'WAHA';
@@ -74,7 +75,13 @@ function statusLabel(status: string) {
   }
 }
 
-export default function WhatsAppConnectionPanel() {
+type WhatsAppConnectionPanelProps = {
+  compact?: boolean;
+};
+
+export default function WhatsAppConnectionPanel({
+  compact = false,
+}: WhatsAppConnectionPanelProps) {
   const [status, setStatus] = useState<Status>(emptyStatus);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
@@ -211,6 +218,148 @@ export default function WhatsAppConnectionPanel() {
     : qrCode
       ? `data:image/png;base64,${qrCode}`
       : null;
+
+  if (compact) {
+    return (
+      <section
+        className={styles.compactCard}
+        data-connected={connected}
+        aria-label="WAHA bağlantısı"
+      >
+        <header className={styles.compactHeader}>
+          <span className={styles.providerIcon} aria-hidden="true">
+            <MessageCircle />
+          </span>
+          <span className={styles.providerCopy}>
+            <strong>WAHA bağlantısı</strong>
+            <small>WhatsApp şirket hattı</small>
+          </span>
+          <span
+            className={styles.statusPill}
+            data-status={status.connectionStatus}
+            aria-live="polite"
+          >
+            {loading ? <Loader2 className={styles.spin} aria-hidden="true" /> : <i />}
+            {loading ? 'Kontrol ediliyor' : statusLabel(status.connectionStatus)}
+          </span>
+        </header>
+
+        {loading ? (
+          <div className={styles.compactSkeleton} aria-hidden="true" />
+        ) : (
+          <>
+            <div className={styles.connectionSummary}>
+              <span>
+                <strong>
+                  {connected
+                    ? status.connectedProfileName || 'Şirket telefonu bağlı'
+                    : 'Henüz telefon bağlanmadı'}
+                </strong>
+                <small>
+                  {connected
+                    ? status.connectedPhone || 'Numara güvenli biçimde gizlendi.'
+                    : 'QR kod ile WhatsApp hattınızı sohbetlere bağlayın.'}
+                </small>
+              </span>
+              <button
+                type="button"
+                onClick={() => loadStatus(true).catch((error) => toast.error(error.message))}
+                disabled={working}
+                className={styles.refreshButton}
+                aria-label="WAHA bağlantı durumunu yenile"
+                title="Durumu yenile"
+              >
+                <RefreshCw className={working ? styles.spin : undefined} aria-hidden="true" />
+              </button>
+            </div>
+
+            {!status.platformEnabled && (
+              <p className={styles.compactWarning}>
+                WhatsApp bağlantısı platform yöneticisi tarafından durduruldu.
+              </p>
+            )}
+
+            {normalizedQr && !connected && (
+              <div className={styles.compactQrPanel}>
+                <div className={styles.compactQrImage}>
+                  <Image
+                    alt="WhatsApp bağlantı QR kodu"
+                    height={176}
+                    priority
+                    src={normalizedQr}
+                    unoptimized
+                    width={176}
+                  />
+                </div>
+                <div className={styles.compactQrCopy}>
+                  <strong>Telefondan okutun</strong>
+                  <p>WhatsApp → Ayarlar → Bağlı Cihazlar → Cihaz Bağla</p>
+                  {pairingCode && (
+                    <span>
+                      Eşleştirme kodu <b>{pairingCode}</b>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {working && !connected && !normalizedQr && (
+              <div className={styles.preparingState} role="status">
+                <Loader2 className={styles.spin} aria-hidden="true" />
+                <span>
+                  <strong>QR hazırlanıyor</strong>
+                  <small>Güvenli WAHA oturumu başlatılıyor.</small>
+                </span>
+              </div>
+            )}
+
+            {status.lastError && (
+              <p className={styles.compactError}>{status.lastError}</p>
+            )}
+
+            <div className={styles.compactActions}>
+              {!connected && !normalizedQr && (
+                <button
+                  type="button"
+                  onClick={prepare}
+                  disabled={working || !status.platformEnabled}
+                  className={styles.connectButton}
+                >
+                  {working ? (
+                    <Loader2 className={styles.spin} aria-hidden="true" />
+                  ) : (
+                    <QrCode aria-hidden="true" />
+                  )}
+                  WAHA&apos;yı bağla
+                </button>
+              )}
+              {normalizedQr && !connected && (
+                <button
+                  type="button"
+                  onClick={() => loadStatus(true).catch((error) => toast.error(error.message))}
+                  disabled={working}
+                  className={styles.connectButton}
+                >
+                  <RefreshCw className={working ? styles.spin : undefined} aria-hidden="true" />
+                  QR&apos;ı yenile
+                </button>
+              )}
+              {connected && (
+                <button
+                  type="button"
+                  onClick={disconnect}
+                  disabled={working}
+                  className={styles.disconnectButton}
+                >
+                  <Power aria-hidden="true" /> Bağlantıyı kes
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-6">

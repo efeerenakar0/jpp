@@ -4085,3 +4085,668 @@ button[aria-pressed='true'] > .presetCheck {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Fotoğraf çalışma alanı — aligned with the Fabrika home. */
+.studioWorkspace {
+  --studio-blue: #075cff;
+  --studio-blue-strong: #064bd1;
+  --studio-navy: #07152f;
+  --studio-navy-deep: #031326;
+  --studio-surface: #ffffff;
+  --studio-surface-soft: #f5f8fd;
+  --studio-line: #dfe7f2;
+  --studio-line-strong: #b8c9e2;
+  --studio-text: #0b1733;
+  --studio-muted: #647493;
+  min-height: 100%;
+  padding: clamp(20px, 2.2vw, 34px);
+  color: var(--studio-text);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(7, 92, 255, 0.09), transparent 29rem),
+    radial-gradient(circle at 96% 5%, rgba(57, 189, 248, 0.08), transparent 24rem),
+    linear-gradient(180deg, #fbfcff 0%, #f4f7fc 100%);
+}
+
+.sectionKicker,
+.newWorkHeading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #075cff;
+  font-size: 0.67rem;
+  font-weight: 820;
+  letter-spacing: 0.13em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.studioGrid {
+  width: 100%;
+  max-width: 1880px;
+  min-height: 0;
+  grid-template-columns: minmax(310px, 350px) minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+  margin: 0 auto;
+}
+
+.uploadRail {
+  position: sticky;
+  top: 20px;
+  align-self: start;
+  padding: 18px;
+  border: 1px solid #dce5f1;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 44px rgba(35, 61, 103, 0.1);
+}
+
+.newWorkHeading {
+  margin-bottom: 16px;
+  padding: 3px 3px 0;
+}
+
+.newWorkHeading h3 {
+  margin: 6px 0 0;
+  color: #0a1530;
+  font-size: 1.08rem;
+  font-weight: 790;
+  letter-spacing: -0.025em;
+}
+
+.newWorkHeading p {
+  margin: 5px 0 0;
+  color: #6d7c98;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.portfolioSelectButton {
+  min-height: 104px;
+  justify-content: flex-start;
+  border: 1px solid rgba(68, 142, 255, 0.86);
+  border-radius: 16px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(105, 190, 255, 0.5), transparent 43%),
+    linear-gradient(135deg, #0874ed 0%, #075cff 52%, #0646bb 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.2), 0 14px 28px rgba(7, 92, 255, 0.2);
+  transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease;
+}
+
+.portfolioSelectButton:hover {
+  filter: brightness(1.04);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.22), 0 18px 34px rgba(7, 92, 255, 0.27);
+  transform: translateY(-2px);
+}
+
+.portfolioSelectIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: rgba(3, 50, 137, 0.3);
+}
+
+.portfolioSelectButton b {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.portfolioSelectButton small {
+  max-width: 210px;
+  color: rgba(239, 247, 255, 0.88);
+  font-size: 0.7rem;
+}
+
+.orDivider {
+  margin: 14px 0;
+  color: #8593ab;
+}
+
+.orDivider::before,
+.orDivider::after {
+  background: #e1e7f0;
+}
+
+.dropStudio {
+  min-height: 490px;
+  border: 1px solid #c7d8ee;
+  border-radius: 18px;
+  color: #0b1733;
+  background: #f4f8fd;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.dropStudio::after {
+  inset: 11px;
+  border-color: #83b8ef;
+  border-radius: 14px;
+}
+
+.dropStudio:hover,
+.dropStudio[data-dragging='true'] {
+  border-color: #65a7ef;
+  box-shadow: 0 0 0 4px rgba(7, 92, 255, 0.08), 0 18px 40px rgba(37, 75, 130, 0.1);
+}
+
+.dropStudioPicker {
+  min-height: 294px;
+  padding: 25px 14px 20px;
+  color: #0b1733;
+}
+
+.dropStudio[data-has-selection='false'] .dropStudioPicker {
+  min-height: 468px;
+}
+
+.dropStudioArtwork {
+  height: 100%;
+}
+
+.dropStudioArtwork img {
+  object-position: center;
+}
+
+.dropStudioShade {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.92) 45%, rgba(255, 255, 255, 0.58) 60%, rgba(255, 255, 255, 0.08) 78%, transparent 100%);
+}
+
+.uploadCloud {
+  width: 54px;
+  height: 54px;
+  margin-top: 0;
+  border-radius: 16px;
+  color: #075cff;
+  background: #eaf3ff;
+  box-shadow: 0 10px 24px rgba(7, 92, 255, 0.11);
+}
+
+.uploadCloud svg {
+  width: 31px;
+  height: 31px;
+}
+
+.dropTitle {
+  margin-top: 14px;
+  color: #091630;
+  font-size: 1.35rem;
+  letter-spacing: -0.04em;
+}
+
+.dropTitle strong {
+  color: #075cff;
+}
+
+.dropDescription {
+  margin-top: 12px;
+  color: #667795;
+  font-size: 0.79rem;
+}
+
+.fileSelectButton {
+  min-height: 43px;
+  margin-top: 16px;
+  border: 1px solid #b9cdf0;
+  border-radius: 11px;
+  color: #0d3d91;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(40, 76, 129, 0.1);
+}
+
+.dropRules {
+  color: #7585a1;
+}
+
+.selectionTray {
+  border-color: #d5e1f0;
+  border-radius: 14px;
+  color: #0b1733;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 -12px 30px rgba(33, 65, 110, 0.12);
+}
+
+.selectionTrayHeader > span {
+  color: #075cff;
+  background: #edf4ff;
+}
+
+.selectionTrayHeader small,
+.specialInstruction summary {
+  color: #72819c;
+}
+
+.selectionTrayHeader button:hover {
+  color: #075cff;
+  background: #edf4ff;
+}
+
+.specialInstruction {
+  border-top-color: #e2e9f3;
+}
+
+.specialInstruction textarea,
+.cardTitleRow form input {
+  border-color: #bfd0e8;
+  color: #101a34;
+  background: #f7f9fd;
+}
+
+.processButton {
+  min-height: 46px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #0874ed, #075cff);
+  box-shadow: 0 10px 22px rgba(7, 92, 255, 0.2);
+}
+
+.historyWorkspace {
+  min-width: 0;
+  padding: 3px 0 44px;
+}
+
+.workspaceTopline {
+  min-height: 60px;
+  align-items: center;
+}
+
+.workspaceTopline h3 {
+  margin: 4px 0 0;
+  color: #07132f;
+  font-size: clamp(1.32rem, 1.8vw, 1.72rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.workspaceTopline p {
+  margin-top: 6px;
+  color: #6b7a97;
+  font-size: 0.73rem;
+}
+
+.refreshButton {
+  min-height: 42px;
+  border-color: #d7e1ef;
+  border-radius: 11px;
+  color: #38527d;
+  background: #fff;
+  box-shadow: 0 7px 18px rgba(43, 73, 118, 0.07);
+  transition: border-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.refreshButton:hover {
+  border-color: #9dbdf1;
+  color: #075cff;
+  transform: translateY(-1px);
+}
+
+.historyToolbar {
+  min-height: 62px;
+  margin-top: 14px;
+  padding: 9px;
+  border: 1px solid #dfe7f2;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 28px rgba(40, 67, 107, 0.07);
+}
+
+.sourceTabs {
+  min-height: 42px;
+  border-color: #e0e7f1;
+  border-radius: 11px;
+  background: #f5f7fb;
+}
+
+.sourceTabs button {
+  min-width: 100px;
+  border-right-color: #e2e8f2;
+  color: #657491;
+  font-size: 0.71rem;
+  font-weight: 680;
+  transition: color 170ms ease, background 170ms ease, box-shadow 170ms ease;
+}
+
+.sourceTabs button[aria-selected='true'] {
+  color: #075cff;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(38, 77, 135, 0.11), inset 0 -2px 0 #075cff;
+}
+
+.historySearch,
+.filterButton,
+.viewSwitch {
+  border-color: #dce5f1;
+  border-radius: 11px;
+  background: #f8fafd;
+}
+
+.historySearch {
+  width: min(250px, 20vw);
+}
+
+.historySearch svg {
+  color: #7283a0;
+}
+
+.historySearch input {
+  color: #14203a;
+  font-size: 0.72rem;
+}
+
+.historySearch input::placeholder {
+  color: #8794aa;
+}
+
+.filterButton {
+  color: #64738f;
+  font-weight: 680;
+}
+
+.filterButton[aria-pressed='true'] {
+  border-color: #a8c4f4;
+  color: #075cff;
+  background: #edf4ff;
+}
+
+.viewSwitch button {
+  min-height: 40px;
+  color: #71809a;
+  background: transparent;
+}
+
+.viewSwitch button[aria-pressed='true'] {
+  color: #075cff;
+  background: #e7f1ff;
+}
+
+.historyCards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.historyCards[data-view='list'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workCard {
+  border-color: #dce5f1;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(37, 62, 101, 0.09);
+  transition: transform 210ms ease, border-color 210ms ease, box-shadow 210ms ease;
+}
+
+.workCard:hover {
+  border-color: #9fc0ef;
+  box-shadow: 0 22px 44px rgba(35, 66, 112, 0.15);
+  transform: translateY(-4px);
+}
+
+.cardMedia {
+  height: auto;
+  min-height: 200px;
+  aspect-ratio: 16 / 10;
+  background: #dfe7f2;
+}
+
+.cardMenu {
+  width: 34px;
+  height: 36px;
+  border-color: rgba(255, 255, 255, 0.22);
+  border-radius: 9px;
+  background: rgba(3, 19, 38, 0.82);
+  backdrop-filter: blur(12px);
+}
+
+.batchPhotoCount {
+  min-height: 31px;
+  border-color: rgba(255, 255, 255, 0.2);
+  border-radius: 9px;
+  background: rgba(3, 19, 38, 0.82);
+}
+
+.processingBadge {
+  border-radius: 8px;
+}
+
+.cardBody {
+  padding: 15px 15px 14px;
+}
+
+.cardTitleRow h4 {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: #0b1733;
+  font-size: 0.86rem;
+  font-weight: 760;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardTitleRow > button {
+  color: #7285a2;
+}
+
+.cardTitleRow > button:hover {
+  color: #075cff;
+  background: #edf4ff;
+}
+
+.cardTitleRow form button {
+  border-color: #cbd8ea;
+  color: #0752d3;
+  background: #eef5ff;
+}
+
+.cardMeta {
+  margin-top: 9px;
+  color: #7b89a1;
+  font-size: 0.63rem;
+}
+
+.cardMeta span[data-ready='true'] {
+  color: #169653;
+}
+
+.cardActions {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cardActions > button,
+.cardActions > a,
+.attachedState {
+  min-height: 39px;
+  border-color: #d9e3ef;
+  border-radius: 10px;
+  color: #385177;
+  background: #f7f9fc;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.cardActions > button:first-child:not(.cardOpenButton) {
+  color: #174a9b;
+  background: #f0f5fd;
+}
+
+.cardActions > button.cardOpenButton,
+.cardActions > a {
+  color: #fff;
+  background: #0a2548;
+}
+
+.cardActions > button:hover,
+.cardActions > a:hover {
+  border-color: #9bbcf0;
+  color: #075cff;
+  background: #eaf3ff;
+}
+
+.cardActions > button.cardOpenButton:hover,
+.cardActions > a:hover {
+  color: #fff;
+  background: #075cff;
+}
+
+.attachedState {
+  border-color: #c7ead5;
+  color: #168748;
+  background: #effaf4;
+}
+
+.historyEmpty {
+  min-height: 420px;
+  border-color: #cbd9eb;
+  border-radius: 18px;
+  color: #71809a;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.historyEmpty > span {
+  color: #075cff;
+  background: #eaf3ff;
+}
+
+.historyEmpty h4 {
+  margin: 14px 0 0;
+  color: #101b35;
+  font-size: 1rem;
+}
+
+.historyEmpty button {
+  border-color: #a9c5f3;
+  border-radius: 10px;
+  color: #0752d3;
+  background: #eef5ff;
+}
+
+.resultWorkspace {
+  max-width: 1880px;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0 0 48px;
+}
+
+.resultTopbar {
+  padding: 13px 14px;
+  border: 1px solid #dce5f1;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(40, 67, 107, 0.07);
+}
+
+.resultTopbar > button,
+.resultTopbar > div button {
+  border-color: #d6e1ef;
+  border-radius: 10px;
+  color: #244570;
+  background: #f7f9fc;
+}
+
+@media (max-width: 1540px) {
+  .historyCards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .studioGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .uploadRail {
+    position: static;
+  }
+
+  .dropStudio,
+  .dropStudio[data-has-selection='false'] .dropStudioPicker {
+    min-height: 430px;
+  }
+
+}
+
+@media (max-width: 760px) {
+  .studioWorkspace {
+    padding: 16px;
+  }
+
+  .uploadRail {
+    padding: 15px;
+    border-radius: 18px;
+  }
+
+  .historyWorkspace {
+    padding: 4px 0 32px;
+  }
+
+  .historyToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sourceTabs,
+  .toolbarActions {
+    width: 100%;
+  }
+
+  .sourceTabs button {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .historySearch {
+    width: 100%;
+    flex: 1;
+  }
+
+  .historyCards,
+  .historyCards[data-view='list'] {
+    grid-template-columns: 1fr;
+  }
+
+  .historyCards[data-view='list'] .workCard {
+    display: block;
+  }
+
+  .historyCards[data-view='list'] .cardMedia {
+    height: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .studioWorkspace {
+    padding: 12px;
+  }
+
+  .portfolioSelectButton {
+    min-height: 98px;
+  }
+
+  .dropStudio,
+  .dropStudio[data-has-selection='false'] .dropStudioPicker {
+    min-height: 420px;
+  }
+
+  .workspaceTopline {
+    align-items: flex-start;
+  }
+
+  .workspaceTopline p {
+    display: none;
+  }
+
+  .toolbarActions {
+    flex-wrap: wrap;
+  }
+
+  .historySearch {
+    min-width: calc(100% - 52px);
+  }
+
+  .cardMedia {
+    min-height: 210px;
+  }
+}

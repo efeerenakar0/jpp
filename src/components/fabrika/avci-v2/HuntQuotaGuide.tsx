@@ -1,4 +1,13 @@
-import { CheckCircle2 } from 'lucide-react';
+import {
+  BedDouble,
+  BriefcaseBusiness,
+  Building,
+  Building2,
+  CheckCircle2,
+  Home,
+  KeyRound,
+  Map as MapIcon,
+} from 'lucide-react';
 import {
   HUNT_PROPERTY_TYPE_OPTIONS,
   type HuntPropertyType,
@@ -38,6 +47,16 @@ const PROPERTY_TYPE_ALIASES: Record<string, HuntPropertyType> = {
   TOURISM: 'TURISTIK_TESIS',
   TOURISTIC_FACILITY: 'TURISTIK_TESIS',
 };
+
+const PROPERTY_TYPE_ICONS = {
+  KONUT: Home,
+  ISYERI: BriefcaseBusiness,
+  ARSA: MapIcon,
+  KONUT_PROJELERI: Building2,
+  BINA: Building,
+  DEVREN_MULK: KeyRound,
+  TURISTIK_TESIS: BedDouble,
+} satisfies Record<HuntPropertyType, typeof Home>;
 
 export type HuntQuotaView = {
   propertyType: HuntPropertyType;
@@ -279,16 +298,20 @@ export function HuntCategoryPicker({
   selected,
 }: HuntCategoryPickerProps) {
   return (
-    <fieldset className="space-y-3">
+    <fieldset className="space-y-3" data-avci-step="2">
       <legend className="text-sm font-semibold text-slate-100">
         2. Ne tür gayrimenkul arıyorsunuz?
       </legend>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div
+        className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        data-avci-category-grid
+      >
         {HUNT_PROPERTY_TYPE_OPTIONS.map((option) => {
           const isSelected = selected === option.value;
           const isOwnerSourceUnavailable =
             option.value === 'KONUT_PROJELERI';
+          const PropertyIcon = PROPERTY_TYPE_ICONS[option.value];
           return (
             <label
               className={`relative flex min-h-20 cursor-pointer flex-col justify-center rounded-xl border p-3.5 transition-colors focus-within:ring-2 focus-within:ring-emerald-300/70 ${
@@ -300,6 +323,9 @@ export function HuntCategoryPicker({
                   ? 'cursor-not-allowed opacity-55'
                   : ''
               }`}
+              data-avci-category
+              data-disabled={isOwnerSourceUnavailable || undefined}
+              data-selected={isSelected || undefined}
               key={option.value}
             >
               <input
@@ -312,7 +338,10 @@ export function HuntCategoryPicker({
                 value={option.value}
               />
               <span className="flex items-start justify-between gap-3">
-                <span className="font-semibold text-white">{option.label}</span>
+                <span className="flex items-center gap-2.5 font-semibold text-white">
+                  <PropertyIcon aria-hidden="true" data-avci-category-icon />
+                  {option.label}
+                </span>
                 {isSelected ? (
                   <CheckCircle2
                     aria-hidden="true"

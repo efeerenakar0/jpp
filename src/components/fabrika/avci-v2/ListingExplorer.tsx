@@ -294,7 +294,10 @@ export default function ListingExplorer({
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+    <section
+      className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5"
+      data-avci-listing-explorer
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-base font-semibold text-white">

@@ -1419,6 +1419,11 @@ export default function StudioPage() {
       {screen === 'upload' ? (
         <main className={styles.studioGrid}>
           <aside className={styles.uploadRail} aria-label="Yeni fotoğraf çalışması">
+            <div className={styles.newWorkHeading}>
+              <span>Yeni çalışma</span>
+              <h3>Fotoğrafları nereden alalım?</h3>
+              <p>Portföyünüzden seçin veya cihazınızdan yükleyin.</p>
+            </div>
             <button
               className={styles.portfolioSelectButton}
               onClick={() => {
@@ -1455,7 +1460,7 @@ export default function StudioPage() {
                   fill
                   priority
                   sizes="(max-width: 920px) 100vw, 360px"
-                  src="/studio/upload-villa-blue-hour.png"
+                  src="/studio/upload-villa-white-studio.png"
                 />
               </span>
               <span className={styles.dropStudioShade} aria-hidden="true" />
@@ -1555,7 +1560,8 @@ export default function StudioPage() {
           <section className={styles.historyWorkspace} aria-labelledby="studio-history-title">
             <div className={styles.workspaceTopline}>
               <div>
-                <h1 id="studio-history-title">Geçmiş Çalışmalarım</h1>
+                <span className={styles.sectionKicker}>Çalışma arşivi</span>
+                <h3 id="studio-history-title">Geçmiş Çalışmalarım</h3>
                 <p>İyileştirdiğiniz fotoğrafları açın, yeniden adlandırın veya portföye bağlayın.</p>
               </div>
               <button
@@ -1680,7 +1686,7 @@ export default function StudioPage() {
                             </form>
                           ) : (
                             <>
-                              <h2>{entry.batchTitle}</h2>
+                              <h4>{entry.batchTitle}</h4>
                               <button
                                 aria-label={`${entry.batchTitle} adını değiştir`}
                                 onClick={() => {
@@ -1736,7 +1742,7 @@ export default function StudioPage() {
             ) : (
               <div className={styles.historyEmpty}>
                 <span><FileImage aria-hidden="true" /></span>
-                <h2>{historyEntries.length ? 'Bu filtrede çalışma yok' : 'Henüz çalışma yok'}</h2>
+                <h4>{historyEntries.length ? 'Bu filtrede çalışma yok' : 'Henüz çalışma yok'}</h4>
                 <p>
                   {historyEntries.length
                     ? 'Aramayı veya filtreyi temizleyerek diğer çalışmalarınızı görebilirsiniz.'

@@ -3,11 +3,17 @@ import { Settings2 } from 'lucide-react';
 import OnboardingWizard from '@/components/fabrika/OnboardingWizard';
 import { requireFabrikaOwner } from '@/lib/fabrika-session';
 
+import styles from './page.module.css';
+
 export default async function CompanySettingsPage() {
   const principal = await requireFabrikaOwner();
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6">
+    <main
+      id="company-settings-page"
+      data-company-settings-page="true"
+      className={`${styles.page} mx-auto w-full max-w-6xl space-y-6`}
+    >
       <header className="border-b border-slate-800 pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-400">
           Şirket yönetimi

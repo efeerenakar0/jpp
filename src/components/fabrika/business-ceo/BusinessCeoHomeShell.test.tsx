@@ -44,6 +44,8 @@ describe('BusinessCeoHomeShell persistent workspace navigation', () => {
     expect(html).toContain('CRM · Müşteri Takibi');
     expect(html).toContain('Belge ve Sözleşme Asistanı');
     expect(html).toContain('Hesap makinesi ve kur çeviriciyi aç');
+    expect(html).toContain('business-ceo-ai-light-header.png');
+    expect(html).toContain('Sistem çevrimiçi');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('data-dashboard-workspace="true"');
     expect(html).toContain('CRM içeriği');

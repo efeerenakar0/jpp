@@ -31,7 +31,7 @@ Sadece JSON formatında cevap ver, kod blogu falan ekleme.`;
     let seoData;
     try {
         seoData = JSON.parse(aiResponse);
-    } catch(e) {
+    } catch {
         console.error("AI JSON Parse Hatası:", aiResponse);
         seoData = {
             title: data.title || "Yeni Emlak İlanı",
@@ -58,8 +58,11 @@ Sadece JSON formatında cevap ver, kod blogu falan ekleme.`;
     });
 
     return NextResponse.json({ success: true, project: newProject });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Portfolio Add Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Portföy eklenemedi.' },
+      { status: 500 },
+    );
   }
 }
