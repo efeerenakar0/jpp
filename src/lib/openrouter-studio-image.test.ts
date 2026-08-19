@@ -406,7 +406,9 @@ describe('OpenRouter Studio image adapter', () => {
       sharp(mutedScene).greyscale().stats(),
       sharp(result.buffer).greyscale().stats(),
     ]);
-    const channelSpread = (stats: Awaited<ReturnType<sharp.Sharp['stats']>>) =>
+    const channelSpread = (
+      stats: Awaited<ReturnType<ReturnType<typeof sharp>['stats']>>
+    ) =>
       Math.max(...stats.channels.slice(0, 3).map((channel) => channel.mean)) -
       Math.min(...stats.channels.slice(0, 3).map((channel) => channel.mean));
 

@@ -389,7 +389,7 @@ export async function composeAccuratePosterTextLayer(input: {
         .catch(() => null)
     : null;
   const { padding } = layout;
-  const composites: sharp.OverlayOptions[] = [
+  const composites: Parameters<ReturnType<typeof sharp>['composite']>[0] = [
     {
       input: posterShapeSvg({
         format: input.format,

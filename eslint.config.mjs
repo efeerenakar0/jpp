@@ -6,7 +6,7 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    files: ["**/*.cjs", "scripts/tunnel-watchdog.js", "whatsapp/server.js"],
+    files: ["**/*.cjs", "scripts/tunnel-watchdog.js"],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
     },
